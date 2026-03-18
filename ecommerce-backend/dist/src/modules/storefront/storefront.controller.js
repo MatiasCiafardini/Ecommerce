@@ -18,6 +18,7 @@ const storefront_service_1 = require("./storefront.service");
 const swagger_1 = require("@nestjs/swagger");
 const create_order_dto_1 = require("../orders/dto/create-order.dto");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const get_store_products_dto_1 = require("./dto/get-store-products.dto");
 let StorefrontController = class StorefrontController {
     storefrontService;
     constructor(storefrontService) {
@@ -26,17 +27,23 @@ let StorefrontController = class StorefrontController {
     getConfig(req) {
         return this.storefrontService.getStoreConfig(req.headers.host);
     }
-    getProducts(req) {
-        return this.storefrontService.getProducts(req.storeId);
+    getProducts(req, query) {
+        return this.storefrontService.getProducts(req.storeId, query);
+    }
+    getStoreProductOptions(req) {
+        return this.storefrontService.getStoreProductOptions(req.storeId);
     }
     getProduct(slug, req) {
         return this.storefrontService.getProduct(slug, req.storeId);
     }
+    getProductOptions(slug, req) {
+        return this.storefrontService.getProductOptions(slug, req.storeId);
+    }
     getCategories(req) {
         return this.storefrontService.getCategories(req.storeId);
     }
-    getProductsByCategory(slug, req) {
-        return this.storefrontService.getProductsByCategory(slug, req.storeId);
+    getProductsByCategory(slug, req, query) {
+        return this.storefrontService.getProductsByCategory(slug, req.storeId, query);
     }
     createOrder(dto, req) {
         return this.storefrontService.createOrder({ ...dto, customerId: req.user.sub }, req.storeId);
@@ -53,10 +60,18 @@ __decorate([
 __decorate([
     (0, common_1.Get)('products'),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, get_store_products_dto_1.GetStoreProductsDto]),
+    __metadata("design:returntype", void 0)
+], StorefrontController.prototype, "getProducts", null);
+__decorate([
+    (0, common_1.Get)('options'),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
-], StorefrontController.prototype, "getProducts", null);
+], StorefrontController.prototype, "getStoreProductOptions", null);
 __decorate([
     (0, common_1.Get)('products/:slug'),
     __param(0, (0, common_1.Param)('slug')),
@@ -65,6 +80,14 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], StorefrontController.prototype, "getProduct", null);
+__decorate([
+    (0, common_1.Get)('products/:slug/options'),
+    __param(0, (0, common_1.Param)('slug')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], StorefrontController.prototype, "getProductOptions", null);
 __decorate([
     (0, common_1.Get)('categories'),
     __param(0, (0, common_1.Req)()),
@@ -76,8 +99,9 @@ __decorate([
     (0, common_1.Get)('categories/:slug/products'),
     __param(0, (0, common_1.Param)('slug')),
     __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, get_store_products_dto_1.GetStoreProductsDto]),
     __metadata("design:returntype", void 0)
 ], StorefrontController.prototype, "getProductsByCategory", null);
 __decorate([

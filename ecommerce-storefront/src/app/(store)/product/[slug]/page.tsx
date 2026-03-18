@@ -1,4 +1,5 @@
 import { getProductBySlug } from "@/services/products.service";
+import { getProductOptions } from "@/services/product-options.service";
 import ProductView from "@/components/product/ProductView";
 
 type Props = {
@@ -10,7 +11,10 @@ type Props = {
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
 
-  const product = await getProductBySlug(slug);
+  const [product, productOptions] = await Promise.all([
+    getProductBySlug(slug),
+    getProductOptions(slug),
+  ]);
 
   if (!product) {
     return (
@@ -29,5 +33,5 @@ export default async function ProductPage({ params }: Props) {
     );
   }
 
-  return <ProductView product={product} />;
+  return <ProductView product={product} productOptions={productOptions} />;
 }

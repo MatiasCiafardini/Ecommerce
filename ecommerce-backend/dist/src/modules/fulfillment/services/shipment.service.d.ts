@@ -12,12 +12,12 @@ export declare class ShipmentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        method: string;
         provider: string;
-        shippingAddress: string;
-        postalCode: string;
+        method: string;
         trackingNumber: string | null;
         trackingUrl: string | null;
+        shippingAddress: string;
+        postalCode: string;
     }>;
     findAll(storeId: number): Promise<({
         trackingEvents: {
@@ -36,12 +36,12 @@ export declare class ShipmentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        method: string;
         provider: string;
-        shippingAddress: string;
-        postalCode: string;
+        method: string;
         trackingNumber: string | null;
         trackingUrl: string | null;
+        shippingAddress: string;
+        postalCode: string;
     })[]>;
     findOne(storeId: number, shipmentId: string): Promise<{
         trackingEvents: {
@@ -60,12 +60,12 @@ export declare class ShipmentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        method: string;
         provider: string;
-        shippingAddress: string;
-        postalCode: string;
+        method: string;
         trackingNumber: string | null;
         trackingUrl: string | null;
+        shippingAddress: string;
+        postalCode: string;
     }>;
     updateStatus(shipmentId: string, status: ShipmentStatus): Promise<{
         id: string;
@@ -75,11 +75,11 @@ export declare class ShipmentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        method: string;
         provider: string;
-        shippingAddress: string;
-        postalCode: string;
+        method: string;
         trackingNumber: string | null;
         trackingUrl: string | null;
+        shippingAddress: string;
+        postalCode: string;
     }>;
 }

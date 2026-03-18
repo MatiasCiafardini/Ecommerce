@@ -33,28 +33,32 @@ let StorefrontService = class StorefrontService {
             theme: 'minimal',
         };
     }
-    getProducts(storeId) {
+    async getProducts(storeId, query) {
+        const where = await this.buildProductsWhere(storeId, query);
         return this.prisma.product.findMany({
+            where,
+            include: this.productInclude(storeId),
+        });
+    }
+    getStoreProductOptions(storeId) {
+        return this.prisma.productOption.findMany({
             where: {
                 storeId,
-                published: true,
             },
             include: {
-                images: true,
-                variants: {
-                    include: {
-                        inventories: {
-                            where: {
-                                storeId,
-                            },
-                        },
+                values: {
+                    select: {
+                        id: true,
+                        productId: true,
+                        value: true,
+                    },
+                    orderBy: {
+                        value: 'asc',
                     },
                 },
-                categories: {
-                    include: {
-                        category: true,
-                    },
-                },
+            },
+            orderBy: {
+                name: 'asc',
             },
         });
     }
@@ -84,51 +88,151 @@ let StorefrontService = class StorefrontService {
             },
         });
     }
+    async getProductOptions(slug, storeId) {
+        const product = await this.prisma.product.findFirst({
+            where: {
+                slug,
+                storeId,
+                published: true,
+            },
+            select: {
+                id: true,
+            },
+        });
+        if (!product) {
+            return null;
+        }
+        return this.prisma.productOption.findMany({
+            where: {
+                storeId,
+                values: {
+                    some: {
+                        productId: product.id,
+                    },
+                },
+            },
+            include: {
+                values: {
+                    where: {
+                        productId: product.id,
+                    },
+                    select: {
+                        id: true,
+                        value: true,
+                        productId: true,
+                    },
+                    orderBy: {
+                        value: 'asc',
+                    },
+                },
+            },
+            orderBy: {
+                name: 'asc',
+            },
+        });
+    }
     getCategories(storeId) {
         return this.prisma.category.findMany({
             where: { storeId },
         });
     }
-    async getProductsByCategory(slug, storeId) {
-        const category = await this.prisma.category.findFirst({
-            where: {
-                slug,
-                storeId,
-            },
-            include: {
-                products: {
-                    include: {
-                        product: {
-                            include: {
-                                images: true,
-                                variants: {
-                                    include: {
-                                        inventories: {
-                                            where: {
-                                                storeId,
-                                            },
-                                        },
-                                    },
-                                },
-                                categories: {
-                                    include: {
-                                        category: true,
-                                    },
-                                },
-                            },
+    async getProductsByCategory(slug, storeId, query) {
+        const where = await this.buildProductsWhere(storeId, query, slug);
+        return this.prisma.product.findMany({
+            where,
+            include: this.productInclude(storeId),
+        });
+    }
+    createOrder(dto, storeId) {
+        return this.ordersService.create(dto, storeId);
+    }
+    productInclude(storeId) {
+        return {
+            images: true,
+            variants: {
+                include: {
+                    inventories: {
+                        where: {
+                            storeId,
                         },
                     },
                 },
             },
-        });
-        if (!category)
-            return [];
-        return category.products
-            .map((p) => p.product)
-            .filter((product) => product.published);
+            categories: {
+                include: {
+                    category: true,
+                },
+            },
+        };
     }
-    createOrder(dto, storeId) {
-        return this.ordersService.create(dto, storeId);
+    async buildProductsWhere(storeId, query, categorySlug) {
+        const where = {
+            storeId,
+            published: true,
+        };
+        if (categorySlug) {
+            where.categories = {
+                some: {
+                    category: {
+                        slug: categorySlug,
+                        storeId,
+                    },
+                },
+            };
+        }
+        const optionValueIds = this.parseOptionValueIds(query?.optionValueIds);
+        if (optionValueIds.length === 0) {
+            return where;
+        }
+        const optionValues = await this.prisma.productOptionValue.findMany({
+            where: {
+                id: { in: optionValueIds },
+                productOption: {
+                    storeId,
+                },
+            },
+            select: {
+                id: true,
+                productOptionId: true,
+            },
+        });
+        if (optionValues.length !== optionValueIds.length) {
+            throw new common_1.BadRequestException('Invalid option value filters');
+        }
+        const optionGroups = new Map();
+        for (const value of optionValues) {
+            const current = optionGroups.get(value.productOptionId) ?? [];
+            current.push(value.id);
+            optionGroups.set(value.productOptionId, current);
+        }
+        const existingAnd = Array.isArray(where.AND)
+            ? where.AND
+            : where.AND
+                ? [where.AND]
+                : [];
+        where.AND = [
+            ...existingAnd,
+            ...[...optionGroups.entries()].map(([productOptionId, ids]) => ({
+                optionValues: {
+                    some: {
+                        productOptionId,
+                        id: {
+                            in: ids,
+                        },
+                    },
+                },
+            })),
+        ];
+        return where;
+    }
+    parseOptionValueIds(optionValueIds) {
+        if (!optionValueIds) {
+            return [];
+        }
+        return [...new Set(optionValueIds
+                .split(',')
+                .map((value) => Number(value.trim()))
+                .filter((value) => Number.isInteger(value) && value > 0))];
     }
 };
 exports.StorefrontService = StorefrontService;

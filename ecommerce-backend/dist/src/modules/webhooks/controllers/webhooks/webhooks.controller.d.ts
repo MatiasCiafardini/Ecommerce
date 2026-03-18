@@ -8,8 +8,8 @@ export declare class WebhooksController {
         id: string;
         createdAt: Date;
         storeId: number;
-        updatedAt: Date;
         url: string;
+        updatedAt: Date;
         events: string[];
         isActive: boolean;
         secret: string;
@@ -18,8 +18,8 @@ export declare class WebhooksController {
         id: string;
         createdAt: Date;
         storeId: number;
-        updatedAt: Date;
         url: string;
+        updatedAt: Date;
         events: string[];
         isActive: boolean;
         secret: string;
@@ -29,9 +29,9 @@ export declare class WebhooksController {
             id: string;
             createdAt: Date;
             delivered: boolean;
+            webhookId: string;
             event: string;
             payload: import("@prisma/client/runtime/library").JsonValue;
-            webhookId: string;
             responseStatus: number | null;
             responseBody: string | null;
             attempt: number;
@@ -40,8 +40,8 @@ export declare class WebhooksController {
         id: string;
         createdAt: Date;
         storeId: number;
-        updatedAt: Date;
         url: string;
+        updatedAt: Date;
         events: string[];
         isActive: boolean;
         secret: string;
@@ -50,8 +50,8 @@ export declare class WebhooksController {
         id: string;
         createdAt: Date;
         storeId: number;
-        updatedAt: Date;
         url: string;
+        updatedAt: Date;
         events: string[];
         isActive: boolean;
         secret: string;
@@ -60,8 +60,8 @@ export declare class WebhooksController {
         id: string;
         createdAt: Date;
         storeId: number;
-        updatedAt: Date;
         url: string;
+        updatedAt: Date;
         events: string[];
         isActive: boolean;
         secret: string;

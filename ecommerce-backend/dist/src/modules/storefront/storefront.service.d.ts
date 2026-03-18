@@ -1,6 +1,8 @@
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateOrderDto } from '../orders/dto/create-order.dto';
+import { GetStoreProductsDto } from './dto/get-store-products.dto';
+import { Prisma } from '@prisma/client';
 export declare class StorefrontService {
     private prisma;
     private ordersService;
@@ -9,7 +11,7 @@ export declare class StorefrontService {
         storeId: number;
         theme: string;
     }>;
-    getProducts(storeId: number): import("@prisma/client").Prisma.PrismaPromise<({
+    getProducts(storeId: number, query?: GetStoreProductsDto): Promise<({
         categories: ({
             category: {
                 id: number;
@@ -38,7 +40,7 @@ export declare class StorefrontService {
             deletedAt: Date | null;
             productId: number;
             sku: string;
-            price: import("@prisma/client/runtime/library").Decimal;
+            price: Prisma.Decimal;
             Size: string | null;
             Color: string | null;
             weight: number | null;
@@ -61,7 +63,19 @@ export declare class StorefrontService {
         slug: string;
         deletedAt: Date | null;
     })[]>;
-    getProduct(slug: string, storeId: number): import("@prisma/client").Prisma.Prisma__ProductClient<({
+    getStoreProductOptions(storeId: number): Prisma.PrismaPromise<({
+        values: {
+            id: number;
+            value: string;
+            productId: number;
+        }[];
+    } & {
+        id: number;
+        name: string;
+        createdAt: Date;
+        storeId: number;
+    })[]>;
+    getProduct(slug: string, storeId: number): Prisma.Prisma__ProductClient<({
         categories: ({
             category: {
                 id: number;
@@ -90,7 +104,7 @@ export declare class StorefrontService {
             deletedAt: Date | null;
             productId: number;
             sku: string;
-            price: import("@prisma/client/runtime/library").Decimal;
+            price: Prisma.Decimal;
             Size: string | null;
             Color: string | null;
             weight: number | null;
@@ -112,8 +126,20 @@ export declare class StorefrontService {
         published: boolean;
         slug: string;
         deletedAt: Date | null;
-    }) | null, null, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    getCategories(storeId: number): import("@prisma/client").Prisma.PrismaPromise<{
+    }) | null, null, import("@prisma/client/runtime/library").DefaultArgs, Prisma.PrismaClientOptions>;
+    getProductOptions(slug: string, storeId: number): Promise<({
+        values: {
+            id: number;
+            value: string;
+            productId: number;
+        }[];
+    } & {
+        id: number;
+        name: string;
+        createdAt: Date;
+        storeId: number;
+    })[] | null>;
+    getCategories(storeId: number): Prisma.PrismaPromise<{
         id: number;
         name: string;
         createdAt: Date;
@@ -121,7 +147,7 @@ export declare class StorefrontService {
         slug: string;
         deletedAt: Date | null;
     }[]>;
-    getProductsByCategory(slug: string, storeId: number): Promise<({
+    getProductsByCategory(slug: string, storeId: number, query?: GetStoreProductsDto): Promise<({
         categories: ({
             category: {
                 id: number;
@@ -150,7 +176,7 @@ export declare class StorefrontService {
             deletedAt: Date | null;
             productId: number;
             sku: string;
-            price: import("@prisma/client/runtime/library").Decimal;
+            price: Prisma.Decimal;
             Size: string | null;
             Color: string | null;
             weight: number | null;
@@ -176,7 +202,7 @@ export declare class StorefrontService {
     createOrder(dto: CreateOrderDto, storeId: number): Promise<{
         items: {
             id: number;
-            price: import("@prisma/client/runtime/library").Decimal;
+            price: Prisma.Decimal;
             variantId: number;
             quantity: number;
             returnedQuantity: number;
@@ -188,15 +214,18 @@ export declare class StorefrontService {
         storeId: number;
         deletedAt: Date | null;
         customerId: number;
-        subtotal: import("@prisma/client/runtime/library").Decimal;
-        discountAmount: import("@prisma/client/runtime/library").Decimal;
-        total: import("@prisma/client/runtime/library").Decimal;
+        subtotal: Prisma.Decimal;
+        discountAmount: Prisma.Decimal;
+        total: Prisma.Decimal;
         discountCode: string | null;
         status: import("@prisma/client").$Enums.OrderStatus;
         shippingProvider: string | null;
         shippingMethod: string | null;
-        shippingCost: import("@prisma/client/runtime/library").Decimal | null;
+        shippingCost: Prisma.Decimal | null;
         idempotencyKey: string | null;
         discountId: number | null;
     }>;
+    private productInclude;
+    private buildProductsWhere;
+    private parseOptionValueIds;
 }

@@ -1,8 +1,18 @@
-import { Controller, Get, Post, Body, Req, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { StorefrontService } from './storefront.service';
 import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import { CreateOrderDto } from '../orders/dto/create-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GetStoreProductsDto } from './dto/get-store-products.dto';
 
 @ApiSecurity('x-store-id')
 @ApiTags('Storefront')
@@ -16,13 +26,23 @@ export class StorefrontController {
   }
 
   @Get('products')
-  getProducts(@Req() req) {
-    return this.storefrontService.getProducts(req.storeId);
+  getProducts(@Req() req, @Query() query: GetStoreProductsDto) {
+    return this.storefrontService.getProducts(req.storeId, query);
+  }
+
+  @Get('options')
+  getStoreProductOptions(@Req() req) {
+    return this.storefrontService.getStoreProductOptions(req.storeId);
   }
 
   @Get('products/:slug')
   getProduct(@Param('slug') slug: string, @Req() req) {
     return this.storefrontService.getProduct(slug, req.storeId);
+  }
+
+  @Get('products/:slug/options')
+  getProductOptions(@Param('slug') slug: string, @Req() req) {
+    return this.storefrontService.getProductOptions(slug, req.storeId);
   }
 
   @Get('categories')
@@ -31,8 +51,12 @@ export class StorefrontController {
   }
 
   @Get('categories/:slug/products')
-  getProductsByCategory(@Param('slug') slug: string, @Req() req) {
-    return this.storefrontService.getProductsByCategory(slug, req.storeId);
+  getProductsByCategory(
+    @Param('slug') slug: string,
+    @Req() req,
+    @Query() query: GetStoreProductsDto,
+  ) {
+    return this.storefrontService.getProductsByCategory(slug, req.storeId, query);
   }
 
   @UseGuards(JwtAuthGuard)

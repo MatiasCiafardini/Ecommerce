@@ -3,8 +3,19 @@
 import { useMemo, useState } from "react";
 import ProductCard from "@/components/product/ProductCard";
 
+type StoreOption = {
+  id: number;
+  name: string;
+  values: Array<{
+    id: number;
+    productId: number;
+    value: string;
+  }>;
+};
+
 type CatalogViewProps = {
   products: any[];
+  storeOptions: StoreOption[];
 };
 
 const getPrice = (product: any) => {
@@ -32,44 +43,48 @@ const hasStock = (product: any) =>
   (product.variants ?? []).some((variant: any) => getAvailableStock(variant) > 0);
 
 const getProductCategories = (product: any) =>
-  (product.categories ?? [])
-    .map((entry: any) => entry.category)
-    .filter(Boolean);
+  (product.categories ?? []).map((entry: any) => entry.category).filter(Boolean);
 
-const inferSeason = (product: any) => {
-  const text = [
-    product.title,
-    product.description,
-    ...getProductCategories(product).map((category: any) => category.name),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+const normalizeOptionGroups = (storeOptions: StoreOption[]) =>
+  storeOptions.map((option) => {
+    const groupedValues = new Map<
+      string,
+      { label: string; productIds: number[]; valueIds: number[] }
+    >();
 
-  if (/(buzo|hood|hoodie|zip|heavy|jogger|frisa|fleece|cargo)/.test(text)) {
-    return "invierno";
-  }
+    option.values.forEach((value) => {
+      const key = value.value.trim().toLowerCase();
+      const existing = groupedValues.get(key);
 
-  if (/(remera|tee|musculosa|light|summer|short)/.test(text)) {
-    return "verano";
-  }
+      if (existing) {
+        existing.productIds.push(value.productId);
+        existing.valueIds.push(value.id);
+        return;
+      }
 
-  return "todo el año";
-};
+      groupedValues.set(key, {
+        label: value.value,
+        productIds: [value.productId],
+        valueIds: [value.id],
+      });
+    });
 
-const inferAudience = (product: any) => {
-  const text = [product.title, product.description]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    return {
+      id: option.id,
+      name: option.name,
+      values: [...groupedValues.values()].map((entry) => ({
+        ...entry,
+        productIds: [...new Set(entry.productIds)],
+        valueIds: [...new Set(entry.valueIds)],
+      })),
+    };
+  });
 
-  if (/(mujer|women|female|cropped|baby tee)/.test(text)) return "mujer";
-  if (/(hombre|men|male)/.test(text)) return "hombre";
-  return "unisex";
-};
-
-export default function CatalogView({ products }: CatalogViewProps) {
-  const priceValues = useMemo(() => products.map(getPrice).filter((price) => price > 0), [products]);
+export default function CatalogView({ products, storeOptions }: CatalogViewProps) {
+  const priceValues = useMemo(
+    () => products.map(getPrice).filter((price) => price > 0),
+    [products],
+  );
   const minCatalogPrice = priceValues.length > 0 ? Math.min(...priceValues) : 0;
   const maxCatalogPrice = priceValues.length > 0 ? Math.max(...priceValues) : 0;
 
@@ -99,20 +114,11 @@ export default function CatalogView({ products }: CatalogViewProps) {
     [products],
   );
 
-  const seasonOptions = useMemo(
-    () => [...new Set(products.map((product) => inferSeason(product)))],
-    [products],
-  );
-
-  const audienceOptions = useMemo(
-    () => [...new Set(products.map((product) => inferAudience(product)))],
-    [products],
-  );
+  const dynamicOptions = useMemo(() => normalizeOptionGroups(storeOptions), [storeOptions]);
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
-  const [selectedSeasons, setSelectedSeasons] = useState<string[]>([]);
-  const [selectedAudiences, setSelectedAudiences] = useState<string[]>([]);
+  const [selectedOptionValues, setSelectedOptionValues] = useState<Record<number, string[]>>({});
   const [priceMin, setPriceMin] = useState(String(minCatalogPrice || ""));
   const [priceMax, setPriceMax] = useState(String(maxCatalogPrice || ""));
   const [onlyStock, setOnlyStock] = useState(true);
@@ -125,32 +131,50 @@ export default function CatalogView({ products }: CatalogViewProps) {
     setter(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
   };
 
+  const toggleDynamicValue = (optionId: number, valueLabel: string) => {
+    setSelectedOptionValues((current) => {
+      const existing = current[optionId] ?? [];
+      const nextValues = existing.includes(valueLabel)
+        ? existing.filter((item) => item !== valueLabel)
+        : [...existing, valueLabel];
+
+      if (nextValues.length === 0) {
+        const clone = { ...current };
+        delete clone[optionId];
+        return clone;
+      }
+
+      return {
+        ...current,
+        [optionId]: nextValues,
+      };
+    });
+  };
+
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const price = getPrice(product);
       const productCategories = getProductCategories(product).map((category: any) => category.slug);
-      const productSizes = (product.variants ?? []).map((variant: any) => variant.Size).filter(Boolean);
-      const productSeason = inferSeason(product);
-      const productAudience = inferAudience(product);
+      const productSizes = (product.variants ?? [])
+        .map((variant: any) => variant.Size)
+        .filter(Boolean);
       const available = hasStock(product);
 
       if (onlyStock && !available) {
         return false;
       }
 
-      if (selectedCategories.length > 0 && !selectedCategories.some((category) => productCategories.includes(category))) {
+      if (
+        selectedCategories.length > 0 &&
+        !selectedCategories.some((category) => productCategories.includes(category))
+      ) {
         return false;
       }
 
-      if (selectedSizes.length > 0 && !selectedSizes.some((size) => productSizes.includes(size))) {
-        return false;
-      }
-
-      if (selectedSeasons.length > 0 && !selectedSeasons.includes(productSeason)) {
-        return false;
-      }
-
-      if (selectedAudiences.length > 0 && !selectedAudiences.includes(productAudience)) {
+      if (
+        selectedSizes.length > 0 &&
+        !selectedSizes.some((size) => productSizes.includes(size))
+      ) {
         return false;
       }
 
@@ -161,26 +185,42 @@ export default function CatalogView({ products }: CatalogViewProps) {
         return false;
       }
 
+      for (const option of dynamicOptions) {
+        const selectedValues = selectedOptionValues[option.id] ?? [];
+
+        if (selectedValues.length === 0) {
+          continue;
+        }
+
+        const matchesOption = option.values.some(
+          (value) =>
+            selectedValues.includes(value.label) && value.productIds.includes(product.id),
+        );
+
+        if (!matchesOption) {
+          return false;
+        }
+      }
+
       return true;
     });
   }, [
+    dynamicOptions,
     maxCatalogPrice,
     minCatalogPrice,
     onlyStock,
     priceMax,
     priceMin,
     products,
-    selectedAudiences,
     selectedCategories,
-    selectedSeasons,
+    selectedOptionValues,
     selectedSizes,
   ]);
 
   const clearFilters = () => {
     setSelectedCategories([]);
     setSelectedSizes([]);
-    setSelectedSeasons([]);
-    setSelectedAudiences([]);
+    setSelectedOptionValues({});
     setPriceMin(String(minCatalogPrice || ""));
     setPriceMax(String(maxCatalogPrice || ""));
     setOnlyStock(true);
@@ -213,12 +253,16 @@ export default function CatalogView({ products }: CatalogViewProps) {
           </p>
         </div>
 
-        <div className="layout-two-col" style={{ gridTemplateColumns: "minmax(260px, 0.34fr) minmax(0, 1fr)" }}>
+        <div
+          className="layout-two-col"
+          style={{ gridTemplateColumns: "minmax(260px, 0.34fr) minmax(0, 1fr)" }}
+        >
           <aside
             style={{
               borderRadius: 30,
               border: "1px solid rgba(255,255,255,0.08)",
-              background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
               padding: 24,
               display: "grid",
               gap: 22,
@@ -246,7 +290,9 @@ export default function CatalogView({ products }: CatalogViewProps) {
                 >
                   Filtros
                 </p>
-                <strong style={{ fontSize: 24, color: "#fff" }}>Refina tu seleccion</strong>
+                <strong style={{ fontSize: 24, color: "#fff" }}>
+                  Refina tu seleccion
+                </strong>
               </div>
 
               <button
@@ -347,51 +393,30 @@ export default function CatalogView({ products }: CatalogViewProps) {
               </div>
             ) : null}
 
-            {seasonOptions.length > 0 ? (
-              <div style={{ display: "grid", gap: 12 }}>
-                <p style={filterLabelStyle}>Temporada</p>
+            {dynamicOptions.map((option) => (
+              <div key={option.id} style={{ display: "grid", gap: 12 }}>
+                <p style={filterLabelStyle}>{option.name}</p>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {seasonOptions.map((season) => {
-                    const selected = selectedSeasons.includes(season);
-                    return (
-                      <button
-                        key={season}
-                        type="button"
-                        onClick={() => toggleValue(season, selectedSeasons, setSelectedSeasons)}
-                        className="theme-button"
-                        style={chipStyle(selected)}
-                      >
-                        {season}
-                      </button>
+                  {option.values.map((value) => {
+                    const selected = (selectedOptionValues[option.id] ?? []).includes(
+                      value.label,
                     );
-                  })}
-                </div>
-              </div>
-            ) : null}
 
-            {audienceOptions.length > 0 ? (
-              <div style={{ display: "grid", gap: 12 }}>
-                <p style={filterLabelStyle}>Genero</p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {audienceOptions.map((audience) => {
-                    const selected = selectedAudiences.includes(audience);
                     return (
                       <button
-                        key={audience}
+                        key={`${option.id}-${value.label}`}
                         type="button"
-                        onClick={() =>
-                          toggleValue(audience, selectedAudiences, setSelectedAudiences)
-                        }
+                        onClick={() => toggleDynamicValue(option.id, value.label)}
                         className="theme-button"
                         style={chipStyle(selected)}
                       >
-                        {audience}
+                        {value.label}
                       </button>
                     );
                   })}
                 </div>
               </div>
-            ) : null}
+            ))}
           </aside>
 
           <div style={{ display: "grid", gap: 18 }}>
@@ -408,7 +433,8 @@ export default function CatalogView({ products }: CatalogViewProps) {
                 {filteredProducts.length} producto{filteredProducts.length === 1 ? "" : "s"} encontrados
               </p>
               <p style={{ margin: 0, color: "rgba(247,241,232,0.5)" }}>
-                Precio entre ${minCatalogPrice.toLocaleString("es-AR")} y ${maxCatalogPrice.toLocaleString("es-AR")}
+                Precio entre ${minCatalogPrice.toLocaleString("es-AR")} y $
+                {maxCatalogPrice.toLocaleString("es-AR")}
               </p>
             </div>
 
@@ -430,7 +456,8 @@ export default function CatalogView({ products }: CatalogViewProps) {
               <div
                 className="layout-product-grid"
                 style={{
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 280px))",
+                  justifyContent: "start",
                 }}
               >
                 {filteredProducts.map((product: any) => (

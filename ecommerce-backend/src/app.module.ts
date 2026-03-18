@@ -24,6 +24,7 @@ import { OrderManagementModule } from './modules/order-management/order-manageme
 import { ReturnsModule } from './modules/returns/returns.module';
 import { EventBusModule } from './modules/event-bus/event-bus.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { ProductOptionsModule } from './modules/product-options/product-options.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 import { CustomerAddressesModule } from './modules/customers/customer-addresses/customer-addresses.module';
@@ -62,6 +63,7 @@ import { BullModule } from '@nestjs/bullmq';
     EventBusModule,
     WebhooksModule,
     CustomerAddressesModule,
+    ProductOptionsModule,
   ],
 })
 export class AppModule implements NestModule {

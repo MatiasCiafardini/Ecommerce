@@ -10,8 +10,8 @@ export declare class PaymentsController {
         status: string;
         idempotencyKey: string | null;
         orderId: number;
-        amount: import("@prisma/client/runtime/library").Decimal;
         provider: string;
+        amount: import("@prisma/client/runtime/library").Decimal;
         externalId: string | null;
     }>;
     webhook(body: any): Promise<{

@@ -23,6 +23,7 @@ model Store {
   users      User[]
   discounts  Discount[]
   shipments  Shipment[]
+  productOptions ProductOption[]
 
   returns Return[]
   refunds Refund[]
@@ -71,6 +72,7 @@ model Product {
   variants   ProductVariant[]
   images     ProductImage[]
   categories ProductCategory[]
+  optionValues ProductOptionValue[]
 
   @@unique([slug, storeId])
   @@index([storeId, published])
@@ -108,6 +110,34 @@ model ProductVariant {
 
   cartItems  CartItem[]
   orderItems OrderItem[]
+}
+
+model ProductOption {
+  id        Int      @id @default(autoincrement())
+  name      String
+  storeId   Int
+  createdAt DateTime @default(now())
+
+  store  Store               @relation(fields: [storeId], references: [id])
+  values ProductOptionValue[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+}
+
+model ProductOptionValue {
+  id              Int      @id @default(autoincrement())
+  productOptionId Int
+  productId       Int
+  value           String
+  createdAt       DateTime @default(now())
+
+  productOption ProductOption @relation(fields: [productOptionId], references: [id])
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@unique([productOptionId, productId, value])
+  @@index([productOptionId])
+  @@index([productId])
 }
 
 model Inventory {

@@ -57,8 +57,8 @@ export declare class OrdersService {
             status: string;
             idempotencyKey: string | null;
             orderId: number;
-            amount: import("@prisma/client/runtime/library").Decimal;
             provider: string;
+            amount: import("@prisma/client/runtime/library").Decimal;
             externalId: string | null;
         }[];
         shipment: ({
@@ -78,12 +78,12 @@ export declare class OrdersService {
             updatedAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             orderId: number;
-            method: string;
             provider: string;
-            shippingAddress: string;
-            postalCode: string;
+            method: string;
             trackingNumber: string | null;
             trackingUrl: string | null;
+            shippingAddress: string;
+            postalCode: string;
         }) | null;
         items: ({
             variant: {
@@ -150,8 +150,8 @@ export declare class OrdersService {
             status: string;
             idempotencyKey: string | null;
             orderId: number;
-            amount: import("@prisma/client/runtime/library").Decimal;
             provider: string;
+            amount: import("@prisma/client/runtime/library").Decimal;
             externalId: string | null;
         }[];
         shipment: ({
@@ -171,12 +171,12 @@ export declare class OrdersService {
             updatedAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             orderId: number;
-            method: string;
             provider: string;
-            shippingAddress: string;
-            postalCode: string;
+            method: string;
             trackingNumber: string | null;
             trackingUrl: string | null;
+            shippingAddress: string;
+            postalCode: string;
         }) | null;
         items: ({
             variant: {
@@ -243,8 +243,8 @@ export declare class OrdersService {
             status: string;
             idempotencyKey: string | null;
             orderId: number;
-            amount: import("@prisma/client/runtime/library").Decimal;
             provider: string;
+            amount: import("@prisma/client/runtime/library").Decimal;
             externalId: string | null;
         }[];
         shipment: ({
@@ -264,12 +264,12 @@ export declare class OrdersService {
             updatedAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             orderId: number;
-            method: string;
             provider: string;
-            shippingAddress: string;
-            postalCode: string;
+            method: string;
             trackingNumber: string | null;
             trackingUrl: string | null;
+            shippingAddress: string;
+            postalCode: string;
         }) | null;
         items: ({
             variant: {
@@ -336,8 +336,8 @@ export declare class OrdersService {
             status: string;
             idempotencyKey: string | null;
             orderId: number;
-            amount: import("@prisma/client/runtime/library").Decimal;
             provider: string;
+            amount: import("@prisma/client/runtime/library").Decimal;
             externalId: string | null;
         }[];
         shipment: ({
@@ -357,12 +357,12 @@ export declare class OrdersService {
             updatedAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             orderId: number;
-            method: string;
             provider: string;
-            shippingAddress: string;
-            postalCode: string;
+            method: string;
             trackingNumber: string | null;
             trackingUrl: string | null;
+            shippingAddress: string;
+            postalCode: string;
         }) | null;
         items: ({
             variant: {

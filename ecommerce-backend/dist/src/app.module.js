@@ -29,6 +29,7 @@ const order_management_module_1 = require("./modules/order-management/order-mana
 const returns_module_1 = require("./modules/returns/returns.module");
 const event_bus_module_1 = require("./modules/event-bus/event-bus.module");
 const webhooks_module_1 = require("./modules/webhooks/webhooks.module");
+const product_options_module_1 = require("./modules/product-options/product-options.module");
 const schedule_1 = require("@nestjs/schedule");
 const customer_addresses_module_1 = require("./modules/customers/customer-addresses/customer-addresses.module");
 const bullmq_1 = require("@nestjs/bullmq");
@@ -69,6 +70,7 @@ exports.AppModule = AppModule = __decorate([
             event_bus_module_1.EventBusModule,
             webhooks_module_1.WebhooksModule,
             customer_addresses_module_1.CustomerAddressesModule,
+            product_options_module_1.ProductOptionsModule,
         ],
     })
 ], AppModule);

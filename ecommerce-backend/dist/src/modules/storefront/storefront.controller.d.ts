@@ -1,5 +1,6 @@
 import { StorefrontService } from './storefront.service';
 import { CreateOrderDto } from '../orders/dto/create-order.dto';
+import { GetStoreProductsDto } from './dto/get-store-products.dto';
 export declare class StorefrontController {
     private storefrontService;
     constructor(storefrontService: StorefrontService);
@@ -7,7 +8,7 @@ export declare class StorefrontController {
         storeId: number;
         theme: string;
     }>;
-    getProducts(req: any): import("@prisma/client").Prisma.PrismaPromise<({
+    getProducts(req: any, query: GetStoreProductsDto): Promise<({
         categories: ({
             category: {
                 id: number;
@@ -58,6 +59,18 @@ export declare class StorefrontController {
         published: boolean;
         slug: string;
         deletedAt: Date | null;
+    })[]>;
+    getStoreProductOptions(req: any): import("@prisma/client").Prisma.PrismaPromise<({
+        values: {
+            id: number;
+            value: string;
+            productId: number;
+        }[];
+    } & {
+        id: number;
+        name: string;
+        createdAt: Date;
+        storeId: number;
     })[]>;
     getProduct(slug: string, req: any): import("@prisma/client").Prisma.Prisma__ProductClient<({
         categories: ({
@@ -111,6 +124,18 @@ export declare class StorefrontController {
         slug: string;
         deletedAt: Date | null;
     }) | null, null, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    getProductOptions(slug: string, req: any): Promise<({
+        values: {
+            id: number;
+            value: string;
+            productId: number;
+        }[];
+    } & {
+        id: number;
+        name: string;
+        createdAt: Date;
+        storeId: number;
+    })[] | null>;
     getCategories(req: any): import("@prisma/client").Prisma.PrismaPromise<{
         id: number;
         name: string;
@@ -119,7 +144,7 @@ export declare class StorefrontController {
         slug: string;
         deletedAt: Date | null;
     }[]>;
-    getProductsByCategory(slug: string, req: any): Promise<({
+    getProductsByCategory(slug: string, req: any, query: GetStoreProductsDto): Promise<({
         categories: ({
             category: {
                 id: number;
