@@ -21,7 +21,7 @@ export class AuthController {
     return this.authService.login(user);
   }
   @Post('customer/register')
-  async registerCustomer(@Body() body: any, @Req() req: Request) {
+  async registerCustomer(@Body() body: RegisterDto, @Req() req: Request) {
     const storeIdHeader = req.headers['x-store-id'];
 
     if (!storeIdHeader) {
@@ -38,10 +38,13 @@ export class AuthController {
       body.email,
       body.password,
       storeId,
+      body.firstName,
+      body.lastName,
+      body.phone,
     );
   }
   @Post('customer/login')
-  async loginCustomer(@Body() body: any, @Req() req: Request) {
+  async loginCustomer(@Body() body: LoginDto, @Req() req: Request) {
     const storeIdHeader = req.headers['x-store-id'];
 
     if (!storeIdHeader) {

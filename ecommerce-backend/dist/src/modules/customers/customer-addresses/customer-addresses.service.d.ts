@@ -1,11 +1,13 @@
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
+import { UpdateCustomerAddressDto } from './dto/update-customer-address.dto';
 export declare class CustomerAddressesService {
     private prisma;
     constructor(prisma: PrismaService);
-    create(dto: CreateCustomerAddressDto): Promise<{
+    create(storeId: number, customerId: number, dto: CreateCustomerAddressDto): Promise<{
         id: number;
         createdAt: Date;
+        storeId: number;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -18,9 +20,10 @@ export declare class CustomerAddressesService {
         country: string;
         isDefault: boolean;
     }>;
-    findByCustomer(customerId: number): Promise<{
+    findByCustomer(storeId: number, customerId: number): Promise<{
         id: number;
         createdAt: Date;
+        storeId: number;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -33,4 +36,52 @@ export declare class CustomerAddressesService {
         country: string;
         isDefault: boolean;
     }[]>;
+    update(storeId: number, customerId: number, addressId: number, dto: UpdateCustomerAddressDto): Promise<{
+        id: number;
+        createdAt: Date;
+        storeId: number;
+        customerId: number;
+        firstName: string;
+        lastName: string;
+        phone: string | null;
+        address1: string;
+        address2: string | null;
+        city: string;
+        state: string | null;
+        zip: string;
+        country: string;
+        isDefault: boolean;
+    }>;
+    remove(storeId: number, customerId: number, addressId: number): Promise<{
+        id: number;
+        createdAt: Date;
+        storeId: number;
+        customerId: number;
+        firstName: string;
+        lastName: string;
+        phone: string | null;
+        address1: string;
+        address2: string | null;
+        city: string;
+        state: string | null;
+        zip: string;
+        country: string;
+        isDefault: boolean;
+    }>;
+    findOneOrThrow(storeId: number, customerId: number, addressId: number): Promise<{
+        id: number;
+        createdAt: Date;
+        storeId: number;
+        customerId: number;
+        firstName: string;
+        lastName: string;
+        phone: string | null;
+        address1: string;
+        address2: string | null;
+        city: string;
+        state: string | null;
+        zip: string;
+        country: string;
+        isDefault: boolean;
+    }>;
 }

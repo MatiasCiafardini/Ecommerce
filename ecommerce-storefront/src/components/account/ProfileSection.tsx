@@ -1,44 +1,298 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 
-export default function ProfileSection({ user }: any) {
-  const [phone, setPhone] = useState("");
+type ProfileForm = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  password: string;
+  confirmPassword: string;
+};
+
+export default function ProfileSection({ user }: { user: any }) {
+  const { setUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [form, setForm] = useState<ProfileForm>({
+    firstName: user.firstName ?? "",
+    lastName: user.lastName ?? "",
+    phone: user.phone ?? "",
+    password: "",
+    confirmPassword: "",
+  });
+
+  const displayName = useMemo(() => {
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+    return fullName || "Todavia no cargaste tu nombre";
+  }, [user.firstName, user.lastName]);
+
+  const startEdit = () => {
+    setEditing(true);
+    setError("");
+    setSuccess("");
+    setForm({
+      firstName: user.firstName ?? "",
+      lastName: user.lastName ?? "",
+      phone: user.phone ?? "",
+      password: "",
+      confirmPassword: "",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setError("");
+    setSuccess("");
+    setForm({
+      firstName: user.firstName ?? "",
+      lastName: user.lastName ?? "",
+      phone: user.phone ?? "",
+      password: "",
+      confirmPassword: "",
+    });
+  };
 
   const saveProfile = async () => {
+    if (form.password && form.password !== form.confirmPassword) {
+      setError("Las contrasenas no coinciden.");
+      return;
+    }
+
     try {
       setLoading(true);
+      setError("");
+      setSuccess("");
 
-      await api("/customers/me", {
+      const payload: Record<string, string> = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phone: form.phone.trim(),
+      };
+
+      if (form.password.trim()) {
+        payload.password = form.password.trim();
+      }
+
+      const updatedUser = await api("/customers/me", {
         method: "PATCH",
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify(payload),
       });
 
-      alert("Perfil actualizado");
-    } catch {
-      alert("Error al guardar");
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setEditing(false);
+      setForm((prev) => ({ ...prev, password: "", confirmPassword: "" }));
+      setSuccess("Tus datos se actualizaron correctamente.");
+    } catch (err: any) {
+      setError(err.message || "No se pudieron guardar los cambios.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <section style={{ marginTop: 20 }}>
-      <h2>Perfil</h2>
+    <section style={cardStyle}>
+      <div style={sectionHeader}>
+        <div>
+          <p style={eyebrowStyle}>Perfil</p>
+          <h2 style={titleStyle}>Datos principales</h2>
+        </div>
 
-      <p>Email: {user.email}</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {editing ? (
+            <>
+              <button onClick={saveProfile} disabled={loading} style={primaryButton}>
+                {loading ? "Guardando..." : "Guardar cambios"}
+              </button>
+              <button onClick={cancelEdit} style={secondaryButton}>
+                Cancelar
+              </button>
+            </>
+          ) : (
+            <button onClick={startEdit} style={secondaryButton}>
+              Editar
+            </button>
+          )}
+        </div>
+      </div>
 
-      <input
-        placeholder="Teléfono"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-      />
+      <div style={{ display: "grid", gap: 18 }}>
+        <div className="layout-form-two">
+          <div>
+            <label style={labelStyle}>Nombre</label>
+            {editing ? (
+              <input
+                placeholder="Nombre"
+                value={form.firstName}
+                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                style={inputStyle}
+              />
+            ) : (
+              <div style={readonlyField}>{user.firstName || "Todavia no cargado"}</div>
+            )}
+          </div>
 
-      <button onClick={saveProfile} disabled={loading}>
-        Guardar
-      </button>
+          <div>
+            <label style={labelStyle}>Apellido</label>
+            {editing ? (
+              <input
+                placeholder="Apellido"
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                style={inputStyle}
+              />
+            ) : (
+              <div style={readonlyField}>{user.lastName || "Todavia no cargado"}</div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Nombre completo</label>
+          <div style={readonlyField}>{displayName}</div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Email</label>
+          <div style={readonlyField}>{user.email}</div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Telefono</label>
+          {editing ? (
+            <input
+              placeholder="Ej. +54 11 5555 5555"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              style={inputStyle}
+            />
+          ) : (
+            <div style={readonlyField}>{user.phone || "Todavia no cargaste telefono"}</div>
+          )}
+        </div>
+
+        <div className="layout-form-two">
+          <div>
+            <label style={labelStyle}>Nueva contrasena</label>
+            {editing ? (
+              <input
+                type="password"
+                placeholder="Dejar vacio para no cambiarla"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                style={inputStyle}
+              />
+            ) : (
+              <div style={readonlyField}>Protegida</div>
+            )}
+          </div>
+
+          <div>
+            <label style={labelStyle}>Confirmar contrasena</label>
+            {editing ? (
+              <input
+                type="password"
+                placeholder="Repeti la nueva contrasena"
+                value={form.confirmPassword}
+                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                style={inputStyle}
+              />
+            ) : (
+              <div style={readonlyField}>Solo se usa al editar</div>
+            )}
+          </div>
+        </div>
+
+        {error ? <p style={errorStyle}>{error}</p> : null}
+        {success ? <p style={successStyle}>{success}</p> : null}
+      </div>
     </section>
   );
 }
+
+const cardStyle: React.CSSProperties = {
+  padding: 28,
+  borderRadius: 32,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+};
+
+const sectionHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 16,
+  marginBottom: 20,
+  flexWrap: "wrap",
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  margin: "0 0 8px",
+  textTransform: "uppercase",
+  letterSpacing: "0.18em",
+  fontSize: 12,
+  color: "rgba(247,241,232,0.56)",
+};
+
+const titleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 26,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: 8,
+  color: "rgba(247,241,232,0.68)",
+};
+
+const readonlyField: React.CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "#f7f1e8",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.04)",
+  color: "white",
+  border: "1px solid rgba(255,255,255,0.12)",
+  outline: "none",
+};
+
+const primaryButton: React.CSSProperties = {
+  padding: "12px 16px",
+  background: "#f7f1e8",
+  color: "#111",
+  border: "none",
+  borderRadius: 999,
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const secondaryButton: React.CSSProperties = {
+  padding: "12px 16px",
+  background: "transparent",
+  color: "#f7f1e8",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 999,
+  cursor: "pointer",
+};
+
+const errorStyle: React.CSSProperties = {
+  margin: 0,
+  color: "#ff9f9f",
+};
+
+const successStyle: React.CSSProperties = {
+  margin: 0,
+  color: "#b8f5c2",
+};

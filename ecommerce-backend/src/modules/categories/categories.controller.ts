@@ -1,13 +1,13 @@
 import { Controller, Post, Get, Body, Req, UseGuards } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
 @ApiTags('Categories')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AdminAuthGuard)
 @Controller('categories')
 export class CategoriesController {
   constructor(private service: CategoriesService) {}

@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const fulfillment_service_1 = require("./fulfillment.service");
 const create_shipment_dto_1 = require("./dto/create-shipment.dto");
 const tracking_event_dto_1 = require("./dto/tracking-event.dto");
+const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
 let FulfillmentController = class FulfillmentController {
     fulfillmentService;
     constructor(fulfillmentService) {
@@ -31,9 +32,9 @@ let FulfillmentController = class FulfillmentController {
     findOne(req, id) {
         return this.fulfillmentService.getShipment(req.storeId, id);
     }
-    addTracking(id, dto) {
+    addTracking(req, id, dto) {
         dto.shipmentId = id;
-        return this.fulfillmentService.addTracking(dto);
+        return this.fulfillmentService.addTracking(req.storeId, dto);
     }
 };
 exports.FulfillmentController = FulfillmentController;
@@ -62,13 +63,15 @@ __decorate([
 ], FulfillmentController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Post)(':id/tracking'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, tracking_event_dto_1.TrackingEventDto]),
+    __metadata("design:paramtypes", [Object, String, tracking_event_dto_1.TrackingEventDto]),
     __metadata("design:returntype", void 0)
 ], FulfillmentController.prototype, "addTracking", null);
 exports.FulfillmentController = FulfillmentController = __decorate([
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Controller)('admin/shipments'),
     __metadata("design:paramtypes", [fulfillment_service_1.FulfillmentService])
 ], FulfillmentController);

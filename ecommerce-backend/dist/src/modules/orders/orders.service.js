@@ -21,6 +21,7 @@ let OrdersService = class OrdersService {
         this.inventoryLockService = inventoryLockService;
     }
     async create(data, storeId) {
+        await this.ensureCustomer(storeId, data.customerId);
         return this.prisma.$transaction(async (tx) => {
             let subtotal = 0;
             const orderItems = [];
@@ -64,7 +65,7 @@ let OrdersService = class OrdersService {
                 await this.inventoryLockService.reserveStockTx(tx, storeId, item.variantId, item.quantity);
             }
             const total = subtotal;
-            const order = await tx.order.create({
+            return tx.order.create({
                 data: {
                     storeId,
                     customerId: data.customerId,
@@ -80,7 +81,6 @@ let OrdersService = class OrdersService {
                     items: true,
                 },
             });
-            return order;
         });
     }
     async updateStatus(orderId, status, storeId) {
@@ -125,10 +125,7 @@ let OrdersService = class OrdersService {
             where: {
                 storeId,
             },
-            include: {
-                items: true,
-                shipment: true,
-            },
+            include: this.orderInclude(),
             orderBy: {
                 createdAt: 'desc',
             },
@@ -140,15 +137,74 @@ let OrdersService = class OrdersService {
                 id,
                 storeId,
             },
-            include: {
-                items: true,
-                shipment: {
-                    include: {
-                        trackingEvents: true,
+            include: this.orderInclude(),
+        });
+    }
+    findMine(storeId, customerId) {
+        return this.prisma.order.findMany({
+            where: {
+                storeId,
+                customerId,
+            },
+            include: this.orderInclude(),
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+    }
+    async findOneMine(orderId, storeId, customerId) {
+        const order = await this.prisma.order.findFirst({
+            where: {
+                id: orderId,
+                storeId,
+                customerId,
+            },
+            include: this.orderInclude(),
+        });
+        if (!order) {
+            throw new common_1.NotFoundException('Order not found');
+        }
+        return order;
+    }
+    async ensureCustomer(storeId, customerId) {
+        const customer = await this.prisma.customer.findFirst({
+            where: {
+                id: customerId,
+                storeId,
+            },
+            select: { id: true },
+        });
+        if (!customer) {
+            throw new common_1.ForbiddenException('Customer does not belong to this store');
+        }
+    }
+    orderInclude() {
+        return {
+            items: {
+                include: {
+                    variant: {
+                        include: {
+                            product: {
+                                include: {
+                                    images: {
+                                        orderBy: {
+                                            position: 'asc',
+                                        },
+                                        take: 1,
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },
-        });
+            shipment: {
+                include: {
+                    trackingEvents: true,
+                },
+            },
+            payments: true,
+        };
     }
 };
 exports.OrdersService = OrdersService;

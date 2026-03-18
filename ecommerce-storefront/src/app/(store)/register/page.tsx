@@ -8,6 +8,9 @@ export default function RegisterPage() {
   const router = useRouter();
 
   const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -18,7 +21,7 @@ export default function RegisterPage() {
 
   const handleRegister = async () => {
     if (form.password !== form.confirmPassword) {
-      setError("Las contraseñas no coinciden");
+      setError("Las contrasenas no coinciden.");
       return;
     }
 
@@ -29,12 +32,13 @@ export default function RegisterPage() {
       await api("/auth/customer/register", {
         method: "POST",
         body: JSON.stringify({
-          email: form.email,
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
           password: form.password,
         }),
       });
-
-      alert("Cuenta creada");
 
       router.push("/login");
     } catch (err: any) {
@@ -45,44 +49,139 @@ export default function RegisterPage() {
   };
 
   return (
-    <div style={{ padding: "40px", maxWidth: "400px" }}>
-      <h1>Crear cuenta</h1>
-
-      <input
-        placeholder="Email"
-        value={form.email}
-        onChange={(e) => setForm({ ...form, email: e.target.value })}
-      />
-
-      <input
-        type="password"
-        placeholder="Contraseña"
-        value={form.password}
-        onChange={(e) => setForm({ ...form, password: e.target.value })}
-      />
-
-      <input
-        type="password"
-        placeholder="Repetir contraseña"
-        value={form.confirmPassword}
-        onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-      />
-
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
-      <button
-        onClick={handleRegister}
-        disabled={loading}
+    <section
+      style={{
+        padding: "72px 20px",
+        background:
+          "radial-gradient(circle at top, rgba(255,255,255,0.08), transparent 34%), #0b0b0b",
+      }}
+    >
+      <div
         style={{
-          marginTop: "20px",
-          padding: "12px",
-          background: "black",
-          color: "white",
-          width: "100%",
+          maxWidth: 760,
+          margin: "0 auto",
+          padding: 32,
+          borderRadius: 36,
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.08)",
         }}
       >
-        {loading ? "Creando..." : "Crear cuenta"}
-      </button>
-    </div>
+        <p
+          style={{
+            margin: "0 0 12px",
+            textTransform: "uppercase",
+            letterSpacing: "0.18em",
+            fontSize: 12,
+            color: "rgba(247,241,232,0.56)",
+          }}
+        >
+          New member
+        </p>
+        <h1
+          style={{
+            fontSize: "clamp(2.4rem, 5vw, 4.5rem)",
+            lineHeight: 0.95,
+            margin: "0 0 16px",
+            textTransform: "uppercase",
+            letterSpacing: "-0.06em",
+          }}
+        >
+          Crear cuenta
+        </h1>
+        <p
+          style={{
+            color: "rgba(247,241,232,0.68)",
+            maxWidth: 520,
+            lineHeight: 1.8,
+            marginBottom: 24,
+          }}
+        >
+          Guarda tus direcciones, acelera el checkout y segui tus proximos pedidos
+          desde una cuenta mas completa.
+        </p>
+
+        <div style={{ display: "grid", gap: 14 }}>
+          <div className="layout-form-two">
+            <input
+              placeholder="Nombre"
+              value={form.firstName}
+              onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+              style={fieldStyle}
+            />
+
+            <input
+              placeholder="Apellido"
+              value={form.lastName}
+              onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              style={fieldStyle}
+            />
+          </div>
+
+          <div className="layout-form-two">
+            <input
+              placeholder="Telefono"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              style={fieldStyle}
+            />
+
+            <input
+              placeholder="Email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              style={fieldStyle}
+            />
+          </div>
+
+          <input
+            type="password"
+            placeholder="Contrasena"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            style={fieldStyle}
+          />
+
+          <input
+            type="password"
+            placeholder="Repetir contrasena"
+            value={form.confirmPassword}
+            onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+            style={fieldStyle}
+          />
+        </div>
+
+        {error ? <p style={{ color: "#ff8f8f", marginTop: 14 }}>{error}</p> : null}
+
+        <button
+          onClick={handleRegister}
+          disabled={loading}
+          style={{ ...primaryButton, width: "100%", marginTop: 22 }}
+        >
+          {loading ? "Creando..." : "Crear cuenta"}
+        </button>
+      </div>
+    </section>
   );
 }
+
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "14px 16px",
+  background: "rgba(255,255,255,0.04)",
+  color: "white",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 16,
+  outline: "none",
+};
+
+const primaryButton: React.CSSProperties = {
+  padding: "16px 20px",
+  background: "white",
+  color: "#111",
+  border: "none",
+  borderRadius: 999,
+  cursor: "pointer",
+  textTransform: "uppercase",
+  letterSpacing: "0.14em",
+  fontWeight: 800,
+};

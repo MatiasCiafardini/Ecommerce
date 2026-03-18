@@ -67,7 +67,7 @@ let AuthService = class AuthService {
         }
         return user;
     }
-    async registerCustomer(email, password, storeId) {
+    async registerCustomer(email, password, storeId, firstName, lastName, phone) {
         const store = await this.prisma.store.findUnique({
             where: { id: storeId },
         });
@@ -89,19 +89,23 @@ let AuthService = class AuthService {
                 email,
                 password: hashedPassword,
                 storeId: store.id,
+                firstName,
+                lastName,
+                phone,
             },
         });
-        return customer;
+        return this.toAuthEntity(customer);
     }
     async login(user) {
+        const safeUser = this.toAuthEntity(user);
         const payload = {
-            sub: user.id,
-            storeId: user.storeId,
-            role: user.role,
+            sub: safeUser.id,
+            storeId: safeUser.storeId,
+            role: safeUser.role,
         };
         return {
             access_token: this.jwtService.sign(payload),
-            user,
+            user: safeUser,
         };
     }
     async validateCustomer(email, password, storeId) {
@@ -111,9 +115,6 @@ let AuthService = class AuthService {
                 storeId,
             },
         });
-        if (!customer) {
-            throw new common_1.UnauthorizedException('Invalid credentials');
-        }
         if (!customer || !customer.password) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
@@ -122,6 +123,18 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
         return customer;
+    }
+    toAuthEntity(user) {
+        return {
+            id: user.id,
+            email: user.email,
+            storeId: user.storeId,
+            role: user.role ?? 'CUSTOMER',
+            firstName: user.firstName ?? null,
+            lastName: user.lastName ?? null,
+            phone: user.phone ?? null,
+            name: user.name ?? null,
+        };
     }
 };
 exports.AuthService = AuthService;

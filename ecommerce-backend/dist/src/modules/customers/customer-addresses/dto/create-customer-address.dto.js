@@ -13,7 +13,6 @@ exports.CreateCustomerAddressDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 class CreateCustomerAddressDto {
-    customerId;
     firstName;
     lastName;
     phone;
@@ -25,11 +24,6 @@ class CreateCustomerAddressDto {
     country;
 }
 exports.CreateCustomerAddressDto = CreateCustomerAddressDto;
-__decorate([
-    (0, swagger_1.ApiProperty)(),
-    (0, class_validator_1.IsInt)(),
-    __metadata("design:type", Number)
-], CreateCustomerAddressDto.prototype, "customerId", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)(),
     (0, class_validator_1.IsString)(),

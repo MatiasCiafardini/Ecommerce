@@ -22,7 +22,7 @@ let ShippingService = class ShippingService {
         this.prisma = prisma;
         this.provider = provider;
     }
-    async getOptions(storeId, cartId, postalCode) {
+    async getOptions(storeId, cartId, customerId, postalCode) {
         const cart = await this.prisma.cart.findFirst({
             where: {
                 id: cartId,
@@ -38,6 +38,9 @@ let ShippingService = class ShippingService {
         });
         if (!cart) {
             throw new common_1.NotFoundException('Cart not found');
+        }
+        if (cart.customerId !== customerId) {
+            throw new common_1.ForbiddenException('Cart does not belong to this customer');
         }
         if (!cart.items.length) {
             throw new common_1.BadRequestException('Cart is empty');

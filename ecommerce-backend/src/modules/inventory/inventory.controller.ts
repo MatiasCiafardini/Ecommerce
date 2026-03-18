@@ -2,12 +2,12 @@ import { Controller, Post, Body, Get, Param, Patch, Req, UseGuards } from '@nest
 import { InventoryService } from './inventory.service';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
 @ApiTags('Inventory')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AdminAuthGuard)
 @Controller('inventory')
 export class InventoryController {
   constructor(private inventoryService: InventoryService) {}

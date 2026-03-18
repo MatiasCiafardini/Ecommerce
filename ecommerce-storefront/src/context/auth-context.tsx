@@ -7,6 +7,11 @@ type User = {
   id: number;
   email: string;
   storeId?: number;
+  role?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  name?: string | null;
 };
 
 type AuthContextType = {
@@ -14,15 +19,15 @@ type AuthContextType = {
   loading: boolean;
   login: (data: { email: string; password: string }) => Promise<void>;
   logout: () => void;
+  setUser: (user: User | null) => void;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export const AuthProvider = ({ children }: any) => {
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔁 recuperar sesión
   useEffect(() => {
     const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
@@ -32,32 +37,47 @@ export const AuthProvider = ({ children }: any) => {
       return;
     }
 
+    const hydrateSession = async () => {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+
+        // Refresh the session from the API so the account shown in UI matches the JWT.
+        const freshUser = await api("/customers/me");
+        localStorage.setItem("user", JSON.stringify(freshUser));
+        setUser(freshUser);
+      } catch {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     try {
-      setUser(JSON.parse(storedUser));
+      JSON.parse(storedUser);
+      void hydrateSession();
     } catch {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       setUser(null);
-    } finally {
       setLoading(false);
     }
   }, []);
 
-  // 🔐 LOGIN CUSTOMER
   const login = async (data: { email: string; password: string }) => {
     const res = await api("/auth/customer/login", {
       method: "POST",
       body: JSON.stringify(data),
     });
 
-    // 🔥 guardar token + user
     localStorage.setItem("token", res.access_token);
     localStorage.setItem("user", JSON.stringify(res.user));
 
     setUser(res.user);
   };
 
-  // 🚪 LOGOUT
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -65,7 +85,7 @@ export const AuthProvider = ({ children }: any) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

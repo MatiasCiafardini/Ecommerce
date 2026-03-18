@@ -8,9 +8,7 @@ export declare class CustomersController {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -20,33 +18,47 @@ export declare class CustomersController {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
         phone: string | null;
     }[]>;
+    findMe(req: any): Promise<{
+        id: number;
+        createdAt: Date;
+        email: string;
+        storeId: number;
+        updatedAt: Date;
+        firstName: string | null;
+        lastName: string | null;
+        phone: string | null;
+    }>;
     findOne(req: any, id: string): Promise<{
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
         phone: string | null;
     } | null>;
+    updateMe(req: any, dto: UpdateCustomerDto): Promise<{
+        id: number;
+        createdAt: Date;
+        email: string;
+        storeId: number;
+        updatedAt: Date;
+        firstName: string | null;
+        lastName: string | null;
+        phone: string | null;
+    }>;
     update(req: any, id: string, dto: UpdateCustomerDto): Promise<{
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -56,9 +68,7 @@ export declare class CustomersController {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;

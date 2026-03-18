@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const discounts_service_1 = require("./discounts.service");
 const create_discount_dto_1 = require("./dto/create-discount.dto");
 const apply_coupon_dto_1 = require("./dto/apply-coupon.dto");
+const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
 let DiscountsController = class DiscountsController {
     discountsService;
     constructor(discountsService) {
@@ -34,6 +35,7 @@ let DiscountsController = class DiscountsController {
 };
 exports.DiscountsController = DiscountsController;
 __decorate([
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -42,6 +44,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], DiscountsController.prototype, "create", null);
 __decorate([
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),

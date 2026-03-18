@@ -39,6 +39,7 @@ let CheckoutService = class CheckoutService {
                 return existingOrder;
             }
         }
+        await this.ensureCustomer(storeId, customerId);
         const cart = await this.prisma.cart.findUnique({
             where: {
                 id: cartId,
@@ -62,6 +63,9 @@ let CheckoutService = class CheckoutService {
         });
         if (!cart || cart.storeId !== storeId) {
             throw new common_1.NotFoundException('Cart not found');
+        }
+        if (cart.customerId !== customerId) {
+            throw new common_1.ForbiddenException('Cart does not belong to this customer');
         }
         if (!cart.items.length) {
             throw new common_1.BadRequestException('Cart is empty');
@@ -165,6 +169,18 @@ let CheckoutService = class CheckoutService {
             });
             return order;
         });
+    }
+    async ensureCustomer(storeId, customerId) {
+        const customer = await this.prisma.customer.findFirst({
+            where: {
+                id: customerId,
+                storeId,
+            },
+            select: { id: true },
+        });
+        if (!customer) {
+            throw new common_1.ForbiddenException('Customer does not belong to this store');
+        }
     }
 };
 exports.CheckoutService = CheckoutService;

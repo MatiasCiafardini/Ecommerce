@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -22,6 +23,8 @@ export class OrdersService {
   ) {}
 
   async create(data: CreateOrderDto, storeId: number) {
+    await this.ensureCustomer(storeId, data.customerId);
+
     return this.prisma.$transaction(async (tx) => {
       let subtotal = 0;
 
@@ -90,7 +93,7 @@ export class OrdersService {
 
       const total = subtotal;
 
-      const order = await tx.order.create({
+      return tx.order.create({
         data: {
           storeId,
           customerId: data.customerId,
@@ -106,14 +109,9 @@ export class OrdersService {
           items: true,
         },
       });
-
-      return order;
     });
   }
 
-  /**
-   * Order Lifecycle Status Update
-   */
   async updateStatus(orderId: number, status: OrderStatus, storeId: number) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
@@ -128,9 +126,6 @@ export class OrdersService {
         throw new NotFoundException('Order not found');
       }
 
-      /**
-       * VALIDAR TRANSICIÓN DE ESTADO
-       */
       const validTransitions: Record<OrderStatus, OrderStatus[]> = {
         pending: ['cancelled', 'paid'],
         paid: ['processing', 'cancelled'],
@@ -150,10 +145,6 @@ export class OrdersService {
         );
       }
 
-      /**
-       * CANCEL ORDER
-       * liberar inventario reservado
-       */
       if (status === 'cancelled') {
         for (const item of order.items) {
           await this.inventoryLockService.releaseStockTx(
@@ -177,10 +168,7 @@ export class OrdersService {
       where: {
         storeId,
       },
-      include: {
-        items: true,
-        shipment: true,
-      },
+      include: this.orderInclude(),
       orderBy: {
         createdAt: 'desc',
       },
@@ -193,14 +181,80 @@ export class OrdersService {
         id,
         storeId,
       },
-      include: {
-        items: true,
-        shipment: {
-          include: {
-            trackingEvents: true,
+      include: this.orderInclude(),
+    });
+  }
+
+  findMine(storeId: number, customerId: number) {
+    return this.prisma.order.findMany({
+      where: {
+        storeId,
+        customerId,
+      },
+      include: this.orderInclude(),
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async findOneMine(orderId: number, storeId: number, customerId: number) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        storeId,
+        customerId,
+      },
+      include: this.orderInclude(),
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    return order;
+  }
+
+  private async ensureCustomer(storeId: number, customerId: number) {
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        storeId,
+      },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new ForbiddenException('Customer does not belong to this store');
+    }
+  }
+
+  private orderInclude() {
+    return {
+      items: {
+        include: {
+          variant: {
+            include: {
+              product: {
+                include: {
+                  images: {
+                    orderBy: {
+                      position: 'asc' as const,
+                    },
+                    take: 1,
+                  },
+                },
+              },
+            },
           },
         },
       },
-    });
+      shipment: {
+        include: {
+          trackingEvents: true,
+        },
+      },
+      payments: true,
+    };
   }
 }

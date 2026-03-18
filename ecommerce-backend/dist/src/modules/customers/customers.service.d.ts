@@ -8,9 +8,7 @@ export declare class CustomersService {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -20,9 +18,7 @@ export declare class CustomersService {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -32,21 +28,27 @@ export declare class CustomersService {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
         phone: string | null;
     } | null>;
+    findOneOrThrow(storeId: number, id: number): Promise<{
+        id: number;
+        createdAt: Date;
+        email: string;
+        storeId: number;
+        updatedAt: Date;
+        firstName: string | null;
+        lastName: string | null;
+        phone: string | null;
+    }>;
     findByEmail(storeId: number, email: string): Promise<{
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -56,9 +58,7 @@ export declare class CustomersService {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -68,9 +68,7 @@ export declare class CustomersService {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -80,9 +78,7 @@ export declare class CustomersService {
         id: number;
         createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;

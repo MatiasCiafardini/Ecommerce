@@ -18,7 +18,7 @@ const orders_service_1 = require("./orders.service");
 const create_order_dto_1 = require("./dto/create-order.dto");
 const update_order_status_dto_1 = require("./dto/update-order-status.dto");
 const swagger_1 = require("@nestjs/swagger");
-const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
 let OrdersController = class OrdersController {
     ordersService;
     constructor(ordersService) {
@@ -74,7 +74,7 @@ exports.OrdersController = OrdersController = __decorate([
     (0, swagger_1.ApiSecurity)('x-store-id'),
     (0, swagger_1.ApiBearerAuth)('jwt'),
     (0, swagger_1.ApiTags)('Orders'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Controller)('orders'),
     __metadata("design:paramtypes", [orders_service_1.OrdersService])
 ], OrdersController);

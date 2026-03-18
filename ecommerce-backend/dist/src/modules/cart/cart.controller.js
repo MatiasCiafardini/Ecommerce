@@ -18,25 +18,29 @@ const cart_service_1 = require("./cart.service");
 const add_item_dto_1 = require("./dto/add-item.dto");
 const update_item_dto_1 = require("./dto/update-item.dto");
 const create_cart_dto_1 = require("./dto/create-cart.dto");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 let CartController = class CartController {
     cartService;
     constructor(cartService) {
         this.cartService = cartService;
     }
-    createCart(req, dto) {
-        return this.cartService.createCart(req.storeId, dto.customerId);
+    createCart(req, _dto) {
+        return this.cartService.createCart(req.storeId, req.user.sub);
     }
     getCart(req, id) {
-        return this.cartService.getCart(req.storeId, Number(id));
+        return this.cartService.getCart(req.storeId, Number(id), req.user.sub);
     }
     addItem(req, id, dto) {
-        return this.cartService.addItem(req.storeId, Number(id), dto);
+        return this.cartService.addItem(req.storeId, Number(id), req.user.sub, dto);
     }
     updateItem(req, id, itemId, dto) {
-        return this.cartService.updateItem(req.storeId, Number(id), Number(itemId), dto);
+        return this.cartService.updateItem(req.storeId, Number(id), Number(itemId), req.user.sub, dto);
     }
     removeItem(req, id, itemId) {
-        return this.cartService.removeItem(req.storeId, Number(id), Number(itemId));
+        return this.cartService.removeItem(req.storeId, Number(id), Number(itemId), req.user.sub);
+    }
+    clearCart(req, id) {
+        return this.cartService.clearCart(req.storeId, Number(id), req.user.sub);
     }
 };
 exports.CartController = CartController;
@@ -84,7 +88,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", void 0)
 ], CartController.prototype, "removeItem", null);
+__decorate([
+    (0, common_1.Delete)(':id/items'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], CartController.prototype, "clearCart", null);
 exports.CartController = CartController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('store/cart'),
     __metadata("design:paramtypes", [cart_service_1.CartService])
 ], CartController);

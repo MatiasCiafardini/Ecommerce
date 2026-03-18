@@ -26,4 +26,5 @@ export declare class CheckoutService {
         idempotencyKey: string | null;
         discountId: number | null;
     }>;
+    private ensureCustomer;
 }

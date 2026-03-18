@@ -1,27 +1,44 @@
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import type { Request } from 'express';
 export declare class AuthController {
     private authService;
     constructor(authService: AuthService);
     login(loginDto: LoginDto): Promise<{
         access_token: string;
-        user: any;
+        user: {
+            id: number;
+            email: string;
+            storeId: number;
+            role: string;
+            firstName?: string | null;
+            lastName?: string | null;
+            phone?: string | null;
+            name?: string | null;
+        };
     }>;
-    registerCustomer(body: any, req: Request): Promise<{
+    registerCustomer(body: RegisterDto, req: Request): Promise<{
         id: number;
-        createdAt: Date;
         email: string;
-        password: string | null;
         storeId: number;
-        deletedAt: Date | null;
-        updatedAt: Date;
-        firstName: string | null;
-        lastName: string | null;
-        phone: string | null;
+        role: string;
+        firstName?: string | null;
+        lastName?: string | null;
+        phone?: string | null;
+        name?: string | null;
     }>;
-    loginCustomer(body: any, req: Request): Promise<{
+    loginCustomer(body: LoginDto, req: Request): Promise<{
         access_token: string;
-        user: any;
+        user: {
+            id: number;
+            email: string;
+            storeId: number;
+            role: string;
+            firstName?: string | null;
+            lastName?: string | null;
+            phone?: string | null;
+            name?: string | null;
+        };
     }>;
 }

@@ -8,6 +8,19 @@ export declare class StorefrontController {
         theme: string;
     }>;
     getProducts(req: any): import("@prisma/client").Prisma.PrismaPromise<({
+        categories: ({
+            category: {
+                id: number;
+                name: string;
+                createdAt: Date;
+                storeId: number;
+                slug: string;
+                deletedAt: Date | null;
+            };
+        } & {
+            productId: number;
+            categoryId: number;
+        })[];
         variants: ({
             inventories: {
                 id: number;
@@ -47,6 +60,19 @@ export declare class StorefrontController {
         deletedAt: Date | null;
     })[]>;
     getProduct(slug: string, req: any): import("@prisma/client").Prisma.Prisma__ProductClient<({
+        categories: ({
+            category: {
+                id: number;
+                name: string;
+                createdAt: Date;
+                storeId: number;
+                slug: string;
+                deletedAt: Date | null;
+            };
+        } & {
+            productId: number;
+            categoryId: number;
+        })[];
         variants: ({
             inventories: {
                 id: number;
@@ -94,6 +120,19 @@ export declare class StorefrontController {
         deletedAt: Date | null;
     }[]>;
     getProductsByCategory(slug: string, req: any): Promise<({
+        categories: ({
+            category: {
+                id: number;
+                name: string;
+                createdAt: Date;
+                storeId: number;
+                slug: string;
+                deletedAt: Date | null;
+            };
+        } & {
+            productId: number;
+            categoryId: number;
+        })[];
         variants: ({
             inventories: {
                 id: number;

@@ -13,6 +13,7 @@ const auth_controller_1 = require("./auth.controller");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const jwt_1 = require("@nestjs/jwt");
 const jwt_strategy_1 = require("./strategies/jwt.strategy");
+const jwt_secret_util_1 = require("./utils/jwt-secret.util");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -20,7 +21,7 @@ exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
         imports: [
             jwt_1.JwtModule.register({
-                secret: process.env.JWT_SECRET || 'secret',
+                secret: (0, jwt_secret_util_1.getJwtSecret)(),
                 signOptions: { expiresIn: '7d' },
             }),
         ],

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -29,7 +30,6 @@ export class CheckoutService {
       idempotencyKey,
     } = dto;
 
-    // 🔒 Idempotency check
     if (idempotencyKey) {
       const existingOrder = await this.prisma.order.findFirst({
         where: {
@@ -42,6 +42,8 @@ export class CheckoutService {
         return existingOrder;
       }
     }
+
+    await this.ensureCustomer(storeId, customerId);
 
     const cart = await this.prisma.cart.findUnique({
       where: {
@@ -69,6 +71,10 @@ export class CheckoutService {
       throw new NotFoundException('Cart not found');
     }
 
+    if (cart.customerId !== customerId) {
+      throw new ForbiddenException('Cart does not belong to this customer');
+    }
+
     if (!cart.items.length) {
       throw new BadRequestException('Cart is empty');
     }
@@ -77,7 +83,6 @@ export class CheckoutService {
 
     for (const item of cart.items) {
       const inventory = item.variant.inventories[0];
-
       const available = (inventory?.quantity || 0) - (inventory?.reserved || 0);
 
       if (item.quantity > available) {
@@ -102,7 +107,6 @@ export class CheckoutService {
       freeShipping: boolean;
     } | null = null;
 
-    // 🎟 aplicar cupón
     if (couponCode) {
       couponDiscount = await this.discountsService.applyCoupon(
         storeId,
@@ -111,7 +115,6 @@ export class CheckoutService {
       );
     }
 
-    // 🤖 automatic discounts
     const automaticDiscount: {
       discountId: number;
       discountAmount: number;
@@ -121,7 +124,6 @@ export class CheckoutService {
       subtotal,
     });
 
-    // 🧠 elegir mejor descuento
     if (couponDiscount && automaticDiscount) {
       if (couponDiscount.amount >= automaticDiscount.discountAmount) {
         discountAmount = couponDiscount.amount;
@@ -146,7 +148,6 @@ export class CheckoutService {
 
     let finalShippingCost = Number(shippingCost ?? 0);
 
-    // 🚚 aplicar free shipping
     if (freeShipping) {
       finalShippingCost = 0;
     }
@@ -154,7 +155,6 @@ export class CheckoutService {
     const total = subtotal - discountAmount + finalShippingCost;
 
     return this.prisma.$transaction(async (tx) => {
-      // 🔒 reservar stock
       for (const item of cart.items) {
         await this.inventoryLockService.reserveStockTx(
           tx,
@@ -164,30 +164,23 @@ export class CheckoutService {
         );
       }
 
-      // 📦 crear orden
       const order = await tx.order.create({
         data: {
           storeId,
           customerId,
-
           subtotal,
           discountAmount,
           discountCode,
           discountId,
-
           total,
-
           status: 'pending',
-
           shippingProvider,
           shippingMethod,
           shippingCost: finalShippingCost,
-
           idempotencyKey: idempotencyKey ?? null,
         },
       });
 
-      // 📦 crear order items
       for (const item of cart.items) {
         await tx.orderItem.create({
           data: {
@@ -199,7 +192,6 @@ export class CheckoutService {
         });
       }
 
-      // 📊 coupon usage tracking
       if (couponDiscount?.couponId) {
         await tx.coupon.update({
           where: {
@@ -213,7 +205,6 @@ export class CheckoutService {
         });
       }
 
-      // 🧹 limpiar carrito
       await tx.cartItem.deleteMany({
         where: {
           cartId,
@@ -222,5 +213,19 @@ export class CheckoutService {
 
       return order;
     });
+  }
+
+  private async ensureCustomer(storeId: number, customerId: number) {
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        storeId,
+      },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new ForbiddenException('Customer does not belong to this store');
+    }
   }
 }

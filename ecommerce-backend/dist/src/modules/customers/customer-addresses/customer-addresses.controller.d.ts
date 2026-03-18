@@ -1,11 +1,13 @@
 import { CustomerAddressesService } from './customer-addresses.service';
 import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
+import { UpdateCustomerAddressDto } from './dto/update-customer-address.dto';
 export declare class CustomerAddressesController {
     private readonly service;
     constructor(service: CustomerAddressesService);
-    create(dto: CreateCustomerAddressDto): Promise<{
+    create(req: any, dto: CreateCustomerAddressDto): Promise<{
         id: number;
         createdAt: Date;
+        storeId: number;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -18,9 +20,10 @@ export declare class CustomerAddressesController {
         country: string;
         isDefault: boolean;
     }>;
-    findByCustomer(customerId: string): Promise<{
+    findMine(req: any): Promise<{
         id: number;
         createdAt: Date;
+        storeId: number;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -33,4 +36,36 @@ export declare class CustomerAddressesController {
         country: string;
         isDefault: boolean;
     }[]>;
+    update(req: any, id: string, dto: UpdateCustomerAddressDto): Promise<{
+        id: number;
+        createdAt: Date;
+        storeId: number;
+        customerId: number;
+        firstName: string;
+        lastName: string;
+        phone: string | null;
+        address1: string;
+        address2: string | null;
+        city: string;
+        state: string | null;
+        zip: string;
+        country: string;
+        isDefault: boolean;
+    }>;
+    remove(req: any, id: string): Promise<{
+        id: number;
+        createdAt: Date;
+        storeId: number;
+        customerId: number;
+        firstName: string;
+        lastName: string;
+        phone: string | null;
+        address1: string;
+        address2: string | null;
+        city: string;
+        state: string | null;
+        zip: string;
+        country: string;
+        isDefault: boolean;
+    }>;
 }

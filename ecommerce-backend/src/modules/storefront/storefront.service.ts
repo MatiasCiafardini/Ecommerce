@@ -10,8 +10,9 @@ export class StorefrontService {
     private ordersService: OrdersService,
   ) {}
   async getStoreConfig(domain: string) {
+    const normalizedDomain = domain?.split(':')[0]?.toLowerCase();
     const store = await this.prisma.store.findUnique({
-      where: { domain },
+      where: { domain: normalizedDomain },
     });
 
     if (!store) {
@@ -40,6 +41,11 @@ export class StorefrontService {
             },
           },
         },
+        categories: {
+          include: {
+            category: true,
+          },
+        },
       },
     });
   }
@@ -60,6 +66,11 @@ export class StorefrontService {
                 storeId,
               },
             },
+          },
+        },
+        categories: {
+          include: {
+            category: true,
           },
         },
       },
@@ -91,6 +102,11 @@ export class StorefrontService {
                         storeId,
                       },
                     },
+                  },
+                },
+                categories: {
+                  include: {
+                    category: true,
                   },
                 },
               },

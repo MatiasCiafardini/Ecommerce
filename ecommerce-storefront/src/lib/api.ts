@@ -1,5 +1,11 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+type ApiOptions = {
+  method?: string;
+  headers?: HeadersInit;
+  body?: BodyInit | null;
+};
+
 export const api = async (endpoint: string, options: ApiOptions = {}) => {
   const token = localStorage.getItem("token");
 

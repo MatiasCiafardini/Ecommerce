@@ -39,7 +39,7 @@ let TrackingSyncService = TrackingSyncService_1 = class TrackingSyncService {
                 const simulatedStatus = this.simulateTracking(shipment.status);
                 if (!simulatedStatus)
                     continue;
-                await this.trackingService.addTrackingEvent({
+                await this.trackingService.addTrackingEvent(shipment.storeId, {
                     shipmentId: shipment.id,
                     status: simulatedStatus,
                     description: 'Automatic tracking update',

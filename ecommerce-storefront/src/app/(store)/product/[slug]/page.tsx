@@ -13,7 +13,20 @@ export default async function ProductPage({ params }: Props) {
   const product = await getProductBySlug(slug);
 
   if (!product) {
-    return <div>Producto no encontrado</div>;
+    return (
+      <div
+        style={{
+          minHeight: "calc(100vh - 180px)",
+          display: "grid",
+          placeItems: "center",
+          background:
+            "radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 30%), #0b0b0b",
+          color: "#f7f1e8",
+        }}
+      >
+        Producto no encontrado
+      </div>
+    );
   }
 
   return <ProductView product={product} />;

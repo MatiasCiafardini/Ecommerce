@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
 const swagger_1 = require("@nestjs/swagger");
+const register_dto_1 = require("./dto/register.dto");
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
@@ -35,7 +36,7 @@ let AuthController = class AuthController {
         if (isNaN(storeId)) {
             throw new Error('x-store-id must be a number');
         }
-        return this.authService.registerCustomer(body.email, body.password, storeId);
+        return this.authService.registerCustomer(body.email, body.password, storeId, body.firstName, body.lastName, body.phone);
     }
     async loginCustomer(body, req) {
         const storeIdHeader = req.headers['x-store-id'];
@@ -60,7 +61,7 @@ __decorate([
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [register_dto_1.RegisterDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "registerCustomer", null);
 __decorate([
@@ -68,7 +69,7 @@ __decorate([
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [login_dto_1.LoginDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "loginCustomer", null);
 exports.AuthController = AuthController = __decorate([

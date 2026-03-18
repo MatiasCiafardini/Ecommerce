@@ -16,13 +16,14 @@ exports.ShippingController = void 0;
 const common_1 = require("@nestjs/common");
 const shipping_service_1 = require("./shipping.service");
 const get_shipping_options_dto_1 = require("./dto/get-shipping-options.dto");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 let ShippingController = class ShippingController {
     shippingService;
     constructor(shippingService) {
         this.shippingService = shippingService;
     }
     async getOptions(req, dto) {
-        return this.shippingService.getOptions(req.storeId, dto.cartId, dto.postalCode);
+        return this.shippingService.getOptions(req.storeId, dto.cartId, req.user.sub, dto.postalCode);
     }
 };
 exports.ShippingController = ShippingController;
@@ -35,6 +36,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ShippingController.prototype, "getOptions", null);
 exports.ShippingController = ShippingController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('store/shipping'),
     __metadata("design:paramtypes", [shipping_service_1.ShippingService])
 ], ShippingController);

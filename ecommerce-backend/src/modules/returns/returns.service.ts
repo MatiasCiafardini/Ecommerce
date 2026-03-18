@@ -94,6 +94,10 @@ export class ReturnsService {
         throw new NotFoundException('Return not found');
       }
 
+      if (returnRequest.status !== 'requested') {
+        throw new BadRequestException('Return already processed');
+      }
+
       if (!dto.approve) {
         return tx.return.update({
           where: { id: returnId },
@@ -174,16 +178,18 @@ export class ReturnsService {
       await tx.return.update({
         where: { id: returnId },
         data: {
-          status: 'refunded',
+          status: refund ? 'refunded' : 'approved',
         },
       });
 
-      await tx.order.update({
-        where: { id: returnRequest.orderId },
-        data: {
-          status: 'refunded',
-        },
-      });
+      if (refund) {
+        await tx.order.update({
+          where: { id: returnRequest.orderId },
+          data: {
+            status: 'refunded',
+          },
+        });
+      }
 
       return {
         success: true,

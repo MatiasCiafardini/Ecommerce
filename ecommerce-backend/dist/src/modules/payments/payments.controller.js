@@ -16,13 +16,14 @@ exports.PaymentsController = void 0;
 const common_1 = require("@nestjs/common");
 const payments_service_1 = require("./payments.service");
 const create_payment_dto_1 = require("./dto/create-payment.dto");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 let PaymentsController = class PaymentsController {
     paymentsService;
     constructor(paymentsService) {
         this.paymentsService = paymentsService;
     }
     createPayment(req, orderId, dto) {
-        return this.paymentsService.createPayment(req.storeId, Number(orderId), dto);
+        return this.paymentsService.createPayment(req.storeId, Number(orderId), dto, req.user);
     }
     webhook(body) {
         return this.paymentsService.handleWebhook(body);
@@ -30,6 +31,7 @@ let PaymentsController = class PaymentsController {
 };
 exports.PaymentsController = PaymentsController;
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('store/payments/:orderId'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('orderId')),

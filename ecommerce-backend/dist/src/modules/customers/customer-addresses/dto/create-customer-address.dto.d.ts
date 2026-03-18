@@ -1,5 +1,4 @@
 export declare class CreateCustomerAddressDto {
-    customerId: number;
     firstName: string;
     lastName: string;
     phone?: string;

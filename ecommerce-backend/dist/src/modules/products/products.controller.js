@@ -17,7 +17,7 @@ const common_1 = require("@nestjs/common");
 const products_service_1 = require("./products.service");
 const create_product_dto_1 = require("./dto/create-product.dto");
 const swagger_1 = require("@nestjs/swagger");
-const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
 let ProductsController = class ProductsController {
     productsService;
     constructor(productsService) {
@@ -82,7 +82,7 @@ exports.ProductsController = ProductsController = __decorate([
     (0, swagger_1.ApiSecurity)('x-store-id'),
     (0, swagger_1.ApiBearerAuth)('jwt'),
     (0, swagger_1.ApiTags)('Products'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Controller)('products'),
     __metadata("design:paramtypes", [products_service_1.ProductsService])
 ], ProductsController);

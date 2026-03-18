@@ -10,11 +10,11 @@ export declare class WebhooksService {
         id: string;
         createdAt: Date;
         storeId: number;
-        url: string;
         updatedAt: Date;
-        secret: string;
+        url: string;
         events: string[];
         isActive: boolean;
+        secret: string;
     }>;
     emitTestEvent(storeId: number): Promise<{
         message: string;
@@ -23,20 +23,20 @@ export declare class WebhooksService {
         id: string;
         createdAt: Date;
         storeId: number;
-        url: string;
         updatedAt: Date;
-        secret: string;
+        url: string;
         events: string[];
         isActive: boolean;
+        secret: string;
     }[]>;
     findOne(storeId: number, id: string): Promise<({
         deliveries: {
             id: string;
             createdAt: Date;
             delivered: boolean;
-            webhookId: string;
             event: string;
             payload: import("@prisma/client/runtime/library").JsonValue;
+            webhookId: string;
             responseStatus: number | null;
             responseBody: string | null;
             attempt: number;
@@ -45,31 +45,31 @@ export declare class WebhooksService {
         id: string;
         createdAt: Date;
         storeId: number;
-        url: string;
         updatedAt: Date;
-        secret: string;
+        url: string;
         events: string[];
         isActive: boolean;
+        secret: string;
     }) | null>;
     update(storeId: number, id: string, dto: UpdateWebhookDto): Promise<{
         id: string;
         createdAt: Date;
         storeId: number;
-        url: string;
         updatedAt: Date;
-        secret: string;
+        url: string;
         events: string[];
         isActive: boolean;
+        secret: string;
     }>;
     remove(storeId: number, id: string): Promise<{
         id: string;
         createdAt: Date;
         storeId: number;
-        url: string;
         updatedAt: Date;
-        secret: string;
+        url: string;
         events: string[];
         isActive: boolean;
+        secret: string;
     }>;
     handleEvent(event: string, storeId: number, payload: any): Promise<void>;
 }

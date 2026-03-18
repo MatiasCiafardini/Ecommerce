@@ -1,7 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import * as bcrypt from 'bcrypt';
+
+const customerSelect = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  phone: true,
+  storeId: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 @Injectable()
 export class CustomersService {
@@ -13,6 +25,7 @@ export class CustomersService {
         ...data,
         storeId,
       },
+      select: customerSelect,
     });
   }
 
@@ -20,6 +33,7 @@ export class CustomersService {
     return this.prisma.customer.findMany({
       where: { storeId },
       orderBy: { createdAt: 'desc' },
+      select: customerSelect,
     });
   }
 
@@ -29,7 +43,18 @@ export class CustomersService {
         id,
         storeId,
       },
+      select: customerSelect,
     });
+  }
+
+  async findOneOrThrow(storeId: number, id: number) {
+    const customer = await this.findOne(storeId, id);
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return customer;
   }
 
   async findByEmail(storeId: number, email: string) {
@@ -38,19 +63,37 @@ export class CustomersService {
         storeId,
         email,
       },
+      select: customerSelect,
     });
   }
 
   async update(storeId: number, id: number, data: UpdateCustomerDto) {
+    await this.findOneOrThrow(storeId, id);
+
+    const updateData: Record<string, unknown> = {
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      phone: data.phone,
+    };
+
+    if (data.password) {
+      updateData.password = await bcrypt.hash(data.password, 10);
+    }
+
     return this.prisma.customer.update({
       where: { id },
-      data,
+      data: updateData,
+      select: customerSelect,
     });
   }
 
   async remove(storeId: number, id: number) {
+    await this.findOneOrThrow(storeId, id);
+
     return this.prisma.customer.delete({
       where: { id },
+      select: customerSelect,
     });
   }
 
@@ -71,6 +114,7 @@ export class CustomersService {
         ...data,
         storeId,
       },
+      select: customerSelect,
     });
   }
 }

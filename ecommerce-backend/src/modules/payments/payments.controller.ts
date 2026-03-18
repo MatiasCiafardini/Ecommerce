@@ -1,12 +1,14 @@
-import { Controller, Post, Param, Body, Req } from '@nestjs/common';
+import { Controller, Post, Param, Body, Req, UseGuards } from '@nestjs/common';
 
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller()
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post('store/payments/:orderId')
   createPayment(
     @Req() req,
@@ -17,6 +19,7 @@ export class PaymentsController {
       req.storeId,
       Number(orderId),
       dto,
+      req.user,
     );
   }
 

@@ -18,6 +18,7 @@ model Store {
   products   Product[]
   categories Category[]
   customers  Customer[]
+  customerAddresses CustomerAddress[]
   orders     Order[]
   users      User[]
   discounts  Discount[]

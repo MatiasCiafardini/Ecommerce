@@ -17,9 +17,12 @@ let TrackingService = class TrackingService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async addTrackingEvent(dto) {
-        const shipment = await this.prisma.shipment.findUnique({
-            where: { id: dto.shipmentId },
+    async addTrackingEvent(storeId, dto) {
+        const shipment = await this.prisma.shipment.findFirst({
+            where: {
+                id: dto.shipmentId,
+                storeId,
+            },
             include: { order: true },
         });
         if (!shipment) {

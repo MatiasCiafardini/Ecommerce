@@ -1,100 +1,334 @@
 "use client";
 
+import Link from "next/link";
 import { useCart } from "@/context/cart-context";
 
 export default function CartPage() {
   const { cart, removeFromCart, clearCart } = useCart();
 
-  const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+  const variantLabel = (item: (typeof cart)[number]) => {
+    const pieces = [item.size ? `Talle ${item.size}` : null, item.color ?? null].filter(Boolean);
+    return pieces.length > 0 ? pieces.join(" · ") : "Variante estandar";
+  };
 
   if (cart.length === 0) {
     return (
-      <div style={{ padding: "40px" }}>
-        <h1>🛒 Carrito</h1>
-        <p>Tu carrito está vacío</p>
-      </div>
+      <main
+        style={{
+          minHeight: "calc(100vh - 180px)",
+          padding: "72px 24px",
+          background:
+            "radial-gradient(circle at top, rgba(255,255,255,0.08), transparent 40%), #0b0b0b",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 840,
+            margin: "0 auto",
+            borderRadius: 36,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.03)",
+            padding: "42px",
+            textAlign: "center",
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              textTransform: "uppercase",
+              letterSpacing: "0.28em",
+              fontSize: 12,
+              color: "rgba(247,241,232,0.5)",
+            }}
+          >
+            Carrito
+          </p>
+          <h1
+            style={{
+              margin: "18px 0 14px",
+              fontSize: "clamp(2.4rem, 6vw, 4.4rem)",
+              letterSpacing: "-0.06em",
+            }}
+          >
+            Tu seleccion esta vacia
+          </h1>
+          <p
+            style={{
+              maxWidth: 560,
+              margin: "0 auto",
+              color: "rgba(247,241,232,0.68)",
+              lineHeight: 1.8,
+            }}
+          >
+            Suma algunas piezas a tu rotacion. Cuando el carrito tenga movimiento,
+            aca vas a ver todo organizado para cerrar la compra.
+          </p>
+          <Link
+            href="/"
+            style={{
+              display: "inline-flex",
+              marginTop: 28,
+              padding: "14px 24px",
+              borderRadius: 999,
+              background: "#f7f1e8",
+              color: "#0b0b0b",
+              textDecoration: "none",
+              fontWeight: 700,
+            }}
+          >
+            Volver al catalogo
+          </Link>
+        </div>
+      </main>
     );
   }
 
   return (
-    <div style={{ padding: "40px" }}>
-      <h1 style={{ marginBottom: "20px" }}>🛒 Carrito</h1>
-
-      {/* items */}
-      <div style={{ marginBottom: "30px" }}>
-        {cart.map((item) => (
+    <main
+      style={{
+        padding: "72px 24px 96px",
+        background:
+          "radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 28%), radial-gradient(circle at top right, rgba(243,238,231,0.18), transparent 24%), linear-gradient(180deg, #161616 0%, #0b0b0b 100%)",
+      }}
+    >
+      <div
+        className="layout-two-col"
+        style={{
+          maxWidth: 1240,
+          margin: "0 auto",
+          gridTemplateColumns: "minmax(0, 1.3fr) minmax(320px, 0.7fr)",
+          alignItems: "start",
+        }}
+      >
+        <section
+          style={{
+            borderRadius: 36,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03))",
+            padding: 32,
+            display: "grid",
+            gap: 24,
+          }}
+        >
           <div
-            key={item.variantId}
             style={{
               display: "flex",
               justifyContent: "space-between",
-              borderBottom: "1px solid #ddd",
-              padding: "10px 0",
+              gap: 20,
+              flexWrap: "wrap",
+              alignItems: "end",
             }}
           >
             <div>
-              <h3>{item.name}</h3>
-
-              {(item.size || item.color) && (
-                <p style={{ fontSize: "14px", color: "#666" }}>
-                  {item.size} {item.color}
-                </p>
-              )}
-
-              <p>
-                ${item.price} x {item.quantity}
+              <p
+                style={{
+                  margin: 0,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.26em",
+                  fontSize: 12,
+                  color: "rgba(247,241,232,0.52)",
+                }}
+              >
+                Carrito
               </p>
+              <h1
+                style={{
+                  margin: "12px 0 0",
+                  fontSize: "clamp(2.4rem, 4vw, 4rem)",
+                  letterSpacing: "-0.05em",
+                }}
+              >
+                Rotacion lista para cerrar
+              </h1>
             </div>
 
             <button
-              onClick={() => removeFromCart(item.variantId)}
+              onClick={clearCart}
               style={{
-                background: "red",
-                color: "white",
-                border: "none",
-                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "transparent",
+                color: "#f7f1e8",
+                padding: "12px 18px",
                 cursor: "pointer",
-                height: "fit-content",
               }}
             >
-              Eliminar
+              Vaciar carrito
             </button>
           </div>
-        ))}
-      </div>
 
-      {/* total */}
-      <h2>Total: ${total}</h2>
+          <div style={{ display: "grid", gap: 16 }}>
+            {cart.map((item, index) => (
+              <article
+                key={item.variantId}
+                className="layout-cart-item"
+                style={{
+                  borderRadius: 28,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(8,8,8,0.58)",
+                  padding: 22,
+                }}
+              >
+                <div
+                  style={{
+                    width: 116,
+                    aspectRatio: "4 / 5",
+                    borderRadius: 20,
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.03))",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "rgba(247,241,232,0.56)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.2em",
+                    fontSize: 11,
+                  }}
+                >
+                  Look {String(index + 1).padStart(2, "0")}
+                </div>
 
-      {/* acciones */}
-      <div style={{ marginTop: "20px" }}>
-        <button
-          onClick={clearCart}
+                <div>
+                  <p
+                    style={{
+                      margin: 0,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.2em",
+                      fontSize: 11,
+                      color: "rgba(247,241,232,0.46)",
+                    }}
+                  >
+                    Pieza seleccionada
+                  </p>
+                  <h2 style={{ margin: "10px 0 8px", fontSize: 24 }}>{item.name}</h2>
+                  <p
+                    style={{
+                      margin: "0 0 4px",
+                      color: "rgba(247,241,232,0.82)",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Variante: {variantLabel(item)}
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "rgba(247,241,232,0.68)",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    Cantidad {item.quantity}
+                  </p>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    justifyItems: "end",
+                    gap: 12,
+                  }}
+                >
+                  <strong style={{ fontSize: 24 }}>${item.price * item.quantity}</strong>
+                  <button
+                    onClick={() => removeFromCart(item.variantId)}
+                    style={{
+                      borderRadius: 999,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.06)",
+                      color: "#f7f1e8",
+                      padding: "10px 14px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <aside
+          className="layout-sidebar"
           style={{
-            marginRight: "10px",
-            padding: "10px 20px",
-            border: "1px solid black",
-            background: "white",
-            cursor: "pointer",
+            borderRadius: 36,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background:
+              "linear-gradient(180deg, rgba(243,238,231,0.14), rgba(255,255,255,0.04))",
+            padding: 28,
+            display: "grid",
+            gap: 22,
           }}
         >
-          Vaciar carrito
-        </button>
+          <div>
+            <p
+              style={{
+                margin: 0,
+                textTransform: "uppercase",
+                letterSpacing: "0.24em",
+                fontSize: 12,
+                color: "rgba(247,241,232,0.5)",
+              }}
+            >
+              Resumen
+            </p>
+            <h2 style={{ margin: "12px 0 0", fontSize: 30 }}>Antes de pagar</h2>
+          </div>
 
-        <a href="/checkout">
-          <button
+          <div
             style={{
-              padding: "10px 20px",
-              background: "black",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
+              borderRadius: 24,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(8,8,8,0.56)",
+              padding: 20,
+              display: "grid",
+              gap: 14,
             }}
           >
-            Ir a pagar
-          </button>
-        </a>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+              <span style={{ color: "rgba(247,241,232,0.66)" }}>Subtotal</span>
+              <strong>${subtotal}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+              <span style={{ color: "rgba(247,241,232,0.66)" }}>Envio</span>
+              <span style={{ color: "rgba(247,241,232,0.52)" }}>Se calcula en checkout</span>
+            </div>
+            <div
+              style={{
+                height: 1,
+                background: "rgba(255,255,255,0.08)",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+              <span>Total estimado</span>
+              <strong style={{ fontSize: 26 }}>${subtotal}</strong>
+            </div>
+          </div>
+
+          <Link
+            href="/checkout"
+            style={{
+              display: "inline-flex",
+              justifyContent: "center",
+              padding: "15px 20px",
+              borderRadius: 999,
+              background: "#f7f1e8",
+              color: "#0b0b0b",
+              textDecoration: "none",
+              fontWeight: 700,
+            }}
+          >
+            Ir al checkout
+          </Link>
+
+          <p style={{ margin: 0, color: "rgba(247,241,232,0.62)", lineHeight: 1.8 }}>
+            Las piezas quedan listas para confirmar direccion, envio y pago en el
+            siguiente paso.
+          </p>
+        </aside>
       </div>
-    </div>
+    </main>
   );
 }

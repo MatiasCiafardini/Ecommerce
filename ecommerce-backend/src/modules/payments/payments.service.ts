@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { MercadoPagoProvider } from './providers/mercadopago.provider';
@@ -16,7 +20,12 @@ export class PaymentsService {
     private fulfillmentService: FulfillmentService,
   ) {}
 
-  async createPayment(storeId: number, orderId: number, dto: CreatePaymentDto) {
+  async createPayment(
+    storeId: number,
+    orderId: number,
+    dto: CreatePaymentDto,
+    requester?: { sub: number; role?: string },
+  ) {
     const existingPayment = await this.prisma.payment.findFirst({
       where: {
         storeId,
@@ -42,11 +51,12 @@ export class PaymentsService {
       throw new NotFoundException('Order not found');
     }
 
-    /**
-     * =========================
-     * MOCK PAYMENT (development)
-     * =========================
-     */
+    if (!requester?.role || requester.role === 'CUSTOMER') {
+      if (requester?.sub !== order.customerId) {
+        throw new ForbiddenException('You cannot pay for this order');
+      }
+    }
+
     let mpPayment;
 
     if (dto.token === 'test-token') {
@@ -78,34 +88,8 @@ export class PaymentsService {
       },
     });
 
-    /**
-     * =========================
-     * SI EL PAGO ESTÁ APROBADO
-     * =========================
-     */
     if (mpPayment.status === 'approved') {
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: {
-          status: OrderStatus.paid,
-        },
-      });
-
-      const existingShipment = await this.prisma.shipment.findUnique({
-        where: {
-          orderId: order.id,
-        },
-      });
-
-      if (!existingShipment) {
-        await this.fulfillmentService.createShipment(order.storeId, {
-          orderId: order.id,
-          provider: order.shippingProvider || 'manual',
-          method: order.shippingMethod || 'standard',
-          shippingAddress: 'Address not provided',
-          postalCode: '0000',
-        });
-      }
+      await this.finalizeApprovedOrder(order.id);
     }
 
     return payment;
@@ -117,7 +101,6 @@ export class PaymentsService {
     }
 
     const paymentId = body.data.id;
-
     const mpPayment = await this.mercadopago.getPayment(paymentId);
 
     const payment = await this.prisma.payment.findFirst({
@@ -137,77 +120,97 @@ export class PaymentsService {
       },
     });
 
-    /**
-     * =========================
-     * PAYMENT APPROVED
-     * =========================
-     */
     if (mpPayment.status === 'approved') {
-      const order = await this.prisma.order.findUnique({
-        where: { id: payment.orderId },
+      await this.finalizeApprovedOrder(payment.orderId);
+    }
+
+    if (mpPayment.status === 'rejected' || mpPayment.status === 'cancelled') {
+      await this.cancelPendingOrder(payment.orderId);
+    }
+
+    return { received: true };
+  }
+
+  private async finalizeApprovedOrder(orderId: number) {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
         include: {
+          items: true,
           shipment: true,
         },
       });
 
       if (!order) {
-        return { received: true };
+        throw new NotFoundException('Order not found');
       }
 
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: {
-          status: OrderStatus.paid,
-        },
-      });
+      if (order.status !== OrderStatus.paid) {
+        for (const item of order.items) {
+          await this.inventoryLockService.confirmStockTx(
+            tx,
+            order.storeId,
+            item.variantId,
+            item.quantity,
+          );
+        }
 
-      if (!order.shipment) {
-        await this.fulfillmentService.createShipment(order.storeId, {
-          orderId: order.id,
-          provider: order.shippingProvider || 'manual',
-          method: order.shippingMethod || 'standard',
-          shippingAddress: 'Address not provided',
-          postalCode: '0000',
+        await tx.order.update({
+          where: { id: order.id },
+          data: {
+            status: OrderStatus.paid,
+          },
         });
       }
-    }
 
-    /**
-     * =========================
-     * PAYMENT FAILED
-     * =========================
-     */
-    if (mpPayment.status === 'rejected' || mpPayment.status === 'cancelled') {
-      const order = await this.prisma.order.findUnique({
-        where: { id: payment.orderId },
+      return {
+        storeId: order.storeId,
+        orderId: order.id,
+        shipment: order.shipment,
+        shippingProvider: order.shippingProvider,
+        shippingMethod: order.shippingMethod,
+      };
+    });
+
+    if (!result.shipment) {
+      await this.fulfillmentService.createShipment(result.storeId, {
+        orderId: result.orderId,
+        provider: result.shippingProvider || 'manual',
+        method: result.shippingMethod || 'standard',
+        shippingAddress: 'Address not provided',
+        postalCode: '0000',
       });
+    }
+  }
 
-      if (!order) {
-        return { received: true };
-      }
-
-      const orderItems = await this.prisma.orderItem.findMany({
-        where: {
-          orderId: payment.orderId,
+  private async cancelPendingOrder(orderId: number) {
+    await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: true,
         },
       });
 
-      for (const item of orderItems) {
-        await this.inventoryLockService.releaseStock(
+      if (!order || order.status !== OrderStatus.pending) {
+        return;
+      }
+
+      for (const item of order.items) {
+        await this.inventoryLockService.releaseStockTx(
+          tx,
           order.storeId,
           item.variantId,
           item.quantity,
         );
       }
 
-      await this.prisma.order.update({
-        where: { id: payment.orderId },
+      await tx.order.update({
+        where: { id: order.id },
         data: {
           status: OrderStatus.cancelled,
         },
       });
-    }
-
-    return { received: true };
+    });
   }
 }

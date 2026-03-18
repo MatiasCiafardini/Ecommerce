@@ -3,7 +3,7 @@ import { TrackingEventDto } from '../dto/tracking-event.dto';
 export declare class TrackingService {
     private prisma;
     constructor(prisma: PrismaService);
-    addTrackingEvent(dto: TrackingEventDto): Promise<{
+    addTrackingEvent(storeId: number, dto: TrackingEventDto): Promise<{
         id: string;
         createdAt: Date;
         description: string | null;

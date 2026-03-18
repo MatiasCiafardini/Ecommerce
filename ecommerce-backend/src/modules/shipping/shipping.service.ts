@@ -3,6 +3,7 @@ import {
   NotFoundException,
   Inject,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -17,7 +18,12 @@ export class ShippingService {
     private provider: ShippingProvider,
   ) {}
 
-  async getOptions(storeId: number, cartId: number, postalCode: string) {
+  async getOptions(
+    storeId: number,
+    cartId: number,
+    customerId: number,
+    postalCode: string,
+  ) {
     const cart = await this.prisma.cart.findFirst({
       where: {
         id: cartId,
@@ -34,6 +40,10 @@ export class ShippingService {
 
     if (!cart) {
       throw new NotFoundException('Cart not found');
+    }
+
+    if (cart.customerId !== customerId) {
+      throw new ForbiddenException('Cart does not belong to this customer');
     }
 
     if (!cart.items.length) {

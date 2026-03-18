@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const returns_service_1 = require("./returns.service");
 const create_return_dto_1 = require("./dto/create-return.dto");
 const approve_return_dto_1 = require("./dto/approve-return.dto");
+const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 let ReturnsController = class ReturnsController {
     returnsService;
@@ -35,6 +36,7 @@ let ReturnsController = class ReturnsController {
 };
 exports.ReturnsController = ReturnsController;
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
@@ -43,6 +45,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ReturnsController.prototype, "create", null);
 __decorate([
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Post)(':id/approve'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('id')),
@@ -52,6 +55,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ReturnsController.prototype, "approve", null);
 __decorate([
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -60,7 +64,6 @@ __decorate([
 ], ReturnsController.prototype, "findAll", null);
 exports.ReturnsController = ReturnsController = __decorate([
     (0, common_1.Controller)('returns'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __metadata("design:paramtypes", [returns_service_1.ReturnsService])
 ], ReturnsController);
 //# sourceMappingURL=returns.controller.js.map

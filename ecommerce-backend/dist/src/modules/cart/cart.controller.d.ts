@@ -5,7 +5,7 @@ import { CreateCartDto } from './dto/create-cart.dto';
 export declare class CartController {
     private readonly cartService;
     constructor(cartService: CartService);
-    createCart(req: any, dto: CreateCartDto): Promise<{
+    createCart(req: any, _dto: CreateCartDto): Promise<{
         id: number;
         createdAt: Date;
         storeId: number;
@@ -85,4 +85,5 @@ export declare class CartController {
         quantity: number;
         cartId: number;
     }>;
+    clearCart(req: any, id: string): Promise<import("@prisma/client").Prisma.BatchPayload>;
 }

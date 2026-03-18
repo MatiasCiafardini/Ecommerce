@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const storefront_service_1 = require("./storefront.service");
 const swagger_1 = require("@nestjs/swagger");
 const create_order_dto_1 = require("../orders/dto/create-order.dto");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 let StorefrontController = class StorefrontController {
     storefrontService;
     constructor(storefrontService) {
@@ -38,7 +39,7 @@ let StorefrontController = class StorefrontController {
         return this.storefrontService.getProductsByCategory(slug, req.storeId);
     }
     createOrder(dto, req) {
-        return this.storefrontService.createOrder(dto, req.storeId);
+        return this.storefrontService.createOrder({ ...dto, customerId: req.user.sub }, req.storeId);
     }
 };
 exports.StorefrontController = StorefrontController;
@@ -80,6 +81,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], StorefrontController.prototype, "getProductsByCategory", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('orders'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),

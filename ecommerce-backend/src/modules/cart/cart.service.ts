@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AddItemDto } from './dto/add-item.dto';
@@ -12,6 +13,8 @@ export class CartService {
   constructor(private prisma: PrismaService) {}
 
   async createCart(storeId: number, customerId: number) {
+    await this.ensureCustomer(storeId, customerId);
+
     const existingCart = await this.prisma.cart.findFirst({
       where: {
         storeId,
@@ -32,11 +35,12 @@ export class CartService {
     });
   }
 
-  async getCart(storeId: number, cartId: number) {
+  async getCart(storeId: number, cartId: number, customerId: number) {
     const cart = await this.prisma.cart.findFirst({
       where: {
         id: cartId,
         storeId,
+        customerId,
         status: 'active',
       },
       include: {
@@ -64,11 +68,17 @@ export class CartService {
     return cart;
   }
 
-  async addItem(storeId: number, cartId: number, dto: AddItemDto) {
+  async addItem(
+    storeId: number,
+    cartId: number,
+    customerId: number,
+    dto: AddItemDto,
+  ) {
     const cart = await this.prisma.cart.findFirst({
       where: {
         id: cartId,
         storeId,
+        customerId,
         status: 'active',
       },
     });
@@ -77,8 +87,13 @@ export class CartService {
       throw new NotFoundException('Cart not found');
     }
 
-    const variant = await this.prisma.productVariant.findUnique({
-      where: { id: dto.variantId },
+    const variant = await this.prisma.productVariant.findFirst({
+      where: {
+        id: dto.variantId,
+        product: {
+          storeId,
+        },
+      },
       include: {
         inventories: {
           where: {
@@ -93,7 +108,6 @@ export class CartService {
     }
 
     const inventory = variant.inventories[0];
-
     const available = (inventory?.quantity || 0) - (inventory?.reserved || 0);
 
     if (dto.quantity > available) {
@@ -135,6 +149,7 @@ export class CartService {
     storeId: number,
     cartId: number,
     itemId: number,
+    customerId: number,
     dto: UpdateItemDto,
   ) {
     const item = await this.prisma.cartItem.findFirst({
@@ -143,6 +158,7 @@ export class CartService {
         cartId,
         cart: {
           storeId,
+          customerId,
         },
       },
       include: {
@@ -163,7 +179,6 @@ export class CartService {
     }
 
     const inventory = item.variant.inventories[0];
-
     const available = (inventory?.quantity || 0) - (inventory?.reserved || 0);
 
     if (dto.quantity > available) {
@@ -178,13 +193,19 @@ export class CartService {
     });
   }
 
-  async removeItem(storeId: number, cartId: number, itemId: number) {
+  async removeItem(
+    storeId: number,
+    cartId: number,
+    itemId: number,
+    customerId: number,
+  ) {
     const item = await this.prisma.cartItem.findFirst({
       where: {
         id: itemId,
         cartId,
         cart: {
           storeId,
+          customerId,
         },
       },
     });
@@ -196,5 +217,41 @@ export class CartService {
     return this.prisma.cartItem.delete({
       where: { id: itemId },
     });
+  }
+
+  async clearCart(storeId: number, cartId: number, customerId: number) {
+    const cart = await this.prisma.cart.findFirst({
+      where: {
+        id: cartId,
+        storeId,
+        customerId,
+        status: 'active',
+      },
+      select: { id: true },
+    });
+
+    if (!cart) {
+      throw new NotFoundException('Cart not found');
+    }
+
+    return this.prisma.cartItem.deleteMany({
+      where: {
+        cartId,
+      },
+    });
+  }
+
+  private async ensureCustomer(storeId: number, customerId: number) {
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        storeId,
+      },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new ForbiddenException('Customer does not belong to this store');
+    }
   }
 }

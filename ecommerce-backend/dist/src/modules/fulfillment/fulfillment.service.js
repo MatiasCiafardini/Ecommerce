@@ -29,8 +29,8 @@ let FulfillmentService = class FulfillmentService {
     async getShipment(storeId, shipmentId) {
         return this.shipmentService.findOne(Number(storeId), shipmentId);
     }
-    async addTracking(dto) {
-        return this.trackingService.addTrackingEvent(dto);
+    async addTracking(storeId, dto) {
+        return this.trackingService.addTrackingEvent(Number(storeId), dto);
     }
 };
 exports.FulfillmentService = FulfillmentService;

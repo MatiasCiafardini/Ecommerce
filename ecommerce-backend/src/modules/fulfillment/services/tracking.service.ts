@@ -6,9 +6,12 @@ import { TrackingEventDto } from '../dto/tracking-event.dto';
 export class TrackingService {
   constructor(private prisma: PrismaService) {}
 
-  async addTrackingEvent(dto: TrackingEventDto) {
-    const shipment = await this.prisma.shipment.findUnique({
-      where: { id: dto.shipmentId },
+  async addTrackingEvent(storeId: number, dto: TrackingEventDto) {
+    const shipment = await this.prisma.shipment.findFirst({
+      where: {
+        id: dto.shipmentId,
+        storeId,
+      },
       include: { order: true },
     });
 

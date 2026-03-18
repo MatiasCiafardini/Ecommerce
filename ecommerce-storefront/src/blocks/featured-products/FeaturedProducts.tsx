@@ -15,19 +15,22 @@ export default async function FeaturedProducts({
   const products = await getProducts({ limit });
 
   return (
-    <section style={{ padding: "60px 20px" }}>
-      <h2 style={{ marginBottom: "30px" }}>{title}</h2>
+    <section style={{ padding: "84px 20px" }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+        <h2 style={{ marginBottom: "30px", fontSize: "clamp(1.8rem, 3vw, 3rem)", textTransform: "uppercase", letterSpacing: "-0.04em", color: "#fff" }}>
+          {title}
+        </h2>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${columns},1fr)`,
-          gap: "20px",
-        }}
-      >
-        {products.map((product: any) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
+        <div
+          className="layout-auto-grid"
+          style={{
+            gridTemplateColumns: `repeat(${Math.max(1, columns)}, minmax(0, 1fr))`,
+          }}
+        >
+          {products.map((product: any) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
       </div>
     </section>
   );

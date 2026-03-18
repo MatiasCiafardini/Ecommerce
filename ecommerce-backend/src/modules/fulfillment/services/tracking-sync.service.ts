@@ -42,7 +42,7 @@ export class TrackingSyncService {
 
         if (!simulatedStatus) continue;
 
-        await this.trackingService.addTrackingEvent({
+        await this.trackingService.addTrackingEvent(shipment.storeId, {
           shipmentId: shipment.id,
           status: simulatedStatus,
           description: 'Automatic tracking update',

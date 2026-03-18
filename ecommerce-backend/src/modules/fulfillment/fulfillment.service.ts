@@ -23,7 +23,7 @@ export class FulfillmentService {
     return this.shipmentService.findOne(Number(storeId), shipmentId);
   }
 
-  async addTracking(dto: TrackingEventDto) {
-    return this.trackingService.addTrackingEvent(dto);
+  async addTracking(storeId: number | string, dto: TrackingEventDto) {
+    return this.trackingService.addTrackingEvent(Number(storeId), dto);
   }
 }

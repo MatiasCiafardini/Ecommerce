@@ -16,13 +16,17 @@ exports.CheckoutController = void 0;
 const common_1 = require("@nestjs/common");
 const checkout_service_1 = require("./checkout.service");
 const checkout_dto_1 = require("./dto/checkout.dto");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 let CheckoutController = class CheckoutController {
     checkoutService;
     constructor(checkoutService) {
         this.checkoutService = checkoutService;
     }
     checkout(req, cartId, dto) {
-        return this.checkoutService.checkout(req.storeId, Number(cartId), dto);
+        return this.checkoutService.checkout(req.storeId, Number(cartId), {
+            ...dto,
+            customerId: req.user.sub,
+        });
     }
 };
 exports.CheckoutController = CheckoutController;
@@ -36,6 +40,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CheckoutController.prototype, "checkout", null);
 exports.CheckoutController = CheckoutController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('store/checkout'),
     __metadata("design:paramtypes", [checkout_service_1.CheckoutService])
 ], CheckoutController);

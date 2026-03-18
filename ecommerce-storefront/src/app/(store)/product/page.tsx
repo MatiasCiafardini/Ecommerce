@@ -1,8 +1,8 @@
-export default function ProductsPage() {
-  return (
-    <div style={{ padding: "60px 20px" }}>
-      <h1>Productos</h1>
-      <p>Próximamente catálogo completo.</p>
-    </div>
-  );
+import { getProducts } from "@/services/products.service";
+import CatalogView from "@/components/store/CatalogView";
+
+export default async function ProductsPage() {
+  const products = await getProducts();
+
+  return <CatalogView products={products} />;
 }

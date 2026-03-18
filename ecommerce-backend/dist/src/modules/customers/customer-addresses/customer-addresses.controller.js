@@ -17,35 +17,62 @@ const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const customer_addresses_service_1 = require("./customer-addresses.service");
 const create_customer_address_dto_1 = require("./dto/create-customer-address.dto");
+const update_customer_address_dto_1 = require("./dto/update-customer-address.dto");
+const jwt_auth_guard_1 = require("../../auth/guards/jwt-auth.guard");
 let CustomerAddressesController = class CustomerAddressesController {
     service;
     constructor(service) {
         this.service = service;
     }
-    create(dto) {
-        return this.service.create(dto);
+    create(req, dto) {
+        return this.service.create(req.storeId, req.user.sub, dto);
     }
-    findByCustomer(customerId) {
-        return this.service.findByCustomer(Number(customerId));
+    findMine(req) {
+        return this.service.findByCustomer(req.storeId, req.user.sub);
+    }
+    update(req, id, dto) {
+        return this.service.update(req.storeId, req.user.sub, Number(id), dto);
+    }
+    remove(req, id) {
+        return this.service.remove(req.storeId, req.user.sub, Number(id));
     }
 };
 exports.CustomerAddressesController = CustomerAddressesController;
 __decorate([
-    (0, common_1.Post)(),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.Post)('me'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_customer_address_dto_1.CreateCustomerAddressDto]),
+    __metadata("design:paramtypes", [Object, create_customer_address_dto_1.CreateCustomerAddressDto]),
     __metadata("design:returntype", void 0)
 ], CustomerAddressesController.prototype, "create", null);
 __decorate([
-    (0, common_1.Get)(':customerId'),
-    __param(0, (0, common_1.Param)('customerId')),
+    (0, common_1.Get)('me'),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
-], CustomerAddressesController.prototype, "findByCustomer", null);
+], CustomerAddressesController.prototype, "findMine", null);
+__decorate([
+    (0, common_1.Patch)('me/:id'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, update_customer_address_dto_1.UpdateCustomerAddressDto]),
+    __metadata("design:returntype", void 0)
+], CustomerAddressesController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)('me/:id'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], CustomerAddressesController.prototype, "remove", null);
 exports.CustomerAddressesController = CustomerAddressesController = __decorate([
     (0, swagger_1.ApiTags)('Customer Addresses'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('customer-addresses'),
     __metadata("design:paramtypes", [customer_addresses_service_1.CustomerAddressesService])
 ], CustomerAddressesController);

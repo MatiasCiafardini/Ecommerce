@@ -12,12 +12,12 @@ export declare class ShipmentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     }>;
     findAll(storeId: number): Promise<({
         trackingEvents: {
@@ -36,12 +36,12 @@ export declare class ShipmentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     })[]>;
     findOne(storeId: number, shipmentId: string): Promise<{
         trackingEvents: {
@@ -60,12 +60,12 @@ export declare class ShipmentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     }>;
     updateStatus(shipmentId: string, status: ShipmentStatus): Promise<{
         id: string;
@@ -75,11 +75,11 @@ export declare class ShipmentService {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     }>;
 }

@@ -9,18 +9,23 @@ export declare class PaymentsService {
     private inventoryLockService;
     private fulfillmentService;
     constructor(prisma: PrismaService, mercadopago: MercadoPagoProvider, inventoryLockService: InventoryLockService, fulfillmentService: FulfillmentService);
-    createPayment(storeId: number, orderId: number, dto: CreatePaymentDto): Promise<{
+    createPayment(storeId: number, orderId: number, dto: CreatePaymentDto, requester?: {
+        sub: number;
+        role?: string;
+    }): Promise<{
         id: number;
         createdAt: Date;
         storeId: number;
         status: string;
         idempotencyKey: string | null;
         orderId: number;
-        provider: string;
         amount: import("@prisma/client/runtime/library").Decimal;
+        provider: string;
         externalId: string | null;
     }>;
     handleWebhook(body: any): Promise<{
         received: boolean;
     }>;
+    private finalizeApprovedOrder;
+    private cancelPendingOrder;
 }

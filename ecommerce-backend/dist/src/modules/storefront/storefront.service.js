@@ -21,8 +21,9 @@ let StorefrontService = class StorefrontService {
         this.ordersService = ordersService;
     }
     async getStoreConfig(domain) {
+        const normalizedDomain = domain?.split(':')[0]?.toLowerCase();
         const store = await this.prisma.store.findUnique({
-            where: { domain },
+            where: { domain: normalizedDomain },
         });
         if (!store) {
             throw new Error('Store not found');
@@ -49,6 +50,11 @@ let StorefrontService = class StorefrontService {
                         },
                     },
                 },
+                categories: {
+                    include: {
+                        category: true,
+                    },
+                },
             },
         });
     }
@@ -68,6 +74,11 @@ let StorefrontService = class StorefrontService {
                                 storeId,
                             },
                         },
+                    },
+                },
+                categories: {
+                    include: {
+                        category: true,
                     },
                 },
             },
@@ -97,6 +108,11 @@ let StorefrontService = class StorefrontService {
                                                 storeId,
                                             },
                                         },
+                                    },
+                                },
+                                categories: {
+                                    include: {
+                                        category: true,
                                     },
                                 },
                             },

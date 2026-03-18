@@ -7,6 +7,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
+type AuthEntity = {
+  id: number;
+  email: string;
+  storeId: number;
+  role: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  name?: string | null;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -32,8 +43,14 @@ export class AuthService {
     return user;
   }
 
-  async registerCustomer(email: string, password: string, storeId: number) {
-    // 🔥 limpiar dominio (sacar puerto)
+  async registerCustomer(
+    email: string,
+    password: string,
+    storeId: number,
+    firstName?: string,
+    lastName?: string,
+    phone?: string,
+  ) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
     });
@@ -60,23 +77,29 @@ export class AuthService {
         email,
         password: hashedPassword,
         storeId: store.id,
+        firstName,
+        lastName,
+        phone,
       },
     });
 
-    return customer;
+    return this.toAuthEntity(customer);
   }
+
   async login(user: any) {
+    const safeUser = this.toAuthEntity(user);
     const payload = {
-      sub: user.id,
-      storeId: user.storeId,
-      role: user.role,
+      sub: safeUser.id,
+      storeId: safeUser.storeId,
+      role: safeUser.role,
     };
 
     return {
       access_token: this.jwtService.sign(payload),
-      user, // 🔥 importante para frontend
+      user: safeUser,
     };
   }
+
   async validateCustomer(email: string, password: string, storeId: number) {
     const customer = await this.prisma.customer.findFirst({
       where: {
@@ -84,10 +107,6 @@ export class AuthService {
         storeId,
       },
     });
-
-    if (!customer) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
 
     if (!customer || !customer.password) {
       throw new UnauthorizedException('Invalid credentials');
@@ -100,5 +119,18 @@ export class AuthService {
     }
 
     return customer;
+  }
+
+  private toAuthEntity(user: any): AuthEntity {
+    return {
+      id: user.id,
+      email: user.email,
+      storeId: user.storeId,
+      role: user.role ?? 'CUSTOMER',
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
+      phone: user.phone ?? null,
+      name: user.name ?? null,
+    };
   }
 }

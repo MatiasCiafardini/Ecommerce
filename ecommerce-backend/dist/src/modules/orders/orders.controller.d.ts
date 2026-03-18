@@ -31,7 +31,27 @@ export declare class OrdersController {
         discountId: number | null;
     }>;
     findAll(req: any): import("@prisma/client").Prisma.PrismaPromise<({
-        shipment: {
+        payments: {
+            id: number;
+            createdAt: Date;
+            storeId: number;
+            status: string;
+            idempotencyKey: string | null;
+            orderId: number;
+            amount: import("@prisma/client/runtime/library").Decimal;
+            provider: string;
+            externalId: string | null;
+        }[];
+        shipment: ({
+            trackingEvents: {
+                id: string;
+                createdAt: Date;
+                description: string | null;
+                status: import("@prisma/client").$Enums.ShipmentStatus;
+                shipmentId: string;
+                location: string | null;
+            }[];
+        } & {
             id: string;
             createdAt: Date;
             storeId: number;
@@ -39,21 +59,53 @@ export declare class OrdersController {
             updatedAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             orderId: number;
-            provider: string;
             method: string;
-            trackingNumber: string | null;
-            trackingUrl: string | null;
+            provider: string;
             shippingAddress: string;
             postalCode: string;
-        } | null;
-        items: {
+            trackingNumber: string | null;
+            trackingUrl: string | null;
+        }) | null;
+        items: ({
+            variant: {
+                product: {
+                    images: {
+                        id: number;
+                        productId: number;
+                        url: string;
+                        position: number;
+                    }[];
+                } & {
+                    id: number;
+                    createdAt: Date;
+                    storeId: number;
+                    description: string | null;
+                    title: string;
+                    published: boolean;
+                    slug: string;
+                    deletedAt: Date | null;
+                };
+            } & {
+                id: number;
+                length: number | null;
+                deletedAt: Date | null;
+                productId: number;
+                sku: string;
+                price: import("@prisma/client/runtime/library").Decimal;
+                Size: string | null;
+                Color: string | null;
+                weight: number | null;
+                width: number | null;
+                height: number | null;
+            };
+        } & {
             id: number;
             price: import("@prisma/client/runtime/library").Decimal;
             variantId: number;
             quantity: number;
             returnedQuantity: number;
             orderId: number;
-        }[];
+        })[];
     } & {
         id: number;
         createdAt: Date;
@@ -72,6 +124,17 @@ export declare class OrdersController {
         discountId: number | null;
     })[]>;
     findOne(id: string, req: any): import("@prisma/client").Prisma.Prisma__OrderClient<({
+        payments: {
+            id: number;
+            createdAt: Date;
+            storeId: number;
+            status: string;
+            idempotencyKey: string | null;
+            orderId: number;
+            amount: import("@prisma/client/runtime/library").Decimal;
+            provider: string;
+            externalId: string | null;
+        }[];
         shipment: ({
             trackingEvents: {
                 id: string;
@@ -89,21 +152,53 @@ export declare class OrdersController {
             updatedAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             orderId: number;
-            provider: string;
             method: string;
-            trackingNumber: string | null;
-            trackingUrl: string | null;
+            provider: string;
             shippingAddress: string;
             postalCode: string;
+            trackingNumber: string | null;
+            trackingUrl: string | null;
         }) | null;
-        items: {
+        items: ({
+            variant: {
+                product: {
+                    images: {
+                        id: number;
+                        productId: number;
+                        url: string;
+                        position: number;
+                    }[];
+                } & {
+                    id: number;
+                    createdAt: Date;
+                    storeId: number;
+                    description: string | null;
+                    title: string;
+                    published: boolean;
+                    slug: string;
+                    deletedAt: Date | null;
+                };
+            } & {
+                id: number;
+                length: number | null;
+                deletedAt: Date | null;
+                productId: number;
+                sku: string;
+                price: import("@prisma/client/runtime/library").Decimal;
+                Size: string | null;
+                Color: string | null;
+                weight: number | null;
+                width: number | null;
+                height: number | null;
+            };
+        } & {
             id: number;
             price: import("@prisma/client/runtime/library").Decimal;
             variantId: number;
             quantity: number;
             returnedQuantity: number;
             orderId: number;
-        }[];
+        })[];
     } & {
         id: number;
         createdAt: Date;

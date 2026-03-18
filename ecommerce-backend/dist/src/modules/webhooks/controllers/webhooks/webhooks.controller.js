@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const webhooks_service_1 = require("../../services/webhooks/webhooks.service");
 const create_webhook_dto_1 = require("../../dto/create-webhook.dto");
 const update_webhook_dto_1 = require("../../dto/update-webhook.dto");
+const admin_auth_guard_1 = require("../../../auth/guards/admin-auth.guard");
 let WebhooksController = class WebhooksController {
     webhooksService;
     constructor(webhooksService) {
@@ -91,6 +92,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], WebhooksController.prototype, "testEvent", null);
 exports.WebhooksController = WebhooksController = __decorate([
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Controller)('admin/webhooks'),
     __metadata("design:paramtypes", [webhooks_service_1.WebhooksService])
 ], WebhooksController);

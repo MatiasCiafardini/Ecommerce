@@ -7,11 +7,14 @@ import {
   Body,
   Param,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { WebhooksService } from '../../services/webhooks/webhooks.service';
 import { CreateWebhookDto } from '../../dto/create-webhook.dto';
 import { UpdateWebhookDto } from '../../dto/update-webhook.dto';
+import { AdminAuthGuard } from '../../../auth/guards/admin-auth.guard';
 
+@UseGuards(AdminAuthGuard)
 @Controller('admin/webhooks')
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}

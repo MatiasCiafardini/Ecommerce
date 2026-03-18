@@ -1,9 +1,11 @@
-import { Controller, Post, Body, Get, Param, Req } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Req, UseGuards } from '@nestjs/common';
 
 import { FulfillmentService } from './fulfillment.service';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { TrackingEventDto } from './dto/tracking-event.dto';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 
+@UseGuards(AdminAuthGuard)
 @Controller('admin/shipments')
 export class FulfillmentController {
   constructor(private readonly fulfillmentService: FulfillmentService) {}
@@ -24,8 +26,8 @@ export class FulfillmentController {
   }
 
   @Post(':id/tracking')
-  addTracking(@Param('id') id: string, @Body() dto: TrackingEventDto) {
+  addTracking(@Req() req, @Param('id') id: string, @Body() dto: TrackingEventDto) {
     dto.shipmentId = id;
-    return this.fulfillmentService.addTracking(dto);
+    return this.fulfillmentService.addTracking(req.storeId, dto);
   }
 }

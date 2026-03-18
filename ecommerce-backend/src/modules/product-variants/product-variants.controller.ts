@@ -10,12 +10,12 @@ import {
 import { ProductVariantsService } from './product-variants.service';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
 @ApiTags('Variants')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AdminAuthGuard)
 @Controller('variants')
 export class ProductVariantsController {
   constructor(private variantsService: ProductVariantsService) {}

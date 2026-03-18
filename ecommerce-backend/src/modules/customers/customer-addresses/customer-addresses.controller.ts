@@ -1,21 +1,44 @@
-import { Controller, Post, Body, Get, Param } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Req,
+  UseGuards,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { CustomerAddressesService } from './customer-addresses.service';
 import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
+import { UpdateCustomerAddressDto } from './dto/update-customer-address.dto';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Customer Addresses')
+@UseGuards(JwtAuthGuard)
 @Controller('customer-addresses')
 export class CustomerAddressesController {
   constructor(private readonly service: CustomerAddressesService) {}
 
-  @Post()
-  create(@Body() dto: CreateCustomerAddressDto) {
-    return this.service.create(dto);
+  @Post('me')
+  create(@Req() req, @Body() dto: CreateCustomerAddressDto) {
+    return this.service.create(req.storeId, req.user.sub, dto);
   }
 
-  @Get(':customerId')
-  findByCustomer(@Param('customerId') customerId: string) {
-    return this.service.findByCustomer(Number(customerId));
+  @Get('me')
+  findMine(@Req() req) {
+    return this.service.findByCustomer(req.storeId, req.user.sub);
+  }
+
+  @Patch('me/:id')
+  update(@Req() req, @Param('id') id: string, @Body() dto: UpdateCustomerAddressDto) {
+    return this.service.update(req.storeId, req.user.sub, Number(id), dto);
+  }
+
+  @Delete('me/:id')
+  remove(@Req() req, @Param('id') id: string) {
+    return this.service.remove(req.storeId, req.user.sub, Number(id));
   }
 }

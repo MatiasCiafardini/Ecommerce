@@ -17,7 +17,7 @@ const common_1 = require("@nestjs/common");
 const product_images_service_1 = require("./product-images.service");
 const create_product_image_dto_1 = require("./dto/create-product-image.dto");
 const swagger_1 = require("@nestjs/swagger");
-const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
 let ProductImagesController = class ProductImagesController {
     service;
     constructor(service) {
@@ -60,7 +60,7 @@ exports.ProductImagesController = ProductImagesController = __decorate([
     (0, swagger_1.ApiSecurity)('x-store-id'),
     (0, swagger_1.ApiBearerAuth)('jwt'),
     (0, swagger_1.ApiTags)('Product Images'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(admin_auth_guard_1.AdminAuthGuard),
     (0, common_1.Controller)('products/:productId/images'),
     __metadata("design:paramtypes", [product_images_service_1.ProductImagesService])
 ], ProductImagesController);

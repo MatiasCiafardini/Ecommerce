@@ -9,12 +9,12 @@ export default function ThemeProvider({
   themeName: string;
   children: React.ReactNode;
 }) {
-  const theme = themes[themeName];
+  const theme = themes[themeName as keyof typeof themes];
 
   if (!theme) return <>{children}</>;
 
-  const Header = theme.Header;
-  const Footer = theme.Footer;
+  const Header = "Header" in theme ? theme.Header : null;
+  const Footer = "Footer" in theme ? theme.Footer : null;
 
   return (
     <>

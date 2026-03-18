@@ -12,12 +12,12 @@ export declare class FulfillmentController {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     }>;
     findAll(req: any): Promise<({
         trackingEvents: {
@@ -36,12 +36,12 @@ export declare class FulfillmentController {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     })[]>;
     findOne(req: any, id: string): Promise<{
         trackingEvents: {
@@ -60,14 +60,14 @@ export declare class FulfillmentController {
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     }>;
-    addTracking(id: string, dto: TrackingEventDto): Promise<{
+    addTracking(req: any, id: string, dto: TrackingEventDto): Promise<{
         id: string;
         createdAt: Date;
         description: string | null;

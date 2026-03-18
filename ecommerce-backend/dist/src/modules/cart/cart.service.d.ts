@@ -13,7 +13,7 @@ export declare class CartService {
         customerId: number;
         status: string;
     }>;
-    getCart(storeId: number, cartId: number): Promise<{
+    getCart(storeId: number, cartId: number, customerId: number): Promise<{
         items: ({
             variant: {
                 product: {
@@ -63,25 +63,27 @@ export declare class CartService {
         customerId: number;
         status: string;
     }>;
-    addItem(storeId: number, cartId: number, dto: AddItemDto): Promise<{
+    addItem(storeId: number, cartId: number, customerId: number, dto: AddItemDto): Promise<{
         id: number;
         createdAt: Date;
         variantId: number;
         quantity: number;
         cartId: number;
     }>;
-    updateItem(storeId: number, cartId: number, itemId: number, dto: UpdateItemDto): Promise<{
+    updateItem(storeId: number, cartId: number, itemId: number, customerId: number, dto: UpdateItemDto): Promise<{
         id: number;
         createdAt: Date;
         variantId: number;
         quantity: number;
         cartId: number;
     }>;
-    removeItem(storeId: number, cartId: number, itemId: number): Promise<{
+    removeItem(storeId: number, cartId: number, itemId: number, customerId: number): Promise<{
         id: number;
         createdAt: Date;
         variantId: number;
         quantity: number;
         cartId: number;
     }>;
+    clearCart(storeId: number, cartId: number, customerId: number): Promise<import("@prisma/client").Prisma.BatchPayload>;
+    private ensureCustomer;
 }

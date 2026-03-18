@@ -10,12 +10,12 @@ import {
 import { ProductImagesService } from './product-images.service';
 import { CreateProductImageDto } from './dto/create-product-image.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
 @ApiTags('Product Images')
-@UseGuards(JwtAuthGuard)
+@UseGuards(AdminAuthGuard)
 @Controller('products/:productId/images')
 export class ProductImagesController {
   constructor(private service: ProductImagesService) {}
