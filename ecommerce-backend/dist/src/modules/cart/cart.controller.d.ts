@@ -7,8 +7,8 @@ export declare class CartController {
     constructor(cartService: CartService);
     createCart(req: any, _dto: CreateCartDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         updatedAt: Date;
         customerId: number;
@@ -19,27 +19,27 @@ export declare class CartController {
             variant: {
                 product: {
                     id: number;
-                    createdAt: Date;
-                    storeId: number;
-                    description: string | null;
                     title: string;
-                    published: boolean;
+                    description: string | null;
                     slug: string;
+                    published: boolean;
+                    storeId: number;
+                    createdAt: Date;
                     deletedAt: Date | null;
                 };
                 inventories: {
                     id: number;
                     storeId: number;
-                    variantId: number;
                     quantity: number;
                     reserved: number;
                     updatedAt: Date;
+                    variantId: number;
                 }[];
             } & {
                 id: number;
-                length: number | null;
                 deletedAt: Date | null;
                 productId: number;
+                length: number | null;
                 sku: string;
                 price: import("@prisma/client/runtime/library").Decimal;
                 Size: string | null;
@@ -51,14 +51,14 @@ export declare class CartController {
         } & {
             id: number;
             createdAt: Date;
-            variantId: number;
             quantity: number;
+            variantId: number;
             cartId: number;
         })[];
     } & {
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         updatedAt: Date;
         customerId: number;
@@ -67,22 +67,22 @@ export declare class CartController {
     addItem(req: any, id: string, dto: AddItemDto): Promise<{
         id: number;
         createdAt: Date;
-        variantId: number;
         quantity: number;
+        variantId: number;
         cartId: number;
     }>;
     updateItem(req: any, id: string, itemId: string, dto: UpdateItemDto): Promise<{
         id: number;
         createdAt: Date;
-        variantId: number;
         quantity: number;
+        variantId: number;
         cartId: number;
     }>;
     removeItem(req: any, id: string, itemId: string): Promise<{
         id: number;
         createdAt: Date;
-        variantId: number;
         quantity: number;
+        variantId: number;
         cartId: number;
     }>;
     clearCart(req: any, id: string): Promise<import("@prisma/client").Prisma.BatchPayload>;

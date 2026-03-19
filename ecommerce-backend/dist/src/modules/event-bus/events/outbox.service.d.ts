@@ -4,8 +4,8 @@ export declare class OutboxService {
     constructor(prisma: PrismaService);
     addEvent(event: string, storeId: number, payload: any): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         event: string;
         payload: import("@prisma/client/runtime/library").JsonValue;
         processed: boolean;
@@ -13,8 +13,8 @@ export declare class OutboxService {
     }>;
     getPendingEvents(limit?: number): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         event: string;
         payload: import("@prisma/client/runtime/library").JsonValue;
         processed: boolean;
@@ -22,8 +22,8 @@ export declare class OutboxService {
     }[]>;
     markProcessed(id: string): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         event: string;
         payload: import("@prisma/client/runtime/library").JsonValue;
         processed: boolean;

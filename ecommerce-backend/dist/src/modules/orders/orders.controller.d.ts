@@ -8,15 +8,15 @@ export declare class OrdersController {
         items: {
             id: number;
             price: import("@prisma/client/runtime/library").Decimal;
-            variantId: number;
             quantity: number;
+            variantId: number;
             returnedQuantity: number;
             orderId: number;
         }[];
     } & {
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         customerId: number;
         subtotal: import("@prisma/client/runtime/library").Decimal;
@@ -33,63 +33,70 @@ export declare class OrdersController {
     findAll(req: any): import("@prisma/client").Prisma.PrismaPromise<({
         payments: {
             id: number;
-            createdAt: Date;
             storeId: number;
+            createdAt: Date;
             status: string;
             idempotencyKey: string | null;
             orderId: number;
-            provider: string;
             amount: import("@prisma/client/runtime/library").Decimal;
+            provider: string;
             externalId: string | null;
         }[];
+        customer: {
+            id: number;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+            phone: string | null;
+        };
         shipment: ({
             trackingEvents: {
                 id: string;
-                createdAt: Date;
                 description: string | null;
+                createdAt: Date;
                 status: import("@prisma/client").$Enums.ShipmentStatus;
                 shipmentId: string;
                 location: string | null;
             }[];
         } & {
             id: string;
-            createdAt: Date;
             storeId: number;
+            createdAt: Date;
             weight: number | null;
             updatedAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             orderId: number;
-            provider: string;
             method: string;
-            trackingNumber: string | null;
-            trackingUrl: string | null;
+            provider: string;
             shippingAddress: string;
             postalCode: string;
+            trackingNumber: string | null;
+            trackingUrl: string | null;
         }) | null;
         items: ({
             variant: {
                 product: {
                     images: {
                         id: number;
+                        position: number;
                         productId: number;
                         url: string;
-                        position: number;
                     }[];
                 } & {
                     id: number;
-                    createdAt: Date;
-                    storeId: number;
-                    description: string | null;
                     title: string;
-                    published: boolean;
+                    description: string | null;
                     slug: string;
+                    published: boolean;
+                    storeId: number;
+                    createdAt: Date;
                     deletedAt: Date | null;
                 };
             } & {
                 id: number;
-                length: number | null;
                 deletedAt: Date | null;
                 productId: number;
+                length: number | null;
                 sku: string;
                 price: import("@prisma/client/runtime/library").Decimal;
                 Size: string | null;
@@ -101,15 +108,15 @@ export declare class OrdersController {
         } & {
             id: number;
             price: import("@prisma/client/runtime/library").Decimal;
-            variantId: number;
             quantity: number;
+            variantId: number;
             returnedQuantity: number;
             orderId: number;
         })[];
     } & {
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         customerId: number;
         subtotal: import("@prisma/client/runtime/library").Decimal;
@@ -126,63 +133,70 @@ export declare class OrdersController {
     findOne(id: string, req: any): import("@prisma/client").Prisma.Prisma__OrderClient<({
         payments: {
             id: number;
-            createdAt: Date;
             storeId: number;
+            createdAt: Date;
             status: string;
             idempotencyKey: string | null;
             orderId: number;
-            provider: string;
             amount: import("@prisma/client/runtime/library").Decimal;
+            provider: string;
             externalId: string | null;
         }[];
+        customer: {
+            id: number;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+            phone: string | null;
+        };
         shipment: ({
             trackingEvents: {
                 id: string;
-                createdAt: Date;
                 description: string | null;
+                createdAt: Date;
                 status: import("@prisma/client").$Enums.ShipmentStatus;
                 shipmentId: string;
                 location: string | null;
             }[];
         } & {
             id: string;
-            createdAt: Date;
             storeId: number;
+            createdAt: Date;
             weight: number | null;
             updatedAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             orderId: number;
-            provider: string;
             method: string;
-            trackingNumber: string | null;
-            trackingUrl: string | null;
+            provider: string;
             shippingAddress: string;
             postalCode: string;
+            trackingNumber: string | null;
+            trackingUrl: string | null;
         }) | null;
         items: ({
             variant: {
                 product: {
                     images: {
                         id: number;
+                        position: number;
                         productId: number;
                         url: string;
-                        position: number;
                     }[];
                 } & {
                     id: number;
-                    createdAt: Date;
-                    storeId: number;
-                    description: string | null;
                     title: string;
-                    published: boolean;
+                    description: string | null;
                     slug: string;
+                    published: boolean;
+                    storeId: number;
+                    createdAt: Date;
                     deletedAt: Date | null;
                 };
             } & {
                 id: number;
-                length: number | null;
                 deletedAt: Date | null;
                 productId: number;
+                length: number | null;
                 sku: string;
                 price: import("@prisma/client/runtime/library").Decimal;
                 Size: string | null;
@@ -194,15 +208,15 @@ export declare class OrdersController {
         } & {
             id: number;
             price: import("@prisma/client/runtime/library").Decimal;
-            variantId: number;
             quantity: number;
+            variantId: number;
             returnedQuantity: number;
             orderId: number;
         })[];
     } & {
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         customerId: number;
         subtotal: import("@prisma/client/runtime/library").Decimal;
@@ -218,8 +232,8 @@ export declare class OrdersController {
     }) | null, null, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     updateStatus(id: string, dto: UpdateOrderStatusDto, req: any): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         customerId: number;
         subtotal: import("@prisma/client/runtime/library").Decimal;

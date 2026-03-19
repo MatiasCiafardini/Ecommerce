@@ -11,8 +11,8 @@ export declare class CheckoutService {
     constructor(prisma: PrismaService, inventoryLockService: InventoryLockService, discountsService: DiscountsService, discountEngine: DiscountEngineService);
     checkout(storeId: number, cartId: number, dto: CheckoutDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         customerId: number;
         subtotal: import("@prisma/client/runtime/library").Decimal;

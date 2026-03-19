@@ -17,6 +17,35 @@ let ProductOptionsService = class ProductOptionsService {
     constructor(prisma) {
         this.prisma = prisma;
     }
+    async findAllOptions(storeId) {
+        const options = await this.prisma.productOption.findMany({
+            where: { storeId },
+            include: {
+                values: {
+                    select: {
+                        id: true,
+                        value: true,
+                        productId: true,
+                    },
+                    orderBy: {
+                        value: 'asc',
+                    },
+                },
+            },
+            orderBy: {
+                name: 'asc',
+            },
+        });
+        return options.map((option) => ({
+            ...option,
+            reusableValues: [
+                ...new Map(option.values.map((value) => [
+                    value.value.trim().toLowerCase(),
+                    { id: value.id, value: value.value },
+                ])).values(),
+            ],
+        }));
+    }
     async createOption(storeId, dto) {
         const normalizedName = dto.name.trim();
         const existing = await this.prisma.productOption.findFirst({
@@ -90,6 +119,68 @@ let ProductOptionsService = class ProductOptionsService {
                         slug: true,
                     },
                 },
+            },
+        });
+    }
+    async findValuesByProduct(storeId, productId) {
+        const product = await this.prisma.product.findFirst({
+            where: {
+                id: productId,
+                storeId,
+            },
+            select: {
+                id: true,
+            },
+        });
+        if (!product) {
+            throw new common_1.NotFoundException('Product not found');
+        }
+        return this.prisma.productOptionValue.findMany({
+            where: {
+                productId,
+                productOption: {
+                    storeId,
+                },
+            },
+            include: {
+                productOption: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+            },
+            orderBy: [
+                {
+                    productOption: {
+                        name: 'asc',
+                    },
+                },
+                {
+                    value: 'asc',
+                },
+            ],
+        });
+    }
+    async removeValueFromProduct(storeId, productId, valueId) {
+        const value = await this.prisma.productOptionValue.findFirst({
+            where: {
+                id: valueId,
+                productId,
+                productOption: {
+                    storeId,
+                },
+            },
+            select: {
+                id: true,
+            },
+        });
+        if (!value) {
+            throw new common_1.NotFoundException('Product option value not found');
+        }
+        return this.prisma.productOptionValue.delete({
+            where: {
+                id: valueId,
             },
         });
     }

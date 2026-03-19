@@ -16,6 +16,7 @@ exports.ProductVariantsController = void 0;
 const common_1 = require("@nestjs/common");
 const product_variants_service_1 = require("./product-variants.service");
 const create_variant_dto_1 = require("./dto/create-variant.dto");
+const update_variant_dto_1 = require("./dto/update-variant.dto");
 const swagger_1 = require("@nestjs/swagger");
 const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
 let ProductVariantsController = class ProductVariantsController {
@@ -25,6 +26,12 @@ let ProductVariantsController = class ProductVariantsController {
     }
     create(createVariantDto, req) {
         return this.variantsService.create(createVariantDto, req.storeId);
+    }
+    update(id, updateVariantDto, req) {
+        return this.variantsService.update(Number(id), updateVariantDto, req.storeId);
+    }
+    remove(id, req) {
+        return this.variantsService.remove(Number(id), req.storeId);
     }
     findByProduct(productId, req) {
         return this.variantsService.findByProduct(Number(productId), req.storeId);
@@ -39,6 +46,23 @@ __decorate([
     __metadata("design:paramtypes", [create_variant_dto_1.CreateVariantDto, Object]),
     __metadata("design:returntype", void 0)
 ], ProductVariantsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_variant_dto_1.UpdateVariantDto, Object]),
+    __metadata("design:returntype", void 0)
+], ProductVariantsController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], ProductVariantsController.prototype, "remove", null);
 __decorate([
     (0, common_1.Get)(':productId'),
     __param(0, (0, common_1.Param)('productId')),

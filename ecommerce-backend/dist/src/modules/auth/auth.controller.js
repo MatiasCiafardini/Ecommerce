@@ -18,6 +18,8 @@ const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
 const swagger_1 = require("@nestjs/swagger");
 const register_dto_1 = require("./dto/register.dto");
+const update_current_auth_dto_1 = require("./dto/update-current-auth.dto");
+const jwt_auth_guard_1 = require("./guards/jwt-auth.guard");
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
@@ -26,6 +28,18 @@ let AuthController = class AuthController {
     async login(loginDto) {
         const user = await this.authService.validateUser(loginDto.email, loginDto.password);
         return this.authService.login(user);
+    }
+    async loginSession(body, req) {
+        const storeIdHeader = req.headers['x-store-id'];
+        if (!storeIdHeader) {
+            throw new Error('x-store-id header is required');
+        }
+        const storeId = Number(storeIdHeader);
+        if (isNaN(storeId)) {
+            throw new Error('x-store-id must be a number');
+        }
+        const authEntity = await this.authService.validateSession(body.email, body.password, storeId);
+        return this.authService.login(authEntity);
     }
     async registerCustomer(body, req) {
         const storeIdHeader = req.headers['x-store-id'];
@@ -47,6 +61,12 @@ let AuthController = class AuthController {
         const customer = await this.authService.validateCustomer(body.email, body.password, storeId);
         return this.authService.login(customer);
     }
+    getMe(req) {
+        return this.authService.getCurrentAuthEntity(req.user.sub, req.user.role, req.storeId);
+    }
+    updateMe(req, dto) {
+        return this.authService.updateCurrentAuthEntity(req.user.sub, req.user.role, req.storeId, dto);
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -56,6 +76,14 @@ __decorate([
     __metadata("design:paramtypes", [login_dto_1.LoginDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "login", null);
+__decorate([
+    (0, common_1.Post)('session-login'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [login_dto_1.LoginDto, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "loginSession", null);
 __decorate([
     (0, common_1.Post)('customer/register'),
     __param(0, (0, common_1.Body)()),
@@ -72,6 +100,23 @@ __decorate([
     __metadata("design:paramtypes", [login_dto_1.LoginDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "loginCustomer", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Get)('me'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "getMe", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Patch)('me'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, update_current_auth_dto_1.UpdateCurrentAuthDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "updateMe", null);
 exports.AuthController = AuthController = __decorate([
     (0, swagger_1.ApiTags)('auth'),
     (0, swagger_1.ApiSecurity)('x-store-id'),

@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { UpdateCurrentAuthDto } from './dto/update-current-auth.dto';
 
 type AuthEntity = {
   id: number;
@@ -86,6 +87,25 @@ export class AuthService {
     return this.toAuthEntity(customer);
   }
 
+  async validateSession(email: string, password: string, storeId: number) {
+    const adminUser = await this.prisma.user.findFirst({
+      where: {
+        email,
+        storeId,
+      },
+    });
+
+    if (adminUser) {
+      const passwordValid = await bcrypt.compare(password, adminUser.password);
+
+      if (passwordValid) {
+        return adminUser;
+      }
+    }
+
+    return this.validateCustomer(email, password, storeId);
+  }
+
   async login(user: any) {
     const safeUser = this.toAuthEntity(user);
     const payload = {
@@ -119,6 +139,112 @@ export class AuthService {
     }
 
     return customer;
+  }
+
+  async getCurrentAuthEntity(id: number, role: string, storeId: number) {
+    const isCustomer = !role || role === 'CUSTOMER';
+
+    if (isCustomer) {
+      const customer = await this.prisma.customer.findFirst({
+        where: {
+          id,
+          storeId,
+        },
+      });
+
+      if (!customer) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      return this.toAuthEntity(customer);
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        storeId,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return this.toAuthEntity(user);
+  }
+
+  async updateCurrentAuthEntity(
+    id: number,
+    role: string,
+    storeId: number,
+    data: UpdateCurrentAuthDto,
+  ) {
+    const isCustomer = !role || role === 'CUSTOMER';
+
+    if (isCustomer) {
+      const customer = await this.prisma.customer.findFirst({
+        where: {
+          id,
+          storeId,
+        },
+      });
+
+      if (!customer) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      const customerData: {
+        firstName?: string;
+        lastName?: string;
+        phone?: string;
+        password?: string;
+      } = {};
+
+      if (data.firstName !== undefined) customerData.firstName = data.firstName;
+      if (data.lastName !== undefined) customerData.lastName = data.lastName;
+      if (data.phone !== undefined) customerData.phone = data.phone;
+      if (data.password) {
+        customerData.password = await bcrypt.hash(data.password, 10);
+      }
+
+      const updatedCustomer = await this.prisma.customer.update({
+        where: { id },
+        data: customerData,
+      });
+
+      return this.toAuthEntity(updatedCustomer);
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        storeId,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const userData: {
+      name?: string | null;
+      password?: string;
+    } = {};
+
+    if (data.name !== undefined) {
+      userData.name = data.name;
+    }
+
+    if (data.password) {
+      userData.password = await bcrypt.hash(data.password, 10);
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: userData,
+    });
+
+    return this.toAuthEntity(updatedUser);
   }
 
   private toAuthEntity(user: any): AuthEntity {

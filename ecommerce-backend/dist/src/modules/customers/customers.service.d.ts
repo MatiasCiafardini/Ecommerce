@@ -6,9 +6,9 @@ export declare class CustomersService {
     constructor(prisma: PrismaService);
     create(storeId: number, data: CreateCustomerDto): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -16,9 +16,9 @@ export declare class CustomersService {
     }>;
     findAll(storeId: number): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -26,9 +26,9 @@ export declare class CustomersService {
     }[]>;
     findOne(storeId: number, id: number): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -36,9 +36,9 @@ export declare class CustomersService {
     } | null>;
     findOneOrThrow(storeId: number, id: number): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -46,9 +46,9 @@ export declare class CustomersService {
     }>;
     findByEmail(storeId: number, email: string): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -56,9 +56,9 @@ export declare class CustomersService {
     } | null>;
     update(storeId: number, id: number, data: UpdateCustomerDto): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -66,9 +66,9 @@ export declare class CustomersService {
     }>;
     remove(storeId: number, id: number): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -76,9 +76,9 @@ export declare class CustomersService {
     }>;
     upsertCustomer(storeId: number, data: CreateCustomerDto): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;

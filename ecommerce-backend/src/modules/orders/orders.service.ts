@@ -231,6 +231,15 @@ export class OrdersService {
 
   private orderInclude() {
     return {
+      customer: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+        },
+      },
       items: {
         include: {
           variant: {

@@ -24,9 +24,13 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
 
-      await login(form);
+      const user = await login(form);
+      const defaultRedirect =
+        user.role && user.role !== "CUSTOMER"
+          ? "/account?section=admin-overview"
+          : "/account?section=orders";
 
-      router.push(redirect);
+      router.push(redirect === "/" ? defaultRedirect : redirect);
     } catch {
       setError("Email o contraseña incorrectos");
     } finally {

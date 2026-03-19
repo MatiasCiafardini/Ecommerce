@@ -14,10 +14,12 @@ type User = {
   name?: string | null;
 };
 
+export type { User };
+
 type AuthContextType = {
   user: User | null;
   loading: boolean;
-  login: (data: { email: string; password: string }) => Promise<void>;
+  login: (data: { email: string; password: string }) => Promise<User>;
   logout: () => void;
   setUser: (user: User | null) => void;
 };
@@ -43,7 +45,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(parsedUser);
 
         // Refresh the session from the API so the account shown in UI matches the JWT.
-        const freshUser = await api("/customers/me");
+        const freshUser = await api("/auth/me");
         localStorage.setItem("user", JSON.stringify(freshUser));
         setUser(freshUser);
       } catch {
@@ -67,7 +69,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (data: { email: string; password: string }) => {
-    const res = await api("/auth/customer/login", {
+    const res = await api("/auth/session-login", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -76,6 +78,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem("user", JSON.stringify(res.user));
 
     setUser(res.user);
+    return res.user;
   };
 
   const logout = () => {

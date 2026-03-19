@@ -13,8 +13,8 @@ export declare class ReturnsController {
         }[];
     } & {
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ReturnStatus;
         orderId: number;
@@ -22,8 +22,8 @@ export declare class ReturnsController {
     }>;
     approve(req: any, id: string, dto: ApproveReturnDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ReturnStatus;
         orderId: number;
@@ -35,8 +35,8 @@ export declare class ReturnsController {
     findAll(req: any): Promise<({
         refund: {
             id: number;
-            createdAt: Date;
             storeId: number;
+            createdAt: Date;
             orderId: number;
             amount: import("@prisma/client/runtime/library").Decimal;
             returnId: number;
@@ -50,8 +50,8 @@ export declare class ReturnsController {
         }[];
     } & {
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ReturnStatus;
         orderId: number;

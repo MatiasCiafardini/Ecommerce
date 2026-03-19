@@ -24,14 +24,30 @@ let ProductOptionsController = class ProductOptionsController {
     constructor(service) {
         this.service = service;
     }
+    findAllOptions(req) {
+        return this.service.findAllOptions(req.storeId);
+    }
     createOption(req, dto) {
         return this.service.createOption(req.storeId, dto);
     }
     addValueToProduct(req, productId, dto) {
         return this.service.addValueToProduct(req.storeId, Number(productId), dto);
     }
+    findValuesByProduct(req, productId) {
+        return this.service.findValuesByProduct(req.storeId, Number(productId));
+    }
+    removeValueFromProduct(req, productId, id) {
+        return this.service.removeValueFromProduct(req.storeId, Number(productId), Number(id));
+    }
 };
 exports.ProductOptionsController = ProductOptionsController;
+__decorate([
+    (0, common_1.Get)('product-options'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], ProductOptionsController.prototype, "findAllOptions", null);
 __decorate([
     (0, common_1.Post)('product-options'),
     __param(0, (0, common_1.Req)()),
@@ -49,6 +65,23 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, add_product_option_value_dto_1.AddProductOptionValueDto]),
     __metadata("design:returntype", void 0)
 ], ProductOptionsController.prototype, "addValueToProduct", null);
+__decorate([
+    (0, common_1.Get)('products/:productId/option-values'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('productId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ProductOptionsController.prototype, "findValuesByProduct", null);
+__decorate([
+    (0, common_1.Delete)('products/:productId/option-values/:id'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('productId')),
+    __param(2, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", void 0)
+], ProductOptionsController.prototype, "removeValueFromProduct", null);
 exports.ProductOptionsController = ProductOptionsController = __decorate([
     (0, swagger_1.ApiSecurity)('x-store-id'),
     (0, swagger_1.ApiBearerAuth)('jwt'),

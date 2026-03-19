@@ -16,6 +16,13 @@ class CreateVariantDto {
     productId;
     sku;
     price;
+    Size;
+    Color;
+    weight;
+    width;
+    height;
+    length;
+    inventoryQuantity;
 }
 exports.CreateVariantDto = CreateVariantDto;
 __decorate([
@@ -33,4 +40,46 @@ __decorate([
     (0, class_validator_1.IsNumber)(),
     __metadata("design:type", Number)
 ], CreateVariantDto.prototype, "price", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'S' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateVariantDto.prototype, "Size", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'Black' }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateVariantDto.prototype, "Color", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 0.4 }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateVariantDto.prototype, "weight", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 20 }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateVariantDto.prototype, "width", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 30 }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateVariantDto.prototype, "height", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 5 }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateVariantDto.prototype, "length", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 12 }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CreateVariantDto.prototype, "inventoryQuantity", void 0);
 //# sourceMappingURL=create-variant.dto.js.map

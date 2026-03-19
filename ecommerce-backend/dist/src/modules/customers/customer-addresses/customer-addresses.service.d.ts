@@ -6,8 +6,8 @@ export declare class CustomerAddressesService {
     constructor(prisma: PrismaService);
     create(storeId: number, customerId: number, dto: CreateCustomerAddressDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -22,8 +22,8 @@ export declare class CustomerAddressesService {
     }>;
     findByCustomer(storeId: number, customerId: number): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -38,8 +38,8 @@ export declare class CustomerAddressesService {
     }[]>;
     update(storeId: number, customerId: number, addressId: number, dto: UpdateCustomerAddressDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -54,8 +54,8 @@ export declare class CustomerAddressesService {
     }>;
     remove(storeId: number, customerId: number, addressId: number): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -70,8 +70,8 @@ export declare class CustomerAddressesService {
     }>;
     findOneOrThrow(storeId: number, customerId: number, addressId: number): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;

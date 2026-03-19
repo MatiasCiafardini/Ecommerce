@@ -5,16 +5,16 @@ export declare class TrackingService {
     constructor(prisma: PrismaService);
     addTrackingEvent(storeId: number, dto: TrackingEventDto): Promise<{
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         shipmentId: string;
         location: string | null;
     }>;
     getTracking(shipmentId: string): Promise<{
         id: string;
-        createdAt: Date;
         description: string | null;
+        createdAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         shipmentId: string;
         location: string | null;

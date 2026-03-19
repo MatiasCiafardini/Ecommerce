@@ -14,13 +14,13 @@ export declare class PaymentsService {
         role?: string;
     }): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         status: string;
         idempotencyKey: string | null;
         orderId: number;
-        provider: string;
         amount: import("@prisma/client/runtime/library").Decimal;
+        provider: string;
         externalId: string | null;
     }>;
     handleWebhook(body: any): Promise<{

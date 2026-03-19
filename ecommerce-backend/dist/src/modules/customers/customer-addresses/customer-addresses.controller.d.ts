@@ -6,8 +6,8 @@ export declare class CustomerAddressesController {
     constructor(service: CustomerAddressesService);
     create(req: any, dto: CreateCustomerAddressDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -22,8 +22,8 @@ export declare class CustomerAddressesController {
     }>;
     findMine(req: any): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -38,8 +38,8 @@ export declare class CustomerAddressesController {
     }[]>;
     update(req: any, id: string, dto: UpdateCustomerAddressDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;
@@ -54,8 +54,8 @@ export declare class CustomerAddressesController {
     }>;
     remove(req: any, id: string): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         customerId: number;
         firstName: string;
         lastName: string;

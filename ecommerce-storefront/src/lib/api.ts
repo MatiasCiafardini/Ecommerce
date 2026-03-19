@@ -8,15 +8,14 @@ type ApiOptions = {
 
 export const api = async (endpoint: string, options: ApiOptions = {}) => {
   const token = localStorage.getItem("token");
+  const isFormData = options.body instanceof FormData;
 
   const res = await fetch(`${API_URL}${endpoint}`, {
     method: options.method || "GET",
     headers: {
-      "Content-Type": "application/json",
-      "x-store-id": "1", // ✅ fijo por ahora
-      ...(token && {
-        Authorization: `Bearer ${token}`,
-      }),
+      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
+      "x-store-id": "1",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     body: options.body,

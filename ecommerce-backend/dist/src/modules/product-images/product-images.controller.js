@@ -18,10 +18,18 @@ const product_images_service_1 = require("./product-images.service");
 const create_product_image_dto_1 = require("./dto/create-product-image.dto");
 const swagger_1 = require("@nestjs/swagger");
 const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
+const platform_express_1 = require("@nestjs/platform-express");
+const multer_1 = require("multer");
+const path_1 = require("path");
 let ProductImagesController = class ProductImagesController {
     service;
     constructor(service) {
         this.service = service;
+    }
+    upload(productId, file) {
+        return this.service.create(Number(productId), {
+            url: `/uploads/${file.filename}`,
+        });
     }
     create(productId, dto) {
         return this.service.create(Number(productId), dto);
@@ -34,6 +42,23 @@ let ProductImagesController = class ProductImagesController {
     }
 };
 exports.ProductImagesController = ProductImagesController;
+__decorate([
+    (0, common_1.Post)('upload'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.diskStorage)({
+            destination: './uploads',
+            filename: (_, file, callback) => {
+                const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+                callback(null, `${uniqueSuffix}${(0, path_1.extname)(file.originalname)}`);
+            },
+        }),
+    })),
+    __param(0, (0, common_1.Param)('productId')),
+    __param(1, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], ProductImagesController.prototype, "upload", null);
 __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Param)('productId')),

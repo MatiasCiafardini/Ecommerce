@@ -12,33 +12,20 @@ export declare class StorefrontService {
         theme: string;
     }>;
     getProducts(storeId: number, query?: GetStoreProductsDto): Promise<({
-        categories: ({
-            category: {
-                id: number;
-                name: string;
-                createdAt: Date;
-                storeId: number;
-                slug: string;
-                deletedAt: Date | null;
-            };
-        } & {
-            productId: number;
-            categoryId: number;
-        })[];
         variants: ({
             inventories: {
                 id: number;
                 storeId: number;
-                variantId: number;
                 quantity: number;
                 reserved: number;
                 updatedAt: Date;
+                variantId: number;
             }[];
         } & {
             id: number;
-            length: number | null;
             deletedAt: Date | null;
             productId: number;
+            length: number | null;
             sku: string;
             price: Prisma.Decimal;
             Size: string | null;
@@ -49,60 +36,60 @@ export declare class StorefrontService {
         })[];
         images: {
             id: number;
+            position: number;
             productId: number;
             url: string;
-            position: number;
         }[];
+        categories: ({
+            category: {
+                id: number;
+                slug: string;
+                storeId: number;
+                createdAt: Date;
+                deletedAt: Date | null;
+                name: string;
+            };
+        } & {
+            productId: number;
+            categoryId: number;
+        })[];
     } & {
         id: number;
-        createdAt: Date;
-        storeId: number;
-        description: string | null;
         title: string;
-        published: boolean;
+        description: string | null;
         slug: string;
+        published: boolean;
+        storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
     })[]>;
     getStoreProductOptions(storeId: number): Prisma.PrismaPromise<({
         values: {
             id: number;
-            value: string;
             productId: number;
+            value: string;
         }[];
     } & {
         id: number;
-        name: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
+        name: string;
     })[]>;
     getProduct(slug: string, storeId: number): Prisma.Prisma__ProductClient<({
-        categories: ({
-            category: {
-                id: number;
-                name: string;
-                createdAt: Date;
-                storeId: number;
-                slug: string;
-                deletedAt: Date | null;
-            };
-        } & {
-            productId: number;
-            categoryId: number;
-        })[];
         variants: ({
             inventories: {
                 id: number;
                 storeId: number;
-                variantId: number;
                 quantity: number;
                 reserved: number;
                 updatedAt: Date;
+                variantId: number;
             }[];
         } & {
             id: number;
-            length: number | null;
             deletedAt: Date | null;
             productId: number;
+            length: number | null;
             sku: string;
             price: Prisma.Decimal;
             Size: string | null;
@@ -113,68 +100,68 @@ export declare class StorefrontService {
         })[];
         images: {
             id: number;
+            position: number;
             productId: number;
             url: string;
-            position: number;
         }[];
+        categories: ({
+            category: {
+                id: number;
+                slug: string;
+                storeId: number;
+                createdAt: Date;
+                deletedAt: Date | null;
+                name: string;
+            };
+        } & {
+            productId: number;
+            categoryId: number;
+        })[];
     } & {
         id: number;
-        createdAt: Date;
-        storeId: number;
-        description: string | null;
         title: string;
-        published: boolean;
+        description: string | null;
         slug: string;
+        published: boolean;
+        storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
     }) | null, null, import("@prisma/client/runtime/library").DefaultArgs, Prisma.PrismaClientOptions>;
     getProductOptions(slug: string, storeId: number): Promise<({
         values: {
             id: number;
-            value: string;
             productId: number;
+            value: string;
         }[];
     } & {
         id: number;
-        name: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
+        name: string;
     })[] | null>;
     getCategories(storeId: number): Prisma.PrismaPromise<{
         id: number;
-        name: string;
-        createdAt: Date;
-        storeId: number;
         slug: string;
+        storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
+        name: string;
     }[]>;
     getProductsByCategory(slug: string, storeId: number, query?: GetStoreProductsDto): Promise<({
-        categories: ({
-            category: {
-                id: number;
-                name: string;
-                createdAt: Date;
-                storeId: number;
-                slug: string;
-                deletedAt: Date | null;
-            };
-        } & {
-            productId: number;
-            categoryId: number;
-        })[];
         variants: ({
             inventories: {
                 id: number;
                 storeId: number;
-                variantId: number;
                 quantity: number;
                 reserved: number;
                 updatedAt: Date;
+                variantId: number;
             }[];
         } & {
             id: number;
-            length: number | null;
             deletedAt: Date | null;
             productId: number;
+            length: number | null;
             sku: string;
             price: Prisma.Decimal;
             Size: string | null;
@@ -185,33 +172,46 @@ export declare class StorefrontService {
         })[];
         images: {
             id: number;
+            position: number;
             productId: number;
             url: string;
-            position: number;
         }[];
+        categories: ({
+            category: {
+                id: number;
+                slug: string;
+                storeId: number;
+                createdAt: Date;
+                deletedAt: Date | null;
+                name: string;
+            };
+        } & {
+            productId: number;
+            categoryId: number;
+        })[];
     } & {
         id: number;
-        createdAt: Date;
-        storeId: number;
-        description: string | null;
         title: string;
-        published: boolean;
+        description: string | null;
         slug: string;
+        published: boolean;
+        storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
     })[]>;
     createOrder(dto: CreateOrderDto, storeId: number): Promise<{
         items: {
             id: number;
             price: Prisma.Decimal;
-            variantId: number;
             quantity: number;
+            variantId: number;
             returnedQuantity: number;
             orderId: number;
         }[];
     } & {
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         customerId: number;
         subtotal: Prisma.Decimal;

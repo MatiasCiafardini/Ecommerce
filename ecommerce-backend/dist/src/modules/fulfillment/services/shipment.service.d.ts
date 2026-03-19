@@ -6,80 +6,80 @@ export declare class ShipmentService {
     constructor(prisma: PrismaService);
     createShipment(storeId: number, dto: CreateShipmentDto): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         weight: number | null;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     }>;
     findAll(storeId: number): Promise<({
         trackingEvents: {
             id: string;
-            createdAt: Date;
             description: string | null;
+            createdAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             shipmentId: string;
             location: string | null;
         }[];
     } & {
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         weight: number | null;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     })[]>;
     findOne(storeId: number, shipmentId: string): Promise<{
         trackingEvents: {
             id: string;
-            createdAt: Date;
             description: string | null;
+            createdAt: Date;
             status: import("@prisma/client").$Enums.ShipmentStatus;
             shipmentId: string;
             location: string | null;
         }[];
     } & {
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         weight: number | null;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     }>;
     updateStatus(shipmentId: string, status: ShipmentStatus): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         weight: number | null;
         updatedAt: Date;
         status: import("@prisma/client").$Enums.ShipmentStatus;
         orderId: number;
-        provider: string;
         method: string;
-        trackingNumber: string | null;
-        trackingUrl: string | null;
+        provider: string;
         shippingAddress: string;
         postalCode: string;
+        trackingNumber: string | null;
+        trackingUrl: string | null;
     }>;
 }

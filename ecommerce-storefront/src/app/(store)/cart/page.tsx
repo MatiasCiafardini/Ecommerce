@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useCart } from "@/context/cart-context";
 
 export default function CartPage() {
-  const { cart, removeFromCart, clearCart } = useCart();
+  const { cart, isHydrated, updateQuantity, removeFromCart, clearCart } = useCart();
+  const [cartError, setCartError] = useState("");
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
@@ -12,6 +14,85 @@ export default function CartPage() {
     const pieces = [item.size ? `Talle ${item.size}` : null, item.color ?? null].filter(Boolean);
     return pieces.length > 0 ? pieces.join(" · ") : "Variante estandar";
   };
+
+  const handleQuantityChange = (variantId: string, nextQuantity: number) => {
+    const result = updateQuantity(variantId, nextQuantity);
+
+    if (!result.ok) {
+      setCartError(result.reason ?? "No se pudo actualizar la cantidad.");
+      return;
+    }
+
+    setCartError("");
+  };
+
+  const getCartStockMessage = (item: (typeof cart)[number]) => {
+    if (item.quantity >= item.maxAvailable) {
+      return "Ya agregaste las ultimas unidades disponibles.";
+    }
+
+    if (item.maxAvailable < 10) {
+      return "Ultimas unidades disponibles.";
+    }
+
+    return null;
+  };
+
+  if (!isHydrated) {
+    return (
+      <main
+        style={{
+          minHeight: "calc(100vh - 180px)",
+          padding: "72px 24px",
+          background:
+            "radial-gradient(circle at top, rgba(255,255,255,0.08), transparent 40%), #0b0b0b",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 840,
+            margin: "0 auto",
+            borderRadius: 36,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.03)",
+            padding: "42px",
+            textAlign: "center",
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              textTransform: "uppercase",
+              letterSpacing: "0.28em",
+              fontSize: 12,
+              color: "rgba(247,241,232,0.5)",
+            }}
+          >
+            Carrito
+          </p>
+          <h1
+            style={{
+              margin: "18px 0 14px",
+              fontSize: "clamp(2.4rem, 6vw, 4.4rem)",
+              letterSpacing: "-0.06em",
+            }}
+          >
+            Cargando tu seleccion
+          </h1>
+          <p
+            style={{
+              maxWidth: 560,
+              margin: "0 auto",
+              color: "rgba(247,241,232,0.68)",
+              lineHeight: 1.8,
+            }}
+          >
+            Estamos recuperando los productos que ya tenias guardados en el carrito.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (cart.length === 0) {
     return (
@@ -160,8 +241,25 @@ export default function CartPage() {
             </button>
           </div>
 
+          {cartError ? (
+            <div
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(255,159,159,0.22)",
+                background: "rgba(255,159,159,0.08)",
+                padding: "12px 14px",
+                color: "#ffd6d6",
+              }}
+            >
+              {cartError}
+            </div>
+          ) : null}
+
           <div style={{ display: "grid", gap: 16 }}>
-            {cart.map((item, index) => (
+            {cart.map((item, index) => {
+              const cartStockMessage = getCartStockMessage(item);
+
+              return (
               <article
                 key={item.variantId}
                 className="layout-cart-item"
@@ -175,8 +273,10 @@ export default function CartPage() {
                 <div
                   style={{
                     width: 116,
-                    aspectRatio: "4 / 5",
+                    minWidth: 116,
+                    height: 145,
                     borderRadius: 20,
+                    overflow: "hidden",
                     background:
                       "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.03))",
                     display: "grid",
@@ -187,7 +287,21 @@ export default function CartPage() {
                     fontSize: 11,
                   }}
                 >
-                  Look {String(index + 1).padStart(2, "0")}
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        objectPosition: "center top",
+                        display: "block",
+                      }}
+                    />
+                  ) : (
+                    <>Look {String(index + 1).padStart(2, "0")}</>
+                  )}
                 </div>
 
                 <div>
@@ -212,15 +326,47 @@ export default function CartPage() {
                   >
                     Variante: {variantLabel(item)}
                   </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "rgba(247,241,232,0.68)",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    Cantidad {item.quantity}
-                  </p>
+                  {cartStockMessage ? (
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#ffe4bf",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {cartStockMessage}
+                    </p>
+                  ) : null}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+                    <span style={{ color: "rgba(247,241,232,0.72)", fontSize: 14 }}>Cantidad</span>
+                    <div style={quantityStepperStyle}>
+                      <button
+                        type="button"
+                        onClick={() => handleQuantityChange(item.variantId, item.quantity - 1)}
+                        style={quantityButtonStyle}
+                      >
+                        -
+                      </button>
+                      <strong style={{ minWidth: 28, textAlign: "center" }}>{item.quantity}</strong>
+                      <button
+                        type="button"
+                        onClick={() => handleQuantityChange(item.variantId, item.quantity + 1)}
+                        disabled={item.quantity >= item.maxAvailable}
+                        style={{
+                          ...quantityButtonStyle,
+                          opacity: item.quantity >= item.maxAvailable ? 0.45 : 1,
+                          cursor: item.quantity >= item.maxAvailable ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
+                    {item.quantity >= item.maxAvailable ? (
+                      <span style={{ color: "#ffe4bf", fontSize: 13 }}>
+                        Ya agregaste las ultimas unidades disponibles
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div
@@ -246,7 +392,8 @@ export default function CartPage() {
                   </button>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -332,3 +479,23 @@ export default function CartPage() {
     </main>
   );
 }
+
+const quantityStepperStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 10,
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.04)",
+  padding: "8px 10px",
+};
+
+const quantityButtonStyle: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: "50%",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(8,8,8,0.46)",
+  color: "#f7f1e8",
+  cursor: "pointer",
+};

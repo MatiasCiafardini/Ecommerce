@@ -6,9 +6,9 @@ export declare class DiscountsController {
     constructor(discountsService: DiscountsService);
     create(req: any, dto: CreateDiscountDto): Promise<{
         id: number;
-        name: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
+        name: string;
         value: number | null;
         type: import("@prisma/client").$Enums.DiscountType;
         minimumAmount: number | null;
@@ -27,9 +27,9 @@ export declare class DiscountsController {
         }[];
     } & {
         id: number;
-        name: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
+        name: string;
         value: number | null;
         type: import("@prisma/client").$Enums.DiscountType;
         minimumAmount: number | null;

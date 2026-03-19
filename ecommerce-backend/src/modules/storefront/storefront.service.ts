@@ -68,6 +68,9 @@ export class StorefrontService {
       include: {
         images: true,
         variants: {
+          where: {
+            deletedAt: null,
+          },
           include: {
             inventories: {
               where: {
@@ -158,6 +161,9 @@ export class StorefrontService {
     return {
       images: true,
       variants: {
+        where: {
+          deletedAt: null,
+        },
         include: {
           inventories: {
             where: {

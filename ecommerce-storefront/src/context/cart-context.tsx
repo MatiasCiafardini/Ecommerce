@@ -8,13 +8,25 @@ type CartItem = {
   name: string;
   price: number;
   quantity: number;
+  maxAvailable: number;
+  slug?: string;
+  imageUrl?: string | null;
   size?: string;
   color?: string;
 };
 
+type CartMutationResult = {
+  ok: boolean;
+  quantity: number;
+  maxAvailable: number;
+  reason?: string;
+};
+
 type CartContextType = {
   cart: CartItem[];
-  addToCart: (item: CartItem) => void;
+  isHydrated: boolean;
+  addToCart: (item: CartItem, amount?: number) => CartMutationResult;
+  updateQuantity: (variantId: string, quantity: number) => CartMutationResult;
   removeFromCart: (variantId: string) => void;
   clearCart: () => void;
 };
@@ -23,32 +35,131 @@ const CartContext = createContext<CartContextType | null>(null);
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // cargar carrito
   useEffect(() => {
-    const stored = localStorage.getItem("cart");
-    if (stored) setCart(JSON.parse(stored));
+    try {
+      const stored = localStorage.getItem("cart");
+      setCart(stored ? (JSON.parse(stored) as CartItem[]) : []);
+    } catch {
+      setCart([]);
+    } finally {
+      setIsHydrated(true);
+    }
   }, []);
 
   // guardar carrito
   useEffect(() => {
+    if (!isHydrated) return;
     localStorage.setItem("cart", JSON.stringify(cart));
-  }, [cart]);
+  }, [cart, isHydrated]);
 
-  const addToCart = (item: CartItem) => {
+  const addToCart = (item: CartItem, amount = 1): CartMutationResult => {
+    const existing = cart.find((i) => i.variantId === item.variantId);
+    const currentQuantity = existing?.quantity ?? 0;
+    const safeMax = Math.max(item.maxAvailable ?? existing?.maxAvailable ?? 0, 0);
+    const requestedQuantity = currentQuantity + amount;
+
+    if (safeMax <= 0) {
+      return {
+        ok: false,
+        quantity: currentQuantity,
+        maxAvailable: 0,
+        reason: "No hay stock disponible para esta variante.",
+      };
+    }
+
+    if (requestedQuantity > safeMax) {
+      return {
+        ok: false,
+        quantity: currentQuantity,
+        maxAvailable: safeMax,
+        reason:
+          safeMax === 1
+            ? "Solo queda 1 unidad disponible."
+            : `Solo hay ${safeMax} unidades disponibles para esta variante.`,
+      };
+    }
+
     setCart((prev) => {
-      const existing = prev.find((i) => i.variantId === item.variantId);
+      const existingItem = prev.find((i) => i.variantId === item.variantId);
 
-      if (existing) {
+      if (existingItem) {
         return prev.map((i) =>
           i.variantId === item.variantId
-            ? { ...i, quantity: i.quantity + 1 }
+            ? {
+                ...i,
+                ...item,
+                maxAvailable: safeMax,
+                quantity: i.quantity + amount,
+              }
             : i,
         );
       }
 
       return [...prev, item];
     });
+
+    return {
+      ok: true,
+      quantity: requestedQuantity,
+      maxAvailable: safeMax,
+    };
+  };
+
+  const updateQuantity = (variantId: string, quantity: number): CartMutationResult => {
+    const existing = cart.find((item) => item.variantId === variantId);
+
+    if (!existing) {
+      return {
+        ok: false,
+        quantity: 0,
+        maxAvailable: 0,
+        reason: "No encontramos ese producto en el carrito.",
+      };
+    }
+
+    const safeMax = Math.max(existing.maxAvailable ?? 0, 0);
+
+    if (safeMax <= 0) {
+      return {
+        ok: false,
+        quantity: existing.quantity,
+        maxAvailable: safeMax,
+        reason: "No hay stock disponible para esta variante.",
+      };
+    }
+
+    if (quantity < 1) {
+      setCart((prev) => prev.filter((item) => item.variantId !== variantId));
+      return {
+        ok: true,
+        quantity: 0,
+        maxAvailable: safeMax,
+      };
+    }
+
+    if (quantity > safeMax) {
+      return {
+        ok: false,
+        quantity: existing.quantity,
+        maxAvailable: safeMax,
+        reason:
+          safeMax === 1
+            ? "Solo queda 1 unidad disponible."
+            : `Solo hay ${safeMax} unidades disponibles para esta variante.`,
+      };
+    }
+
+    setCart((prev) =>
+      prev.map((item) => (item.variantId === variantId ? { ...item, quantity } : item)),
+    );
+
+    return {
+      ok: true,
+      quantity,
+      maxAvailable: safeMax,
+    };
   };
 
   const removeFromCart = (variantId: string) => {
@@ -59,7 +170,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, clearCart }}
+      value={{ cart, isHydrated, addToCart, updateQuantity, removeFromCart, clearCart }}
     >
       {children}
     </CartContext.Provider>

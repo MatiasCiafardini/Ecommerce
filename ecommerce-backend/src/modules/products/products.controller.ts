@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Delete,
+  Patch,
   Body,
   Req,
   Param,
@@ -10,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 
@@ -29,6 +31,11 @@ export class ProductsController {
   @Get()
   findAll(@Req() req) {
     return this.productsService.findAll(req.storeId);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateProductDto, @Req() req) {
+    return this.productsService.update(Number(id), dto, req.storeId);
   }
 
   @Post(':id/categories/:categoryId')

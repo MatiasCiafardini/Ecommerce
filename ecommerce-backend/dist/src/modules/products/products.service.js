@@ -36,7 +36,11 @@ let ProductsService = class ProductsService {
                 storeId,
             },
             include: {
-                variants: true,
+                variants: {
+                    where: {
+                        deletedAt: null,
+                    },
+                },
                 images: true,
                 categories: {
                     include: {
@@ -44,6 +48,49 @@ let ProductsService = class ProductsService {
                     },
                 },
             },
+        });
+    }
+    async update(productId, data, storeId) {
+        const payload = {};
+        if (data.title !== undefined) {
+            payload.title = data.title;
+            payload.slug = (0, slug_util_1.generateSlug)(data.title);
+        }
+        if (data.description !== undefined) {
+            payload.description = data.description ?? null;
+        }
+        if (data.published !== undefined) {
+            payload.published = data.published;
+        }
+        return this.prisma.product.updateMany({
+            where: {
+                id: productId,
+                storeId,
+            },
+            data: payload,
+        }).then(async (result) => {
+            if (result.count === 0) {
+                throw new Error('Product not found');
+            }
+            return this.prisma.product.findFirst({
+                where: {
+                    id: productId,
+                    storeId,
+                },
+                include: {
+                    variants: {
+                        where: {
+                            deletedAt: null,
+                        },
+                    },
+                    images: true,
+                    categories: {
+                        include: {
+                            category: true,
+                        },
+                    },
+                },
+            });
         });
     }
     async addCategory(productId, categoryId) {

@@ -5,13 +5,13 @@ export declare class PaymentsController {
     constructor(paymentsService: PaymentsService);
     createPayment(req: any, orderId: string, dto: CreatePaymentDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         status: string;
         idempotencyKey: string | null;
         orderId: number;
-        provider: string;
         amount: import("@prisma/client/runtime/library").Decimal;
+        provider: string;
         externalId: string | null;
     }>;
     webhook(body: any): Promise<{

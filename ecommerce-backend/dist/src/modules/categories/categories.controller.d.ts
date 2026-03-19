@@ -5,18 +5,18 @@ export declare class CategoriesController {
     constructor(service: CategoriesService);
     create(dto: CreateCategoryDto, req: any): Promise<{
         id: number;
-        name: string;
-        createdAt: Date;
-        storeId: number;
         slug: string;
+        storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
+        name: string;
     }>;
     findAll(req: any): import("@prisma/client").Prisma.PrismaPromise<{
         id: number;
-        name: string;
-        createdAt: Date;
-        storeId: number;
         slug: string;
+        storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
+        name: string;
     }[]>;
 }

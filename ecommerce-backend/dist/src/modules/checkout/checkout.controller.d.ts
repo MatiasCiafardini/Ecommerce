@@ -5,8 +5,8 @@ export declare class CheckoutController {
     constructor(checkoutService: CheckoutService);
     checkout(req: any, cartId: string, dto: CheckoutDto): Promise<{
         id: number;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         deletedAt: Date | null;
         customerId: number;
         subtotal: import("@prisma/client/runtime/library").Decimal;

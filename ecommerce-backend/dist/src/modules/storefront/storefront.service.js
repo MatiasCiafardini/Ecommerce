@@ -72,6 +72,9 @@ let StorefrontService = class StorefrontService {
             include: {
                 images: true,
                 variants: {
+                    where: {
+                        deletedAt: null,
+                    },
                     include: {
                         inventories: {
                             where: {
@@ -150,6 +153,9 @@ let StorefrontService = class StorefrontService {
         return {
             images: true,
             variants: {
+                where: {
+                    deletedAt: null,
+                },
                 include: {
                     inventories: {
                         where: {

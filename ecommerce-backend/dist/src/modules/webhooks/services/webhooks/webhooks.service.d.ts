@@ -8,8 +8,8 @@ export declare class WebhooksService {
     constructor(prisma: PrismaService, webhookQueue: Queue);
     create(storeId: number, dto: CreateWebhookDto): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         url: string;
         updatedAt: Date;
         events: string[];
@@ -21,8 +21,8 @@ export declare class WebhooksService {
     }>;
     findAll(storeId: number): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         url: string;
         updatedAt: Date;
         events: string[];
@@ -34,17 +34,17 @@ export declare class WebhooksService {
             id: string;
             createdAt: Date;
             delivered: boolean;
-            webhookId: string;
             event: string;
             payload: import("@prisma/client/runtime/library").JsonValue;
+            webhookId: string;
             responseStatus: number | null;
             responseBody: string | null;
             attempt: number;
         }[];
     } & {
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         url: string;
         updatedAt: Date;
         events: string[];
@@ -53,8 +53,8 @@ export declare class WebhooksService {
     }) | null>;
     update(storeId: number, id: string, dto: UpdateWebhookDto): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         url: string;
         updatedAt: Date;
         events: string[];
@@ -63,8 +63,8 @@ export declare class WebhooksService {
     }>;
     remove(storeId: number, id: string): Promise<{
         id: string;
-        createdAt: Date;
         storeId: number;
+        createdAt: Date;
         url: string;
         updatedAt: Date;
         events: string[];

@@ -96,6 +96,21 @@ let AuthService = class AuthService {
         });
         return this.toAuthEntity(customer);
     }
+    async validateSession(email, password, storeId) {
+        const adminUser = await this.prisma.user.findFirst({
+            where: {
+                email,
+                storeId,
+            },
+        });
+        if (adminUser) {
+            const passwordValid = await bcrypt.compare(password, adminUser.password);
+            if (passwordValid) {
+                return adminUser;
+            }
+        }
+        return this.validateCustomer(email, password, storeId);
+    }
     async login(user) {
         const safeUser = this.toAuthEntity(user);
         const payload = {
@@ -123,6 +138,81 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
         return customer;
+    }
+    async getCurrentAuthEntity(id, role, storeId) {
+        const isCustomer = !role || role === 'CUSTOMER';
+        if (isCustomer) {
+            const customer = await this.prisma.customer.findFirst({
+                where: {
+                    id,
+                    storeId,
+                },
+            });
+            if (!customer) {
+                throw new common_1.UnauthorizedException('Invalid credentials');
+            }
+            return this.toAuthEntity(customer);
+        }
+        const user = await this.prisma.user.findFirst({
+            where: {
+                id,
+                storeId,
+            },
+        });
+        if (!user) {
+            throw new common_1.UnauthorizedException('Invalid credentials');
+        }
+        return this.toAuthEntity(user);
+    }
+    async updateCurrentAuthEntity(id, role, storeId, data) {
+        const isCustomer = !role || role === 'CUSTOMER';
+        if (isCustomer) {
+            const customer = await this.prisma.customer.findFirst({
+                where: {
+                    id,
+                    storeId,
+                },
+            });
+            if (!customer) {
+                throw new common_1.UnauthorizedException('Invalid credentials');
+            }
+            const customerData = {};
+            if (data.firstName !== undefined)
+                customerData.firstName = data.firstName;
+            if (data.lastName !== undefined)
+                customerData.lastName = data.lastName;
+            if (data.phone !== undefined)
+                customerData.phone = data.phone;
+            if (data.password) {
+                customerData.password = await bcrypt.hash(data.password, 10);
+            }
+            const updatedCustomer = await this.prisma.customer.update({
+                where: { id },
+                data: customerData,
+            });
+            return this.toAuthEntity(updatedCustomer);
+        }
+        const user = await this.prisma.user.findFirst({
+            where: {
+                id,
+                storeId,
+            },
+        });
+        if (!user) {
+            throw new common_1.UnauthorizedException('Invalid credentials');
+        }
+        const userData = {};
+        if (data.name !== undefined) {
+            userData.name = data.name;
+        }
+        if (data.password) {
+            userData.password = await bcrypt.hash(data.password, 10);
+        }
+        const updatedUser = await this.prisma.user.update({
+            where: { id },
+            data: userData,
+        });
+        return this.toAuthEntity(updatedUser);
     }
     toAuthEntity(user) {
         return {

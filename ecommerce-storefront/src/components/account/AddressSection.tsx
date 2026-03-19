@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import type { User } from "@/context/auth-context";
 
 type Address = {
   id: number;
@@ -34,7 +35,7 @@ const fieldStyle = {
   color: "#f7f1e8",
 } as const;
 
-export default function AddressSection({ user }: { user: any }) {
+export default function AddressSection({ user }: { user: User }) {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

@@ -2,12 +2,21 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const uploadsPath = join(process.cwd(), 'uploads');
+
+  if (!existsSync(uploadsPath)) {
+    mkdirSync(uploadsPath, { recursive: true });
+  }
 
   // Prefijo global API
   app.setGlobalPrefix('api');
+  app.use('/uploads', express.static(uploadsPath));
 
   // CORS para frontend
   app.enableCors({

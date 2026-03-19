@@ -6,25 +6,25 @@ export declare class InventoryController {
     create(dto: CreateInventoryDto, req: any): import("@prisma/client").Prisma.Prisma__InventoryClient<{
         id: number;
         storeId: number;
-        variantId: number;
         quantity: number;
         reserved: number;
         updatedAt: Date;
+        variantId: number;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     find(variantId: string, req: any): Promise<{
         id: number;
         storeId: number;
-        variantId: number;
         quantity: number;
         reserved: number;
         updatedAt: Date;
+        variantId: number;
     }>;
     update(variantId: string, quantity: number, req: any): Promise<{
         id: number;
         storeId: number;
-        variantId: number;
         quantity: number;
         reserved: number;
         updatedAt: Date;
+        variantId: number;
     }>;
 }

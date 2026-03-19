@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { useAuth } from "@/context/auth-context";
+import { useAuth, type User } from "@/context/auth-context";
 
 type ProfileForm = {
   firstName: string;
@@ -12,14 +12,15 @@ type ProfileForm = {
   confirmPassword: string;
 };
 
-export default function ProfileSection({ user }: { user: any }) {
+export default function ProfileSection({ user }: { user: User }) {
   const { setUser } = useAuth();
+  const isAdmin = Boolean(user.role && user.role !== "CUSTOMER");
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [form, setForm] = useState<ProfileForm>({
-    firstName: user.firstName ?? "",
+    firstName: isAdmin ? user.name ?? "" : user.firstName ?? "",
     lastName: user.lastName ?? "",
     phone: user.phone ?? "",
     password: "",
@@ -27,16 +28,18 @@ export default function ProfileSection({ user }: { user: any }) {
   });
 
   const displayName = useMemo(() => {
-    const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+    const fullName = isAdmin
+      ? user.name?.trim() ?? ""
+      : [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
     return fullName || "Todavia no cargaste tu nombre";
-  }, [user.firstName, user.lastName]);
+  }, [isAdmin, user.firstName, user.lastName, user.name]);
 
   const startEdit = () => {
     setEditing(true);
     setError("");
     setSuccess("");
     setForm({
-      firstName: user.firstName ?? "",
+      firstName: isAdmin ? user.name ?? "" : user.firstName ?? "",
       lastName: user.lastName ?? "",
       phone: user.phone ?? "",
       password: "",
@@ -49,7 +52,7 @@ export default function ProfileSection({ user }: { user: any }) {
     setError("");
     setSuccess("");
     setForm({
-      firstName: user.firstName ?? "",
+      firstName: isAdmin ? user.name ?? "" : user.firstName ?? "",
       lastName: user.lastName ?? "",
       phone: user.phone ?? "",
       password: "",
@@ -68,17 +71,21 @@ export default function ProfileSection({ user }: { user: any }) {
       setError("");
       setSuccess("");
 
-      const payload: Record<string, string> = {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        phone: form.phone.trim(),
-      };
+      const payload: Record<string, string> = isAdmin
+        ? {
+            name: form.firstName.trim(),
+          }
+        : {
+            firstName: form.firstName.trim(),
+            lastName: form.lastName.trim(),
+            phone: form.phone.trim(),
+          };
 
       if (form.password.trim()) {
         payload.password = form.password.trim();
       }
 
-      const updatedUser = await api("/customers/me", {
+      const updatedUser = await api("/auth/me", {
         method: "PATCH",
         body: JSON.stringify(payload),
       });
@@ -88,8 +95,8 @@ export default function ProfileSection({ user }: { user: any }) {
       setEditing(false);
       setForm((prev) => ({ ...prev, password: "", confirmPassword: "" }));
       setSuccess("Tus datos se actualizaron correctamente.");
-    } catch (err: any) {
-      setError(err.message || "No se pudieron guardar los cambios.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "No se pudieron guardar los cambios.");
     } finally {
       setLoading(false);
     }
@@ -124,36 +131,40 @@ export default function ProfileSection({ user }: { user: any }) {
       <div style={{ display: "grid", gap: 18 }}>
         <div className="layout-form-two">
           <div>
-            <label style={labelStyle}>Nombre</label>
+            <label style={labelStyle}>{isAdmin ? "Nombre visible" : "Nombre"}</label>
             {editing ? (
               <input
-                placeholder="Nombre"
+                placeholder={isAdmin ? "Nombre del operador" : "Nombre"}
                 value={form.firstName}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
                 style={inputStyle}
               />
             ) : (
-              <div style={readonlyField}>{user.firstName || "Todavia no cargado"}</div>
+              <div style={readonlyField}>
+                {isAdmin ? user.name || "Todavia no cargado" : user.firstName || "Todavia no cargado"}
+              </div>
             )}
           </div>
 
-          <div>
-            <label style={labelStyle}>Apellido</label>
-            {editing ? (
-              <input
-                placeholder="Apellido"
-                value={form.lastName}
-                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                style={inputStyle}
-              />
-            ) : (
-              <div style={readonlyField}>{user.lastName || "Todavia no cargado"}</div>
-            )}
-          </div>
+          {!isAdmin ? (
+            <div>
+              <label style={labelStyle}>Apellido</label>
+              {editing ? (
+                <input
+                  placeholder="Apellido"
+                  value={form.lastName}
+                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                  style={inputStyle}
+                />
+              ) : (
+                <div style={readonlyField}>{user.lastName || "Todavia no cargado"}</div>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div>
-          <label style={labelStyle}>Nombre completo</label>
+          <label style={labelStyle}>{isAdmin ? "Nombre de cuenta" : "Nombre completo"}</label>
           <div style={readonlyField}>{displayName}</div>
         </div>
 
@@ -162,19 +173,21 @@ export default function ProfileSection({ user }: { user: any }) {
           <div style={readonlyField}>{user.email}</div>
         </div>
 
-        <div>
-          <label style={labelStyle}>Telefono</label>
-          {editing ? (
-            <input
-              placeholder="Ej. +54 11 5555 5555"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              style={inputStyle}
-            />
-          ) : (
-            <div style={readonlyField}>{user.phone || "Todavia no cargaste telefono"}</div>
-          )}
-        </div>
+        {!isAdmin ? (
+          <div>
+            <label style={labelStyle}>Telefono</label>
+            {editing ? (
+              <input
+                placeholder="Ej. +54 11 5555 5555"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                style={inputStyle}
+              />
+            ) : (
+              <div style={readonlyField}>{user.phone || "Todavia no cargaste telefono"}</div>
+            )}
+          </div>
+        ) : null}
 
         <div className="layout-form-two">
           <div>

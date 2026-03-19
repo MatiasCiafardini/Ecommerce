@@ -16,6 +16,7 @@ exports.ProductsController = void 0;
 const common_1 = require("@nestjs/common");
 const products_service_1 = require("./products.service");
 const create_product_dto_1 = require("./dto/create-product.dto");
+const update_product_dto_1 = require("./dto/update-product.dto");
 const swagger_1 = require("@nestjs/swagger");
 const admin_auth_guard_1 = require("../auth/guards/admin-auth.guard");
 let ProductsController = class ProductsController {
@@ -28,6 +29,9 @@ let ProductsController = class ProductsController {
     }
     findAll(req) {
         return this.productsService.findAll(req.storeId);
+    }
+    update(id, dto, req) {
+        return this.productsService.update(Number(id), dto, req.storeId);
     }
     addCategory(id, categoryId) {
         return this.productsService.addCategory(Number(id), Number(categoryId));
@@ -55,6 +59,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_product_dto_1.UpdateProductDto, Object]),
+    __metadata("design:returntype", void 0)
+], ProductsController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/categories/:categoryId'),
     __param(0, (0, common_1.Param)('id')),

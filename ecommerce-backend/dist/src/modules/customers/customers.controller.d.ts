@@ -6,9 +6,9 @@ export declare class CustomersController {
     constructor(customersService: CustomersService);
     create(req: any, dto: CreateCustomerDto): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -16,9 +16,9 @@ export declare class CustomersController {
     }>;
     findAll(req: any): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -26,9 +26,9 @@ export declare class CustomersController {
     }[]>;
     findMe(req: any): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -36,9 +36,9 @@ export declare class CustomersController {
     }>;
     findOne(req: any, id: string): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -46,9 +46,9 @@ export declare class CustomersController {
     } | null>;
     updateMe(req: any, dto: UpdateCustomerDto): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -56,9 +56,9 @@ export declare class CustomersController {
     }>;
     update(req: any, id: string, dto: UpdateCustomerDto): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;
@@ -66,9 +66,9 @@ export declare class CustomersController {
     }>;
     remove(req: any, id: string): Promise<{
         id: number;
+        storeId: number;
         createdAt: Date;
         email: string;
-        storeId: number;
         updatedAt: Date;
         firstName: string | null;
         lastName: string | null;

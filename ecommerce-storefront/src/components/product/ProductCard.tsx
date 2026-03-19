@@ -1,7 +1,22 @@
 import Link from "next/link";
 
+type ProductCardImage = {
+  url: string;
+};
+
+type ProductCardVariant = {
+  price?: number | string | null;
+};
+
+type ProductCardProduct = {
+  slug: string;
+  title: string;
+  images?: ProductCardImage[];
+  variants?: ProductCardVariant[];
+};
+
 type Props = {
-  product: any;
+  product: ProductCardProduct;
 };
 
 export default function ProductCard({ product }: Props) {
@@ -20,9 +35,9 @@ export default function ProductCard({ product }: Props) {
         textDecoration: "none",
         color: "inherit",
         display: "grid",
-        gridTemplateRows: "auto 1fr",
+        gridTemplateRows: "320px 1fr",
         height: "100%",
-        minHeight: "100%",
+        minHeight: 470,
         border: "1px solid rgba(255,255,255,0.08)",
         borderRadius: 28,
         background:
@@ -33,6 +48,7 @@ export default function ProductCard({ product }: Props) {
       <div
         className="product-card-media"
         style={{
+          minHeight: 320,
           background: imageUrl
             ? undefined
             : "linear-gradient(145deg, #3a3a3a 0%, #a89f94 100%)",
@@ -67,7 +83,14 @@ export default function ProductCard({ product }: Props) {
         )}
       </div>
 
-      <div className="product-card-copy">
+      <div
+        className="product-card-copy"
+        style={{
+          minHeight: 150,
+          display: "grid",
+          alignContent: "start",
+        }}
+      >
         <p
           className="product-card-kicker"
           style={{
