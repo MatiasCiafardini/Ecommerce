@@ -1,24 +1,47 @@
-
-import { blockRegistry } from "@/config/block-registry";
+import { resolveBlockDefinition } from "@/config/block-registry";
 import { Block } from "@/types/block";
 
 type Props = {
   blocks: Block[];
+  themeName?: string;
 };
 
-export default function BlockRenderer({ blocks }: Props) {
+export default function BlockRenderer({ blocks, themeName }: Props) {
+  const safeBlocks = Array.isArray(blocks) ? blocks : [];
+
   return (
     <>
-      {blocks.map((block, index) => {
-        const registryKey = block.type as keyof typeof blockRegistry;
-        const Component = blockRegistry[registryKey];
+      {safeBlocks.map((block, index) => {
+        if (!block || typeof block.type !== "string" || !block.type.trim()) {
+          console.error("Skipping invalid storefront block", {
+            index,
+            themeName,
+            block,
+          });
+          return null;
+        }
 
-        if (!Component) return null;
+        const definition = resolveBlockDefinition(themeName, block.type);
+        const Component = definition?.component;
+
+        if (!Component) {
+          console.error("Missing storefront block definition", {
+            index,
+            themeName,
+            blockType: block.type,
+          });
+          return null;
+        }
+
+        const resolvedProps = {
+          ...definition?.defaultProps,
+          ...block.props,
+        };
 
         const animationClass =
-          block.props?.animationPreset === "soft"
+          resolvedProps?.animationPreset === "soft"
             ? "theme-enter-soft"
-            : block.props?.animationPreset === "none"
+            : resolvedProps?.animationPreset === "none"
               ? ""
               : "theme-enter-up";
 
@@ -30,7 +53,7 @@ export default function BlockRenderer({ blocks }: Props) {
               animationDelay: `${index * 90}ms`,
             }}
           >
-            <Component {...block.props} />
+            <Component {...resolvedProps} />
           </div>
         );
       })}

@@ -8,6 +8,8 @@ dotenv.config()
 export class PrismaService extends PrismaClient implements OnModuleInit {
 
   constructor() {
+    process.env.PRISMA_CLIENT_ENGINE_TYPE = 'library'
+
     super({
       datasourceUrl: process.env.DATABASE_URL
     })

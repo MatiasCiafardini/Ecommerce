@@ -1,14 +1,31 @@
+import { formatCurrency } from "@/lib/currency";
+
 export type CustomerOrder = {
   id: number;
   customerId?: number;
   status: string;
   createdAt: string;
+  updatedAt?: string;
   subtotal: string | number;
   discountAmount?: string | number | null;
+  discountCode?: string | null;
   total: string | number;
   shippingCost?: string | number | null;
   shippingProvider?: string | null;
   shippingMethod?: string | null;
+  customerEmailSnapshot?: string | null;
+  customerFirstNameSnapshot?: string | null;
+  customerLastNameSnapshot?: string | null;
+  customerPhoneSnapshot?: string | null;
+  shippingFirstNameSnapshot?: string | null;
+  shippingLastNameSnapshot?: string | null;
+  shippingPhoneSnapshot?: string | null;
+  shippingAddress1Snapshot?: string | null;
+  shippingAddress2Snapshot?: string | null;
+  shippingCitySnapshot?: string | null;
+  shippingStateSnapshot?: string | null;
+  shippingPostalCodeSnapshot?: string | null;
+  shippingCountrySnapshot?: string | null;
   customer?: {
     id: number;
     email: string;
@@ -19,6 +36,7 @@ export type CustomerOrder = {
   items: Array<{
     id: number;
     quantity: number;
+    returnedQuantity?: number;
     price: string | number;
     variant: {
       sku?: string | null;
@@ -31,9 +49,15 @@ export type CustomerOrder = {
     };
   }>;
   shipment?: {
+    id?: string;
     status: string;
+    carrier?: string | null;
+    externalShipmentId?: string | null;
     trackingUrl?: string | null;
     trackingNumber?: string | null;
+    labelUrl?: string | null;
+    labelFormat?: string | null;
+    internalNotes?: string | null;
     shippingAddress?: string | null;
     postalCode?: string | null;
     trackingEvents?: Array<{
@@ -47,14 +71,127 @@ export type CustomerOrder = {
   payments?: Array<{
     id: number;
     provider: string;
+    method?: string | null;
     status: string;
+    amount: string | number;
+    reference?: string | null;
+    proofUrl?: string | null;
+    proofFilename?: string | null;
+    notes?: string | null;
+    createdAt: string;
+    updatedAt?: string;
+  }>;
+  returns?: Array<{
+    id: number;
+    reason?: string | null;
+    status: string;
+    createdAt: string;
+    items: Array<{
+      id: number;
+      orderItemId: number;
+      quantity: number;
+    }>;
+    refund?: {
+      id: number;
+      amount: string | number;
+      createdAt: string;
+    } | null;
+  }>;
+  refunds?: Array<{
+    id: number;
     amount: string | number;
     createdAt: string;
   }>;
+  cancellationRequests?: Array<{
+    id: number;
+    reason?: string | null;
+    status: "requested" | "approved" | "rejected" | "refunded";
+    refundAmount?: string | number | null;
+    adminNotes?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    reviewedAt?: string | null;
+  }>;
 };
 
-export const money = (value: string | number | null | undefined) =>
-  `$${Number(value ?? 0).toLocaleString("es-AR")}`;
+export const money = (value: string | number | null | undefined) => formatCurrency(value);
+
+export const orderCustomerName = (order: CustomerOrder) =>
+  [
+    order.customerFirstNameSnapshot ?? order.customer?.firstName,
+    order.customerLastNameSnapshot ?? order.customer?.lastName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || "Cliente sin nombre";
+
+export const orderCustomerEmail = (order: CustomerOrder) =>
+  order.customerEmailSnapshot ?? order.customer?.email ?? "No disponible";
+
+export const orderCustomerPhone = (order: CustomerOrder) =>
+  order.customerPhoneSnapshot ?? order.customer?.phone ?? "No cargado";
+
+export const isPickupOrder = (order: {
+  shippingMethod?: string | null;
+  shippingProvider?: string | null;
+}) => {
+  const shippingMethod = order.shippingMethod?.trim().toLowerCase() ?? "";
+  const shippingProvider = order.shippingProvider?.trim().toLowerCase() ?? "";
+
+  return (
+    shippingMethod.includes("pickup") ||
+    shippingMethod.includes("retiro") ||
+    shippingProvider === "store"
+  );
+};
+
+export const orderDeliveryLabel = (order: CustomerOrder) => {
+  if (isPickupOrder(order)) {
+    return order.shippingMethod || "Retiro en tienda";
+  }
+
+  return [order.shippingProvider, order.shippingMethod].filter(Boolean).join(" · ") || "Envio a coordinar";
+};
+
+export const orderShippingRecipient = (order: CustomerOrder) =>
+  [
+    order.shippingFirstNameSnapshot,
+    order.shippingLastNameSnapshot,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || orderCustomerName(order);
+
+export const orderShippingAddressLines = (order: CustomerOrder) => {
+  const lines = [
+    order.shippingAddress1Snapshot,
+    order.shippingAddress2Snapshot,
+    [
+      order.shippingCitySnapshot,
+      order.shippingStateSnapshot,
+    ]
+      .filter(Boolean)
+      .join(", "),
+    [order.shippingCountrySnapshot, order.shippingPostalCodeSnapshot ? `CP ${order.shippingPostalCodeSnapshot}` : null]
+      .filter(Boolean)
+      .join(" · "),
+  ].filter(Boolean) as string[];
+
+  if (lines.length > 0) {
+    return lines;
+  }
+
+  if (order.shipment?.shippingAddress) {
+    return [
+      `${order.shipment.shippingAddress}${order.shipment.postalCode ? ` · CP ${order.shipment.postalCode}` : ""}`,
+    ];
+  }
+
+  return [];
+};
+
+export const hasOrderShippingSnapshot = (order: CustomerOrder) =>
+  orderShippingAddressLines(order).length > 0;
 
 export const orderStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
@@ -174,6 +311,7 @@ export const orderWorkflow = (status: string) => {
 };
 
 export const shipmentTimeline = (order: CustomerOrder) => {
+  const pickupOrder = isPickupOrder(order);
   const shipmentStatus = order.shipment?.status ?? null;
 
   return [
@@ -189,14 +327,16 @@ export const shipmentTimeline = (order: CustomerOrder) => {
       done: ["processing", "packed", "shipped", "delivered"].includes(order.status),
     },
     {
-      key: "shipped",
-      label: "En camino",
-      done: ["shipped", "delivered"].includes(order.status) || ["in_transit", "out_for_delivery", "delivered"].includes(shipmentStatus ?? ""),
+      key: pickupOrder ? "ready_for_pickup" : "shipped",
+      label: pickupOrder ? "Listo para retiro" : "En camino",
+      done: pickupOrder
+        ? ["packed", "shipped", "delivered"].includes(order.status)
+        : ["shipped", "delivered"].includes(order.status) || ["in_transit", "out_for_delivery", "delivered"].includes(shipmentStatus ?? ""),
     },
     {
-      key: "delivered",
-      label: "Entregado",
-      done: order.status === "delivered" || shipmentStatus === "delivered",
+      key: pickupOrder ? "collected" : "delivered",
+      label: pickupOrder ? "Retirado" : "Entregado",
+      done: order.status === "delivered" || (!pickupOrder && shipmentStatus === "delivered"),
     },
   ];
 };
@@ -205,3 +345,18 @@ export const openReceipt = (orderId: number) => {
   if (typeof window === "undefined") return;
   window.open(`/account/orders/${orderId}/receipt`, "_blank", "noopener,noreferrer");
 };
+
+export const canCustomerCancelOrder = (order: CustomerOrder) =>
+  order.status === "pending" &&
+  !["shipped", "in_transit", "delivered"].includes(order.shipment?.status ?? "");
+
+export const canCustomerRequestCancellation = (order: CustomerOrder) =>
+  ["paid", "processing", "packed"].includes(order.status) &&
+  !["shipped", "in_transit", "delivered"].includes(order.shipment?.status ?? "") &&
+  !(order.cancellationRequests ?? []).some((request) => request.status === "requested");
+
+export const canCustomerRequestReturn = (order: CustomerOrder) =>
+  order.status === "delivered" &&
+  order.items.some(
+    (item) => Number(item.quantity ?? 0) - Number(item.returnedQuantity ?? 0) > 0,
+  );

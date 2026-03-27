@@ -153,6 +153,7 @@ export default function AddressSection({ user }: { user: User }) {
 
   return (
     <section
+      data-account-panel
       style={{
         borderRadius: 32,
         border: "1px solid rgba(255,255,255,0.08)",
@@ -375,6 +376,7 @@ export default function AddressSection({ user }: { user: User }) {
         {showForm ? (
           <div
             className="layout-sidebar"
+            data-account-panel
             style={{
               borderRadius: 28,
               border: "1px solid rgba(255,255,255,0.08)",

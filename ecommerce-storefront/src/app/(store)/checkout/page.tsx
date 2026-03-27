@@ -16,6 +16,36 @@ type ShippingOption = {
   method: string;
   price: number;
   estimatedDays: number;
+  carrierId?: string;
+  carrierName?: string;
+  serviceCode?: string;
+  modalityCode?: string;
+  dispatchType?: string;
+  branchId?: string | null;
+  sellerCost?: number | null;
+};
+
+type CheckoutPaymentSelection = {
+  paymentMethod: string;
+  paymentLabel: string;
+};
+
+type CheckoutAddress = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  address1: string;
+  address2?: string | null;
+  city: string;
+  state?: string | null;
+  zip: string;
+  country: string;
+};
+
+type CheckoutSetupError = {
+  title: string;
+  message: string;
 };
 
 export default function CheckoutPage() {
@@ -26,18 +56,50 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(2);
   const [syncing, setSyncing] = useState(false);
   const [cartId, setCartId] = useState<number | null>(null);
-  const [selectedAddress, setSelectedAddress] = useState<any>(null);
-  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<CheckoutAddress | null>(null);
+  const [paymentSelection, setPaymentSelection] = useState<CheckoutPaymentSelection | null>(null);
   const [shippingOption, setShippingOption] = useState<ShippingOption | null>(
     null,
   );
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [setupError, setSetupError] = useState<CheckoutSetupError | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login?redirect=/checkout");
     }
   }, [user, loading, router]);
+
+  const resolveSetupError = (error: unknown): CheckoutSetupError => {
+    const fallback = {
+      title: "No pudimos preparar el checkout",
+      message: "Intenta nuevamente o vuelve al carrito para revisar los productos.",
+    };
+
+    if (!(error instanceof Error)) {
+      return fallback;
+    }
+
+    const message = error.message.trim();
+    const normalizedMessage = message.toLowerCase();
+
+    if (
+      normalizedMessage.includes("stock") ||
+      normalizedMessage.includes("inventario") ||
+      normalizedMessage.includes("not enough stock")
+    ) {
+      return {
+        title: "Hay productos sin stock suficiente",
+        message:
+          "Mientras avanzabas en la compra, cambió la disponibilidad de uno o más productos. Vuelve al carrito para ajustar cantidades antes de seguir.",
+      };
+    }
+
+    return {
+      title: fallback.title,
+      message: message || fallback.message,
+    };
+  };
 
   const syncServerCart = async () => {
     if (!user) {
@@ -46,7 +108,7 @@ export default function CheckoutPage() {
 
     const serverCart = await api("/store/cart", {
       method: "POST",
-      body: JSON.stringify({ customerId: user.id }),
+      body: JSON.stringify({}),
     });
 
     await api(`/store/cart/${serverCart.id}/items`, {
@@ -66,15 +128,19 @@ export default function CheckoutPage() {
     return serverCart.id as number;
   };
 
-  const handleAddressNext = async (address: any) => {
+  const handleAddressNext = async (address: CheckoutAddress) => {
     try {
       setSyncing(true);
+      setSetupError(null);
       const serverCartId = await syncServerCart();
       const options = await api("/store/shipping/options", {
         method: "POST",
         body: JSON.stringify({
           cartId: serverCartId,
           postalCode: address.zip,
+          state: address.state,
+          city: address.city,
+          country: address.country,
         }),
       });
 
@@ -83,14 +149,41 @@ export default function CheckoutPage() {
       setShippingOptions(options);
       setStep(3);
     } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "No se pudo preparar el checkout",
-      );
+      setSetupError(resolveSetupError(error));
     } finally {
       setSyncing(false);
     }
+  };
+
+  const canNavigateToStep = (targetStep: number) => {
+    if (targetStep === 1) return true;
+    if (targetStep === 2) return true;
+    if (targetStep === 3) {
+      return Boolean(selectedAddress && shippingOptions.length > 0);
+    }
+    if (targetStep === 4) {
+      return Boolean(
+        cartId &&
+          selectedAddress &&
+          shippingOption &&
+          paymentSelection?.paymentMethod,
+      );
+    }
+
+    return false;
+  };
+
+  const handleStepSelect = (targetStep: number) => {
+    if (!canNavigateToStep(targetStep)) {
+      return;
+    }
+
+    if (targetStep === 1) {
+      router.push("/cart");
+      return;
+    }
+
+    setStep(targetStep);
   };
 
   if (loading) {
@@ -166,9 +259,64 @@ export default function CheckoutPage() {
   }
 
   return (
-    <CheckoutLayout step={step}>
+    <CheckoutLayout
+      step={step}
+      onStepSelect={handleStepSelect}
+      canNavigateToStep={canNavigateToStep}
+    >
       {step === 2 && (
         <>
+          {setupError ? (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: "18px 20px",
+                borderRadius: 20,
+                border: "1px solid rgba(255,159,159,0.24)",
+                background: "rgba(120,18,18,0.18)",
+                display: "grid",
+                gap: 12,
+              }}
+            >
+              <div style={{ display: "grid", gap: 6 }}>
+                <strong style={{ color: "#fff", fontSize: 18 }}>{setupError.title}</strong>
+                <p style={{ margin: 0, color: "rgba(247,241,232,0.74)", lineHeight: 1.7 }}>
+                  {setupError.message}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => router.push("/cart?stockIssue=1")}
+                  style={{
+                    border: "none",
+                    borderRadius: 999,
+                    background: "#f7f1e8",
+                    color: "#0b0b0b",
+                    padding: "13px 18px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Volver al carrito
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSetupError(null)}
+                  style={{
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "transparent",
+                    color: "#f7f1e8",
+                    padding: "13px 18px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Seguir revisando
+                </button>
+              </div>
+            </div>
+          ) : null}
           {syncing ? (
             <div
               style={{
@@ -190,20 +338,21 @@ export default function CheckoutPage() {
       {step === 3 && (
         <CheckoutPayment
           shippingOptions={shippingOptions}
-          onNext={({ paymentMethod, shippingOption }) => {
-            setPaymentMethod(paymentMethod);
+          onNext={({ paymentMethod, paymentLabel, shippingOption }) => {
+            setPaymentSelection({ paymentMethod, paymentLabel });
             setShippingOption(shippingOption);
             setStep(4);
           }}
         />
       )}
 
-      {step === 4 && cartId && (
+      {step === 4 && cartId && selectedAddress && (
         <CheckoutReview
           cart={cart}
           cartId={cartId}
           address={selectedAddress}
-          paymentMethod={paymentMethod}
+          paymentMethod={paymentSelection?.paymentMethod ?? null}
+          paymentLabel={paymentSelection?.paymentLabel ?? null}
           shippingOption={shippingOption}
         />
       )}

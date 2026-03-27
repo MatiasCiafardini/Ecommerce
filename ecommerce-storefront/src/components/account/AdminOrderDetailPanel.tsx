@@ -1,12 +1,22 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { resolveAssetUrl } from "@/lib/asset-url";
+import AdminOrderShipmentPanel from "./AdminOrderShipmentPanel";
 import {
+  hasOrderShippingSnapshot,
+  isPickupOrder,
   money,
+  orderDeliveryLabel,
+  orderCustomerEmail,
+  orderCustomerName,
+  orderCustomerPhone,
+  orderShippingAddressLines,
+  orderShippingRecipient,
   orderStatusLabel,
   orderStatusTone,
-  orderWorkflow,
   shipmentTimeline,
   type CustomerOrder,
 } from "./order-utils";
@@ -17,11 +27,18 @@ type Props = {
   onOrderUpdated?: (order: CustomerOrder) => void;
 };
 
+type DetailTab = {
+  id: string;
+  label: string;
+  hint: string;
+};
+
 export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated }: Props) {
   const [order, setOrder] = useState<CustomerOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("customer");
 
   useEffect(() => {
     const loadOrder = async () => {
@@ -41,9 +58,9 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     void loadOrder();
   }, [orderId]);
 
-  const currentWorkflow = useMemo(() => (order ? orderWorkflow(order.status) : null), [order]);
+  const currentWorkflow = useMemo(() => (order ? getOrderWorkflow(order) : null), [order]);
   const timeline = useMemo(() => (order ? shipmentTimeline(order) : []), [order]);
-  const nextAction = useMemo(() => (order ? getNextOrderAction(order.status) : null), [order]);
+  const nextAction = useMemo(() => (order ? getNextOrderAction(order) : null), [order]);
 
   const updateStatus = async (status: string) => {
     if (!order) return;
@@ -65,6 +82,23 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     }
   };
 
+  const reviewPayment = async (paymentId: number, action: "approve" | "reject") => {
+    if (!order) return;
+
+    try {
+      setError("");
+      await api(`/admin/payments/${paymentId}/${action}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const refreshed = await api(`/orders/${order.id}`);
+      setOrder(refreshed);
+      onOrderUpdated?.(refreshed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo revisar el pago.");
+    }
+  };
+
   if (loading) {
     return <section style={panelStyle}><StateCard label="Cargando detalle operativo..." /></section>;
   }
@@ -81,31 +115,59 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     );
   }
 
-  const customerName =
-    [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(" ").trim() ||
-    "Cliente sin nombre";
-  const canPrintShipping = Boolean(order.shipment?.shippingAddress || order.shipment?.trackingNumber);
-  const normalizedShippingMethod = order.shippingMethod?.trim().toLowerCase() ?? "";
-  const isPickupOrder =
-    normalizedShippingMethod.includes("pickup") ||
-    normalizedShippingMethod.includes("retiro");
+  const customerName = orderCustomerName(order);
+  const shippingAddressLines = orderShippingAddressLines(order);
+  const pickupOrder = isPickupOrder(order);
+  const showManualDispatchPanel = !pickupOrder && Boolean(order.shipment);
+  const canPrintShipping = Boolean(
+    shippingAddressLines.length > 0 || order.shipment?.trackingNumber,
+  );
   const hasShippingContext =
-    !isPickupOrder &&
+    !pickupOrder &&
     Boolean(
       order.shippingProvider ||
-      order.shippingMethod ||
-      order.shipment?.trackingNumber ||
-      order.shipment?.trackingUrl ||
-      order.shipment?.shippingAddress,
+        order.shippingMethod ||
+        order.shipment?.trackingNumber ||
+        order.shipment?.trackingUrl ||
+        shippingAddressLines.length > 0,
     );
+  const units = order.items.reduce((total, item) => total + item.quantity, 0);
+  const paymentCount = order.payments?.length ?? 0;
+  const paymentSummary = paymentCount
+    ? `${paymentCount} pago${paymentCount > 1 ? "s" : ""} registrado${paymentCount > 1 ? "s" : ""}`
+    : "Sin pagos registrados";
+  const deliverySummary = pickupOrder
+    ? order.shippingMethod || "Retiro en tienda"
+    : hasShippingContext
+      ? orderDeliveryLabel(order)
+      : "Entrega a confirmar";
+  const trackingSummary = order.shipment?.trackingNumber ?? "Se cargara al despachar";
+
+  const detailTabs: DetailTab[] = [
+    { id: "customer", label: "Cliente", hint: "Contacto y datos comerciales" },
+    { id: "items", label: "Productos", hint: "Contenido del pedido" },
+    ...(hasShippingContext
+      ? [{ id: "shipping", label: "Envio", hint: "Datos de entrega y etiqueta" }]
+      : []),
+    ...(showManualDispatchPanel
+      ? [{ id: "dispatch", label: "Despacho", hint: "Carrier, tracking y salida" }]
+      : pickupOrder
+        ? [{ id: "pickup", label: "Retiro", hint: "Entrega en tienda" }]
+        : []),
+    { id: "payments", label: "Pagos", hint: "Cobros y conciliacion" },
+  ];
+
+  const safeActiveTab = detailTabs.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : (detailTabs[0]?.id ?? "customer");
+  const activeTabMeta = detailTabs.find((tab) => tab.id === safeActiveTab) ?? detailTabs[0];
 
   const downloadSummaryPdf = () => {
     const createdAt = new Date(order.createdAt).toLocaleString("es-AR");
-    const units = order.items.reduce((total, item) => total + item.quantity, 0);
-    const shippingLabel = hasShippingContext
-      ? [order.shippingProvider, order.shippingMethod].filter(Boolean).join(" · ") || "Envio a coordinar"
-      : isPickupOrder
-        ? order.shippingMethod || "Retiro en tienda"
+    const shippingLabel = pickupOrder
+      ? order.shippingMethod || "Retiro en tienda"
+      : hasShippingContext
+        ? orderDeliveryLabel(order)
         : "Sin envio";
     const lines = [
       "RESUMEN OPERATIVO",
@@ -115,13 +177,19 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       "",
       "CLIENTE",
       `Nombre: ${customerName}`,
-      `Email: ${order.customer?.email ?? "No disponible"}`,
-      `Telefono: ${order.customer?.phone ?? "No cargado"}`,
+      `Email: ${orderCustomerEmail(order)}`,
+      `Telefono: ${orderCustomerPhone(order)}`,
       "",
       "OPERACION",
       `Unidades: ${units}`,
       `Entrega: ${shippingLabel}`,
       `Tracking: ${order.shipment?.trackingNumber ?? "Sin asignar"}`,
+      ...(shippingAddressLines.length > 0
+        ? [
+            `Destinatario: ${orderShippingRecipient(order)}`,
+            `Direccion: ${shippingAddressLines.join(" | ")}`,
+          ]
+        : []),
       "",
       "PRODUCTOS",
       ...order.items.flatMap((item, index) => [
@@ -165,7 +233,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       <div style={betweenStyle}>
         <Header
           title={`Pedido #${order.id}`}
-          copy="Panel operativo para revisar el pedido, avanzar de etapa y validar la información clave antes de despacho."
+          copy="Panel operativo para revisar el pedido, avanzar de etapa y resolver entrega, cobro y despacho desde un unico lugar."
         />
         <div style={rowWrapStyle}>
           <button type="button" onClick={onBack} style={ghostButtonStyle}>
@@ -194,11 +262,13 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
             <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
               <div style={nextStepStyle}>
                 <span style={smallLabelStyle}>Proximo foco</span>
-                <strong style={{ color: "#fff" }}>{currentWorkflow?.nextAction ?? "Revisar manualmente el pedido."}</strong>
+                <strong style={{ color: "#fff" }}>
+                  {currentWorkflow?.nextAction ?? "Revisar manualmente el pedido."}
+                </strong>
               </div>
               <div style={statusControlStyle}>
                 <label style={labelStyle}>Accion principal</label>
-                {nextAction ? (
+                {nextAction && !(order.status === "packed" && showManualDispatchPanel) ? (
                   <button
                     type="button"
                     onClick={() => void updateStatus(nextAction.nextStatus)}
@@ -207,6 +277,10 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                   >
                     {updatingStatus ? "Actualizando..." : nextAction.label}
                   </button>
+                ) : order.status === "packed" && showManualDispatchPanel ? (
+                  <div style={disabledActionStyle}>
+                    Completa carrier y tracking en la tab de despacho para poder marcar este pedido como enviado.
+                  </div>
                 ) : (
                   <div style={disabledActionStyle}>
                     {order.status === "delivered"
@@ -241,13 +315,18 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
 
         <section style={summaryCardStyle}>
           <strong style={{ fontSize: 22 }}>Resumen rapido</strong>
+          <div style={summaryHighlightStyle}>
+            <span style={smallLabelStyle}>Entrega</span>
+            <strong style={{ color: "#fff", fontSize: 18 }}>{deliverySummary}</strong>
+            <span style={metaStyle}>{trackingSummary}</span>
+          </div>
           <div style={summaryRowStyle}>
             <span style={metaStyle}>Items</span>
             <strong>{order.items.length}</strong>
           </div>
           <div style={summaryRowStyle}>
             <span style={metaStyle}>Unidades</span>
-            <strong>{order.items.reduce((total, item) => total + item.quantity, 0)}</strong>
+            <strong>{units}</strong>
           </div>
           <div style={summaryRowStyle}>
             <span style={metaStyle}>Subtotal</span>
@@ -261,6 +340,20 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
             <span style={metaStyle}>Envio</span>
             <strong>{money(order.shippingCost)}</strong>
           </div>
+          <div style={summaryMetaGridStyle}>
+            <div style={summaryMetaCardStyle}>
+              <span style={smallLabelStyle}>Cliente</span>
+              <strong style={{ color: "#fff" }}>{customerName}</strong>
+              <span style={metaStyle}>{orderCustomerEmail(order)}</span>
+            </div>
+            <div style={summaryMetaCardStyle}>
+              <span style={smallLabelStyle}>Cobro</span>
+              <strong style={{ color: "#fff" }}>{paymentSummary}</strong>
+              <span style={metaStyle}>
+                {paymentCount ? order.payments?.[0]?.status ?? "Pendiente" : "Sin conciliacion"}
+              </span>
+            </div>
+          </div>
           <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
           <div style={summaryRowStyle}>
             <span>Total</span>
@@ -269,128 +362,247 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
         </section>
       </div>
 
-      <div style={detailGridStyle}>
-        <div style={{ display: "grid", gap: 20 }}>
-          <section style={blockStyle}>
-            <div style={betweenStyle}>
-              <div>
-                <p style={eyebrowStyle}>Cliente</p>
-                <h3 style={title3Style}>Informacion comercial</h3>
-              </div>
-              <span style={metaPillStyle}>ID {order.customer?.id ?? order.customerId ?? "-"}</span>
+      <section style={tabShellStyle}>
+        <div style={tabHeaderWrapStyle}>
+          <div style={tabHeaderCopyStyle}>
+            <p style={eyebrowStyle}>Detalle operativo</p>
+            <div style={{ display: "grid", gap: 6 }}>
+              <h3 style={title3Style}>{activeTabMeta?.label ?? "Detalle"}</h3>
+              <p style={tabHintStyle}>{activeTabMeta?.hint}</p>
             </div>
-            <div style={infoGridStyle}>
-              <InfoCell label="Nombre" value={customerName} />
-              <InfoCell label="Email" value={order.customer?.email ?? "No disponible"} />
-              <InfoCell label="Telefono" value={order.customer?.phone ?? "No cargado"} />
-              <InfoCell label="Codigo" value={`Pedido #${order.id}`} />
-            </div>
-          </section>
+          </div>
 
-          <section style={blockStyle}>
-            <div>
-              <p style={eyebrowStyle}>Productos</p>
-              <h3 style={title3Style}>Contenido del pedido</h3>
-            </div>
-            <div style={{ display: "grid", gap: 14 }}>
-              {order.items.map((item) => (
-                <article key={item.id} style={orderItemCardStyle}>
-                  <div style={orderItemImageStyle}>
-                    {item.variant.product.images?.[0]?.url ? (
-                      <img
-                        src={item.variant.product.images[0].url}
-                        alt={item.variant.product.title}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
-                    ) : null}
-                  </div>
-                  <div style={{ display: "grid", gap: 8 }}>
-                    <strong style={{ color: "#fff", fontSize: 18 }}>{item.variant.product.title}</strong>
-                    <div style={metaColumnStyle}>
-                      <span>SKU: {item.variant.sku ?? "Sin SKU"}</span>
-                      <span>
-                        Variante: {[item.variant.Size, item.variant.Color].filter(Boolean).join(" / ") || "Base"}
-                      </span>
-                      <span>Cantidad: {item.quantity}</span>
-                    </div>
-                  </div>
-                  <div style={{ display: "grid", gap: 6, textAlign: "right" }}>
-                    <span style={metaStyle}>Unitario</span>
-                    <strong>{money(item.price)}</strong>
-                    <span style={metaStyle}>Subtotal {money(Number(item.price) * item.quantity)}</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
+          <div style={tabRailStyle}>
+            {detailTabs.map((tab) => {
+              const active = tab.id === safeActiveTab;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  style={tabButtonStyle(active)}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <aside style={{ display: "grid", gap: 20 }}>
-          {hasShippingContext ? (
-          <section style={blockStyle}>
-            <div>
-              <p style={eyebrowStyle}>Envio</p>
-              <h3 style={title3Style}>Datos logisticos</h3>
-            </div>
-            <div style={{ display: "grid", gap: 14 }}>
-              <InfoCell label="Proveedor" value={order.shippingProvider ?? "A confirmar"} />
-              <InfoCell label="Metodo" value={order.shippingMethod ?? "A confirmar"} />
-              <InfoCell label="Tracking" value={order.shipment?.trackingNumber ?? "Sin asignar"} />
-              <InfoCell
-                label="Direccion operativa"
-                value={
-                  order.shipment?.shippingAddress
-                    ? `${order.shipment.shippingAddress} · CP ${order.shipment.postalCode ?? "-"}`
-                    : "Todavia no hay snapshot de direccion guardado para este pedido."
-                }
-              />
-            </div>
-            {!order.shipment?.shippingAddress ? (
-              <div style={warningCardStyle}>
-                La direccion de checkout no se esta persistiendo en la orden. Para ticket de shipping real, conviene guardar una foto de entrega al momento de compra.
+        <div style={tabBodyStyle}>
+          {safeActiveTab === "customer" ? (
+            <section style={contentBlockStyle}>
+              <div style={betweenStyle}>
+                <div>
+                  <p style={eyebrowStyle}>Cliente</p>
+                  <h3 style={title3Style}>Informacion comercial</h3>
+                </div>
+                <span style={metaPillStyle}>ID {order.customer?.id ?? order.customerId ?? "-"}</span>
               </div>
-            ) : null}
-            <div style={rowWrapStyle}>
-              {order.shipment?.trackingUrl ? (
-                <a href={order.shipment.trackingUrl} target="_blank" rel="noreferrer" style={primaryLinkStyle}>
-                  Abrir tracking
-                </a>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => window.print()}
-                style={secondaryButtonStyle}
-                disabled={!canPrintShipping}
-                title={canPrintShipping ? "Imprimir esta vista con foco logistico" : "Faltan datos logisticos para una etiqueta util"}
-              >
-                Imprimir shipping
-              </button>
-            </div>
-          </section>
+              <div style={infoGridStyle}>
+                <InfoCell label="Nombre" value={customerName} />
+                <InfoCell label="Email" value={orderCustomerEmail(order)} />
+                <InfoCell label="Telefono" value={orderCustomerPhone(order)} />
+                <InfoCell label="Codigo" value={`Pedido #${order.id}`} />
+              </div>
+            </section>
           ) : null}
 
-          <section style={blockStyle}>
-            <div>
-              <p style={eyebrowStyle}>Cobro</p>
-              <h3 style={title3Style}>Pagos registrados</h3>
-            </div>
-            {order.payments?.length ? (
-              <div style={{ display: "grid", gap: 12 }}>
-                {order.payments.map((payment) => (
-                  <article key={payment.id} style={paymentCardStyle}>
-                    <strong style={{ color: "#fff" }}>{payment.provider}</strong>
-                    <span style={metaStyle}>{payment.status}</span>
-                    <strong>{money(payment.amount)}</strong>
+          {safeActiveTab === "items" ? (
+            <section style={contentBlockStyle}>
+              <div>
+                <p style={eyebrowStyle}>Productos</p>
+                <h3 style={title3Style}>Contenido del pedido</h3>
+              </div>
+              <div style={{ display: "grid", gap: 14 }}>
+                {order.items.map((item) => (
+                  <article key={item.id} style={orderItemCardStyle}>
+                    <div style={orderItemImageStyle}>
+                      {item.variant.product.images?.[0]?.url ? (
+                        <Image
+                          src={
+                            resolveAssetUrl(item.variant.product.images[0].url) ??
+                            item.variant.product.images[0].url
+                          }
+                          alt={item.variant.product.title}
+                          width={84}
+                          height={105}
+                          unoptimized
+                          style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center center", padding: 10 }}
+                        />
+                      ) : null}
+                    </div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <strong style={{ color: "#fff", fontSize: 18 }}>{item.variant.product.title}</strong>
+                      <div style={metaColumnStyle}>
+                        <span>SKU: {item.variant.sku ?? "Sin SKU"}</span>
+                        <span>
+                          Variante: {[item.variant.Size, item.variant.Color].filter(Boolean).join(" / ") || "Base"}
+                        </span>
+                        <span>Cantidad: {item.quantity}</span>
+                      </div>
+                    </div>
+                    <div style={priceColumnStyle}>
+                      <span style={metaStyle}>Unitario</span>
+                      <strong>{money(item.price)}</strong>
+                      <span style={metaStyle}>Subtotal {money(Number(item.price) * item.quantity)}</span>
+                    </div>
                   </article>
                 ))}
               </div>
-            ) : (
-              <StateCard label="No hay pagos asociados todavia." />
-            )}
-          </section>
-        </aside>
-      </div>
+            </section>
+          ) : null}
+
+          {safeActiveTab === "shipping" && hasShippingContext ? (
+            <section style={contentBlockStyle}>
+              <div>
+                <p style={eyebrowStyle}>Envio</p>
+                <h3 style={title3Style}>Datos logisticos</h3>
+              </div>
+              <div style={infoGridStyle}>
+                <InfoCell label="Proveedor" value={order.shippingProvider ?? "A confirmar"} />
+                <InfoCell label="Metodo" value={order.shippingMethod ?? "A confirmar"} />
+                <InfoCell label="Tracking" value={order.shipment?.trackingNumber ?? "Sin asignar"} />
+                <InfoCell label="Destinatario" value={orderShippingRecipient(order)} />
+                <InfoCell
+                  label="Direccion operativa"
+                  value={
+                    shippingAddressLines.length > 0
+                      ? shippingAddressLines.join(" · ")
+                      : "Todavia no hay snapshot de direccion guardado para este pedido."
+                  }
+                />
+                <InfoCell label="Tracking URL" value={order.shipment?.trackingUrl ?? "Sin link cargado"} />
+              </div>
+              {!hasOrderShippingSnapshot(order) ? (
+                <div style={warningCardStyle}>
+                  La direccion de checkout no se esta persistiendo en la orden. Para ticket de shipping real, conviene guardar una foto de entrega al momento de compra.
+                </div>
+              ) : null}
+              <div style={rowWrapStyle}>
+                {order.shipment?.labelUrl ? (
+                  <a href={order.shipment.labelUrl} target="_blank" rel="noreferrer" style={primaryLinkStyle}>
+                    Descargar etiqueta
+                  </a>
+                ) : null}
+                {order.shipment?.trackingUrl ? (
+                  <a href={order.shipment.trackingUrl} target="_blank" rel="noreferrer" style={primaryLinkStyle}>
+                    Abrir tracking
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={secondaryButtonStyle}
+                  disabled={!canPrintShipping}
+                  title={
+                    canPrintShipping
+                      ? "Imprimir esta vista con foco logistico"
+                      : "Faltan datos logisticos para una etiqueta util"
+                  }
+                >
+                  Imprimir shipping
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {safeActiveTab === "dispatch" && showManualDispatchPanel ? (
+            <AdminOrderShipmentPanel
+              order={order}
+              onOrderUpdated={(updatedOrder) => {
+                setOrder(updatedOrder);
+                onOrderUpdated?.(updatedOrder);
+              }}
+              onError={setError}
+            />
+          ) : null}
+
+          {safeActiveTab === "pickup" && pickupOrder ? (
+            <section style={contentBlockStyle}>
+              <div>
+                <p style={eyebrowStyle}>Retiro</p>
+                <h3 style={title3Style}>Entrega en tienda</h3>
+              </div>
+              <div style={infoGridStyle}>
+                <InfoCell label="Modalidad" value={order.shippingMethod ?? "Retiro en tienda"} />
+                <InfoCell label="Titular" value={orderShippingRecipient(order)} />
+                <InfoCell label="Telefono" value={order.customerPhoneSnapshot ?? orderCustomerPhone(order)} />
+                <InfoCell
+                  label="Estado operativo"
+                  value={
+                    order.status === "packed"
+                      ? "Listo para avisar al cliente."
+                      : order.status === "shipped"
+                        ? "Pedido listo para ser retirado."
+                        : order.status === "delivered"
+                          ? "Pedido retirado por el cliente."
+                          : "Preparacion en curso."
+                  }
+                />
+              </div>
+              <div style={hintCardStyle}>
+                Este pedido no requiere carrier ni tracking. La operacion ideal es dejarlo listo, avisar al cliente y marcarlo como retirado cuando se entregue en mostrador.
+              </div>
+            </section>
+          ) : null}
+
+          {safeActiveTab === "payments" ? (
+            <section style={contentBlockStyle}>
+              <div>
+                <p style={eyebrowStyle}>Cobro</p>
+                <h3 style={title3Style}>Pagos registrados</h3>
+              </div>
+              {order.payments?.length ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {order.payments.map((payment) => (
+                    <article key={payment.id} style={paymentCardStyle}>
+                      <strong style={{ color: "#fff" }}>
+                        {payment.provider}
+                        {payment.method ? ` · ${payment.method}` : ""}
+                      </strong>
+                      <span style={metaStyle}>{payment.status}</span>
+                      <strong>{money(payment.amount)}</strong>
+                      {payment.reference ? <span style={metaStyle}>Ref: {payment.reference}</span> : null}
+                      {payment.proofUrl ? (
+                        <a
+                          href={payment.proofUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={primaryLinkStyle}
+                        >
+                          Ver comprobante
+                        </a>
+                      ) : null}
+                      {payment.notes ? <span style={metaStyle}>{payment.notes}</span> : null}
+                      {payment.provider === "bank_transfer" && payment.status === "pending" ? (
+                        <div style={rowWrapStyle}>
+                          <button
+                            type="button"
+                            onClick={() => void reviewPayment(payment.id, "approve")}
+                            style={primaryButtonStyle}
+                          >
+                            Aprobar pago
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void reviewPayment(payment.id, "reject")}
+                            style={secondaryButtonStyle}
+                          >
+                            Rechazar
+                          </button>
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <StateCard label="No hay pagos asociados todavia." />
+              )}
+            </section>
+          ) : null}
+        </div>
+      </section>
     </section>
   );
 }
@@ -418,16 +630,128 @@ function StateCard({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
 }
 
-function getNextOrderAction(status: string) {
+function getNextOrderAction(order: CustomerOrder) {
+  const pickupOrder = isPickupOrder(order);
   const nextActions: Record<string, { nextStatus: string; label: string }> = {
     pending: { nextStatus: "paid", label: "Confirmar pago" },
     paid: { nextStatus: "processing", label: "Iniciar preparacion" },
-    processing: { nextStatus: "packed", label: "Preparacion lista" },
-    packed: { nextStatus: "shipped", label: "Despachar pedido" },
-    shipped: { nextStatus: "delivered", label: "Marcar como entregado" },
+    processing: {
+      nextStatus: "packed",
+      label: pickupOrder ? "Empacar y dejar listo para retiro" : "Empacar y preparar despacho",
+    },
+    packed: {
+      nextStatus: "shipped",
+      label: pickupOrder ? "Marcar listo para retiro" : "Despachar pedido",
+    },
+    shipped: {
+      nextStatus: "delivered",
+      label: pickupOrder ? "Marcar como retirado" : "Marcar como entregado",
+    },
   };
 
-  return nextActions[status] ?? null;
+  return nextActions[order.status] ?? null;
+}
+
+function getOrderWorkflow(order: CustomerOrder) {
+  if (isPickupOrder(order)) {
+    const workflows: Record<string, { headline: string; description: string; nextAction: string }> = {
+      pending: {
+        headline: "Pedido creado, esperando validacion comercial.",
+        description: "Conviene verificar stock y confirmar que el pago avance bien antes de reservarlo para retiro.",
+        nextAction: "Validar pago y pasar a Pagado cuando este confirmado.",
+      },
+      paid: {
+        headline: "Pago recibido, listo para preparar el retiro.",
+        description: "Ya se puede bajar a operacion: picking, control de items y armado del paquete para mostrador.",
+        nextAction: "Liberar a Preparacion para comenzar picking.",
+      },
+      processing: {
+        headline: "Pedido en preparacion para retiro.",
+        description: "El foco operativo ahora es reunir productos, controlar variantes y dejar el paquete listo para avisar al cliente.",
+        nextAction: "Completar picking y mover a Empacado.",
+      },
+      packed: {
+        headline: "Pedido empacado y listo para retiro.",
+        description: "En esta etapa conviene confirmar titular, contacto y observaciones antes de notificar que ya puede pasar por tienda.",
+        nextAction: "Marcar listo para retiro.",
+      },
+      shipped: {
+        headline: "Pedido disponible para retiro.",
+        description: "Solo falta entregar en mostrador y registrar que el cliente ya lo retiro.",
+        nextAction: "Confirmar retiro y cerrar como Entregado.",
+      },
+      delivered: {
+        headline: "Pedido retirado.",
+        description: "La operacion principal termino. Solo queda seguimiento postventa, cambios o devoluciones si aparecieran.",
+        nextAction: "Monitorear postventa o cerrar caso.",
+      },
+      cancelled: {
+        headline: "Pedido cancelado.",
+        description: "No deberia seguir avanzando. Revisar si ya se liberaron reservas y si hace falta una comunicacion al cliente.",
+        nextAction: "Confirmar liberacion de stock y cierre administrativo.",
+      },
+      refunded: {
+        headline: "Pedido reintegrado.",
+        description: "El pedido ya quedo fuera del flujo operativo normal y pasa a control postventa/finanzas.",
+        nextAction: "Registrar conciliacion del reintegro.",
+      },
+    };
+
+    return workflows[order.status] ?? {
+      headline: "Estado no mapeado.",
+      description: "Revisar manualmente el pedido.",
+      nextAction: "Actualizar definicion del workflow.",
+    };
+  }
+
+  const workflows: Record<string, { headline: string; description: string; nextAction: string }> = {
+    pending: {
+      headline: "Pedido creado, esperando validacion comercial.",
+      description: "Conviene verificar stock, detectar fraude basico y confirmar que el medio de pago avance correctamente antes de moverlo.",
+      nextAction: "Validar pago y pasar a Pagado cuando este confirmado.",
+    },
+    paid: {
+      headline: "Pago recibido, listo para entrar a preparacion.",
+      description: "Ya se puede bajar a operacion: picking, control de items y coordinacion de empaque.",
+      nextAction: "Liberar a Preparacion para comenzar picking.",
+    },
+    processing: {
+      headline: "Pedido en preparacion.",
+      description: "El foco operativo ahora es juntar productos, controlar variantes y dejar todo listo para empaquetado.",
+      nextAction: "Completar picking y mover a Empacado.",
+    },
+    packed: {
+      headline: "Pedido empacado y listo para despacho.",
+      description: "En esta etapa conviene validar etiqueta, tracking y datos logisticos antes de entregarlo al carrier.",
+      nextAction: "Despachar y mover a Enviado.",
+    },
+    shipped: {
+      headline: "Pedido ya salio al carrier.",
+      description: "Hace falta monitorear tracking y excepciones hasta la entrega final.",
+      nextAction: "Seguir tracking hasta confirmar Entregado.",
+    },
+    delivered: {
+      headline: "Pedido entregado.",
+      description: "La operacion principal termino. Solo queda seguimiento postventa, cambios o devoluciones si aparecieran.",
+      nextAction: "Monitorear postventa o cerrar caso.",
+    },
+    cancelled: {
+      headline: "Pedido cancelado.",
+      description: "No deberia seguir avanzando. Revisar si ya se liberaron reservas y si hace falta una comunicacion al cliente.",
+      nextAction: "Confirmar liberacion de stock y cierre administrativo.",
+    },
+    refunded: {
+      headline: "Pedido reintegrado.",
+      description: "El pedido ya quedo fuera del flujo operativo normal y pasa a control postventa/finanzas.",
+      nextAction: "Registrar conciliacion del reintegro.",
+    },
+  };
+
+  return workflows[order.status] ?? {
+    headline: "Estado no mapeado.",
+    description: "Revisar manualmente el pedido.",
+    nextAction: "Actualizar definicion del workflow.",
+  };
 }
 
 function createSimplePdf(lines: string[]) {
@@ -515,45 +839,309 @@ function escapePdfText(value: string) {
 const decoder = new TextDecoder();
 
 const panelStyle: React.CSSProperties = { display: "grid", gap: 24 };
-const heroGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1.3fr) minmax(320px, 0.7fr)", gap: 20 };
-const detailGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(320px, 0.8fr)", gap: 20, alignItems: "start" };
-const highlightCardStyle: React.CSSProperties = { borderRadius: 28, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg, rgba(243,238,231,0.14), rgba(255,255,255,0.04))", padding: 24, display: "grid", gap: 16 };
-const summaryCardStyle: React.CSSProperties = { borderRadius: 28, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(8,8,8,0.42)", padding: 24, display: "grid", gap: 14, alignSelf: "stretch" };
-const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(8,8,8,0.42)", padding: 22, display: "grid", gap: 16 };
-const betweenStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" };
+const heroGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: 20,
+};
+const highlightCardStyle: React.CSSProperties = {
+  borderRadius: 28,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "linear-gradient(180deg, rgba(243,238,231,0.14), rgba(255,255,255,0.04))",
+  padding: 24,
+  display: "grid",
+  gap: 16,
+};
+const summaryCardStyle: React.CSSProperties = {
+  borderRadius: 28,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(8,8,8,0.42)",
+  padding: 24,
+  display: "grid",
+  gap: 14,
+  alignSelf: "stretch",
+  alignContent: "start",
+};
+const summaryHighlightStyle: React.CSSProperties = {
+  borderRadius: 20,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+  padding: 16,
+  display: "grid",
+  gap: 8,
+};
+const summaryMetaGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+};
+const summaryMetaCardStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  padding: 14,
+  display: "grid",
+  gap: 6,
+};
+const tabShellStyle: React.CSSProperties = {
+  borderRadius: 28,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(8,8,8,0.42)",
+  display: "grid",
+  overflow: "hidden",
+};
+const tabHeaderWrapStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 18,
+  padding: 24,
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))",
+};
+const tabHeaderCopyStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+};
+const tabRailStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  overflowX: "auto",
+  paddingBottom: 2,
+  scrollbarWidth: "thin",
+};
+const tabBodyStyle: React.CSSProperties = {
+  padding: 24,
+  display: "grid",
+  gap: 18,
+};
+const contentBlockStyle: React.CSSProperties = { display: "grid", gap: 18 };
+const betweenStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 16,
+  flexWrap: "wrap",
+};
 const rowWrapStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
-const infoGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 };
-const infoCellStyle: React.CSSProperties = { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", padding: 16, display: "grid", gap: 8 };
-const orderItemCardStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "84px minmax(0, 1fr) auto", gap: 16, alignItems: "center", borderRadius: 22, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", padding: 16 };
-const orderItemImageStyle: React.CSSProperties = { width: 84, aspectRatio: "4 / 5", borderRadius: 16, overflow: "hidden", background: "rgba(255,255,255,0.06)" };
-const metaColumnStyle: React.CSSProperties = { display: "grid", gap: 4, color: "rgba(247,241,232,0.66)", fontSize: 14 };
-const timelineRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "28px minmax(0, 1fr)", gap: 14, alignItems: "start" };
+const infoGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};
+const infoCellStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  padding: 16,
+  display: "grid",
+  gap: 8,
+};
+const orderItemCardStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "84px minmax(0, 1fr)",
+  gap: 16,
+  alignItems: "center",
+  borderRadius: 22,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  padding: 16,
+};
+const orderItemImageStyle: React.CSSProperties = {
+  width: 84,
+  aspectRatio: "4 / 5",
+  borderRadius: 16,
+  overflow: "hidden",
+  background: "rgba(255,255,255,0.06)",
+};
+const priceColumnStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+  textAlign: "left",
+};
+const metaColumnStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  color: "rgba(247,241,232,0.66)",
+  fontSize: 14,
+};
+const timelineRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "28px minmax(0, 1fr)",
+  gap: 14,
+  alignItems: "start",
+};
 const timelineRailStyle: React.CSSProperties = { width: 28, display: "grid", justifyItems: "center", gap: 6 };
-const timelineDotStyle = (done: boolean): React.CSSProperties => ({ width: 14, height: 14, borderRadius: "50%", background: done ? "#f7f1e8" : "rgba(255,255,255,0.2)" });
-const timelineLineStyle = (done: boolean): React.CSSProperties => ({ width: 2, minHeight: 34, background: done ? "rgba(247,241,232,0.5)" : "rgba(255,255,255,0.12)" });
-const paymentCardStyle: React.CSSProperties = { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", padding: 16, display: "grid", gap: 6 };
-const warningCardStyle: React.CSSProperties = { borderRadius: 18, border: "1px solid rgba(255,173,51,0.24)", background: "rgba(255,173,51,0.08)", color: "#ffe4bf", padding: 14, lineHeight: 1.6 };
-const stateStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.03)", padding: 24, color: "rgba(247,241,232,0.72)" };
-const unifiedWorkflowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(260px, 0.9fr) minmax(0, 1.1fr)", gap: 18, alignItems: "start" };
+const timelineDotStyle = (done: boolean): React.CSSProperties => ({
+  width: 14,
+  height: 14,
+  borderRadius: "50%",
+  background: done ? "#f7f1e8" : "rgba(255,255,255,0.2)",
+});
+const timelineLineStyle = (done: boolean): React.CSSProperties => ({
+  width: 2,
+  minHeight: 34,
+  background: done ? "rgba(247,241,232,0.5)" : "rgba(255,255,255,0.12)",
+});
+const paymentCardStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  padding: 16,
+  display: "grid",
+  gap: 6,
+};
+const warningCardStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(255,173,51,0.24)",
+  background: "rgba(255,173,51,0.08)",
+  color: "#ffe4bf",
+  padding: 14,
+  lineHeight: 1.6,
+};
+const hintCardStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  color: "rgba(247,241,232,0.72)",
+  padding: 14,
+  lineHeight: 1.6,
+};
+const stateStyle: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.03)",
+  padding: 24,
+  color: "rgba(247,241,232,0.72)",
+};
+const unifiedWorkflowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: 18,
+  alignItems: "start",
+};
 const statusControlStyle: React.CSSProperties = { display: "grid", gap: 8 };
-const nextStepStyle: React.CSSProperties = { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(8,8,8,0.3)", padding: 14, display: "grid", gap: 6, alignContent: "center" };
-const workflowMiniCardStyle: React.CSSProperties = { borderRadius: 22, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(8,8,8,0.28)", padding: 16, display: "grid", gap: 14 };
-const summaryRowStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" };
-const heroTitleStyle: React.CSSProperties = { margin: 0, fontSize: "clamp(2rem, 2.8vw, 3rem)", letterSpacing: "-0.05em" };
+const nextStepStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(8,8,8,0.3)",
+  padding: 14,
+  display: "grid",
+  gap: 6,
+  alignContent: "center",
+};
+const workflowMiniCardStyle: React.CSSProperties = {
+  borderRadius: 22,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(8,8,8,0.28)",
+  padding: 16,
+  display: "grid",
+  gap: 14,
+};
+const summaryRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+};
+const heroTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(2rem, 2.8vw, 3rem)",
+  letterSpacing: "-0.05em",
+};
 const labelStyle: React.CSSProperties = { color: "rgba(247,241,232,0.68)", fontSize: 14 };
-const smallLabelStyle: React.CSSProperties = { color: "rgba(247,241,232,0.48)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.16em" };
+const smallLabelStyle: React.CSSProperties = {
+  color: "rgba(247,241,232,0.48)",
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.16em",
+};
 const metaStyle: React.CSSProperties = { color: "rgba(247,241,232,0.56)", fontSize: 13 };
-const metaPillStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "rgba(247,241,232,0.7)", fontSize: 12 };
-const eyebrowStyle: React.CSSProperties = { margin: 0, textTransform: "uppercase", letterSpacing: "0.18em", fontSize: 12, color: "rgba(247,241,232,0.56)" };
-const title2Style: React.CSSProperties = { margin: "10px 0 0", fontSize: "clamp(1.8rem,2vw,2.6rem)", letterSpacing: "-0.05em" };
+const metaPillStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  color: "rgba(247,241,232,0.7)",
+  fontSize: 12,
+};
+const eyebrowStyle: React.CSSProperties = {
+  margin: 0,
+  textTransform: "uppercase",
+  letterSpacing: "0.18em",
+  fontSize: 12,
+  color: "rgba(247,241,232,0.56)",
+};
+const title2Style: React.CSSProperties = {
+  margin: "10px 0 0",
+  fontSize: "clamp(1.8rem,2vw,2.6rem)",
+  letterSpacing: "-0.05em",
+};
 const title3Style: React.CSSProperties = { margin: "8px 0 0", fontSize: 22, color: "#fff" };
-const copyStyle: React.CSSProperties = { margin: 0, color: "rgba(247,241,232,0.68)", lineHeight: 1.7, maxWidth: 740 };
+const tabHintStyle: React.CSSProperties = { margin: 0, color: "rgba(247,241,232,0.64)", lineHeight: 1.6 };
+const copyStyle: React.CSSProperties = {
+  margin: 0,
+  color: "rgba(247,241,232,0.68)",
+  lineHeight: 1.7,
+  maxWidth: 740,
+};
 const errorStyle: React.CSSProperties = { margin: 0, color: "#ff9f9f" };
-const ghostButtonStyle: React.CSSProperties = { padding: "10px 14px", background: "rgba(255,255,255,0.04)", color: "#f7f1e8", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 999, cursor: "pointer" };
-const secondaryButtonStyle: React.CSSProperties = { padding: "10px 14px", background: "transparent", color: "#f7f1e8", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, cursor: "pointer" };
-const primaryButtonStyle: React.CSSProperties = { padding: "14px 18px", background: "#f7f1e8", color: "#0b0b0b", border: "none", borderRadius: 18, cursor: "pointer", fontWeight: 700, width: "100%" };
-const disabledActionStyle: React.CSSProperties = { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", padding: "14px 16px", color: "rgba(247,241,232,0.58)", lineHeight: 1.5 };
-const primaryLinkStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 14px", background: "#f7f1e8", color: "#0b0b0b", borderRadius: 999, textDecoration: "none", fontWeight: 700 };
+const ghostButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  background: "rgba(255,255,255,0.04)",
+  color: "#f7f1e8",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 999,
+  cursor: "pointer",
+};
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  background: "transparent",
+  color: "#f7f1e8",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 999,
+  cursor: "pointer",
+};
+const primaryButtonStyle: React.CSSProperties = {
+  padding: "14px 18px",
+  background: "#f7f1e8",
+  color: "#0b0b0b",
+  border: "none",
+  borderRadius: 18,
+  cursor: "pointer",
+  fontWeight: 700,
+  width: "100%",
+};
+const disabledActionStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  padding: "14px 16px",
+  color: "rgba(247,241,232,0.58)",
+  lineHeight: 1.5,
+};
+const primaryLinkStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "10px 14px",
+  background: "#f7f1e8",
+  color: "#0b0b0b",
+  borderRadius: 999,
+  textDecoration: "none",
+  fontWeight: 700,
+};
+const tabButtonStyle = (active: boolean): React.CSSProperties => ({
+  flex: "0 0 auto",
+  padding: "12px 16px",
+  borderRadius: 999,
+  border: active ? "1px solid rgba(247,241,232,0.22)" : "1px solid rgba(255,255,255,0.08)",
+  background: active ? "#f7f1e8" : "rgba(255,255,255,0.03)",
+  color: active ? "#0b0b0b" : "#f7f1e8",
+  cursor: "pointer",
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+});
 const statusBadgeStyle = (status: string): React.CSSProperties => {
   const tone = orderStatusTone(status);
   return {

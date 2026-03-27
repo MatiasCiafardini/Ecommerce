@@ -1,1 +1,1 @@
-export type TestimonialsProps = {}
+export type TestimonialsProps = Record<string, never>;

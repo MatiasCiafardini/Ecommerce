@@ -23,6 +23,11 @@ import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 export class ProductVariantsController {
   constructor(private variantsService: ProductVariantsService) {}
 
+  @Get()
+  findAll(@Req() req) {
+    return this.variantsService.findAll(req.storeId);
+  }
+
   @Post()
   create(@Body() createVariantDto: CreateVariantDto, @Req() req) {
     return this.variantsService.create(createVariantDto, req.storeId);

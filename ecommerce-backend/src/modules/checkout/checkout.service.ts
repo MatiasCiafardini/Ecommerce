@@ -9,7 +9,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
 import { DiscountsService } from '../discounts/discounts.service';
-import { DiscountEngineService } from '../discounts/engine/discount-engine.service';
+import { ProductPricingService } from '../discounts/product-pricing.service';
+import { ShippingQuotesService } from '../shipping/services/shipping-quotes.service';
+import { StoreShippingMethodsService } from '../shipping/services/store-shipping-methods.service';
+import { roundCurrency } from '../../common/currency';
 
 @Injectable()
 export class CheckoutService {
@@ -17,17 +20,26 @@ export class CheckoutService {
     private prisma: PrismaService,
     private inventoryLockService: InventoryLockService,
     private discountsService: DiscountsService,
-    private discountEngine: DiscountEngineService,
+    private productPricingService: ProductPricingService,
+    private shippingQuotesService: ShippingQuotesService,
+    private storeShippingMethodsService: StoreShippingMethodsService,
   ) {}
 
-  async checkout(storeId: number, cartId: number, dto: CheckoutDto) {
+  async checkout(
+    storeId: number,
+    cartId: number,
+    dto: CheckoutDto,
+    customerId: number,
+  ) {
     const {
-      customerId,
       shippingProvider,
       shippingMethod,
+      shippingQuoteId,
       shippingCost,
       couponCode,
       idempotencyKey,
+      shippingAddress,
+      shippingSelection,
     } = dto;
 
     if (idempotencyKey) {
@@ -43,7 +55,7 @@ export class CheckoutService {
       }
     }
 
-    await this.ensureCustomer(storeId, customerId);
+    const customer = await this.ensureCustomer(storeId, customerId);
 
     const cart = await this.prisma.cart.findUnique({
       where: {
@@ -59,7 +71,21 @@ export class CheckoutService {
                     storeId,
                   },
                 },
-                product: true,
+                product: {
+                  include: {
+                    categories: {
+                      include: {
+                        category: true,
+                      },
+                    },
+                    optionValues: {
+                      select: {
+                        productOptionId: true,
+                        value: true,
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -79,7 +105,14 @@ export class CheckoutService {
       throw new BadRequestException('Cart is empty');
     }
 
-    let subtotal = 0;
+    const {
+      baseSubtotal: subtotal,
+      itemScopedDiscountAmount,
+      discountedSubtotal,
+    } = await this.productPricingService.resolveCartItemDiscounts(
+      storeId,
+      cart.items,
+    );
 
     for (const item of cart.items) {
       const inventory = item.variant.inventories[0];
@@ -90,69 +123,49 @@ export class CheckoutService {
           `Not enough stock for ${item.variant.product.title}`,
         );
       }
-
-      subtotal += Number(item.variant.price) * item.quantity;
     }
 
-    let discountAmount = 0;
+    let discountAmount = roundCurrency(itemScopedDiscountAmount);
     let discountId: number | null = null;
     let discountCode: string | null = null;
     let freeShipping = false;
 
-    let couponDiscount: {
-      couponId: number;
-      discountId: number;
-      code: string;
-      amount: number;
-      freeShipping: boolean;
-    } | null = null;
-
-    if (couponCode) {
-      couponDiscount = await this.discountsService.applyCoupon(
-        storeId,
-        couponCode,
-        subtotal,
-      );
-    }
-
-    const automaticDiscount: {
-      discountId: number;
-      discountAmount: number;
-      freeShipping: boolean;
-    } | null = await this.discountEngine.calculateAutomaticDiscount({
-      storeId,
-      subtotal,
+    const resolvedDiscount = await this.discountsService.previewDiscount(storeId, {
+      subtotal: discountedSubtotal,
+      code: couponCode,
     });
 
-    if (couponDiscount && automaticDiscount) {
-      if (couponDiscount.amount >= automaticDiscount.discountAmount) {
-        discountAmount = couponDiscount.amount;
-        discountId = couponDiscount.discountId;
-        discountCode = couponDiscount.code;
-        freeShipping = couponDiscount.freeShipping;
-      } else {
-        discountAmount = automaticDiscount.discountAmount;
-        discountId = automaticDiscount.discountId;
-        freeShipping = automaticDiscount.freeShipping;
-      }
-    } else if (couponDiscount) {
-      discountAmount = couponDiscount.amount;
-      discountId = couponDiscount.discountId;
-      discountCode = couponDiscount.code;
-      freeShipping = couponDiscount.freeShipping;
-    } else if (automaticDiscount) {
-      discountAmount = automaticDiscount.discountAmount;
-      discountId = automaticDiscount.discountId;
-      freeShipping = automaticDiscount.freeShipping;
+    if (resolvedDiscount) {
+      discountAmount = roundCurrency(discountAmount + resolvedDiscount.amount);
+      discountId = resolvedDiscount.discountId;
+      discountCode = resolvedDiscount.code;
+      freeShipping = resolvedDiscount.freeShipping;
     }
 
-    let finalShippingCost = Number(shippingCost ?? 0);
+    let finalShippingCost = roundCurrency(shippingCost ?? 0);
 
     if (freeShipping) {
       finalShippingCost = 0;
     }
 
-    const total = subtotal - discountAmount + finalShippingCost;
+    const validatedShipping = await this.resolveValidatedShippingSelection({
+      storeId,
+      cartId,
+      customerId,
+      shippingQuoteId,
+      shippingProvider,
+      shippingMethod,
+      shippingCost: finalShippingCost,
+      shippingAddress,
+      shippingSelection,
+      freeShipping,
+    });
+
+    if (validatedShipping) {
+      finalShippingCost = roundCurrency(validatedShipping.shippingCost);
+    }
+
+    const total = roundCurrency(subtotal - discountAmount + finalShippingCost);
 
     return this.prisma.$transaction(async (tx) => {
       for (const item of cart.items) {
@@ -174,11 +187,53 @@ export class CheckoutService {
           discountId,
           total,
           status: 'pending',
-          shippingProvider,
-          shippingMethod,
+          shippingProvider:
+            validatedShipping?.shippingProvider ?? shippingProvider,
+          shippingMethod: validatedShipping?.shippingMethod ?? shippingMethod,
           shippingCost: finalShippingCost,
+          shippingCarrierId:
+            validatedShipping?.shippingSelection?.carrierId ??
+            shippingSelection?.carrierId ??
+            null,
+          shippingCarrierName:
+            validatedShipping?.shippingSelection?.carrierName ??
+            shippingSelection?.carrierName ??
+            null,
+          shippingServiceCode:
+            validatedShipping?.shippingSelection?.serviceCode ??
+            shippingSelection?.serviceCode ??
+            null,
+          shippingModalityCode:
+            validatedShipping?.shippingSelection?.modalityCode ??
+            shippingSelection?.modalityCode ??
+            null,
+          shippingDispatchType:
+            validatedShipping?.shippingSelection?.dispatchType ??
+            shippingSelection?.dispatchType ??
+            null,
+          shippingBranchId:
+            validatedShipping?.shippingSelection?.branchId ??
+            shippingSelection?.branchId ??
+            null,
+          shippingProviderConfigId:
+            validatedShipping?.shippingProviderConfigId ?? null,
+          shippingQuoteId: validatedShipping?.shippingQuoteId ?? null,
+          customerEmailSnapshot: customer.email,
+          customerFirstNameSnapshot: customer.firstName ?? null,
+          customerLastNameSnapshot: customer.lastName ?? null,
+          customerPhoneSnapshot: customer.phone ?? null,
+          shippingFirstNameSnapshot: shippingAddress.firstName,
+          shippingLastNameSnapshot: shippingAddress.lastName,
+          shippingPhoneSnapshot:
+            shippingAddress.phone ?? customer.phone ?? null,
+          shippingAddress1Snapshot: shippingAddress.address1,
+          shippingAddress2Snapshot: shippingAddress.address2 ?? null,
+          shippingCitySnapshot: shippingAddress.city,
+          shippingStateSnapshot: shippingAddress.state ?? null,
+          shippingPostalCodeSnapshot: shippingAddress.zip,
+          shippingCountrySnapshot: shippingAddress.country,
           idempotencyKey: idempotencyKey ?? null,
-        },
+        } as any,
       });
 
       for (const item of cart.items) {
@@ -192,15 +247,26 @@ export class CheckoutService {
         });
       }
 
-      if (couponDiscount?.couponId) {
+      if (resolvedDiscount?.source === 'coupon' && resolvedDiscount.couponId) {
         await tx.coupon.update({
           where: {
-            id: couponDiscount.couponId,
+            id: resolvedDiscount.couponId,
           },
           data: {
             usedCount: {
               increment: 1,
             },
+          },
+        });
+      }
+
+      if (validatedShipping?.shippingQuoteId) {
+        await tx.shippingQuote.update({
+          where: {
+            id: validatedShipping.shippingQuoteId,
+          },
+          data: {
+            consumedAt: new Date(),
           },
         });
       }
@@ -221,11 +287,201 @@ export class CheckoutService {
         id: customerId,
         storeId,
       },
-      select: { id: true },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+      },
     });
 
     if (!customer) {
       throw new ForbiddenException('Customer does not belong to this store');
     }
+
+    return customer;
+  }
+
+  private async resolveValidatedShippingSelection(params: {
+    storeId: number;
+    cartId: number;
+    customerId: number;
+    shippingQuoteId?: string;
+    shippingProvider?: string;
+    shippingMethod?: string;
+    shippingCost: number;
+    shippingAddress: { zip: string };
+    shippingSelection?: {
+      carrierId?: string;
+      carrierName?: string;
+      serviceCode?: string;
+      modalityCode?: string;
+      dispatchType?: string;
+      branchId?: string;
+    };
+    freeShipping: boolean;
+  }) {
+    const normalizedProvider = params.shippingProvider?.trim().toLowerCase();
+    const normalizedMethod = params.shippingMethod?.trim();
+
+    if (!normalizedProvider && !normalizedMethod) {
+      return null;
+    }
+
+    let quote = params.shippingQuoteId
+      ? await this.shippingQuotesService.findUsableQuoteById({
+          storeId: params.storeId,
+          cartId: params.cartId,
+          customerId: params.customerId,
+          quoteId: params.shippingQuoteId,
+        })
+      : null;
+
+    if (!quote) {
+      quote = await this.shippingQuotesService.findMatchingQuote({
+        storeId: params.storeId,
+        cartId: params.cartId,
+        customerId: params.customerId,
+        provider: normalizedProvider ?? null,
+        method: normalizedMethod ?? null,
+        postalCode: params.shippingAddress.zip,
+        carrierId: params.shippingSelection?.carrierId ?? null,
+        carrierName: params.shippingSelection?.carrierName ?? null,
+        serviceCode: params.shippingSelection?.serviceCode ?? null,
+        modalityCode: params.shippingSelection?.modalityCode ?? null,
+        dispatchType: params.shippingSelection?.dispatchType ?? null,
+        branchId: params.shippingSelection?.branchId ?? null,
+      });
+    }
+
+    if (!quote) {
+      return this.resolveManualShippingWithoutQuote(params);
+    }
+
+    if (normalizedProvider && quote.provider !== normalizedProvider) {
+      throw new BadRequestException(
+        'Shipping provider does not match the selected server quote',
+      );
+    }
+
+    if (normalizedMethod && quote.method !== normalizedMethod) {
+      throw new BadRequestException(
+        'Shipping method does not match the selected server quote',
+      );
+    }
+
+    const expectedPrice = params.freeShipping ? 0 : Number(quote.price);
+
+    if (
+      !params.freeShipping &&
+      Math.abs(expectedPrice - Number(params.shippingCost ?? 0)) > 0.01
+    ) {
+      throw new BadRequestException(
+        'Shipping cost does not match the latest server quote',
+      );
+    }
+
+    return {
+      shippingProvider: quote.provider,
+      shippingMethod: quote.method,
+      shippingCost: expectedPrice,
+      shippingSelection: {
+        carrierId: quote.carrierId ?? undefined,
+        carrierName: quote.carrierName ?? undefined,
+        serviceCode: quote.serviceCode ?? undefined,
+        modalityCode: quote.modalityCode ?? undefined,
+        dispatchType: quote.dispatchType ?? undefined,
+        branchId: quote.branchId ?? undefined,
+      },
+      shippingProviderConfigId: quote.providerConfigId ?? null,
+      shippingQuoteId: quote.id,
+    };
+  }
+
+  private async resolveManualShippingWithoutQuote(params: {
+    storeId: number;
+    shippingProvider?: string;
+    shippingMethod?: string;
+    shippingCost: number;
+  }) {
+    const provider = params.shippingProvider?.trim().toLowerCase();
+    const method = params.shippingMethod?.trim() || '';
+    const normalizedMethod = method.toLowerCase();
+    const isManualProvider =
+      !provider ||
+      provider === 'manual' ||
+      provider === 'store' ||
+      provider === 'pickup';
+    const isManualMethod =
+      normalizedMethod.includes('retiro') ||
+      normalizedMethod.includes('pickup') ||
+      normalizedMethod.includes('coordinar') ||
+      normalizedMethod.includes('gratis') ||
+      normalizedMethod.includes('fijo') ||
+      normalizedMethod.includes('manual');
+
+    if (!isManualProvider && !isManualMethod) {
+      return null;
+    }
+
+    const configuredMethod =
+      await this.storeShippingMethodsService.findActiveByName(
+        params.storeId,
+        method,
+      );
+
+    if (configuredMethod) {
+      return {
+        shippingProvider: configuredMethod.type === 'pickup' ? 'store' : 'manual',
+        shippingMethod: configuredMethod.name,
+        shippingCost: Number(configuredMethod.price),
+        shippingSelection: {
+          carrierId: configuredMethod.type === 'pickup' ? 'store' : 'manual',
+          carrierName: configuredMethod.name,
+          serviceCode: configuredMethod.type,
+          modalityCode:
+            configuredMethod.type === 'pickup' ? 'pickup' : 'manual',
+          dispatchType: configuredMethod.type,
+          branchId: undefined,
+        },
+        shippingProviderConfigId: null,
+        shippingQuoteId: null,
+      };
+    }
+
+    const carrierName = normalizedMethod.includes('retiro')
+      ? 'Retiro en local'
+      : normalizedMethod.includes('coordinar')
+        ? 'Envio a coordinar'
+        : 'Envio manual';
+    const shippingCost =
+      normalizedMethod.includes('retiro') ||
+      normalizedMethod.includes('coordinar') ||
+      normalizedMethod.includes('gratis')
+        ? 0
+        : Number(params.shippingCost ?? 0);
+
+    return {
+      shippingProvider:
+        provider === 'store' || normalizedMethod.includes('retiro')
+          ? 'store'
+          : 'manual',
+      shippingMethod: method || 'Envio manual',
+      shippingCost,
+      shippingSelection: {
+        carrierId:
+          provider === 'store' || normalizedMethod.includes('retiro')
+            ? 'store'
+            : 'manual',
+        carrierName,
+        serviceCode: undefined,
+        modalityCode: undefined,
+        dispatchType: undefined,
+        branchId: undefined,
+      },
+      shippingProviderConfigId: null,
+      shippingQuoteId: null,
+    };
   }
 }

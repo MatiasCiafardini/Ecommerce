@@ -30,7 +30,10 @@ export class TrackingService {
 
     await this.prisma.shipment.update({
       where: { id: dto.shipmentId },
-      data: { status: dto.status as any },
+      data: {
+        status: dto.status as any,
+        ...(dto.status === 'delivered' ? {} : {}),
+      },
     });
 
     /**

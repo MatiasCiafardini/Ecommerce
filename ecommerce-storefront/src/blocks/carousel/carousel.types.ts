@@ -1,1 +1,1 @@
-export type CarouselProps = {}
+export type CarouselProps = Record<string, never>;

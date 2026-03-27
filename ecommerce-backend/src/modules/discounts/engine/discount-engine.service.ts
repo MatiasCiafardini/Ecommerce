@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { DiscountType } from '@prisma/client';
+import { DiscountScope, DiscountType } from '@prisma/client';
+import { roundCurrency } from '../../../common/currency';
 
 type AutomaticDiscountResult = {
   discountId: number;
@@ -25,6 +26,7 @@ export class DiscountEngineService {
       where: {
         storeId,
         automatic: true,
+        scope: DiscountScope.order,
         OR: [{ startsAt: null }, { startsAt: { lte: now } }],
         AND: [
           {
@@ -52,11 +54,11 @@ export class DiscountEngineService {
 
       switch (discount.type) {
         case DiscountType.percentage:
-          discountAmount = subtotal * ((discount.value ?? 0) / 100);
+          discountAmount = roundCurrency(subtotal * ((discount.value ?? 0) / 100));
           break;
 
         case DiscountType.fixed_amount:
-          discountAmount = discount.value ?? 0;
+          discountAmount = roundCurrency(discount.value ?? 0);
           break;
 
         case DiscountType.free_shipping:
@@ -67,7 +69,7 @@ export class DiscountEngineService {
       if (!bestDiscount || discountAmount > bestDiscount.discountAmount) {
         bestDiscount = {
           discountId: discount.id,
-          discountAmount,
+          discountAmount: roundCurrency(discountAmount),
           freeShipping,
         };
       }

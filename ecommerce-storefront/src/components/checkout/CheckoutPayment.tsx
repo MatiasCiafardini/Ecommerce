@@ -1,12 +1,70 @@
 "use client";
 
 import { useState } from "react";
+import { formatCurrency } from "@/lib/currency";
 
 type ShippingOption = {
   provider: string;
   method: string;
   price: number;
   estimatedDays: number;
+};
+
+type PaymentOption = {
+  id: string;
+  title: string;
+  description: string;
+  eyebrow: string;
+};
+
+const paymentOptions: PaymentOption[] = [
+  {
+    id: "mercadopago",
+    title: "Mercado Pago",
+    description: "Tarjetas, debito y saldo online. Ideal para aprobar la compra al instante.",
+    eyebrow: "Online",
+  },
+  {
+    id: "bank_transfer",
+    title: "Transferencia bancaria",
+    description: "Genera el pedido y sube el comprobante para que el comercio lo valide.",
+    eyebrow: "Manual",
+  },
+];
+
+const getShippingBadge = (option: ShippingOption) => {
+  const provider = option.provider?.trim().toLowerCase() ?? "";
+  const method = option.method?.trim().toLowerCase() ?? "";
+
+  if (
+    provider === "manual" ||
+    provider === "store" ||
+    method.includes("retiro") ||
+    method.includes("pickup")
+  ) {
+    return "Entrega";
+  }
+
+  return option.provider;
+};
+
+const getShippingTimingCopy = (option: ShippingOption) => {
+  const provider = option.provider?.trim().toLowerCase() ?? "";
+  const method = option.method?.trim().toLowerCase() ?? "";
+
+  if (method.includes("retiro") || method.includes("pickup")) {
+    return "Te avisaremos cuando este listo para retirar.";
+  }
+
+  if (method.includes("coordinar")) {
+    return "Coordinaremos la fecha de entrega despues de la compra.";
+  }
+
+  if (provider === "manual" || provider === "store" || option.estimatedDays <= 0) {
+    return "La fecha estimada se actualizara despues de la compra.";
+  }
+
+  return `Llega en ${option.estimatedDays} dia${option.estimatedDays === 1 ? "" : "s"}`;
 };
 
 export default function CheckoutPayment({
@@ -16,10 +74,11 @@ export default function CheckoutPayment({
   shippingOptions: ShippingOption[];
   onNext: (payload: {
     paymentMethod: string;
+    paymentLabel: string;
     shippingOption: ShippingOption;
   }) => void;
 }) {
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentOption | null>(null);
   const [selectedShipping, setSelectedShipping] = useState<ShippingOption | null>(
     shippingOptions[0] ?? null,
   );
@@ -34,9 +93,8 @@ export default function CheckoutPayment({
       <div
         style={{
           borderRadius: 32,
-          border: "1px solid rgba(255,255,255,0.08)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03))",
+          border: "1px solid var(--checkout-border)",
+          background: "var(--checkout-panel-bg)",
           padding: 28,
           display: "grid",
           gap: 18,
@@ -49,12 +107,18 @@ export default function CheckoutPayment({
               textTransform: "uppercase",
               letterSpacing: "0.24em",
               fontSize: 12,
-              color: "rgba(247,241,232,0.52)",
+              color: "var(--checkout-text-muted)",
             }}
           >
             Envio
           </p>
-          <h2 style={{ margin: "12px 0 0", fontSize: "clamp(2rem, 3vw, 3rem)" }}>
+          <h2
+            style={{
+              margin: "12px 0 0",
+              fontSize: "clamp(2rem, 3vw, 3rem)",
+              color: "var(--checkout-text-strong)",
+            }}
+          >
             Elegi el ritmo de entrega
           </h2>
         </div>
@@ -69,15 +133,19 @@ export default function CheckoutPayment({
               <button
                 key={`${option.provider}-${option.method}`}
                 onClick={() => setSelectedShipping(option)}
+                className="checkout-select-card"
+                data-active={active ? "true" : "false"}
                 style={{
                   width: "100%",
                   textAlign: "left",
                   borderRadius: 24,
                   border: active
-                    ? "1px solid rgba(255,255,255,0.22)"
-                    : "1px solid rgba(255,255,255,0.08)",
-                  background: active ? "rgba(255,255,255,0.08)" : "rgba(8,8,8,0.5)",
-                  color: "#f7f1e8",
+                    ? "1px solid var(--checkout-border-strong)"
+                    : "1px solid var(--checkout-border)",
+                  background: active
+                    ? "var(--checkout-card-alt-bg)"
+                    : "var(--checkout-card-bg)",
+                  color: "var(--checkout-text-strong)",
                   padding: 22,
                   cursor: "pointer",
                 }}
@@ -88,10 +156,12 @@ export default function CheckoutPayment({
                     textTransform: "uppercase",
                     letterSpacing: "0.18em",
                     fontSize: 11,
-                    color: active ? "rgba(247,241,232,0.72)" : "rgba(247,241,232,0.46)",
+                    color: active
+                      ? "var(--checkout-text-strong)"
+                      : "var(--checkout-text-muted)",
                   }}
                 >
-                  {option.provider}
+                  {getShippingBadge(option)}
                 </p>
                 <div
                   style={{
@@ -107,14 +177,13 @@ export default function CheckoutPayment({
                     <p
                       style={{
                         margin: "8px 0 0",
-                        color: "rgba(247,241,232,0.66)",
+                        color: "var(--checkout-text-muted)",
                       }}
                     >
-                      Llega en {option.estimatedDays} dia
-                      {option.estimatedDays === 1 ? "" : "s"}
+                      {getShippingTimingCopy(option)}
                     </p>
                   </div>
-                  <strong style={{ fontSize: 24 }}>${option.price}</strong>
+                  <strong style={{ fontSize: 24 }}>{formatCurrency(option.price)}</strong>
                 </div>
               </button>
             );
@@ -125,9 +194,8 @@ export default function CheckoutPayment({
       <aside
         style={{
           borderRadius: 32,
-          border: "1px solid rgba(255,255,255,0.08)",
-          background:
-            "linear-gradient(180deg, rgba(243,238,231,0.14), rgba(255,255,255,0.04))",
+          border: "1px solid var(--checkout-border)",
+          background: "var(--checkout-panel-bg)",
           padding: 28,
           display: "grid",
           gap: 18,
@@ -141,54 +209,60 @@ export default function CheckoutPayment({
               textTransform: "uppercase",
               letterSpacing: "0.24em",
               fontSize: 12,
-              color: "rgba(247,241,232,0.52)",
+              color: "var(--checkout-text-muted)",
             }}
           >
             Pago
           </p>
-          <h3 style={{ margin: "12px 0 0", fontSize: 28 }}>
+          <h3 style={{ margin: "12px 0 0", fontSize: 28, color: "var(--checkout-text-strong)" }}>
             Defini como queres cerrar
           </h3>
         </div>
 
         <div style={{ display: "grid", gap: 12 }}>
-          {[
-            {
-              id: "card",
-              title: "Tarjeta",
-              description: "Aprueba al instante para simular una compra completa.",
-            },
-            {
-              id: "cash",
-              title: "Efectivo",
-              description: "Genera la orden y la deja pendiente de pago.",
-            },
-          ].map((method) => {
-            const active = selectedMethod === method.id;
+          {paymentOptions.map((method) => {
+            const active = selectedMethod?.id === method.id;
 
             return (
               <button
                 key={method.id}
-                onClick={() => setSelectedMethod(method.id)}
+                onClick={() => setSelectedMethod(method)}
+                className="checkout-select-card"
+                data-active={active ? "true" : "false"}
                 style={{
                   width: "100%",
                   textAlign: "left",
                   borderRadius: 22,
                   border: active
-                    ? "1px solid rgba(255,255,255,0.22)"
-                    : "1px solid rgba(255,255,255,0.08)",
-                  background: active ? "rgba(255,255,255,0.08)" : "rgba(8,8,8,0.5)",
-                  color: "#f7f1e8",
+                    ? "1px solid var(--checkout-border-strong)"
+                    : "1px solid var(--checkout-border)",
+                  background: active
+                    ? "var(--checkout-card-alt-bg)"
+                    : "var(--checkout-card-bg)",
+                  color: "var(--checkout-text-strong)",
                   padding: 20,
                   cursor: "pointer",
+                  display: "grid",
+                  gap: 8,
                 }}
               >
+                <span
+                  style={{
+                    textTransform: "uppercase",
+                    letterSpacing: "0.18em",
+                    fontSize: 11,
+                    color: active
+                      ? "var(--checkout-text-strong)"
+                      : "var(--checkout-text-muted)",
+                  }}
+                >
+                  {method.eyebrow}
+                </span>
                 <strong style={{ display: "block", fontSize: 20 }}>{method.title}</strong>
                 <span
                   style={{
                     display: "block",
-                    marginTop: 8,
-                    color: "rgba(247,241,232,0.66)",
+                    color: "var(--checkout-text-muted)",
                     lineHeight: 1.7,
                   }}
                 >
@@ -199,13 +273,38 @@ export default function CheckoutPayment({
           })}
         </div>
 
+        <div
+          style={{
+            borderRadius: 22,
+            border: "1px solid var(--checkout-border)",
+            background: "var(--checkout-card-bg)",
+            padding: 18,
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          <strong style={{ color: "var(--checkout-text-strong)" }}>Que pasa despues</strong>
+          <p
+            style={{
+              margin: 0,
+              color: "var(--checkout-text-muted)",
+              lineHeight: 1.7,
+            }}
+          >
+            {selectedMethod?.id === "bank_transfer"
+              ? "En la revision final vas a subir el comprobante para que el comercio valide la transferencia."
+              : "Al confirmar, el pedido se registra con Mercado Pago como medio de cobro online."}
+          </p>
+        </div>
+
         <button
           disabled={!selectedMethod || !selectedShipping}
           onClick={() =>
             selectedMethod &&
             selectedShipping &&
             onNext({
-              paymentMethod: selectedMethod,
+              paymentMethod: selectedMethod.id,
+              paymentLabel: selectedMethod.title,
               shippingOption: selectedShipping,
             })
           }
@@ -213,9 +312,13 @@ export default function CheckoutPayment({
             border: "none",
             borderRadius: 999,
             background:
-              selectedMethod && selectedShipping ? "#f7f1e8" : "rgba(255,255,255,0.12)",
+              selectedMethod && selectedShipping
+                ? "var(--checkout-primary-bg)"
+                : "var(--checkout-card-alt-bg)",
             color:
-              selectedMethod && selectedShipping ? "#0b0b0b" : "rgba(247,241,232,0.56)",
+              selectedMethod && selectedShipping
+                ? "var(--checkout-primary-color)"
+                : "var(--checkout-text-muted)",
             padding: "15px 18px",
             fontWeight: 700,
             cursor: selectedMethod && selectedShipping ? "pointer" : "not-allowed",

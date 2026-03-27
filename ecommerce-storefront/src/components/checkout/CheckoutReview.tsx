@@ -1,34 +1,114 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useState } from "react";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import {
-  CustomerOrder,
-  money,
-  openReceipt,
-} from "@/components/account/order-utils";
+import { CustomerOrder, money, openReceipt } from "@/components/account/order-utils";
+import MercadoPagoCardPayment from "@/components/checkout/MercadoPagoCardPayment";
+import { roundCurrency } from "@/lib/currency";
 
 type ShippingOption = {
   provider: string;
   method: string;
   price: number;
   estimatedDays: number;
+  carrierId?: string;
+  carrierName?: string;
+  serviceCode?: string;
+  modalityCode?: string;
+  dispatchType?: string;
+  branchId?: string | null;
+  sellerCost?: number | null;
 };
+
+const getCheckoutShippingLabel = (option: ShippingOption | null) => {
+  if (!option) return "Envio a confirmar";
+
+  const provider = option.provider?.trim().toLowerCase() ?? "";
+  const method = option.method?.trim().toLowerCase() ?? "";
+
+  if (method.includes("retiro") || method.includes("pickup")) {
+    return option.method;
+  }
+
+  if (provider === "manual" || provider === "store") {
+    return option.method;
+  }
+
+  return [option.provider, option.method].filter(Boolean).join(" · ");
+};
+
+const getCheckoutShippingEta = (option: ShippingOption | null) => {
+  if (!option) return "La fecha de entrega se confirmara despues de la compra.";
+
+  const provider = option.provider?.trim().toLowerCase() ?? "";
+  const method = option.method?.trim().toLowerCase() ?? "";
+
+  if (method.includes("retiro") || method.includes("pickup")) {
+    return "Te avisaremos cuando tu pedido este listo para retirar.";
+  }
+
+  if (method.includes("coordinar")) {
+    return "Coordinaremos la fecha de entrega despues de la compra.";
+  }
+
+  if (provider === "manual" || provider === "store" || option.estimatedDays <= 0) {
+    return "La fecha estimada se actualizara una vez despachado el pedido.";
+  }
+
+  return `Entrega estimada en ${option.estimatedDays} dia${option.estimatedDays === 1 ? "" : "s"}.`;
+};
+
+type CheckoutCartItem = {
+  variantId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  imageUrl?: string | null;
+};
+
+type CheckoutAddressSnapshot = {
+  firstName: string;
+  lastName: string;
+  phone?: string | null;
+  address1: string;
+  address2?: string | null;
+  city: string;
+  state?: string | null;
+  zip: string;
+  country: string;
+};
+
+type CheckoutErrorState = {
+  title: string;
+  message: string;
+};
+
+type DiscountPreview = {
+  source: "coupon" | "automatic";
+  discountId: number;
+  couponId?: number;
+  code: string | null;
+  amount: number;
+  freeShipping: boolean;
+} | null;
 
 export default function CheckoutReview({
   cart,
   cartId,
   address,
   paymentMethod,
+  paymentLabel,
   shippingOption,
 }: {
-  cart: any[];
+  cart: CheckoutCartItem[];
   cartId: number;
-  address: any;
+  address: CheckoutAddressSnapshot;
   paymentMethod: string | null;
+  paymentLabel: string | null;
   shippingOption: ShippingOption | null;
 }) {
   const { clearCart } = useCart();
@@ -36,71 +116,339 @@ export default function CheckoutReview({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<CustomerOrder | null>(null);
+  const [checkoutError, setCheckoutError] = useState<CheckoutErrorState | null>(null);
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+  const [completedPaymentStatus, setCompletedPaymentStatus] = useState<string | null>(null);
+  const [transferProofFile, setTransferProofFile] = useState<File | null>(null);
+  const [transferReference, setTransferReference] = useState("");
+  const [transferNotes, setTransferNotes] = useState("");
+  const [rightColumnHeight, setRightColumnHeight] = useState<number | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [discountPreview, setDiscountPreview] = useState<DiscountPreview>(null);
+  const [discountMessage, setDiscountMessage] = useState<string | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [discountLoading, setDiscountLoading] = useState(false);
+  const DESKTOP_REVIEW_THREE_PRODUCTS_HEIGHT = 700;
+  const DESKTOP_REVIEW_FALLBACK_MIN_HEIGHT = 580;
 
-  const subtotal = cart.reduce(
-    (acc, item) => acc + item.price * item.quantity,
-    0,
-  );
-  const shippingCost = shippingOption?.price ?? 0;
-  const total = subtotal + shippingCost;
+  const subtotal = roundCurrency(cart.reduce((acc, item) => acc + item.price * item.quantity, 0));
+  const discountAmount = roundCurrency(discountPreview?.amount ?? 0);
+  const baseShippingCost = roundCurrency(shippingOption?.price ?? 0);
+  const shippingCost = roundCurrency(discountPreview?.freeShipping ? 0 : baseShippingCost);
+  const total = roundCurrency(Math.max(subtotal - discountAmount + shippingCost, 0));
+  const isBankTransfer = paymentMethod === "bank_transfer";
+  const paymentDisplayLabel =
+    paymentLabel ??
+    (paymentMethod === "mercadopago"
+      ? "Mercado Pago"
+      : paymentMethod === "bank_transfer"
+        ? "Transferencia bancaria"
+        : "A confirmar");
 
-  const handleConfirm = async () => {
-    if (!user || !paymentMethod || !shippingOption) return;
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncHeight = () => {
+      if (window.innerWidth <= 1024) {
+        setRightColumnHeight(null);
+        return;
+      }
+
+      const viewportLimitedHeight = Math.min(
+        DESKTOP_REVIEW_THREE_PRODUCTS_HEIGHT,
+        window.innerHeight - 140,
+      );
+
+      setRightColumnHeight(
+        Math.max(viewportLimitedHeight, DESKTOP_REVIEW_FALLBACK_MIN_HEIGHT),
+      );
+    };
+
+    syncHeight();
+
+    window.addEventListener("resize", syncHeight);
+
+    return () => {
+      window.removeEventListener("resize", syncHeight);
+    };
+  }, []);
+
+  const previewDiscount = useCallback(async (code?: string) => {
+    setDiscountLoading(true);
+
+    try {
+      const response = await api("/discounts/preview", {
+        method: "POST",
+        body: JSON.stringify({
+          subtotal,
+          code: code?.trim() || undefined,
+        }),
+      });
+
+      setDiscountPreview(response);
+      setDiscountError(null);
+
+      if (!response) {
+        setDiscountMessage(null);
+        return;
+      }
+
+      if (response.source === "coupon") {
+        setDiscountMessage(
+          response.freeShipping
+            ? `Cupon ${response.code} aplicado. El envio quedo bonificado.`
+            : `Cupon ${response.code} aplicado correctamente.`,
+        );
+        return;
+      }
+
+      setDiscountMessage(
+        response.freeShipping
+          ? "Se aplico una promocion automatica con envio gratis."
+          : "Se aplico una promocion automatica a tu compra.",
+      );
+    } catch (error) {
+      if (code?.trim()) {
+        try {
+          const fallbackResponse = await api("/discounts/preview", {
+            method: "POST",
+            body: JSON.stringify({ subtotal }),
+          });
+
+          setDiscountPreview(fallbackResponse);
+          setDiscountMessage(
+            fallbackResponse
+              ? fallbackResponse.freeShipping
+                ? "Se mantuvo la promocion automatica con envio gratis."
+                : "Se mantuvo la promocion automatica disponible para tu compra."
+              : null,
+          );
+        } catch {
+          setDiscountPreview(null);
+          setDiscountMessage(null);
+        }
+      } else {
+        setDiscountPreview(null);
+        setDiscountMessage(null);
+      }
+
+      setDiscountError(
+        error instanceof Error ? error.message : "No pudimos validar el descuento.",
+      );
+      throw error;
+    } finally {
+      setDiscountLoading(false);
+    }
+  }, [subtotal]);
+
+  useEffect(() => {
+    void previewDiscount();
+  }, [previewDiscount]);
+
+  const goToOrderDetail = (orderId: number) => {
+    clearCart();
+    router.push(`/account/orders/${orderId}`);
+  };
+
+  const goToCart = () => {
+    router.push("/cart?stockIssue=1");
+  };
+
+  const createOrderFromCheckout = async () => {
+    const order = await api(`/store/checkout/${cartId}`, {
+      method: "POST",
+      body: JSON.stringify({
+        shippingProvider: shippingOption?.provider,
+        shippingMethod: shippingOption?.method,
+        shippingCost: shippingOption?.price,
+        shippingSelection: {
+          carrierId: shippingOption?.carrierId,
+          carrierName: shippingOption?.carrierName,
+          serviceCode: shippingOption?.serviceCode,
+          modalityCode: shippingOption?.modalityCode,
+          dispatchType: shippingOption?.dispatchType,
+          branchId: shippingOption?.branchId ?? undefined,
+        },
+        shippingAddress: {
+          firstName: address.firstName,
+          lastName: address.lastName,
+          phone: address.phone ?? user?.phone ?? undefined,
+          address1: address.address1,
+          address2: address.address2 ?? undefined,
+          city: address.city,
+          state: address.state ?? undefined,
+          zip: address.zip,
+          country: address.country,
+        },
+        couponCode:
+          discountPreview?.source === "coupon" ? discountPreview.code ?? undefined : undefined,
+        idempotencyKey: crypto.randomUUID(),
+      }),
+    });
+
+    setCreatedOrderId(order.id);
+    return order as { id: number };
+  };
+
+  const ensureOrderForPayment = async () => {
+    if (createdOrderId) {
+      return { id: createdOrderId };
+    }
+
+    return createOrderFromCheckout();
+  };
+
+  const loadCompletedOrder = async (orderId: number) => {
+    const completed = await api(`/customers/me/orders/${orderId}`);
+    setCompletedOrder(completed);
+  };
+
+  const resolveCheckoutError = (error: unknown): CheckoutErrorState => {
+    const fallback = {
+      title: "No pudimos cerrar la compra",
+      message: "Revisa tu carrito y vuelve a intentarlo en unos instantes.",
+    };
+
+    if (!(error instanceof Error)) {
+      return fallback;
+    }
+
+    const message = error.message.trim();
+    const normalizedMessage = message.toLowerCase();
+
+    if (
+      normalizedMessage.includes("stock") ||
+      normalizedMessage.includes("inventario") ||
+      normalizedMessage.includes("sin suficiente")
+    ) {
+      return {
+        title: "Una o mas unidades ya no estan disponibles",
+        message:
+          "Mientras cerrabas la compra, otro pedido consumio ese stock. Vuelve al carrito para revisar cantidades y disponibilidad actual.",
+      };
+    }
+
+    return {
+      title: "No pudimos cerrar la compra",
+      message: message || fallback.message,
+    };
+  };
+
+  const handleMercadoPagoPayment = async ({
+    token,
+    paymentMethodId,
+    issuerId,
+    installments,
+  }: {
+    token: string;
+    paymentMethodId?: string;
+    issuerId?: string;
+    installments?: number;
+  }) => {
+    if (!user || !paymentMethod || !shippingOption) {
+      return;
+    }
 
     try {
       setLoading(true);
+      setCheckoutError(null);
 
-      const order = await api(`/store/checkout/${cartId}`, {
+      const order = await ensureOrderForPayment();
+      const payment = await api(`/store/payments/${order.id}`, {
         method: "POST",
         body: JSON.stringify({
-          customerId: user.id,
-          shippingProvider: shippingOption.provider,
-          shippingMethod: shippingOption.method,
-          shippingCost: shippingOption.price,
+          provider: "mercadopago",
+          method: paymentMethodId || "credit_card",
+          token,
+          paymentMethodId,
+          installments: installments ?? 1,
+          issuerId,
           idempotencyKey: crypto.randomUUID(),
         }),
       });
 
-      if (paymentMethod === "card") {
-        await api(`/store/payments/${order.id}`, {
-          method: "POST",
-          body: JSON.stringify({
-            token: "test-token",
-            paymentMethodId: "visa",
-            installments: 1,
-            issuerId: "test",
-            idempotencyKey: crypto.randomUUID(),
-          }),
-        });
+      const paymentStatus = String(payment?.status ?? "").trim().toLowerCase();
+      setCompletedPaymentStatus(paymentStatus || null);
+
+      if (paymentStatus === "rejected" || paymentStatus === "cancelled") {
+        throw new Error(
+          "Mercado Pago rechazo la tarjeta. Puedes revisar los datos e intentarlo nuevamente.",
+        );
       }
 
-      const completed = await api(`/customers/me/orders/${order.id}`);
-      setCompletedOrder(completed);
-      clearCart();
+      await loadCompletedOrder(order.id);
     } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "No se pudo completar la compra",
-      );
+      setCheckoutError(resolveCheckoutError(error));
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  if (completedOrder) {
-    return (
+  const handleConfirm = async () => {
+    if (!user || !paymentMethod || !shippingOption) return;
+
+    if (isBankTransfer && !transferProofFile) {
+      setCheckoutError({
+        title: "Falta el comprobante de transferencia",
+        message:
+          "Sube el comprobante antes de confirmar para que el comercio pueda validar el pago.",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setCheckoutError(null);
+      const order = await ensureOrderForPayment();
+
+      if (isBankTransfer && transferProofFile) {
+        const formData = new FormData();
+        formData.append("file", transferProofFile);
+        formData.append("provider", "bank_transfer");
+        formData.append("method", "bank_transfer");
+        formData.append("reference", transferReference);
+        formData.append("notes", transferNotes);
+        formData.append("idempotencyKey", crypto.randomUUID());
+
+        await api(`/store/payments/${order.id}/bank-transfer`, {
+          method: "POST",
+          body: formData,
+        });
+      }
+
+      setCompletedPaymentStatus("pending");
+      await loadCompletedOrder(order.id);
+    } catch (error) {
+      setCheckoutError(resolveCheckoutError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
       <section
         className="layout-two-col"
-        style={{ gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 0.9fr)" }}
+        style={{
+          gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 0.9fr)",
+          alignItems: "start",
+          opacity: completedOrder ? 0.34 : 1,
+          pointerEvents: completedOrder ? "none" : "auto",
+          transition: "opacity 180ms ease",
+        }}
       >
         <div
+          className="checkout-review-primary"
           style={{
-            borderRadius: 32,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background:
-              "linear-gradient(180deg, rgba(243,238,231,0.14), rgba(255,255,255,0.04))",
+            ...checkoutPanelStyle,
             padding: 28,
             display: "grid",
             gap: 18,
+            alignContent: "start",
+            minHeight: rightColumnHeight ?? undefined,
           }}
         >
           <div>
@@ -110,31 +458,68 @@ export default function CheckoutReview({
                 textTransform: "uppercase",
                 letterSpacing: "0.24em",
                 fontSize: 12,
-                color: "rgba(247,241,232,0.52)",
+                color: "var(--checkout-text-muted)",
               }}
             >
-              Compra confirmada
+              Revision final
             </p>
-            <h2 style={{ margin: "12px 0 0", fontSize: "clamp(2rem, 3vw, 3rem)" }}>
-              Se ha completado tu compra
+            <h2
+              style={{
+                margin: "12px 0 0",
+                fontSize: "clamp(2rem, 3vw, 3rem)",
+                color: "var(--checkout-text-strong)",
+              }}
+            >
+              Todo listo para salir
             </h2>
-            <p style={{ margin: "14px 0 0", color: "rgba(247,241,232,0.72)", lineHeight: 1.8 }}>
-              Tu pedido #{completedOrder.id} ya quedó registrado. Desde acá podés
-              descargar el comprobante, revisar todo lo comprado y seguir el envío
-              desde tu cuenta.
-            </p>
           </div>
 
+          {checkoutError ? (
+            <div
+              style={{
+                borderRadius: 24,
+                border: "1px solid rgba(180, 64, 64, 0.24)",
+                background: "rgba(120,18,18,0.18)",
+                padding: 20,
+                display: "grid",
+                gap: 12,
+              }}
+            >
+              <div style={{ display: "grid", gap: 6 }}>
+                <strong style={{ color: "#fff", fontSize: 18 }}>{checkoutError.title}</strong>
+                <p style={{ margin: 0, color: "var(--paper)", lineHeight: 1.7 }}>
+                  {checkoutError.message}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={goToCart}
+                  style={primaryActionStyle}
+                >
+                  Volver al carrito
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckoutError(null)}
+                  style={secondaryActionStyle}
+                >
+                  Seguir revisando
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div style={{ display: "grid", gap: 14 }}>
-            {completedOrder.items.map((item) => (
+            {cart.map((item, index) => (
               <article
-                key={item.id}
+                key={item.variantId}
                 className="layout-review-item"
                 style={{
                   borderRadius: 24,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: "rgba(8,8,8,0.46)",
-                  padding: 18,
+                  border: "1px solid var(--checkout-border)",
+                  background: "var(--checkout-card-bg)",
+                  padding: 20,
                 }}
               >
                 <div
@@ -143,134 +528,233 @@ export default function CheckoutReview({
                     aspectRatio: "4 / 5",
                     borderRadius: 18,
                     overflow: "hidden",
-                    background: "rgba(255,255,255,0.06)",
+                    background: "#ffffff",
+                    border: "1px solid color-mix(in srgb, var(--accent-strong) 10%, transparent)",
                   }}
                 >
-                  {item.variant.product.images?.[0]?.url ? (
-                    <img
-                      src={item.variant.product.images[0].url}
-                      alt={item.variant.product.title}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  {item.imageUrl ? (
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.name}
+                      width={88}
+                      height={110}
+                      unoptimized
+                      style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center center", padding: 8 }}
                     />
-                  ) : null}
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "grid",
+                        placeItems: "center",
+                        color: "color-mix(in srgb, var(--accent-strong) 56%, transparent)",
+                        fontSize: 11,
+                        letterSpacing: "0.18em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Fit {String(index + 1).padStart(2, "0")}
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <strong style={{ display: "block", color: "#fff" }}>
-                    {item.variant.product.title}
-                  </strong>
-                  <span style={{ color: "rgba(247,241,232,0.68)" }}>
-                    x{item.quantity} {item.variant.Size ?? ""} {item.variant.Color ?? ""}
+                    <strong style={{ display: "block", fontSize: 22 }}>{item.name}</strong>
+                    
+                  <span
+                    style={{
+                      display: "block",
+                      marginTop: 8,
+                      color: "var(--checkout-text-muted)",
+                    }}
+                  >
+                    {item.quantity} unidad{item.quantity === 1 ? "" : "es"}
                   </span>
                 </div>
-                <strong>{money(item.price)}</strong>
+                <strong style={{ fontSize: 22 }}>{money(item.price * item.quantity)}</strong>
               </article>
             ))}
           </div>
         </div>
 
         <aside
+          className="checkout-review-sidebar"
           style={{
-            borderRadius: 32,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))",
+            ...checkoutPanelStyle,
             padding: 28,
-            display: "grid",
-            gap: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
+            minHeight: 0,
+            maxHeight: rightColumnHeight ?? undefined,
+            height: rightColumnHeight ?? undefined,
           }}
         >
-          <div
-            style={{
-              borderRadius: 22,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(8,8,8,0.5)",
-              padding: 20,
-              display: "grid",
-              gap: 12,
-            }}
-          >
-            <strong>Resumen</strong>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-              <span style={{ color: "rgba(247,241,232,0.66)" }}>Subtotal</span>
-              <strong>{money(completedOrder.subtotal)}</strong>
+          <div className="checkout-review-sidebar-scroll" style={{ display: "grid", gap: 18, minHeight: 0 }}>
+            {isBankTransfer ? (
+              <div style={summaryCardStyle}>
+                <strong style={{ fontSize: 18 }}>Transferencia bancaria</strong>
+                <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.7 }}>
+                  Alias: asphalt.tienda
+                  <br />
+                  Banco: Banco Galicia
+                  <br />
+                  Titular: Asphalt Store
+                </p>
+                <input
+                  value={transferReference}
+                  onChange={(event) => setTransferReference(event.target.value)}
+                  placeholder="Referencia o numero de operacion"
+                  style={transferFieldStyle}
+                />
+                <textarea
+                  value={transferNotes}
+                  onChange={(event) => setTransferNotes(event.target.value)}
+                  placeholder="Notas para el comercio (opcional)"
+                  rows={3}
+                  style={{ ...transferFieldStyle, resize: "vertical", minHeight: 92 }}
+                />
+                <label style={uploadFieldStyle}>
+                  <span style={{ color: "var(--checkout-text-strong)", fontWeight: 700 }}>
+                    {transferProofFile ? transferProofFile.name : "Subir comprobante"}
+                  </span>
+                  <span style={{ color: "var(--checkout-text-muted)" }}>
+                    JPG, PNG o PDF del comprobante de transferencia
+                  </span>
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    onChange={(event) => setTransferProofFile(event.target.files?.[0] ?? null)}
+                    style={{ display: "none" }}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            <div style={summaryCardStyle}>
+              <strong style={{ fontSize: 18 }}>Promociones</strong>
+              <div style={{ display: "grid", gap: 12 }}>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <input
+                    value={couponCode}
+                    onChange={(event) => {
+                      setCouponCode(event.target.value.toUpperCase());
+                      setDiscountError(null);
+                    }}
+                    placeholder="Ingresa tu cupon"
+                    style={{ ...transferFieldStyle, flex: "1 1 220px" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void previewDiscount(couponCode)}
+                    disabled={discountLoading || !couponCode.trim()}
+                    style={primaryActionStyle}
+                  >
+                    {discountLoading ? "Aplicando..." : "Aplicar"}
+                  </button>
+                  {discountPreview?.source === "coupon" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCouponCode("");
+                        setDiscountError(null);
+                        void previewDiscount();
+                      }}
+                      style={secondaryActionStyle}
+                    >
+                      Quitar
+                    </button>
+                  ) : null}
+                </div>
+
+                {discountMessage ? (
+                  <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.7 }}>
+                    {discountMessage}
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.7 }}>
+                    Si tienes un cupon, aplicalo aca. Las promociones automaticas se calculan solas.
+                  </p>
+                )}
+
+                {discountError ? (
+                  <p style={{ margin: 0, color: "#ffb7b7", lineHeight: 1.6 }}>
+                    {discountError}
+                  </p>
+                ) : null}
+              </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-              <span style={{ color: "rgba(247,241,232,0.66)" }}>Envio</span>
-              <strong>{money(completedOrder.shippingCost)}</strong>
+
+            <div style={summaryCardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                <span style={{ color: "var(--checkout-text-muted)" }}>Subtotal</span>
+                <strong>{money(subtotal)}</strong>
+              </div>
+              {discountPreview ? (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                  <span style={{ color: "var(--checkout-text-muted)" }}>
+                    {discountPreview.source === "coupon"
+                      ? `Descuento (${discountPreview.code})`
+                      : "Descuento automatico"}
+                  </span>
+                  <strong>-{money(discountAmount)}</strong>
+                </div>
+              ) : null}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                <span style={{ color: "var(--checkout-text-muted)" }}>Envio</span>
+                <strong>
+                  {discountPreview?.freeShipping && baseShippingCost > 0
+                    ? "Gratis"
+                    : money(shippingCost)}
+                </strong>
+              </div>
+              <div style={{ height: 1, background: "var(--checkout-border)" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                <span>Total</span>
+                <strong style={{ fontSize: 28 }}>{money(total)}</strong>
+              </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-              <span>Total</span>
-              <strong style={{ fontSize: 28 }}>{money(completedOrder.total)}</strong>
-            </div>
+
+            {paymentMethod === "mercadopago" ? (
+              <div style={summaryCardStyle}>
+                <MercadoPagoCardPayment
+                  amount={total}
+                  payerEmail={user?.email}
+                  disabled={loading}
+                  onProcessingChange={setLoading}
+                  onError={(message) =>
+                    setCheckoutError({
+                      title: "No pudimos procesar el pago con tarjeta",
+                      message,
+                    })
+                  }
+                  onSubmit={handleMercadoPagoPayment}
+                />
+              </div>
+            ) : null}
           </div>
 
-          <button
-            onClick={() => openReceipt(completedOrder.id)}
-            style={{
-              border: "none",
-              borderRadius: 999,
-              background: "#f7f1e8",
-              color: "#0b0b0b",
-              padding: "15px 18px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Descargar comprobante
-          </button>
-
-          <button
-            onClick={() => router.push(`/account/orders/${completedOrder.id}`)}
-            style={{
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "transparent",
-              color: "#f7f1e8",
-              padding: "15px 18px",
-              cursor: "pointer",
-            }}
-          >
-            Ver todo lo que compraste
-          </button>
-
-          <button
-            onClick={() =>
-              completedOrder.shipment?.trackingUrl
-                ? window.open(completedOrder.shipment.trackingUrl, "_blank", "noopener,noreferrer")
-                : router.push(`/account/orders/${completedOrder.id}`)
-            }
-            style={{
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.06)",
-              color: "#f7f1e8",
-              padding: "15px 18px",
-              cursor: "pointer",
-            }}
-          >
-            Seguir envio
-          </button>
+          {paymentMethod === "mercadopago" ? null : (
+            <div style={{ paddingTop: 4 }}>
+              <button
+                onClick={handleConfirm}
+                disabled={loading}
+                style={{ ...primaryActionStyle, width: "100%" }}
+              >
+                {loading ? "Procesando compra..." : "Confirmar compra"}
+              </button>
+            </div>
+          )}
         </aside>
       </section>
-    );
-  }
 
-  return (
-    <section
-      className="layout-two-col"
-      style={{
-        gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 0.9fr)",
-      }}
-    >
-      <div
-        style={{
-          borderRadius: 32,
-          border: "1px solid rgba(255,255,255,0.08)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03))",
-          padding: 28,
-          display: "grid",
-          gap: 18,
+      <section
+          style={{
+            marginTop: 22,
+            ...checkoutPanelStyle,
+            padding: 28,
+            display: "grid",
+            gap: 18,
         }}
       >
         <div>
@@ -278,158 +762,265 @@ export default function CheckoutReview({
             style={{
               margin: 0,
               textTransform: "uppercase",
-              letterSpacing: "0.24em",
+              letterSpacing: "0.22em",
               fontSize: 12,
-              color: "rgba(247,241,232,0.52)",
+              color: "var(--checkout-text-muted)",
             }}
           >
-            Revision final
+            Confirmacion de entrega y pago
           </p>
-          <h2 style={{ margin: "12px 0 0", fontSize: "clamp(2rem, 3vw, 3rem)" }}>
-            Todo listo para salir
-          </h2>
+          <h3
+            style={{
+              margin: "12px 0 0",
+              fontSize: "clamp(1.6rem, 2.4vw, 2.2rem)",
+              color: "var(--checkout-text-strong)",
+            }}
+          >
+            Todo el contexto importante, en una sola lectura
+          </h3>
         </div>
 
-        <div style={{ display: "grid", gap: 14 }}>
-          {cart.map((item, index) => (
-            <article
-              key={item.variantId}
-              style={{
-                borderRadius: 24,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(8,8,8,0.5)",
-                padding: 20,
-              }}
-              className="layout-review-item"
-            >
-              <div
+        <div
+          className="layout-two-col"
+          style={{
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+            gap: 18,
+            alignItems: "start",
+          }}
+        >
+          <div style={summaryCardStyle}>
+            <strong style={{ fontSize: 18 }}>Direccion de entrega</strong>
+            <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.8 }}>
+              {address.firstName} {address.lastName}
+              {address.phone ? (
+                <>
+                  <br />
+                  {address.phone}
+                </>
+              ) : null}
+              <br />
+              {address.address1}
+              {address.address2 ? (
+                <>
+                  <br />
+                  {address.address2}
+                </>
+              ) : null}
+              <br />
+              {address.city}
+              {address.state ? `, ${address.state}` : ""}, {address.country}
+              <br />
+              CP {address.zip}
+            </p>
+          </div>
+
+          <div style={summaryCardStyle}>
+            <strong style={{ fontSize: 18 }}>Envio y metodo de pago</strong>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <span style={{ display: "block", color: "var(--checkout-text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 6 }}>
+                  Envio
+                </span>
+                <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.8 }}>
+                  {getCheckoutShippingLabel(shippingOption)}
+                  <br />
+                  {getCheckoutShippingEta(shippingOption)}
+                </p>
+              </div>
+              <div style={{ height: 1, background: "var(--checkout-border)" }} />
+              <div>
+                <span style={{ display: "block", color: "var(--checkout-text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 6 }}>
+                  Pago
+                </span>
+                <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.8 }}>
+                  {paymentDisplayLabel}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {completedOrder ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 60,
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+            background: "rgba(4,4,4,0.62)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <article
+            style={{
+              width: "min(100%, 640px)",
+              borderRadius: 32,
+              border: "1px solid color-mix(in srgb, var(--accent-strong) 14%, transparent)",
+              background: "var(--paper)",
+              padding: "32px clamp(22px, 5vw, 36px)",
+              display: "grid",
+              gap: 18,
+              boxShadow: "0 36px 90px rgba(0,0,0,0.45)",
+            }}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <p
                 style={{
-                  width: 88,
-                  aspectRatio: "4 / 5",
-                  borderRadius: 18,
-                  background:
-                    "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.03))",
-                  display: "grid",
-                  placeItems: "center",
-                  color: "rgba(247,241,232,0.5)",
-                  fontSize: 11,
-                  letterSpacing: "0.18em",
+                  margin: 0,
                   textTransform: "uppercase",
+                  letterSpacing: "0.24em",
+                  fontSize: 12,
+                  color: "color-mix(in srgb, var(--accent-strong) 68%, transparent)",
                 }}
               >
-                Fit {String(index + 1).padStart(2, "0")}
+                Compra confirmada
+              </p>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "clamp(2rem, 4vw, 3rem)",
+                  color: "var(--accent-strong)",
+                }}
+              >
+                {isBankTransfer
+                  ? "Pedido creado y comprobante enviado"
+                  : completedPaymentStatus === "pending" || completedPaymentStatus === "in_process"
+                    ? "Tu pago quedo en revision"
+                    : "Felicidades por tu compra"}
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  color: "color-mix(in srgb, var(--accent-strong) 72%, transparent)",
+                  lineHeight: 1.8,
+                }}
+              >
+                {isBankTransfer
+                  ? `Tu pedido #${completedOrder.id} ya quedo registrado. El comercio recibio tu comprobante y ahora puede validar la transferencia.`
+                  : completedPaymentStatus === "pending" || completedPaymentStatus === "in_process"
+                    ? `Tu pedido #${completedOrder.id} ya quedo registrado. Mercado Pago indico que el pago sigue pendiente de confirmacion, asi que vas a poder seguir su estado desde el detalle del pedido.`
+                    : `Tu pedido #${completedOrder.id} ya quedo registrado y el pago figura como confirmado. Desde aca puedes abrir el detalle para revisar productos, direccion, comprobante y seguimiento.`}
+              </p>
+            </div>
+
+            <div style={summaryCardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                <span style={{ color: "rgba(247,241,232,0.66)" }}>Total</span>
+                <strong>{money(completedOrder.total)}</strong>
               </div>
-              <div>
-                <strong style={{ display: "block", fontSize: 22 }}>{item.name}</strong>
-                <span
-                  style={{
-                    display: "block",
-                    marginTop: 8,
-                    color: "rgba(247,241,232,0.66)",
-                  }}
-                >
-                  {item.quantity} unidad{item.quantity === 1 ? "" : "es"}
-                </span>
+              {Number(completedOrder.discountAmount ?? 0) > 0 ? (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                  <span style={{ color: "rgba(247,241,232,0.66)" }}>
+                    {completedOrder.discountCode
+                      ? `Descuento (${completedOrder.discountCode})`
+                      : "Descuento aplicado"}
+                  </span>
+                  <strong>-{money(completedOrder.discountAmount)}</strong>
+                </div>
+              ) : null}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                <span style={{ color: "rgba(247,241,232,0.66)" }}>Entrega</span>
+                <strong>{[completedOrder.shippingProvider, completedOrder.shippingMethod].filter(Boolean).join(" · ")}</strong>
               </div>
-              <strong style={{ fontSize: 22 }}>${item.price * item.quantity}</strong>
-            </article>
-          ))}
-        </div>
-      </div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                <span style={{ color: "rgba(247,241,232,0.66)" }}>Pago</span>
+                <strong>{paymentDisplayLabel}</strong>
+              </div>
+            </div>
 
-      <aside
-        style={{
-          borderRadius: 32,
-          border: "1px solid rgba(255,255,255,0.08)",
-          background:
-            "linear-gradient(180deg, rgba(243,238,231,0.14), rgba(255,255,255,0.04))",
-          padding: 28,
-          display: "grid",
-          gap: 18,
-          alignSelf: "start",
-        }}
-      >
-        <div
-          style={{
-            borderRadius: 22,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(8,8,8,0.5)",
-            padding: 20,
-            display: "grid",
-            gap: 12,
-          }}
-        >
-          <strong style={{ fontSize: 18 }}>Direccion</strong>
-          <p style={{ margin: 0, color: "rgba(247,241,232,0.68)", lineHeight: 1.7 }}>
-            {address?.firstName} {address?.lastName}
-            <br />
-            {address?.address1}
-            <br />
-            {address?.city}, {address?.country}
-            <br />
-            CP {address?.zip}
-          </p>
-        </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => openReceipt(completedOrder.id)}
+                style={primaryActionStyle}
+              >
+                Descargar comprobante
+              </button>
+              <button
+                type="button"
+                onClick={() => goToOrderDetail(completedOrder.id)}
+                style={secondaryActionStyle}
+              >
+                Ver pedido ahora
+              </button>
+            </div>
 
-        <div
-          style={{
-            borderRadius: 22,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(8,8,8,0.5)",
-            padding: 20,
-            display: "grid",
-            gap: 12,
-          }}
-        >
-          <strong style={{ fontSize: 18 }}>Envio y pago</strong>
-          <p style={{ margin: 0, color: "rgba(247,241,232,0.68)", lineHeight: 1.7 }}>
-            {shippingOption?.provider} · {shippingOption?.method}
-            <br />
-            {paymentMethod === "card" ? "Tarjeta" : "Efectivo"}
-          </p>
+            <button
+              type="button"
+              onClick={() => goToOrderDetail(completedOrder.id)}
+              style={{
+                width: "fit-content",
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                color: "color-mix(in srgb, var(--accent-strong) 62%, transparent)",
+                fontSize: 14,
+                cursor: "pointer",
+              }}
+            >
+              Cerrar popup
+            </button>
+          </article>
         </div>
-
-        <div
-          style={{
-            borderRadius: 22,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(8,8,8,0.5)",
-            padding: 20,
-            display: "grid",
-            gap: 14,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-            <span style={{ color: "rgba(247,241,232,0.66)" }}>Subtotal</span>
-            <strong>${subtotal}</strong>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-            <span style={{ color: "rgba(247,241,232,0.66)" }}>Envio</span>
-            <strong>${shippingCost}</strong>
-          </div>
-          <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-            <span>Total</span>
-            <strong style={{ fontSize: 28 }}>${total}</strong>
-          </div>
-        </div>
-
-        <button
-          onClick={handleConfirm}
-          disabled={loading}
-          style={{
-            border: "none",
-            borderRadius: 999,
-            background: "#f7f1e8",
-            color: "#0b0b0b",
-            padding: "15px 18px",
-            fontWeight: 700,
-            cursor: loading ? "progress" : "pointer",
-          }}
-        >
-          {loading ? "Procesando compra..." : "Confirmar compra"}
-        </button>
-      </aside>
-    </section>
+      ) : null}
+    </>
   );
 }
+
+const summaryCardStyle: React.CSSProperties = {
+  borderRadius: 22,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--checkout-card-bg)",
+  padding: 20,
+  display: "grid",
+  gap: 12,
+};
+
+const transferFieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "14px 16px",
+  borderRadius: 16,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--checkout-field-bg)",
+  color: "var(--checkout-field-color)",
+  outline: "none",
+};
+
+const uploadFieldStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px dashed var(--checkout-border-strong)",
+  background: "var(--checkout-card-alt-bg)",
+  padding: 16,
+  display: "grid",
+  gap: 6,
+  cursor: "pointer",
+};
+
+const primaryActionStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: 999,
+  background: "var(--checkout-primary-bg)",
+  color: "var(--checkout-primary-color)",
+  padding: "14px 18px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const secondaryActionStyle: React.CSSProperties = {
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--checkout-secondary-bg)",
+  color: "var(--checkout-secondary-color)",
+  padding: "14px 18px",
+  cursor: "pointer",
+};
+
+const checkoutPanelStyle: React.CSSProperties = {
+  borderRadius: 32,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--checkout-panel-bg)",
+  color: "var(--checkout-text-strong)",
+};

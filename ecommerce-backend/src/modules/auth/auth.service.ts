@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UpdateCurrentAuthDto } from './dto/update-current-auth.dto';
+import { resolveStoreFeatures } from '../../common/store-features';
 
 type AuthEntity = {
   id: number;
@@ -17,6 +18,9 @@ type AuthEntity = {
   lastName?: string | null;
   phone?: string | null;
   name?: string | null;
+  storeFeatures?: {
+    manualSalesEnabled: boolean;
+  };
 };
 
 @Injectable()
@@ -26,9 +30,9 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
+  async validateUser(email: string, password: string, storeId: number) {
+    const user = await this.prisma.user.findFirst({
+      where: { email, storeId },
     });
 
     if (!user) {
@@ -257,6 +261,7 @@ export class AuthService {
       lastName: user.lastName ?? null,
       phone: user.phone ?? null,
       name: user.name ?? null,
+      storeFeatures: resolveStoreFeatures(user.storeId),
     };
   }
 }

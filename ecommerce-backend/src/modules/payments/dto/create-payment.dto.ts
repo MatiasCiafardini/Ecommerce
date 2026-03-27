@@ -1,24 +1,60 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsInt } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class CreatePaymentDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description: 'Proveedor de pago',
+    example: 'mercadopago',
+  })
+  @IsOptional()
   @IsString()
-  token: string;
+  provider?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description: 'Metodo interno del pago',
+    example: 'credit_card',
+  })
+  @IsOptional()
   @IsString()
-  paymentMethodId: string;
+  method?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  token?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  paymentMethodId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsInt()
-  installments: number;
+  @Min(1)
+  installments?: number;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  issuerId: string;
+  issuerId?: string;
 
   @ApiProperty()
   @IsString()
   idempotencyKey: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reference?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

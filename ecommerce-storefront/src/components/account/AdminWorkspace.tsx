@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { resolveAssetUrl } from "@/lib/asset-url";
+import { clampImageOffset, clampImageZoom, getCatalogImageTransform } from "@/lib/product-image-layout";
 import { money, orderStatusLabel, type CustomerOrder } from "./order-utils";
 import AdminOrderDetailPanel from "./AdminOrderDetailPanel";
-
-type AdminSection =
-  | "admin-overview"
-  | "admin-products"
-  | "admin-categories"
-  | "admin-orders"
-  | "admin-customers";
+import AdminShipmentsSection from "./AdminShipmentsSection";
+import AdminReturnsSection from "./AdminReturnsSection";
+import AdminPromotionsSection from "./AdminPromotionsSection";
+import type { AdminReturn, AdminSection, AdminShipment } from "./admin-types";
 
 type Props = { section: AdminSection };
 
@@ -20,12 +21,36 @@ type Product = {
   slug: string;
   published: boolean;
   description?: string | null;
-  images?: Array<{ id: number; url: string }>;
+  images?: Array<{
+    id: number;
+    url: string;
+    position?: number;
+    offsetX?: number;
+    offsetY?: number;
+    zoom?: number;
+  }>;
   variants?: Array<{ id: number }>;
   categories?: Array<{ category: { id: number; name: string } }>;
 };
 
-type Category = { id: number; name: string; slug: string };
+type ProductStockRow = {
+  id: number;
+  title: string;
+  slug: string;
+  published: boolean;
+  categories: string[];
+  variantsCount: number;
+  totalStock: number;
+  lowStockVariants: number;
+};
+
+type Category = {
+  id: number;
+  name: string;
+  slug: string;
+  imageUrl?: string | null;
+  productsCount?: number;
+};
 type Customer = {
   id: number;
   email: string;
@@ -36,7 +61,9 @@ type Customer = {
 type ProductOption = {
   id: number;
   name: string;
-  reusableValues?: Array<{ id: number; value: string }>;
+  productsCount?: number;
+  usageCount?: number;
+  reusableValues?: Array<{ id: number; value: string; productsCount?: number }>;
 };
 type DraftVariant = {
   sku: string;
@@ -50,10 +77,23 @@ type DraftVariant = {
   length: string;
 };
 
+type ImageLayoutState = {
+  position: number;
+  offsetX: number;
+  offsetY: number;
+  zoom: number;
+};
+
 type UploadImage = {
   file: File;
   name: string;
-};
+  previewUrl: string;
+} & ImageLayoutState;
+
+type ExistingProductImage = {
+  id: number;
+  url: string;
+} & ImageLayoutState;
 
 type EditableVariant = DraftVariant & {
   id?: number;
@@ -65,7 +105,45 @@ type ProductOptionValueEntry = {
   value: string;
 };
 
+type PendingOptionRemoval =
+  | {
+      kind: "option";
+      optionId: number;
+      optionName: string;
+      productsCount: number;
+    }
+  | {
+      kind: "value";
+      optionId: number;
+      optionName: string;
+      value: string;
+      productsCount: number;
+    }
+  | {
+      kind: "variant";
+      variantIndex: number;
+      variantLabel: string;
+      productsCount: number;
+    }
+  | {
+      kind: "product";
+      productId: number;
+      productTitle: string;
+      productsCount: number;
+    }
+  | {
+      kind: "category";
+      categoryId: number;
+      categoryName: string;
+      productsCount: number;
+    };
+
+type DuplicateSkuPromptState = {
+  title: string;
+};
+
 const statuses = ["pending", "paid", "processing", "packed", "shipped", "delivered", "cancelled"] as const;
+const operationalPendingStatuses = new Set(["pending", "paid", "processing", "packed"]);
 
 const emptyVariant = (): DraftVariant => ({
   sku: "",
@@ -79,11 +157,25 @@ const emptyVariant = (): DraftVariant => ({
   length: "",
 });
 
+const defaultImageLayout = (position = 0): ImageLayoutState => ({
+  position,
+  offsetX: 0,
+  offsetY: 0,
+  zoom: 1,
+});
+
+const revokeUploadImages = (images: UploadImage[]) => {
+  images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+};
+
 export default function AdminWorkspace({ section }: Props) {
   if (section === "admin-products") return <AdminProductsSection />;
   if (section === "admin-categories") return <AdminCategoriesSection />;
   if (section === "admin-orders") return <AdminOrdersPanelSection />;
   if (section === "admin-customers") return <AdminCustomersSection />;
+  if (section === "admin-shipments") return <AdminShipmentsSection />;
+  if (section === "admin-returns") return <AdminReturnsSection />;
+  if (section === "admin-promotions") return <AdminPromotionsSection />;
   return <AdminOverviewSection />;
 }
 
@@ -92,21 +184,27 @@ function AdminOverviewSection() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [shipments, setShipments] = useState<AdminShipment[]>([]);
+  const [returns, setReturns] = useState<AdminReturn[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [p, c, o, u] = await Promise.all([
+        const [p, c, o, u, s, r] = await Promise.all([
           api("/products"),
           api("/categories"),
           api("/orders"),
           api("/customers"),
+          api("/admin/shipments"),
+          api("/returns"),
         ]);
         setProducts(Array.isArray(p) ? p : []);
         setCategories(Array.isArray(c) ? c : []);
         setOrders(Array.isArray(o) ? o : []);
         setCustomers(Array.isArray(u) ? u : []);
+        setShipments(Array.isArray(s) ? (s as AdminShipment[]) : []);
+        setReturns(Array.isArray(r) ? (r as AdminReturn[]) : []);
       } finally {
         setLoading(false);
       }
@@ -125,7 +223,18 @@ function AdminOverviewSection() {
           <Stat label="Productos" value={String(products.length)} />
           <Stat label="Categorias" value={String(categories.length)} />
           <Stat label="Clientes" value={String(customers.length)} />
-          <Stat label="Pedidos pendientes" value={String(orders.filter((item) => item.status === "pending").length)} />
+          <Stat
+            label="Pedidos pendientes"
+            value={String(orders.filter((item) => operationalPendingStatuses.has(item.status)).length)}
+          />
+          <Stat
+            label="Envios activos"
+            value={String(shipments.filter((item) => !["delivered", "returned", "failed"].includes(item.status)).length)}
+          />
+          <Stat
+            label="Devoluciones abiertas"
+            value={String(returns.filter((item) => item.status === "requested").length)}
+          />
           <Stat label="Facturacion" value={money(orders.reduce((sum, item) => sum + Number(item.total ?? 0), 0))} />
         </div>
       )}
@@ -134,34 +243,62 @@ function AdminOverviewSection() {
 }
 
 function AdminProductsSection() {
+  const searchParams = useSearchParams();
   const formTopRef = useRef<HTMLDivElement | null>(null);
+  const optionInUseRef = useRef<HTMLElement | null>(null);
+  const optionIdleRef = useRef<HTMLElement | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [stockRows, setStockRows] = useState<ProductStockRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [options, setOptions] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [publishingProductIds, setPublishingProductIds] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingEditId, setLoadingEditId] = useState<number | null>(null);
   const [creatingOption, setCreatingOption] = useState(false);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [activeTab, setActiveTab] = useState<"create" | "catalog" | "stock" | "options">("create");
   const [newOptionName, setNewOptionName] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [productQuery, setProductQuery] = useState("");
+  const [stockQuery, setStockQuery] = useState("");
+  const [optionQuery, setOptionQuery] = useState("");
+  const [stockCategoryFilter, setStockCategoryFilter] = useState("all");
+  const [stockPublishedFilter, setStockPublishedFilter] = useState<"all" | "published" | "draft">("all");
+  const [editingOptionId, setEditingOptionId] = useState<number | null>(null);
+  const [editingOptionName, setEditingOptionName] = useState("");
+  const [editingValueKey, setEditingValueKey] = useState<string | null>(null);
+  const [editingValueName, setEditingValueName] = useState("");
+  const [savingOptionKey, setSavingOptionKey] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<PendingOptionRemoval | null>(null);
+  const [duplicateSkuPrompt, setDuplicateSkuPrompt] = useState<DuplicateSkuPromptState | null>(null);
   const [form, setForm] = useState({ title: "", description: "", published: false });
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [autoOpenedProductId, setAutoOpenedProductId] = useState<number | null>(null);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [imageFiles, setImageFiles] = useState<UploadImage[]>([]);
-  const [existingImages, setExistingImages] = useState<Array<{ id: number; url: string }>>([]);
+  const [existingImages, setExistingImages] = useState<ExistingProductImage[]>([]);
   const [originalImageIds, setOriginalImageIds] = useState<number[]>([]);
+  const [imageGridLines, setImageGridLines] = useState(5);
   const [selectedOptionValues, setSelectedOptionValues] = useState<Record<number, string[]>>({});
   const [loadedOptionValues, setLoadedOptionValues] = useState<ProductOptionValueEntry[]>([]);
   const [draftOptionValues, setDraftOptionValues] = useState<Record<number, string>>({});
   const [variantDraft, setVariantDraft] = useState<EditableVariant>(emptyVariant());
   const [variants, setVariants] = useState<EditableVariant[]>([]);
   const [loadedVariants, setLoadedVariants] = useState<EditableVariant[]>([]);
+  const uploadImagesRef = useRef<UploadImage[]>([]);
 
-  const loadData = async () => {
+  const loadOptions = async () => {
+    const optionsData = await api("/product-options");
+    const nextOptions = Array.isArray(optionsData) ? optionsData : [];
+    setOptions(nextOptions);
+    return nextOptions;
+  };
+
+  const loadData = async (): Promise<Product[]> => {
     setLoading(true);
     try {
       const [p, c, o] = await Promise.all([
@@ -169,11 +306,14 @@ function AdminProductsSection() {
         api("/categories"),
         api("/product-options"),
       ]);
-      setProducts(Array.isArray(p) ? p : []);
+      const nextProducts = Array.isArray(p) ? p : [];
+      setProducts(nextProducts);
       setCategories(Array.isArray(c) ? c : []);
       setOptions(Array.isArray(o) ? o : []);
+      return nextProducts;
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar productos.");
+      return [];
     } finally {
       setLoading(false);
     }
@@ -182,6 +322,86 @@ function AdminProductsSection() {
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    uploadImagesRef.current = imageFiles;
+  }, [imageFiles]);
+
+  useEffect(() => {
+    return () => {
+      revokeUploadImages(uploadImagesRef.current);
+    };
+  }, []);
+
+  const loadStockData = async (sourceProducts: Product[]) => {
+    setStockLoading(true);
+    try {
+      const rows = await Promise.all(
+        sourceProducts.map(async (product) => {
+          const variantsData = await api(`/variants/${product.id}`);
+          const variants = Array.isArray(variantsData) ? variantsData : [];
+          const totalStock = variants.reduce(
+            (sum, variant) => sum + Number(variant.inventories?.[0]?.quantity ?? 0),
+            0,
+          );
+          const lowStockVariants = variants.filter((variant) => {
+            const quantity = Number(variant.inventories?.[0]?.quantity ?? 0);
+            return quantity > 0 && quantity <= 3;
+          }).length;
+
+          return {
+            id: product.id,
+            title: product.title,
+            slug: product.slug,
+            published: product.published,
+            categories: (product.categories ?? []).map((entry) => entry.category.name),
+            variantsCount: variants.length,
+            totalStock,
+            lowStockVariants,
+          };
+        }),
+      );
+
+      setStockRows(rows);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cargar stock.");
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== "stock" || loading || stockRows.length > 0 || products.length === 0) {
+      return;
+    }
+
+    void loadStockData(products);
+  }, [activeTab, loading, products, stockRows.length]);
+
+  useEffect(() => {
+    const rawProductId = searchParams.get("productId");
+    const nextProductId = rawProductId ? Number(rawProductId) : NaN;
+
+    if (!Number.isFinite(nextProductId) || nextProductId <= 0) {
+      setAutoOpenedProductId(null);
+      return;
+    }
+
+    if (loading || autoOpenedProductId === nextProductId) {
+      return;
+    }
+
+    const productToEdit = products.find((product) => product.id === nextProductId);
+    if (!productToEdit) {
+      return;
+    }
+
+    setActiveTab("create");
+    formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setAutoOpenedProductId(nextProductId);
+    void hydrateFormFromProduct(productToEdit);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenedProductId, loading, products, searchParams]);
 
   const filteredProducts = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
@@ -204,7 +424,77 @@ function AdminProductsSection() {
     });
   }, [productQuery, products]);
 
+  const filteredStockRows = useMemo(() => {
+    const query = stockQuery.trim().toLowerCase();
+
+    return stockRows.filter((row) => {
+      const matchesQuery =
+        !query ||
+        row.title.toLowerCase().includes(query) ||
+        row.slug.toLowerCase().includes(query) ||
+        row.categories.join(" ").toLowerCase().includes(query);
+
+      const matchesCategory =
+        stockCategoryFilter === "all" || row.categories.includes(stockCategoryFilter);
+
+      const matchesPublished =
+        stockPublishedFilter === "all" ||
+        (stockPublishedFilter === "published" ? row.published : !row.published);
+
+      return matchesQuery && matchesCategory && matchesPublished;
+    });
+  }, [stockCategoryFilter, stockPublishedFilter, stockQuery, stockRows]);
+
+  const filteredOptions = useMemo(() => {
+    const query = optionQuery.trim().toLowerCase();
+
+    if (!query) {
+      return options;
+    }
+
+    return options.filter((option) => {
+      const valuesText = (option.reusableValues ?? [])
+        .map((value) => value.value)
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        option.name.toLowerCase().includes(query) ||
+        valuesText.includes(query)
+      );
+    });
+  }, [optionQuery, options]);
+
+  const optionGroups = useMemo(() => {
+    const inUse = filteredOptions.filter((option) => Number(option.productsCount ?? 0) > 0);
+    const idle = filteredOptions.filter((option) => Number(option.productsCount ?? 0) === 0);
+
+    return { inUse, idle };
+  }, [filteredOptions]);
+
+  const variantAutocomplete = useMemo(() => {
+    const collect = (selector: (variant: EditableVariant) => string) =>
+      [...new Set(
+        variants
+          .map((variant) => selector(variant).trim())
+          .filter(Boolean),
+      )];
+
+    return {
+      sku: collect((variant) => variant.sku),
+      price: collect((variant) => variant.price),
+      size: collect((variant) => variant.Size),
+      color: collect((variant) => variant.Color),
+      inventoryQuantity: collect((variant) => variant.inventoryQuantity),
+      weight: collect((variant) => variant.weight),
+      width: collect((variant) => variant.width),
+      height: collect((variant) => variant.height),
+      length: collect((variant) => variant.length),
+    };
+  }, [variants]);
+
   const resetForm = () => {
+    revokeUploadImages(imageFiles);
     setEditingProductId(null);
     setForm({ title: "", description: "", published: false });
     setSelectedCategoryIds([]);
@@ -354,6 +644,40 @@ function AdminProductsSection() {
     length: variant.length.trim(),
   });
 
+  const isDuplicateSkuError = (message: string) => {
+    const normalized = message.trim().toLowerCase();
+    return normalized.includes("sku already exists");
+  };
+
+  const buildAutomaticSku = (
+    productTitle: string,
+    variant: EditableVariant,
+    index: number,
+    seed: number,
+  ) => {
+    const base = [productTitle, variant.Size, variant.Color]
+      .filter(Boolean)
+      .join(" ")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 36);
+
+    const prefix = base || "trojani";
+    return `${prefix}-${seed}-${index + 1}`;
+  };
+
+  const generateAutomaticSkus = (variantsToUpdate: EditableVariant[]) => {
+    const seed = Date.now().toString().slice(-6);
+    return variantsToUpdate.map((variant, index) => ({
+      ...variant,
+      sku: buildAutomaticSku(form.title.trim(), variant, index, Number(seed)),
+    }));
+  };
+
   const addVariant = () => {
     const normalized = normalizeVariant(variantDraft);
 
@@ -394,17 +718,208 @@ function AdminProductsSection() {
     if (!name) return;
     try {
       setCreatingOption(true);
-      const created = await api("/product-options", {
+      await api("/product-options", {
         method: "POST",
         body: JSON.stringify({ name }),
       });
-      setOptions((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+      await loadOptions();
       setNewOptionName("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear la etiqueta.");
     } finally {
       setCreatingOption(false);
     }
+  };
+
+  const startEditingOption = (option: ProductOption) => {
+    setEditingOptionId(option.id);
+    setEditingOptionName(option.name);
+  };
+
+  const saveOptionName = async (optionId: number) => {
+    const name = editingOptionName.trim();
+    if (!name) {
+      setError("La etiqueta necesita un nombre.");
+      return;
+    }
+
+    try {
+      setSavingOptionKey(`option-${optionId}`);
+      setError("");
+      await api(`/product-options/${optionId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      });
+      await loadOptions();
+      setEditingOptionId(null);
+      setEditingOptionName("");
+      setSuccess("Etiqueta actualizada.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar la etiqueta.");
+    } finally {
+      setSavingOptionKey(null);
+    }
+  };
+
+  const removeOption = async (optionId: number, optionName: string, productsCount: number) => {
+    const isInUse = productsCount > 0;
+    try {
+      setSavingOptionKey(`option-${optionId}`);
+      setError("");
+      await api(`/product-options/${optionId}${isInUse ? "?force=true" : ""}`, {
+        method: "DELETE",
+      });
+      await loadOptions();
+      setSuccess(isInUse ? "Etiqueta eliminada de todos los productos." : "Etiqueta eliminada.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la etiqueta.");
+    } finally {
+      setSavingOptionKey(null);
+    }
+  };
+
+  const startEditingValue = (optionId: number, value: string) => {
+    setEditingValueKey(`${optionId}:${value.toLowerCase()}`);
+    setEditingValueName(value);
+  };
+
+  const saveOptionValue = async (optionId: number, currentValue: string) => {
+    const nextValue = editingValueName.trim();
+    if (!nextValue) {
+      setError("El valor no puede quedar vacio.");
+      return;
+    }
+
+    try {
+      setSavingOptionKey(`value-${optionId}:${currentValue.toLowerCase()}`);
+      setError("");
+      await api(`/product-options/${optionId}/reusable-values/rename`, {
+        method: "POST",
+        body: JSON.stringify({
+          currentValue,
+          nextValue,
+        }),
+      });
+      await loadOptions();
+      setEditingValueKey(null);
+      setEditingValueName("");
+      setSuccess("Valor actualizado.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar el valor.");
+    } finally {
+      setSavingOptionKey(null);
+    }
+  };
+
+  const removeOptionValue = async (
+    optionId: number,
+    value: string,
+    productsCount: number,
+  ) => {
+    const isInUse = productsCount > 0;
+    try {
+      setSavingOptionKey(`value-${optionId}:${value.toLowerCase()}`);
+      setError("");
+      await api(`/product-options/${optionId}/reusable-values/remove`, {
+        method: "POST",
+        body: JSON.stringify({
+          value,
+          force: isInUse,
+        }),
+      });
+      const updatedOptions = await loadOptions();
+      const updatedOption = updatedOptions.find((option) => option.id === optionId);
+
+      if (updatedOption && (updatedOption.reusableValues?.length ?? 0) === 0) {
+        setSuccess(
+          `Valor eliminado. La etiqueta "${updatedOption.name}" sigue creada y ahora aparece en "Etiquetas sin uso".`,
+        );
+      } else {
+        setSuccess(isInUse ? "Valor eliminado de todos los productos." : "Valor eliminado.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el valor.");
+    } finally {
+      setSavingOptionKey(null);
+    }
+  };
+
+  const removeProduct = async (productId: number, productTitle: string) => {
+    try {
+      setSavingOptionKey(`product-${productId}`);
+      setError("");
+      await api(`/products/${productId}`, {
+        method: "DELETE",
+      });
+      const nextProducts = await loadData();
+      setSuccess(`Producto "${productTitle}" eliminado.`);
+      if (editingProductId === productId) {
+        resetForm();
+      }
+      if (activeTab === "stock") {
+        await loadStockData(nextProducts);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el producto.");
+    } finally {
+      setSavingOptionKey(null);
+    }
+  };
+
+  const removeCategory = async (categoryId: number, categoryName: string) => {
+    try {
+      setSavingOptionKey(`category-${categoryId}`);
+      setError("");
+      await api(`/categories/${categoryId}`, {
+        method: "DELETE",
+      });
+      const nextProducts = await loadData();
+      setSelectedCategoryIds((current) => current.filter((id) => id !== categoryId));
+      setSuccess(`Categoria "${categoryName}" eliminada.`);
+      if (activeTab === "stock") {
+        await loadStockData(nextProducts);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la categoria.");
+    } finally {
+      setSavingOptionKey(null);
+    }
+  };
+
+  const confirmRemoval = async () => {
+    if (!pendingRemoval) {
+      return;
+    }
+
+    if (pendingRemoval.kind === "option") {
+      await removeOption(
+        pendingRemoval.optionId,
+        pendingRemoval.optionName,
+        pendingRemoval.productsCount,
+      );
+    } else if (pendingRemoval.kind === "value") {
+      await removeOptionValue(
+        pendingRemoval.optionId,
+        pendingRemoval.value,
+        pendingRemoval.productsCount,
+      );
+    } else if (pendingRemoval.kind === "variant") {
+      setVariants((current) =>
+        current.filter((_, itemIndex) => itemIndex !== pendingRemoval.variantIndex),
+      );
+      setSuccess("Variante eliminada del borrador actual.");
+    } else if (pendingRemoval.kind === "product") {
+      await removeProduct(pendingRemoval.productId, pendingRemoval.productTitle);
+    } else {
+      await removeCategory(pendingRemoval.categoryId, pendingRemoval.categoryName);
+    }
+
+    setPendingRemoval(null);
+  };
+
+  const scrollToOptionGroup = (group: "inUse" | "idle") => {
+    const target = group === "inUse" ? optionInUseRef.current : optionIdleRef.current;
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const createCategory = async () => {
@@ -427,7 +942,7 @@ function AdminProductsSection() {
     }
   };
 
-  const hydrateFormFromProduct = async (product: Product) => {
+  const hydrateFormFromProduct = useCallback(async (product: Product) => {
     setLoadingEditId(product.id);
     setError("");
     setSuccess("");
@@ -448,7 +963,17 @@ function AdminProductsSection() {
       setSelectedCategoryIds((product.categories ?? []).map((entry) => entry.category.id));
 
       const safeImages = Array.isArray(productImages) ? productImages : [];
-      setExistingImages(safeImages);
+      revokeUploadImages(imageFiles);
+      setExistingImages(
+        safeImages.map((image, index) => ({
+          id: image.id,
+          url: image.url,
+          position: Number(image.position ?? index),
+          offsetX: Number(image.offsetX ?? 0),
+          offsetY: Number(image.offsetY ?? 0),
+          zoom: Number(image.zoom ?? 1),
+        })),
+      );
       setOriginalImageIds(safeImages.map((image) => image.id));
       setImageFiles([]);
 
@@ -480,6 +1005,7 @@ function AdminProductsSection() {
       setVariants(safeVariants);
       setLoadedVariants(safeVariants);
       setVariantDraft(emptyVariant());
+      setActiveTab("create");
 
       formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
@@ -487,7 +1013,7 @@ function AdminProductsSection() {
     } finally {
       setLoadingEditId(null);
     }
-  };
+  }, [imageFiles]);
 
   const syncCategories = async (productId: number, currentProduct: Product | undefined) => {
     const currentCategoryIds = (currentProduct?.categories ?? []).map((entry) => entry.category.id);
@@ -513,15 +1039,87 @@ function AdminProductsSection() {
       ),
     );
 
-    for (const fileEntry of imageFiles.slice(0, 10)) {
+    await Promise.all(
+      existingImages.map((image, index) =>
+        api(`/products/${productId}/images/${image.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            position: index,
+            offsetX: image.offsetX,
+            offsetY: image.offsetY,
+            zoom: image.zoom,
+          }),
+        }),
+      ),
+    );
+
+    for (const [index, fileEntry] of imageFiles.slice(0, 10).entries()) {
       const formData = new FormData();
       formData.append("file", fileEntry.file);
+      formData.append("position", String(existingImages.length + index));
+      formData.append("offsetX", String(fileEntry.offsetX));
+      formData.append("offsetY", String(fileEntry.offsetY));
+      formData.append("zoom", String(fileEntry.zoom));
 
       await api(`/products/${productId}/images/upload`, {
         method: "POST",
         body: formData,
       });
     }
+  };
+
+  const appendImageFiles = (files: File[]) => {
+    if (files.length === 0) {
+      return;
+    }
+
+    setImageFiles((current) => {
+      const availableSlots = Math.max(0, 10 - existingImages.length - current.length);
+      const nextFiles = files.slice(0, availableSlots).map((file, index) => ({
+        file,
+        name: file.name,
+        previewUrl: URL.createObjectURL(file),
+        ...defaultImageLayout(current.length + index),
+      }));
+
+      return [...current, ...nextFiles];
+    });
+  };
+
+  const removeUploadImage = (index: number) => {
+    setImageFiles((current) => {
+      const target = current[index];
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return current.filter((_, itemIndex) => itemIndex !== index);
+    });
+  };
+
+  const updateUploadImageLayout = (index: number, nextLayout: Partial<ImageLayoutState>) => {
+    setImageFiles((current) =>
+      current.map((image, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...image,
+              ...nextLayout,
+            }
+          : image,
+      ),
+    );
+  };
+
+  const updateExistingImageLayout = (imageId: number, nextLayout: Partial<ImageLayoutState>) => {
+    setExistingImages((current) =>
+      current.map((image) =>
+        image.id === imageId
+          ? {
+              ...image,
+              ...nextLayout,
+            }
+          : image,
+      ),
+    );
   };
 
   const syncOptionValues = async (productId: number) => {
@@ -563,9 +1161,9 @@ function AdminProductsSection() {
     }
   };
 
-  const syncVariants = async (productId: number) => {
+  const syncVariants = async (productId: number, variantsToSync: EditableVariant[]) => {
     const loadedVariantIds = new Set(loadedVariants.map((variant) => variant.id).filter((id): id is number => Boolean(id)));
-    const currentVariantIds = new Set(variants.map((variant) => variant.id).filter((id): id is number => Boolean(id)));
+    const currentVariantIds = new Set(variantsToSync.map((variant) => variant.id).filter((id): id is number => Boolean(id)));
 
     await Promise.all(
       [...loadedVariantIds]
@@ -573,7 +1171,7 @@ function AdminProductsSection() {
         .map((variantId) => api(`/variants/${variantId}`, { method: "DELETE" })),
     );
 
-    for (const variant of variants) {
+    for (const variant of variantsToSync) {
       const payload = {
         sku: variant.sku.trim(),
         price: Number(variant.price),
@@ -600,7 +1198,13 @@ function AdminProductsSection() {
     }
   };
 
-  const saveProduct = async () => {
+  const saveProduct = async (autoGenerateSkus = false) => {
+    if (saving) {
+      return;
+    }
+
+    let productId = editingProductId;
+
     if (!form.title.trim()) {
       setError("El producto necesita un titulo.");
       return;
@@ -615,10 +1219,11 @@ function AdminProductsSection() {
       setSaving(true);
       setError("");
       setSuccess("");
+      setDuplicateSkuPrompt(null);
 
       const wasEditing = editingProductId;
-      let productId = editingProductId;
       let currentProduct = products.find((product) => product.id === editingProductId);
+      const variantsToSync = autoGenerateSkus ? generateAutomaticSkus(variants) : variants;
 
       if (editingProductId) {
         await api(`/products/${editingProductId}`, {
@@ -641,6 +1246,7 @@ function AdminProductsSection() {
 
         productId = created.id;
         currentProduct = created;
+        setEditingProductId(created.id);
       }
 
       if (!productId) {
@@ -650,15 +1256,67 @@ function AdminProductsSection() {
       await syncCategories(productId, currentProduct);
       await syncImages(productId);
       await syncOptionValues(productId);
-      await syncVariants(productId);
+      await syncVariants(productId, variantsToSync);
 
-      await loadData();
+      const nextProducts = await loadData();
+      if (activeTab === "stock") {
+        await loadStockData(nextProducts);
+      }
+      if (autoGenerateSkus) {
+        setVariants(variantsToSync);
+        setLoadedVariants(variantsToSync);
+      }
       resetForm();
       setSuccess(wasEditing ? "Producto actualizado desde el formulario principal." : "Producto creado con su carga completa.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar el producto.");
+      const message = err instanceof Error ? err.message : "No se pudo guardar el producto.";
+
+      if (!autoGenerateSkus && isDuplicateSkuError(message)) {
+        setDuplicateSkuPrompt({
+          title: form.title.trim(),
+        });
+        setSaving(false);
+        return;
+      }
+
+      if (!editingProductId && productId) {
+        setEditingProductId(productId);
+      }
+      setError(message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateProductPublishedState = async (productId: number, published: boolean) => {
+    const previousProducts = products;
+    const previousStockRows = stockRows;
+
+    try {
+      setError("");
+      setPublishingProductIds((current) => [...new Set([...current, productId])]);
+      setProducts((current) =>
+        current.map((product) => (product.id === productId ? { ...product, published } : product)),
+      );
+      setStockRows((current) =>
+        current.map((row) => (row.id === productId ? { ...row, published } : row)),
+      );
+
+      await api(`/products/${productId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ published }),
+      });
+      setSuccess(
+        published
+          ? "Producto publicado desde la vista de stock."
+          : "Producto despublicado desde la vista de stock.",
+      );
+    } catch (err) {
+      setProducts(previousProducts);
+      setStockRows(previousStockRows);
+      setError(err instanceof Error ? err.message : "No se pudo actualizar la publicacion.");
+    } finally {
+      setPublishingProductIds((current) => current.filter((id) => id !== productId));
     }
   };
 
@@ -666,10 +1324,31 @@ function AdminProductsSection() {
     <section style={panelStyle}>
       <Header
         title="Productos"
-        copy="La carga queda unificada: datos base, uploads reales de hasta 10 imagenes, etiquetas reutilizables, variantes e inventario. El catalogo actual baja a tabla para que sea mas facil de leer."
+        copy="La gestion queda unificada en una misma area para crear productos, revisar el catalogo y operar el stock."
       />
       <div ref={formTopRef} />
-      <section style={shellStyle}>
+      <section style={tableSectionStyle}>
+        <div style={betweenStyle}>
+          <div>
+            <p style={eyebrowStyle}>Gestion del catalogo</p>
+            <h3 style={{ ...title3Style, marginTop: 8 }}>Alta, catalogo y stock</h3>
+          </div>
+          <div style={tabRailStyle}>
+            <button type="button" onClick={() => setActiveTab("create")} style={workspaceTabStyle(activeTab === "create")}>
+              Alta
+            </button>
+            <button type="button" onClick={() => setActiveTab("catalog")} style={workspaceTabStyle(activeTab === "catalog")}>
+              Catalogo
+            </button>
+            <button type="button" onClick={() => setActiveTab("stock")} style={workspaceTabStyle(activeTab === "stock")}>
+              Stock
+            </button>
+            <button type="button" onClick={() => setActiveTab("options")} style={workspaceTabStyle(activeTab === "options")}>
+              Etiquetas
+            </button>
+          </div>
+        </div>
+      <section style={{ ...shellStyle, display: activeTab === "create" ? "grid" : "none" }}>
         {editingProductId ? (
           <div style={editingBannerStyle}>
             <div>
@@ -725,14 +1404,31 @@ function AdminProductsSection() {
             </div>
             <div style={chipRowStyle}>
               {categories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => toggleCategory(category.id)}
-                  style={chipToggleStyle(selectedCategoryIds.includes(category.id))}
-                >
-                  {category.name}
-                </button>
+                <div key={category.id} style={chipActionWrapStyle}>
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(category.id)}
+                    style={chipToggleStyle(selectedCategoryIds.includes(category.id))}
+                  >
+                    {category.name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPendingRemoval({
+                        kind: "category",
+                        categoryId: category.id,
+                        categoryName: category.name,
+                        productsCount: Number(category.productsCount ?? 0),
+                      })
+                    }
+                    style={removeChipStyle}
+                    title={`Eliminar categoria ${category.name}`}
+                    aria-label={`Eliminar categoria ${category.name}`}
+                  >
+                    Quitar
+                  </button>
+                </div>
               ))}
             </div>
           </Step>
@@ -744,70 +1440,65 @@ function AdminProductsSection() {
             accept="image/*"
             multiple
             onChange={(event) => {
-              const files = Array.from(event.target.files ?? []).slice(0, 10);
-              setImageFiles(files.map((file) => ({ file, name: file.name })));
+              appendImageFiles(Array.from(event.target.files ?? []));
+              event.currentTarget.value = "";
             }}
             style={fieldStyle}
           />
-          <span style={metaStyle}>Hasta 10 imagenes. Al editar, podes quitar las actuales y sumar nuevas.</span>
+          <span style={metaStyle}>
+            Hasta 10 imagenes. Arrastra cada foto dentro del cuadro para definir exactamente como se vera en el catalogo.
+          </span>
+          <div style={{ ...rowWrapStyle, alignItems: "center" }}>
+            <span style={metaStyle}>Cuadricula: {imageGridLines}</span>
+            <button
+              type="button"
+              onClick={() => setImageGridLines((current) => Math.max(0, current - 1))}
+              style={secondaryButtonStyle}
+            >
+              -
+            </button>
+            <button
+              type="button"
+              onClick={() => setImageGridLines((current) => Math.min(20, current + 1))}
+              style={secondaryButtonStyle}
+            >
+              +
+            </button>
+          </div>
 
           {existingImages.length > 0 ? (
-            <div style={compactTableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Imagen actual</th>
-                    <th style={thStyle}>Ruta</th>
-                    <th style={thStyle}>Accion</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {existingImages.map((image) => (
-                    <tr key={image.id}>
-                      <td style={tdStyle}>Imagen #{image.id}</td>
-                      <td style={tdStyle}>{image.url}</td>
-                      <td style={tdStyle}>
-                        <button type="button" onClick={() => setExistingImages((current) => current.filter((item) => item.id !== image.id))} style={ghostButtonStyle}>
-                          Quitar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={imageEditorGridStyle}>
+              {existingImages.map((image) => (
+                <CatalogImageLayoutEditor
+                  key={image.id}
+                  src={resolveAssetUrl(image.url) ?? image.url}
+                  label={`Imagen actual #${image.id}`}
+                  secondaryText={image.url}
+                  value={image}
+                  gridLines={imageGridLines}
+                  onChange={(nextLayout) => updateExistingImageLayout(image.id, nextLayout)}
+                  onRemove={() =>
+                    setExistingImages((current) => current.filter((item) => item.id !== image.id))
+                  }
+                />
+              ))}
             </div>
           ) : null}
 
           {imageFiles.length > 0 ? (
-            <div style={compactTableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Archivo nuevo</th>
-                    <th style={thStyle}>Tamano</th>
-                    <th style={thStyle}>Accion</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {imageFiles.map((entry, index) => (
-                    <tr key={`${entry.name}-${index}`}>
-                      <td style={tdStyle}>{entry.name}</td>
-                      <td style={tdStyle}>{(entry.file.size / 1024 / 1024).toFixed(2)} MB</td>
-                      <td style={tdStyle}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setImageFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
-                          }
-                          style={ghostButtonStyle}
-                        >
-                          Quitar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={imageEditorGridStyle}>
+              {imageFiles.map((entry, index) => (
+                <CatalogImageLayoutEditor
+                  key={`${entry.name}-${index}`}
+                  src={entry.previewUrl}
+                  label={entry.name}
+                  secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB`}
+                  value={entry}
+                  gridLines={imageGridLines}
+                  onChange={(nextLayout) => updateUploadImageLayout(index, nextLayout)}
+                  onRemove={() => removeUploadImage(index)}
+                />
+              ))}
             </div>
           ) : null}
         </Step>
@@ -884,15 +1575,60 @@ function AdminProductsSection() {
 
         <Step title="Variantes e inventario">
           <div style={variantGridStyle}>
-            <input value={variantDraft.sku} onChange={(e) => setVariantDraft((c) => ({ ...c, sku: e.target.value }))} placeholder="SKU" style={fieldStyle} />
-            <input value={variantDraft.price} onChange={(e) => setVariantDraft((c) => ({ ...c, price: e.target.value }))} placeholder="Precio" style={fieldStyle} />
-            <input value={variantDraft.Size} onChange={(e) => setVariantDraft((c) => ({ ...c, Size: e.target.value }))} placeholder="Talle" style={fieldStyle} />
-            <input value={variantDraft.Color} onChange={(e) => setVariantDraft((c) => ({ ...c, Color: e.target.value }))} placeholder="Color" style={fieldStyle} />
-            <input value={variantDraft.inventoryQuantity} onChange={(e) => setVariantDraft((c) => ({ ...c, inventoryQuantity: e.target.value }))} placeholder="Stock" style={fieldStyle} />
-            <input value={variantDraft.weight} onChange={(e) => setVariantDraft((c) => ({ ...c, weight: e.target.value }))} placeholder="Peso" style={fieldStyle} />
-            <input value={variantDraft.width} onChange={(e) => setVariantDraft((c) => ({ ...c, width: e.target.value }))} placeholder="Ancho" style={fieldStyle} />
-            <input value={variantDraft.height} onChange={(e) => setVariantDraft((c) => ({ ...c, height: e.target.value }))} placeholder="Alto" style={fieldStyle} />
-            <input value={variantDraft.length} onChange={(e) => setVariantDraft((c) => ({ ...c, length: e.target.value }))} placeholder="Largo" style={fieldStyle} />
+            <SuggestionInput
+              value={variantDraft.sku}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, sku: value }))}
+              placeholder="SKU"
+              suggestions={variantAutocomplete.sku}
+            />
+            <SuggestionInput
+              value={variantDraft.price}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, price: value }))}
+              placeholder="Precio"
+              suggestions={variantAutocomplete.price}
+            />
+            <SuggestionInput
+              value={variantDraft.Size}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, Size: value }))}
+              placeholder="Talle"
+              suggestions={variantAutocomplete.size}
+            />
+            <SuggestionInput
+              value={variantDraft.Color}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, Color: value }))}
+              placeholder="Color"
+              suggestions={variantAutocomplete.color}
+            />
+            <SuggestionInput
+              value={variantDraft.inventoryQuantity}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, inventoryQuantity: value }))}
+              placeholder="Stock"
+              suggestions={variantAutocomplete.inventoryQuantity}
+            />
+            <SuggestionInput
+              value={variantDraft.weight}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, weight: value }))}
+              placeholder="Peso"
+              suggestions={variantAutocomplete.weight}
+            />
+            <SuggestionInput
+              value={variantDraft.width}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, width: value }))}
+              placeholder="Ancho"
+              suggestions={variantAutocomplete.width}
+            />
+            <SuggestionInput
+              value={variantDraft.height}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, height: value }))}
+              placeholder="Alto"
+              suggestions={variantAutocomplete.height}
+            />
+            <SuggestionInput
+              value={variantDraft.length}
+              onChange={(value) => setVariantDraft((current) => ({ ...current, length: value }))}
+              placeholder="Largo"
+              suggestions={variantAutocomplete.length}
+            />
           </div>
           <div style={rowWrapStyle}>
             <button type="button" onClick={addVariant} style={secondaryButtonStyle}>
@@ -928,7 +1664,21 @@ function AdminProductsSection() {
                           <button type="button" onClick={() => editVariant(index)} style={ghostButtonStyle}>
                             Editar
                           </button>
-                          <button type="button" onClick={() => setVariants((current) => current.filter((_, itemIndex) => itemIndex !== index))} style={ghostButtonStyle}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPendingRemoval({
+                                kind: "variant",
+                                variantIndex: index,
+                                variantLabel:
+                                  [variant.sku, variant.Size, variant.Color]
+                                    .filter(Boolean)
+                                    .join(" - ") || `Variante ${index + 1}`,
+                                productsCount: 0,
+                              })
+                            }
+                            style={ghostButtonStyle}
+                          >
                             Quitar
                           </button>
                         </div>
@@ -950,14 +1700,14 @@ function AdminProductsSection() {
             <button type="button" onClick={resetForm} style={ghostButtonStyle}>
               {editingProductId ? "Cancelar" : "Limpiar"}
             </button>
-            <button type="button" onClick={saveProduct} disabled={saving || !form.title.trim()} style={primaryButtonStyle}>
+            <button type="button" onClick={() => void saveProduct()} disabled={saving || !form.title.trim()} style={primaryButtonStyle}>
               {saving ? "Guardando..." : editingProductId ? "Guardar cambios" : "Crear producto completo"}
             </button>
           </div>
         </div>
       </section>
 
-      <section style={tableSectionStyle}>
+      <section style={{ ...tableSectionStyle, display: activeTab === "catalog" ? "grid" : "none" }}>
         <div style={betweenStyle}>
           <div>
             <p style={eyebrowStyle}>Catalogo actual</p>
@@ -1002,14 +1752,31 @@ function AdminProductsSection() {
                     <td style={tdStyle}>{product.images?.length ?? 0}</td>
                     <td style={tdStyle}>{product.variants?.length ?? 0}</td>
                     <td style={tdStyle}>
-                      <button
-                        type="button"
-                        onClick={() => void hydrateFormFromProduct(product)}
-                        style={ghostButtonStyle}
-                        disabled={loadingEditId === product.id}
-                      >
-                        {loadingEditId === product.id ? "Cargando..." : "Editar"}
-                      </button>
+                      <div style={rowWrapStyle}>
+                        <button
+                          type="button"
+                          onClick={() => void hydrateFormFromProduct(product)}
+                          style={ghostButtonStyle}
+                          disabled={loadingEditId === product.id}
+                        >
+                          {loadingEditId === product.id ? "Cargando..." : "Editar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingRemoval({
+                              kind: "product",
+                              productId: product.id,
+                              productTitle: product.title,
+                              productsCount: 0,
+                            })
+                          }
+                          style={ghostButtonStyle}
+                          disabled={savingOptionKey === `product-${product.id}`}
+                        >
+                          {savingOptionKey === `product-${product.id}` ? "Eliminando..." : "Eliminar"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1018,6 +1785,530 @@ function AdminProductsSection() {
           </div>
         )}
       </section>
+      <section style={{ ...tableSectionStyle, display: activeTab === "stock" ? "grid" : "none" }}>
+          <div style={betweenStyle}>
+            <div>
+              <p style={eyebrowStyle}>Stock operativo</p>
+              <h3 style={{ ...title3Style, marginTop: 8 }}>Busqueda, filtros y visibilidad</h3>
+            </div>
+            <div style={rowWrapStyle}>
+              <input
+                value={stockQuery}
+                onChange={(event) => setStockQuery(event.target.value)}
+                placeholder="Buscar por nombre, slug o categoria"
+                style={searchFieldStyle}
+              />
+              <select
+                className="theme-select"
+                value={stockCategoryFilter}
+                onChange={(event) => setStockCategoryFilter(event.target.value)}
+                style={selectStyle}
+              >
+                <option value="all">Todas las categorias</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.name}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="theme-select"
+                value={stockPublishedFilter}
+                onChange={(event) =>
+                  setStockPublishedFilter(event.target.value as "all" | "published" | "draft")
+                }
+                style={selectStyle}
+              >
+                <option value="all">Todos</option>
+                <option value="published">Publicados</option>
+                <option value="draft">No publicados</option>
+              </select>
+              <button type="button" onClick={() => void loadStockData(products)} style={secondaryButtonStyle}>
+                Recargar stock
+              </button>
+            </div>
+          </div>
+          {stockLoading ? <StateCard label="Cargando stock..." /> : (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Producto</th>
+                    <th style={thStyle}>Categorias</th>
+                    <th style={thStyle}>Variantes</th>
+                    <th style={thStyle}>Stock total</th>
+                    <th style={thStyle}>Stock bajo</th>
+                    <th style={thStyle}>Publicar</th>
+                    <th style={thStyle}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStockRows.map((row) => (
+                    <tr key={row.id}>
+                      <td style={tdStyle}>
+                        <strong style={{ display: "block", color: "#fff" }}>{row.title}</strong>
+                        <span style={metaStyle}>/{row.slug}</span>
+                      </td>
+                      <td style={tdStyle}>{row.categories.join(", ") || "Sin categorias"}</td>
+                      <td style={tdStyle}>{row.variantsCount}</td>
+                      <td style={tdStyle}>
+                        <strong style={{ color: row.totalStock <= 0 ? "#ff9f9f" : "#fff" }}>
+                          {row.totalStock}
+                        </strong>
+                      </td>
+                      <td style={tdStyle}>
+                        {row.lowStockVariants > 0
+                          ? `${row.lowStockVariants} variante${row.lowStockVariants === 1 ? "" : "s"} con poco stock`
+                          : row.totalStock <= 0
+                            ? "Sin stock"
+                            : "Stock OK"}
+                      </td>
+                      <td style={tdStyle}>
+                        <label style={publishToggleCellStyle}>
+                          <input
+                            type="checkbox"
+                            checked={row.published}
+                            disabled={publishingProductIds.includes(row.id)}
+                            onChange={() => void updateProductPublishedState(row.id, !row.published)}
+                          />
+                          <span style={metaStyle}>
+                            {publishingProductIds.includes(row.id)
+                              ? "Guardando..."
+                              : row.published
+                                ? "Si"
+                                : "No"}
+                          </span>
+                        </label>
+                      </td>
+                      <td style={tdStyle}>
+                        <div style={rowWrapStyle}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const product = products.find((item) => item.id === row.id);
+                              if (product) {
+                                void hydrateFormFromProduct(product);
+                              }
+                            }}
+                            style={ghostButtonStyle}
+                          >
+                            Editar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {error ? <p style={errorStyle}>{error}</p> : null}
+          {success ? <p style={successStyle}>{success}</p> : null}
+      </section>
+      <section style={{ ...tableSectionStyle, display: activeTab === "options" ? "grid" : "none" }}>
+        <div style={betweenStyle}>
+          <div>
+            <p style={eyebrowStyle}>Base de catalogo</p>
+            <h3 style={{ ...title3Style, marginTop: 8 }}>Etiquetas y valores</h3>
+            <p style={copyStyle}>
+              Las etiquetas se pueden renombrar o eliminar. Si una etiqueta o un valor ya esta en uso,
+              la interfaz te avisa antes de quitarlo de los productos.
+            </p>
+          </div>
+          <div style={rowWrapStyle}>
+            <input
+              value={optionQuery}
+              onChange={(event) => setOptionQuery(event.target.value)}
+              placeholder="Buscar por etiqueta o valor"
+              style={searchFieldStyle}
+            />
+            <button type="button" onClick={() => void loadOptions()} style={secondaryButtonStyle}>
+              Recargar etiquetas
+            </button>
+          </div>
+        </div>
+
+        <div style={{ ...blockStyle, padding: 16 }}>
+          <div style={rowWrapStyle}>
+            <input
+              value={newOptionName}
+              onChange={(event) => setNewOptionName(event.target.value)}
+              placeholder="Crear nueva etiqueta"
+              style={smallFieldStyle}
+            />
+            <button
+              type="button"
+              onClick={createOption}
+              disabled={creatingOption || !newOptionName.trim()}
+              style={secondaryButtonStyle}
+            >
+              {creatingOption ? "Creando..." : "Crear etiqueta"}
+            </button>
+          </div>
+          <span style={metaStyle}>
+            Los valores se generan cuando se asignan a productos y desde aca despues los podes renombrar o quitar.
+          </span>
+        </div>
+
+        <div style={statsGridStyle}>
+          <button
+            type="button"
+            onClick={() => scrollToOptionGroup("inUse")}
+            style={metricCardButtonStyle}
+          >
+            <Stat label="Etiquetas en uso" value={String(optionGroups.inUse.length)} />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToOptionGroup("idle")}
+            style={metricCardButtonStyle}
+          >
+            <Stat label="Etiquetas sin uso" value={String(optionGroups.idle.length)} />
+          </button>
+          <Stat label="Valores totales" value={String(filteredOptions.reduce((sum, option) => sum + (option.reusableValues?.length ?? 0), 0))} />
+        </div>
+
+        {filteredOptions.length ? (
+          <>
+            <OptionGroupSection
+              sectionRef={optionInUseRef}
+              title="Etiquetas en uso"
+              copy="Estas impactan productos publicados o en borrador, asi que cualquier eliminacion requiere confirmacion."
+              options={optionGroups.inUse}
+              editingOptionId={editingOptionId}
+              editingOptionName={editingOptionName}
+              setEditingOptionName={setEditingOptionName}
+              saveOptionName={saveOptionName}
+              setEditingOptionId={setEditingOptionId}
+              setEditingValueKey={setEditingValueKey}
+              setEditingValueName={setEditingValueName}
+              startEditingOption={startEditingOption}
+              savingOptionKey={savingOptionKey}
+              setPendingRemoval={setPendingRemoval}
+              editingValueKey={editingValueKey}
+              editingValueName={editingValueName}
+              saveOptionValue={saveOptionValue}
+              startEditingValue={startEditingValue}
+            />
+
+            <OptionGroupSection
+              sectionRef={optionIdleRef}
+              title="Etiquetas sin uso"
+              copy="Estas no estan asociadas a productos en este momento. Son buenas candidatas para limpiar o renombrar."
+              options={optionGroups.idle}
+              editingOptionId={editingOptionId}
+              editingOptionName={editingOptionName}
+              setEditingOptionName={setEditingOptionName}
+              saveOptionName={saveOptionName}
+              setEditingOptionId={setEditingOptionId}
+              setEditingValueKey={setEditingValueKey}
+              setEditingValueName={setEditingValueName}
+              startEditingOption={startEditingOption}
+              savingOptionKey={savingOptionKey}
+              setPendingRemoval={setPendingRemoval}
+              editingValueKey={editingValueKey}
+              editingValueName={editingValueName}
+              saveOptionValue={saveOptionValue}
+              startEditingValue={startEditingValue}
+            />
+          </>
+        ) : (
+          <StateCard label="No encontramos etiquetas con ese filtro." />
+        )}
+
+        {error ? <p style={errorStyle}>{error}</p> : null}
+        {success ? <p style={successStyle}>{success}</p> : null}
+      </section>
+      </section>
+      {pendingRemoval ? (
+        <div style={modalOverlayStyle} role="presentation" onClick={() => setPendingRemoval(null)}>
+          <section
+            style={modalCardStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-confirmation-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <p style={eyebrowStyle}>Confirmacion</p>
+              <strong id="admin-confirmation-title" style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}>
+                {pendingRemoval.kind === "option"
+                  ? `Eliminar etiqueta "${pendingRemoval.optionName}"`
+                  : pendingRemoval.kind === "value"
+                    ? `Eliminar valor "${pendingRemoval.value}"`
+                    : pendingRemoval.kind === "variant"
+                      ? `Eliminar variante "${pendingRemoval.variantLabel}"`
+                      : pendingRemoval.kind === "product"
+                        ? `Eliminar producto "${pendingRemoval.productTitle}"`
+                        : `Eliminar categoria "${pendingRemoval.categoryName}"`}
+              </strong>
+              <p style={copyStyle}>
+                {pendingRemoval.kind === "option"
+                  ? pendingRemoval.productsCount > 0
+                    ? `Esta etiqueta esta usada por ${pendingRemoval.productsCount} producto(s). Si confirmas, se quitara de todos esos productos.`
+                    : "No hay productos afectados. La eliminacion es segura."
+                  : pendingRemoval.kind === "value"
+                    ? pendingRemoval.productsCount > 0
+                      ? `Este valor esta usado por ${pendingRemoval.productsCount} producto(s) en la etiqueta "${pendingRemoval.optionName}". Si confirmas, se quitara de todos esos productos.`
+                      : "No hay productos afectados. La eliminacion es segura."
+                    : pendingRemoval.kind === "variant"
+                      ? "La variante se quitara del borrador actual del producto."
+                      : pendingRemoval.kind === "product"
+                        ? "El producto se ocultara del catalogo y dejara de aparecer en el admin."
+                        : pendingRemoval.productsCount > 0
+                          ? `La categoria esta usada por ${pendingRemoval.productsCount} producto(s). Si confirmas, se quitara de todos esos productos y dejara de aparecer en el admin.`
+                          : "No hay productos afectados. La categoria se ocultara del catalogo y dejara de aparecer en el admin."}
+              </p>
+            </div>
+            <div style={modalActionsStyle}>
+              <button type="button" onClick={() => setPendingRemoval(null)} style={ghostButtonStyle}>
+                Cancelar
+              </button>
+              <button type="button" onClick={() => void confirmRemoval()} style={primaryButtonStyle}>
+                Confirmar eliminacion
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {duplicateSkuPrompt ? (
+        <div style={modalOverlayStyle} role="presentation" onClick={() => setDuplicateSkuPrompt(null)}>
+          <div
+            style={modalCardStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="duplicate-sku-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <p style={eyebrowStyle}>SKU duplicado</p>
+              <strong id="duplicate-sku-title" style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}>
+                Ese codigo no se puede usar
+              </strong>
+              <p style={copyStyle}>
+                Ya existe una variante con ese SKU. Quieres generar los SKU automaticamente para el producto &quot;{duplicateSkuPrompt.title}&quot;?
+              </p>
+            </div>
+            <div style={modalActionsStyle}>
+              <button type="button" onClick={() => setDuplicateSkuPrompt(null)} style={ghostButtonStyle}>
+                No, volver atras
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveProduct(true)}
+                style={primaryButtonStyle}
+              >
+                Si
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function OptionGroupSection({
+  sectionRef,
+  title,
+  copy,
+  options,
+  editingOptionId,
+  editingOptionName,
+  setEditingOptionName,
+  saveOptionName,
+  setEditingOptionId,
+  setEditingValueKey,
+  setEditingValueName,
+  startEditingOption,
+  savingOptionKey,
+  setPendingRemoval,
+  editingValueKey,
+  editingValueName,
+  saveOptionValue,
+  startEditingValue,
+}: {
+  sectionRef?: React.RefObject<HTMLElement | null>;
+  title: string;
+  copy: string;
+  options: ProductOption[];
+  editingOptionId: number | null;
+  editingOptionName: string;
+  setEditingOptionName: (value: string) => void;
+  saveOptionName: (optionId: number) => Promise<void>;
+  setEditingOptionId: (value: number | null) => void;
+  setEditingValueKey: (value: string | null) => void;
+  setEditingValueName: (value: string) => void;
+  startEditingOption: (option: ProductOption) => void;
+  savingOptionKey: string | null;
+  setPendingRemoval: (value: PendingOptionRemoval | null) => void;
+  editingValueKey: string | null;
+  editingValueName: string;
+  saveOptionValue: (optionId: number, currentValue: string) => Promise<void>;
+  startEditingValue: (optionId: number, value: string) => void;
+}) {
+  return (
+    <section ref={sectionRef} style={groupPanelStyle}>
+      <div style={betweenStyle}>
+        <div>
+          <p style={eyebrowStyle}>{title}</p>
+          <p style={copyStyle}>{copy}</p>
+        </div>
+        <span style={softChipStyle}>{options.length} etiqueta(s)</span>
+      </div>
+
+      {options.length ? (
+        <div style={optionGridStyle}>
+          {options.map((option) => (
+              <article key={option.id} style={{ ...optionCardStyle, minHeight: 0 }}>
+                <div style={betweenStyle}>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {editingOptionId === option.id ? (
+                      <div style={rowWrapStyle}>
+                        <input
+                          value={editingOptionName}
+                          onChange={(event) => setEditingOptionName(event.target.value)}
+                          style={smallFieldStyle}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void saveOptionName(option.id)}
+                          disabled={savingOptionKey === `option-${option.id}` || !editingOptionName.trim()}
+                          style={secondaryButtonStyle}
+                        >
+                          {savingOptionKey === `option-${option.id}` ? "Guardando..." : "Guardar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingOptionId(null);
+                            setEditingOptionName("");
+                          }}
+                          style={ghostButtonStyle}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <strong style={{ color: "#fff" }}>{option.name}</strong>
+                        <span style={metaStyle}>
+                          {option.productsCount ?? 0} producto(s) - {(option.reusableValues ?? []).length} valor(es)
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {editingOptionId !== option.id ? (
+                    <div style={rowWrapStyle}>
+                      <button type="button" onClick={() => startEditingOption(option)} style={ghostButtonStyle}>
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingRemoval({
+                            kind: "option",
+                            optionId: option.id,
+                            optionName: option.name,
+                            productsCount: Number(option.productsCount ?? 0),
+                          })
+                        }
+                        disabled={savingOptionKey === `option-${option.id}`}
+                        style={ghostButtonStyle}
+                      >
+                        {savingOptionKey === `option-${option.id}` ? "Eliminando..." : "Eliminar"}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {(option.reusableValues ?? []).length ? (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {(option.reusableValues ?? []).map((value) => {
+                      const valueKey = `${option.id}:${value.value.toLowerCase()}`;
+                      const isEditingValue = editingValueKey === valueKey;
+                      const isSavingValue = savingOptionKey === `value-${valueKey}`;
+
+                      return (
+                        <div key={valueKey} style={valueItemStyle}>
+                          {isEditingValue ? (
+                            <>
+                              <div style={{ display: "grid", gap: 10 }}>
+                                <input
+                                  value={editingValueName}
+                                  onChange={(event) => setEditingValueName(event.target.value)}
+                                  style={smallFieldStyle}
+                                />
+                              </div>
+                              <div style={valueActionsRowStyle}>
+                                <button
+                                  type="button"
+                                  onClick={() => void saveOptionValue(option.id, value.value)}
+                                  disabled={isSavingValue || !editingValueName.trim()}
+                                  style={compactActionButtonStyle}
+                                >
+                                  {isSavingValue ? "Guardando..." : "Guardar"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingValueKey(null);
+                                    setEditingValueName("");
+                                  }}
+                                  style={compactGhostButtonStyle}
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ display: "grid", gap: 4 }}>
+                                <strong style={{ color: "#fff" }}>{value.value}</strong>
+                                <span style={metaStyle}>
+                                  {value.productsCount ?? 0} producto(s) usando este valor
+                                </span>
+                              </div>
+                              <div style={valueActionsRowStyle}>
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingValue(option.id, value.value)}
+                                  style={compactGhostButtonStyle}
+                                >
+                                  Renombrar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPendingRemoval({
+                                      kind: "value",
+                                      optionId: option.id,
+                                      optionName: option.name,
+                                      value: value.value,
+                                      productsCount: Number(value.productsCount ?? 0),
+                                    })
+                                  }
+                                  disabled={isSavingValue}
+                                  style={compactGhostButtonStyle}
+                                >
+                                  {isSavingValue ? "Eliminando..." : "Eliminar"}
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <StateCard label="Todavia no hay valores generados para esta etiqueta." />
+                )}
+              </article>
+            ))}
+        </div>
+      ) : (
+        <StateCard label="No hay etiquetas en este grupo." />
+      )}
     </section>
   );
 }
@@ -1025,13 +2316,18 @@ function AdminProductsSection() {
 function AdminCategoriesSection() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [pendingRemoval, setPendingRemoval] = useState<Category | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
+        setError("");
         const data = await api("/categories");
         setCategories(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -1046,14 +2342,59 @@ function AdminCategoriesSection() {
   const create = async () => {
     try {
       setSaving(true);
-      const created = await api("/categories", {
-        method: "POST",
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      setCategories((current) => [created, ...current]);
+      setError("");
+      const payload = {
+        name: name.trim(),
+        imageUrl: imageUrl.trim() || undefined,
+      };
+      const created = editingCategoryId
+        ? await api(`/categories/${editingCategoryId}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })
+        : await api("/categories", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+
+      setCategories((current) =>
+        editingCategoryId
+          ? current.map((category) => (category.id === editingCategoryId ? created : category))
+          : [created, ...current],
+      );
+      const wasEditing = editingCategoryId !== null;
       setName("");
+      setImageUrl("");
+      setEditingCategoryId(null);
+      setSuccess(wasEditing ? "Categoria actualizada." : "Categoria creada.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear la categoria.");
+      setError(err instanceof Error ? err.message : "No se pudo guardar la categoria.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeCategory = async () => {
+    if (!pendingRemoval) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+      await api(`/categories/${pendingRemoval.id}`, {
+        method: "DELETE",
+      });
+      setCategories((current) => current.filter((category) => category.id !== pendingRemoval.id));
+      if (editingCategoryId === pendingRemoval.id) {
+        setEditingCategoryId(null);
+        setName("");
+        setImageUrl("");
+      }
+      setSuccess(`Categoria "${pendingRemoval.name}" eliminada.`);
+      setPendingRemoval(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la categoria.");
     } finally {
       setSaving(false);
     }
@@ -1064,26 +2405,126 @@ function AdminCategoriesSection() {
       <Header title="Categorias" />
       <div style={twoColumnStyle}>
         <div style={blockStyle}>
+          {editingCategoryId ? <span style={metaStyle}>Editando categoria #{editingCategoryId}</span> : null}
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre de categoria" style={fieldStyle} />
-          <button type="button" onClick={create} disabled={saving || !name.trim()} style={primaryButtonStyle}>
-            {saving ? "Guardando..." : "Crear categoria"}
-          </button>
+          <input
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="Ruta de imagen"
+            style={fieldStyle}
+          />
+          <div style={rowWrapStyle}>
+            <button type="button" onClick={create} disabled={saving || !name.trim()} style={primaryButtonStyle}>
+              {saving ? "Guardando..." : editingCategoryId ? "Guardar categoria" : "Crear categoria"}
+            </button>
+            {editingCategoryId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingCategoryId(null);
+                  setName("");
+                  setImageUrl("");
+                }}
+                style={ghostButtonStyle}
+              >
+                Cancelar
+              </button>
+            ) : null}
+          </div>
+          {imageUrl ? (
+            <div style={{ ...itemStyle, padding: 12 }}>
+              <Image
+                src={resolveAssetUrl(imageUrl) ?? imageUrl}
+                alt="Vista previa de categoria"
+                width={1200}
+                height={640}
+                unoptimized
+                style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 18 }}
+              />
+            </div>
+          ) : null}
+          <span style={metaStyle}>Ejemplo: /images/seed-categories/remeras.svg</span>
           {error ? <p style={errorStyle}>{error}</p> : null}
+          {success ? <p style={successStyle}>{success}</p> : null}
         </div>
         <div style={blockStyle}>
           {loading ? <StateCard label="Cargando categorias..." /> : categories.map((category) => (
             <div key={category.id} style={itemStyle}>
+              {category.imageUrl ? (
+                <Image
+                  src={resolveAssetUrl(category.imageUrl) ?? category.imageUrl}
+                  alt={category.name}
+                  width={1200}
+                  height={720}
+                  unoptimized
+                  style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 18 }}
+                />
+              ) : null}
               <strong style={{ color: "#fff" }}>{category.name}</strong>
               <span style={metaStyle}>/{category.slug}</span>
+              <span style={metaStyle}>{category.imageUrl || "Sin imagen cargada"}</span>
+              <div style={rowWrapStyle}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingCategoryId(category.id);
+                    setName(category.name);
+                    setImageUrl(category.imageUrl ?? "");
+                  }}
+                  style={ghostButtonStyle}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingRemoval(category)}
+                  style={ghostButtonStyle}
+                  disabled={saving}
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
           ))}
         </div>
       </div>
+      {pendingRemoval ? (
+        <div style={modalOverlayStyle} role="presentation" onClick={() => setPendingRemoval(null)}>
+          <section
+            style={modalCardStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="category-confirmation-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <p style={eyebrowStyle}>Confirmacion</p>
+              <strong id="category-confirmation-title" style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}>
+                {`Eliminar categoria "${pendingRemoval.name}"`}
+              </strong>
+              <p style={copyStyle}>
+                {Number(pendingRemoval.productsCount ?? 0) > 0
+                  ? `La categoria esta usada por ${pendingRemoval.productsCount} producto(s). Si confirmas, se quitara de todos esos productos y dejara de aparecer en el admin.`
+                  : "No hay productos afectados. La categoria se ocultara del catalogo y dejara de aparecer en el admin."}
+              </p>
+            </div>
+            <div style={modalActionsStyle}>
+              <button type="button" onClick={() => setPendingRemoval(null)} style={ghostButtonStyle}>
+                Cancelar
+              </button>
+              <button type="button" onClick={() => void removeCategory()} style={primaryButtonStyle} disabled={saving}>
+                {saving ? "Eliminando..." : "Confirmar eliminacion"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
 
 function AdminOrdersPanelSection() {
+  const detailTopRef = useRef<HTMLDivElement | null>(null);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
@@ -1103,6 +2544,13 @@ function AdminOrdersPanelSection() {
     void load();
   }, []);
 
+  const openOrderDetail = (orderId: number) => {
+    setSelectedOrderId(orderId);
+    window.requestAnimationFrame(() => {
+      detailTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   return (
     <section style={panelStyle}>
       <Header
@@ -1110,6 +2558,7 @@ function AdminOrdersPanelSection() {
         copy="Vista operativa para detectar prioridad, entrar al detalle y llevar cada orden por una secuencia clara de trabajo."
       />
       {error ? <p style={errorStyle}>{error}</p> : null}
+      <div ref={detailTopRef} />
       {selectedOrderId ? (
         <AdminOrderDetailPanel
           orderId={selectedOrderId}
@@ -1136,7 +2585,7 @@ function AdminOrdersPanelSection() {
               <article
                 key={order.id}
                 style={{ ...itemStyle, cursor: "pointer" }}
-                onClick={() => setSelectedOrderId(order.id)}
+                onClick={() => openOrderDetail(order.id)}
               >
                 <div style={betweenStyle}>
                   <div>
@@ -1167,7 +2616,7 @@ function AdminOrdersPanelSection() {
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      setSelectedOrderId(order.id);
+                      openOrderDetail(order.id);
                     }}
                     style={ghostButtonStyle}
                   >
@@ -1237,6 +2686,7 @@ function AdminOrdersSection() {
             {order.items.length} item{order.items.length === 1 ? "" : "s"} • {orderStatusLabel(order.status)}
           </p>
           <select
+            className="theme-select"
             defaultValue={order.status}
             disabled={updatingId === order.id}
             onChange={(event) => void updateStatus(order.id, event.target.value)}
@@ -1254,13 +2704,26 @@ function AdminOrdersSection() {
 
 function AdminCustomersSection() {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [returns, setReturns] = useState<AdminReturn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<"summary" | "customers" | "segments" | "alerts">("summary");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await api("/customers");
-        setCustomers(Array.isArray(data) ? data : []);
+        const [customersData, ordersData, returnsData] = await Promise.all([
+          api("/customers"),
+          api("/orders"),
+          api("/returns"),
+        ]);
+        setCustomers(Array.isArray(customersData) ? customersData : []);
+        setOrders(Array.isArray(ordersData) ? ordersData : []);
+        setReturns(Array.isArray(returnsData) ? (returnsData as AdminReturn[]) : []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudieron cargar clientes.");
       } finally {
         setLoading(false);
       }
@@ -1268,32 +2731,280 @@ function AdminCustomersSection() {
     void load();
   }, []);
 
+  const customerRows = useMemo(() => {
+    return customers.map((customer) => {
+      const relatedOrders = orders.filter((order) => order.customer?.id === customer.id || order.customerId === customer.id);
+      const relatedReturns = returns.filter((entry) =>
+        relatedOrders.some((order) => order.id === entry.orderId),
+      );
+      const totalSpent = relatedOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+      const lastOrder = [...relatedOrders].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )[0];
+      const firstOrder = [...relatedOrders].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      )[0];
+      const segment = getCustomerSegment({
+        ordersCount: relatedOrders.length,
+        totalSpent,
+        lastOrderAt: lastOrder?.createdAt ?? null,
+      });
+
+      return {
+        customer,
+        ordersCount: relatedOrders.length,
+        returnsCount: relatedReturns.length,
+        totalSpent,
+        lastOrderAt: lastOrder?.createdAt ?? null,
+        firstOrderAt: firstOrder?.createdAt ?? null,
+        averageTicket: relatedOrders.length ? totalSpent / relatedOrders.length : 0,
+        segment,
+      };
+    });
+  }, [customers, orders, returns]);
+
+  const filteredRows = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return customerRows;
+
+    return customerRows.filter(({ customer, segment }) => {
+      const fullName = [customer.firstName, customer.lastName].filter(Boolean).join(" ").toLowerCase();
+      return (
+        fullName.includes(normalizedQuery) ||
+        customer.email.toLowerCase().includes(normalizedQuery) ||
+        (customer.phone ?? "").toLowerCase().includes(normalizedQuery) ||
+        segment.label.toLowerCase().includes(normalizedQuery)
+      );
+    });
+  }, [customerRows, query]);
+
+  const metrics = useMemo(() => {
+    const totalCustomers = customerRows.length;
+    const customersWithOrders = customerRows.filter((row) => row.ordersCount > 0).length;
+    const recurringCustomers = customerRows.filter((row) => row.ordersCount > 1).length;
+    const vipCustomers = customerRows.filter((row) => row.segment.id === "vip").length;
+    const incompleteProfiles = customerRows.filter((row) => !row.customer.phone).length;
+    const totalRevenue = customerRows.reduce((sum, row) => sum + row.totalSpent, 0);
+
+    return {
+      totalCustomers,
+      customersWithOrders,
+      recurringCustomers,
+      vipCustomers,
+      incompleteProfiles,
+      totalRevenue,
+    };
+  }, [customerRows]);
+
+  const segmentCards = useMemo(() => {
+    const groups = new Map<string, { label: string; description: string; count: number }>();
+    customerRows.forEach((row) => {
+      const current = groups.get(row.segment.id) ?? {
+        label: row.segment.label,
+        description: row.segment.description,
+        count: 0,
+      };
+      current.count += 1;
+      groups.set(row.segment.id, current);
+    });
+    return [...groups.entries()].map(([id, value]) => ({ id, ...value }));
+  }, [customerRows]);
+
+  const alerts = useMemo(() => {
+    return customerRows.flatMap((row) => {
+      const items: Array<{ id: string; title: string; copy: string }> = [];
+      const displayName = getCustomerDisplayName(row.customer);
+
+      if (row.ordersCount === 0) {
+        items.push({
+          id: `no-orders-${row.customer.id}`,
+          title: `${displayName} aun no compro`,
+          copy: "Se registro en la tienda pero todavia no tiene pedidos asociados.",
+        });
+      }
+
+      if (!row.customer.phone) {
+        items.push({
+          id: `missing-phone-${row.customer.id}`,
+          title: `${displayName} sin telefono`,
+          copy: "Conviene completar contacto para coordinar entregas o postventa.",
+        });
+      }
+
+      if (row.returnsCount > 0) {
+        items.push({
+          id: `returns-${row.customer.id}`,
+          title: `${displayName} tiene devoluciones`,
+          copy: `${row.returnsCount} devolucion${row.returnsCount === 1 ? "" : "es"} registrada${row.returnsCount === 1 ? "" : "s"}.`,
+        });
+      }
+
+      return items;
+    });
+  }, [customerRows]);
+
   return (
     <section style={panelStyle}>
-      <Header title="Clientes" />
+      <Header
+        title="Clientes"
+        copy="Base comercial con foco en valor, recompra y alertas de seguimiento para que la relacion con cada cliente sea mas clara."
+      />
+      {error ? <p style={errorStyle}>{error}</p> : null}
       {loading ? <StateCard label="Cargando clientes..." /> : (
-        <div style={tableWrapStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Cliente</th>
-                <th style={thStyle}>Email</th>
-                <th style={thStyle}>Telefono</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map((customer) => (
-                <tr key={customer.id}>
-                  <td style={tdStyle}>
-                    {[customer.firstName, customer.lastName].filter(Boolean).join(" ") || "Sin nombre"}
-                  </td>
-                  <td style={tdStyle}>{customer.email}</td>
-                  <td style={tdStyle}>{customer.phone || "Sin telefono cargado"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div style={statsGridStyle}>
+            <Stat label="Clientes totales" value={String(metrics.totalCustomers)} />
+            <Stat label="Con compra" value={String(metrics.customersWithOrders)} />
+            <Stat label="Recurrentes" value={String(metrics.recurringCustomers)} />
+            <Stat label="VIP" value={String(metrics.vipCustomers)} />
+            <Stat label="Perfiles incompletos" value={String(metrics.incompleteProfiles)} />
+            <Stat label="Facturacion" value={money(metrics.totalRevenue)} />
+          </div>
+
+          <section style={blockStyle}>
+            <div style={betweenStyle}>
+              <div>
+                <p style={eyebrowStyle}>Relacion con clientes</p>
+                <h3 style={title3Style}>Vista operativa</h3>
+              </div>
+              <div style={rowWrapStyle}>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Buscar por nombre, email, telefono o segmento"
+                  style={searchFieldStyle}
+                />
+              </div>
+            </div>
+
+            <div style={tabRailStyle}>
+              <button type="button" onClick={() => setActiveTab("summary")} style={workspaceTabStyle(activeTab === "summary")}>
+                Resumen
+              </button>
+              <button type="button" onClick={() => setActiveTab("customers")} style={workspaceTabStyle(activeTab === "customers")}>
+                Clientes
+              </button>
+              <button type="button" onClick={() => setActiveTab("segments")} style={workspaceTabStyle(activeTab === "segments")}>
+                Segmentos
+              </button>
+              <button type="button" onClick={() => setActiveTab("alerts")} style={workspaceTabStyle(activeTab === "alerts")}>
+                Alertas
+              </button>
+            </div>
+
+            {activeTab === "summary" ? (
+              <div style={statsGridStyle}>
+                <article style={statStyle}>
+                  <span style={metaStyle}>Ticket promedio por cliente activo</span>
+                  <strong style={{ color: "#fff", fontSize: 28 }}>
+                    {money(
+                      metrics.customersWithOrders
+                        ? metrics.totalRevenue / metrics.customersWithOrders
+                        : 0,
+                    )}
+                  </strong>
+                </article>
+                <article style={statStyle}>
+                  <span style={metaStyle}>Tasa de recompra</span>
+                  <strong style={{ color: "#fff", fontSize: 28 }}>
+                    {metrics.customersWithOrders
+                      ? `${Math.round((metrics.recurringCustomers / metrics.customersWithOrders) * 100)}%`
+                      : "0%"}
+                  </strong>
+                </article>
+                <article style={statStyle}>
+                  <span style={metaStyle}>Clientes nuevos</span>
+                  <strong style={{ color: "#fff", fontSize: 28 }}>
+                    {customerRows.filter((row) => row.ordersCount === 1).length}
+                  </strong>
+                </article>
+                <article style={statStyle}>
+                  <span style={metaStyle}>Sin compra</span>
+                  <strong style={{ color: "#fff", fontSize: 28 }}>
+                    {customerRows.filter((row) => row.ordersCount === 0).length}
+                  </strong>
+                </article>
+              </div>
+            ) : null}
+
+            {activeTab === "customers" ? (
+              filteredRows.length ? (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>Cliente</th>
+                        <th style={thStyle}>Contacto</th>
+                        <th style={thStyle}>Pedidos</th>
+                        <th style={thStyle}>Facturacion</th>
+                        <th style={thStyle}>Ultima compra</th>
+                        <th style={thStyle}>Segmento</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.map((row) => (
+                        <tr key={row.customer.id}>
+                          <td style={tdStyle}>
+                            <strong style={{ display: "block", color: "#fff" }}>{getCustomerDisplayName(row.customer)}</strong>
+                            <span style={metaStyle}>Cliente #{row.customer.id}</span>
+                          </td>
+                          <td style={tdStyle}>
+                            <div style={{ display: "grid", gap: 4 }}>
+                              <span>{row.customer.email}</span>
+                              <span style={metaStyle}>{row.customer.phone || "Sin telefono cargado"}</span>
+                            </div>
+                          </td>
+                          <td style={tdStyle}>
+                            <div style={{ display: "grid", gap: 4 }}>
+                              <span>{row.ordersCount}</span>
+                              <span style={metaStyle}>Promedio {money(row.averageTicket)}</span>
+                            </div>
+                          </td>
+                          <td style={tdStyle}>{money(row.totalSpent)}</td>
+                          <td style={tdStyle}>
+                            {row.lastOrderAt ? new Date(row.lastOrderAt).toLocaleDateString("es-AR") : "Sin compras"}
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={customerSegmentStyle(row.segment.tone)}>{row.segment.label}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <StateCard label="No encontramos clientes con ese filtro." />
+              )
+            ) : null}
+
+            {activeTab === "segments" ? (
+              <div style={statsGridStyle}>
+                {segmentCards.map((segment) => (
+                  <article key={segment.id} style={statStyle}>
+                    <span style={metaStyle}>{segment.label}</span>
+                    <strong style={{ color: "#fff", fontSize: 28 }}>{segment.count}</strong>
+                    <span style={copyStyle}>{segment.description}</span>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+
+            {activeTab === "alerts" ? (
+              alerts.length ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {alerts.map((alert) => (
+                    <article key={alert.id} style={itemStyle}>
+                      <strong style={{ color: "#fff" }}>{alert.title}</strong>
+                      <p style={copyStyle}>{alert.copy}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <StateCard label="No hay alertas activas sobre clientes en este momento." />
+              )
+            ) : null}
+          </section>
+        </>
       )}
     </section>
   );
@@ -1327,13 +3038,364 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <article style={statStyle}>
       <span style={metaStyle}>{label}</span>
-      <strong style={{ color: "#fff", fontSize: 28 }}>{value}</strong>
+      <strong style={{ color: "var(--account-text-strong)", fontSize: 28 }}>{value}</strong>
     </article>
   );
 }
 
 function StateCard({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
+}
+
+function CatalogImageLayoutEditor({
+  src,
+  label,
+  secondaryText,
+  value,
+  gridLines,
+  onChange,
+  onRemove,
+}: {
+  src: string;
+  label: string;
+  secondaryText: string;
+  value: ImageLayoutState;
+  gridLines: number;
+  onChange: (nextLayout: Partial<ImageLayoutState>) => void;
+  onRemove: () => void;
+}) {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{
+    mode: "move" | "resize";
+    handle?: ResizeHandle;
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    startZoom: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const stopDragging = () => {
+    dragStateRef.current = null;
+    setDragging(false);
+  };
+
+  return (
+    <article style={imageEditorCardStyle}>
+      <div style={catalogPreviewCardStyle}>
+        <div
+          style={{
+            ...catalogPreviewEditorStageStyle,
+            cursor: dragging ? "grabbing" : "grab",
+          }}
+          onPointerDown={(event) => {
+            const rect = frameRef.current?.getBoundingClientRect();
+            if (!rect) {
+              return;
+            }
+
+            dragStateRef.current = {
+              mode: "move",
+              startX: event.clientX,
+              startY: event.clientY,
+              startOffsetX: value.offsetX,
+              startOffsetY: value.offsetY,
+              startZoom: value.zoom,
+              width: rect.width,
+              height: rect.height,
+            };
+            setDragging(true);
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!dragStateRef.current) {
+              return;
+            }
+
+            const deltaX = event.clientX - dragStateRef.current.startX;
+            const deltaY = event.clientY - dragStateRef.current.startY;
+
+            if (dragStateRef.current.mode === "move") {
+              onChange({
+                offsetX: clampImageOffset(
+                  dragStateRef.current.startOffsetX + (deltaX / dragStateRef.current.width) * 100,
+                ),
+                offsetY: clampImageOffset(
+                  dragStateRef.current.startOffsetY + (deltaY / dragStateRef.current.height) * 100,
+                ),
+              });
+              return;
+            }
+
+            onChange({
+              zoom: clampImageZoom(
+                dragStateRef.current.startZoom *
+                  getResizeFactor(
+                    dragStateRef.current.handle ?? "se",
+                    deltaX,
+                    deltaY,
+                    dragStateRef.current.width,
+                    dragStateRef.current.height,
+                  ),
+              ),
+            });
+          }}
+          onPointerUp={stopDragging}
+          onPointerCancel={stopDragging}
+        >
+          <Image
+            src={src}
+            alt={label}
+            fill
+            unoptimized
+            sizes="(max-width: 900px) 100vw, 50vw"
+            style={{
+              ...catalogPreviewEditorImageStyle,
+              ...getCatalogImageTransform(value),
+            }}
+          />
+          <div
+            ref={frameRef}
+            style={catalogPreviewFrameStyle}
+          >
+            <div style={catalogPreviewCropMaskStyle} />
+            <div style={catalogPreviewGridStyle(gridLines)} />
+            <div style={catalogPreviewCenterGuideStyle} />
+            {resizeHandles.map((handle) => (
+              <button
+                key={handle}
+                type="button"
+                aria-label={`Escalar imagen desde ${handle}`}
+                style={resizeHandleStyle(handle)}
+                onPointerDown={(event) => {
+                  const rect = frameRef.current?.getBoundingClientRect();
+                  if (!rect) {
+                    return;
+                  }
+
+                  dragStateRef.current = {
+                    mode: "resize",
+                    handle,
+                    startX: event.clientX,
+                    startY: event.clientY,
+                    startOffsetX: value.offsetX,
+                    startOffsetY: value.offsetY,
+                    startZoom: value.zoom,
+                    width: rect.width,
+                    height: rect.height,
+                  };
+                  setDragging(true);
+                  frameRef.current?.setPointerCapture(event.pointerId);
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div style={catalogPreviewInfoStyle}>
+          <span style={catalogPreviewPriceStyle}>$33990</span>
+          <strong style={catalogPreviewTitleStyle}>{label}</strong>
+          <span style={catalogPreviewEyebrowStyle}>Streetwear essential</span>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gap: 4 }}>
+          <strong style={{ color: "#fff" }}>{label}</strong>
+          <span style={metaStyle}>{secondaryText}</span>
+        </div>
+        <span style={metaStyle}>
+          Arrastra la imagen desde el centro para moverla. Usa bordes o esquinas para agrandarla o achicarla.
+        </span>
+
+        <div style={rowWrapStyle}>
+          <button type="button" onClick={onRemove} style={ghostButtonStyle}>
+            Quitar
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+type ResizeHandle = "n" | "e" | "s" | "w" | "ne" | "nw" | "se" | "sw";
+
+const resizeHandles: ResizeHandle[] = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
+
+function getResizeFactor(
+  handle: ResizeHandle,
+  deltaX: number,
+  deltaY: number,
+  width: number,
+  height: number,
+) {
+  const horizontal = deltaX / Math.max(width, 1);
+  const vertical = deltaY / Math.max(height, 1);
+
+  switch (handle) {
+    case "e":
+      return 1 + horizontal;
+    case "w":
+      return 1 - horizontal;
+    case "s":
+      return 1 + vertical;
+    case "n":
+      return 1 - vertical;
+    case "ne":
+      return 1 + ((horizontal - vertical) / 2);
+    case "nw":
+      return 1 - ((horizontal + vertical) / 2);
+    case "se":
+      return 1 + ((horizontal + vertical) / 2);
+    case "sw":
+      return 1 + ((vertical - horizontal) / 2);
+  }
+}
+
+function SuggestionInput({
+  value,
+  onChange,
+  placeholder,
+  suggestions,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  suggestions: string[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  const filteredSuggestions = useMemo(() => {
+    const query = value.trim().toLowerCase();
+
+    if (!query) {
+      return suggestions.slice(0, 6);
+    }
+
+    return suggestions
+      .filter((item) => item.toLowerCase().includes(query) && item !== value)
+      .sort((a, b) => {
+        const aStarts = a.toLowerCase().startsWith(query) ? 0 : 1;
+        const bStarts = b.toLowerCase().startsWith(query) ? 0 : 1;
+        return aStarts - bStarts || a.localeCompare(b);
+      })
+      .slice(0, 6);
+  }, [suggestions, value]);
+
+  return (
+    <div style={suggestionFieldWrapStyle}>
+      <input
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          window.setTimeout(() => setOpen(false), 120);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setOpen(false);
+          }
+
+          if (event.key === "Tab" && open && filteredSuggestions.length > 0) {
+            onChange(filteredSuggestions[0]);
+            setOpen(false);
+          }
+        }}
+        placeholder={placeholder}
+        style={fieldStyle}
+        autoComplete="off"
+      />
+      {open && filteredSuggestions.length > 0 ? (
+        <div style={suggestionDropdownStyle}>
+          {filteredSuggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onChange(suggestion);
+                setOpen(false);
+              }}
+              style={suggestionItemStyle}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function getCustomerDisplayName(customer: Customer) {
+  return [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || "Sin nombre";
+}
+
+function getCustomerSegment({
+  ordersCount,
+  totalSpent,
+  lastOrderAt,
+}: {
+  ordersCount: number;
+  totalSpent: number;
+  lastOrderAt: string | null;
+}) {
+  if (ordersCount === 0) {
+    return {
+      id: "lead",
+      label: "Lead",
+      description: "Se registro pero aun no hizo compras.",
+      tone: "neutral" as const,
+    };
+  }
+
+  if (ordersCount >= 4 || totalSpent >= 300000) {
+    return {
+      id: "vip",
+      label: "VIP",
+      description: "Cliente de alto valor con recurrencia fuerte.",
+      tone: "success" as const,
+    };
+  }
+
+  if (ordersCount >= 2) {
+    return {
+      id: "frequent",
+      label: "Frecuente",
+      description: "Ya repitio compra y conviene cuidarlo.",
+      tone: "info" as const,
+    };
+  }
+
+  if (lastOrderAt) {
+    const daysSinceLastOrder = Math.floor(
+      (Date.now() - new Date(lastOrderAt).getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysSinceLastOrder > 120) {
+      return {
+        id: "inactive",
+        label: "Inactivo",
+        description: "Hace tiempo que no vuelve a comprar.",
+        tone: "warning" as const,
+      };
+    }
+  }
+
+  return {
+    id: "new",
+    label: "Nuevo",
+    description: "Realizo su primera compra recientemente.",
+    tone: "soft" as const,
+  };
 }
 
 const panelStyle: React.CSSProperties = { display: "grid", gap: 24 };
@@ -1348,70 +3410,381 @@ const optionActionsStyle: React.CSSProperties = { display: "grid", gap: 10, alig
 const selectedValuesBlockStyle: React.CSSProperties = { display: "grid", gap: 10, marginTop: 14 };
 const variantGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12 };
 const chipRowStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
-const rowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center" };
 const rowWrapStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const betweenStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" };
 const footerStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" };
+const tabRailStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const tableWrapStyle: React.CSSProperties = { width: "100%", overflowX: "auto" };
-const compactTableWrapStyle: React.CSSProperties = { width: "100%", overflowX: "auto", maxHeight: 220 };
-const fieldStyle: React.CSSProperties = { width: "100%", padding: "14px 16px", background: "rgba(255,255,255,0.04)", color: "white", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 16, outline: "none" };
+const fieldStyle: React.CSSProperties = { width: "100%", padding: "14px 16px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 16, outline: "none" };
 const smallFieldStyle: React.CSSProperties = { ...fieldStyle, padding: "12px 14px" };
 const searchFieldStyle: React.CSSProperties = { ...smallFieldStyle, minWidth: 280 };
-const editGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(260px, 1fr) auto", gap: 14, alignItems: "start" };
-const selectStyle: React.CSSProperties = { ...fieldStyle, maxWidth: 260, background: "#161616", color: "#f7f1e8", appearance: "auto" };
-const primaryButtonStyle: React.CSSProperties = { padding: "14px 18px", background: "#f7f1e8", color: "#0b0b0b", border: "none", borderRadius: 999, cursor: "pointer", fontWeight: 700 };
-const secondaryButtonStyle: React.CSSProperties = { padding: "10px 14px", background: "transparent", color: "#f7f1e8", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, cursor: "pointer" };
+const selectStyle: React.CSSProperties = { ...fieldStyle, maxWidth: 260, background: "var(--select-bg)", color: "var(--select-color)", appearance: "auto" };
+const imageEditorGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 };
+const imageEditorCardStyle: React.CSSProperties = {
+  borderRadius: 22,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-strong-bg)",
+  padding: 14,
+  display: "grid",
+  gap: 14,
+};
+const catalogPreviewCardStyle: React.CSSProperties = {
+  width: "var(--product-card-width)",
+  maxWidth: "100%",
+  height: "var(--product-card-height)",
+  minHeight: "var(--product-card-height)",
+  borderRadius: 24,
+  overflow: "hidden",
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-strong-bg)",
+  display: "grid",
+  gridTemplateRows: "320px 1fr",
+};
+const catalogPreviewFrameStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  overflow: "hidden",
+  width: "100%",
+  height: "100%",
+  border: "1px solid var(--admin-preview-frame-border)",
+  background: "transparent",
+  pointerEvents: "none",
+};
+const catalogPreviewEditorImageStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  display: "block",
+  pointerEvents: "none",
+};
+function catalogPreviewGridStyle(lines: number): React.CSSProperties {
+  if (lines <= 0) {
+    return {
+      position: "absolute",
+      inset: 0,
+      pointerEvents: "none",
+      backgroundImage: "none",
+    };
+  }
+
+  const cells = lines + 1;
+  const size = `${100 / cells}% ${100 / cells}%`;
+
+  return {
+    position: "absolute",
+    inset: 0,
+    pointerEvents: "none",
+    backgroundImage:
+      "linear-gradient(var(--admin-preview-gridline) 1px, transparent 1px), linear-gradient(90deg, var(--admin-preview-gridline) 1px, transparent 1px)",
+    backgroundSize: size,
+  };
+}
+const catalogPreviewEditorStageStyle: React.CSSProperties = {
+  position: "relative",
+  minHeight: 320,
+  height: 320,
+  display: "grid",
+  placeItems: "center",
+  overflow: "hidden",
+  background: "var(--admin-preview-stage-bg)",
+};
+const catalogPreviewCropMaskStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  boxShadow: "0 0 0 999px var(--admin-preview-crop-mask)",
+  pointerEvents: "none",
+};
+const catalogPreviewCenterGuideStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  left: "50%",
+  width: 12,
+  height: 12,
+  marginLeft: -6,
+  marginTop: -6,
+  borderRadius: 999,
+  border: "1px solid var(--admin-preview-guide-border)",
+  background: "var(--admin-preview-guide-bg)",
+  pointerEvents: "none",
+};
+const catalogPreviewInfoStyle: React.CSSProperties = {
+  minHeight: 126,
+  padding: "16px 16px 18px",
+  display: "grid",
+  gap: 6,
+  alignContent: "start",
+  borderTop: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-bg)",
+};
+const catalogPreviewEyebrowStyle: React.CSSProperties = {
+  color: "var(--account-text-soft)",
+  textTransform: "uppercase",
+  letterSpacing: "0.16em",
+  fontSize: 11,
+};
+const catalogPreviewTitleStyle: React.CSSProperties = {
+  color: "var(--account-text-strong)",
+  fontSize: 18,
+  lineHeight: 1.12,
+};
+const catalogPreviewPriceStyle: React.CSSProperties = {
+  color: "var(--account-text-strong)",
+  fontSize: 14,
+  fontWeight: 700,
+};
+const resizeHandleBaseStyle: React.CSSProperties = {
+  position: "absolute",
+  appearance: "none",
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  margin: 0,
+  zIndex: 2,
+  pointerEvents: "auto",
+};
+
+function resizeHandleStyle(handle: ResizeHandle): React.CSSProperties {
+  switch (handle) {
+    case "n":
+      return { ...resizeHandleBaseStyle, top: 0, left: 16, right: 16, height: 18, cursor: "ns-resize" };
+    case "s":
+      return { ...resizeHandleBaseStyle, bottom: 0, left: 16, right: 16, height: 18, cursor: "ns-resize" };
+    case "e":
+      return { ...resizeHandleBaseStyle, top: 16, bottom: 16, right: 0, width: 18, cursor: "ew-resize" };
+    case "w":
+      return { ...resizeHandleBaseStyle, top: 16, bottom: 16, left: 0, width: 18, cursor: "ew-resize" };
+    case "ne":
+      return { ...resizeHandleBaseStyle, top: 0, right: 0, width: 22, height: 22, cursor: "nesw-resize" };
+    case "nw":
+      return { ...resizeHandleBaseStyle, top: 0, left: 0, width: 22, height: 22, cursor: "nwse-resize" };
+    case "se":
+      return { ...resizeHandleBaseStyle, right: 0, bottom: 0, width: 22, height: 22, cursor: "nwse-resize" };
+    case "sw":
+      return { ...resizeHandleBaseStyle, left: 0, bottom: 0, width: 22, height: 22, cursor: "nesw-resize" };
+  }
+}
+const suggestionFieldWrapStyle: React.CSSProperties = { position: "relative" };
+const suggestionDropdownStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "calc(100% + 8px)",
+  left: 0,
+  right: 0,
+  zIndex: 50,
+  borderRadius: 18,
+  border: "1px solid var(--checkout-border-strong)",
+  background: "var(--page-panel-strong-bg)",
+  boxShadow: "0 18px 42px rgba(79, 151, 191, 0.12)",
+  padding: 8,
+  display: "grid",
+  gap: 6,
+  maxHeight: 240,
+  overflowY: "auto",
+};
+const suggestionItemStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  borderRadius: 12,
+  border: "1px solid transparent",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  textAlign: "left",
+  cursor: "pointer",
+};
+const primaryButtonStyle: React.CSSProperties = { padding: "14px 18px", background: "var(--accent-strong)", color: "var(--accent-contrast)", border: "none", borderRadius: 999, cursor: "pointer", fontWeight: 700 };
+const secondaryButtonStyle: React.CSSProperties = { padding: "10px 14px", background: "transparent", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border-strong)", borderRadius: 999, cursor: "pointer" };
 const fullWidthSecondaryButtonStyle: React.CSSProperties = { ...secondaryButtonStyle, width: "fit-content" };
-const ghostButtonStyle: React.CSSProperties = { padding: "10px 14px", background: "rgba(255,255,255,0.04)", color: "#f7f1e8", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 999, cursor: "pointer" };
-const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(8,8,8,0.42)", padding: 20, display: "grid", gap: 14 };
+const ghostButtonStyle: React.CSSProperties = { padding: "10px 14px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 999, cursor: "pointer" };
+const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--page-panel-bg)", padding: 20, display: "grid", gap: 14 };
 const editingBannerStyle: React.CSSProperties = { ...blockStyle, gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 12 };
 const itemStyle: React.CSSProperties = { ...blockStyle, gap: 10 };
+const groupPanelStyle: React.CSSProperties = { ...blockStyle, gap: 18 };
+const modalOverlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 1200,
+  background: "var(--admin-overlay-bg)",
+  backdropFilter: "blur(8px)",
+  display: "grid",
+  placeItems: "center",
+  padding: 20,
+};
+const modalCardStyle: React.CSSProperties = {
+  width: "min(100%, 560px)",
+  maxHeight: "min(88vh, 720px)",
+  overflowY: "auto",
+  borderRadius: 28,
+  border: "1px solid var(--checkout-border-strong)",
+  background: "var(--page-panel-strong-bg)",
+  boxShadow: "var(--admin-modal-shadow)",
+  padding: 24,
+  display: "grid",
+  gap: 20,
+};
+const modalActionsStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: 12,
+  flexWrap: "wrap",
+};
 const optionCardStyle: React.CSSProperties = { ...blockStyle, padding: 16, alignContent: "stretch", minHeight: 360, gridTemplateRows: "auto minmax(0, 1fr) auto" };
 const tableSectionStyle: React.CSSProperties = { ...blockStyle, gap: 16 };
-const statStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", padding: 22, display: "grid", gap: 8 };
-const stateStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.03)", padding: 24, color: "rgba(247,241,232,0.72)" };
-const metaStyle: React.CSSProperties = { color: "rgba(247,241,232,0.52)", fontSize: 13 };
-const copyStyle: React.CSSProperties = { margin: 0, color: "rgba(247,241,232,0.68)", lineHeight: 1.7, maxWidth: 720 };
-const eyebrowStyle: React.CSSProperties = { margin: 0, textTransform: "uppercase", letterSpacing: "0.18em", fontSize: 12, color: "rgba(247,241,232,0.56)" };
+const statStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--admin-stat-bg)", padding: 22, display: "grid", gap: 8 };
+const stateStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border-strong)", background: "var(--page-panel-strong-bg)", padding: 24, color: "var(--account-text-muted)" };
+const metricCardButtonStyle: React.CSSProperties = {
+  appearance: "none",
+  background: "transparent",
+  border: "none",
+  padding: 0,
+  margin: 0,
+  textAlign: "inherit",
+  cursor: "pointer",
+  borderRadius: 24,
+  overflow: "hidden",
+  display: "block",
+};
+const metaStyle: React.CSSProperties = { color: "var(--account-text-soft)", fontSize: 13 };
+const copyStyle: React.CSSProperties = { margin: 0, color: "var(--account-text-muted)", lineHeight: 1.7, maxWidth: 720 };
+const eyebrowStyle: React.CSSProperties = { margin: 0, textTransform: "uppercase", letterSpacing: "0.18em", fontSize: 12, color: "var(--account-text-soft)" };
 const title2Style: React.CSSProperties = { margin: "10px 0 0", fontSize: "clamp(1.8rem,2vw,2.6rem)", letterSpacing: "-0.05em" };
-const title3Style: React.CSSProperties = { margin: "8px 0 0", fontSize: 22, color: "#fff" };
-const checkStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, color: "#f7f1e8" };
+const title3Style: React.CSSProperties = { margin: "8px 0 0", fontSize: 22, color: "var(--account-text-strong)" };
+const checkStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, color: "var(--account-text-strong)" };
 const errorStyle: React.CSSProperties = { margin: 0, color: "#ff9f9f" };
 const successStyle: React.CSSProperties = { margin: 0, color: "#b8f5c2" };
 const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse" };
-const thStyle: React.CSSProperties = { textAlign: "left", padding: "0 0 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", color: "rgba(247,241,232,0.54)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.12em" };
-const tdStyle: React.CSSProperties = { padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#f7f1e8", verticalAlign: "top" };
-const optionStyle: React.CSSProperties = { background: "#161616", color: "#f7f1e8" };
-const statusStyle = (published: boolean): React.CSSProperties => ({ display: "inline-flex", padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: published ? "rgba(184,245,194,0.12)" : "rgba(255,255,255,0.04)", color: published ? "#b8f5c2" : "#f7f1e8", fontSize: 12 });
+const thStyle: React.CSSProperties = { textAlign: "left", padding: "0 0 12px", borderBottom: "1px solid var(--checkout-border)", color: "var(--account-text-soft)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.12em" };
+const tdStyle: React.CSSProperties = { padding: "14px 0", borderBottom: "1px solid var(--checkout-border)", color: "var(--account-text-strong)", verticalAlign: "top" };
+const optionStyle: React.CSSProperties = { background: "var(--select-bg)", color: "var(--select-color)" };
+const statusStyle = (published: boolean): React.CSSProperties => ({ display: "inline-flex", padding: "8px 12px", borderRadius: 999, border: published ? "1px solid var(--admin-tone-success-border)" : "1px solid var(--admin-status-idle-border)", background: published ? "var(--admin-tone-success-bg)" : "var(--admin-status-idle-bg)", color: published ? "var(--admin-tone-success-color)" : "var(--admin-status-idle-color)", fontSize: 12 });
 const statusChipStyle = (status: string): React.CSSProperties => ({
   display: "inline-flex",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.12)",
+  border:
+    status === "cancelled"
+      ? "1px solid var(--admin-danger-border)"
+      : status === "delivered"
+        ? "1px solid var(--admin-tone-success-border)"
+        : status === "shipped"
+          ? "1px solid var(--admin-tone-info-border)"
+          : "1px solid var(--admin-status-idle-border)",
   background:
     status === "cancelled"
-      ? "rgba(255,159,159,0.12)"
+      ? "var(--admin-danger-bg)"
       : status === "delivered"
-        ? "rgba(184,245,194,0.12)"
+        ? "var(--admin-tone-success-bg)"
         : status === "shipped"
-          ? "rgba(129,199,255,0.12)"
-          : "rgba(255,255,255,0.05)",
+          ? "var(--admin-tone-info-bg)"
+          : "var(--admin-status-idle-bg)",
   color:
     status === "cancelled"
-      ? "#ffd6d6"
+      ? "var(--admin-danger-color)"
       : status === "delivered"
-        ? "#cbffd2"
-        : "#f7f1e8",
+        ? "var(--admin-tone-success-color)"
+        : status === "shipped"
+          ? "var(--admin-tone-info-color)"
+          : "var(--admin-status-idle-color)",
   fontSize: 12,
 });
 const softChipStyle: React.CSSProperties = {
   display: "inline-flex",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
-  color: "rgba(247,241,232,0.68)",
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-muted)",
   fontSize: 12,
 };
-const chipToggleStyle = (selected: boolean): React.CSSProperties => ({ padding: "9px 12px", borderRadius: 999, border: selected ? "1px solid rgba(255,214,122,0.58)" : "1px solid rgba(255,255,255,0.12)", background: selected ? "linear-gradient(180deg, rgba(255,214,122,0.28), rgba(255,173,51,0.18))" : "rgba(255,255,255,0.03)", color: selected ? "#fff6df" : "#f7f1e8", boxShadow: selected ? "0 0 0 1px rgba(255,183,77,0.18) inset" : "none", cursor: "pointer" });
-const removeChipStyle: React.CSSProperties = { padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(255,159,159,0.28)", background: "rgba(255,159,159,0.08)", color: "#ffd6d6", cursor: "pointer" };
+const publishToggleCellStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 10,
+  color: "var(--account-text-strong)",
+};
+const valueItemStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateRows: "minmax(0, 1fr) auto",
+  alignContent: "space-between",
+  gap: 12,
+  borderRadius: 18,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-strong-bg)",
+  padding: 14,
+  minHeight: 132,
+  maxHeight: 148,
+  overflow: "hidden",
+};
+const valueActionsRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 8,
+  alignSelf: "end",
+  marginTop: "auto",
+};
+const compactActionButtonStyle: React.CSSProperties = {
+  ...secondaryButtonStyle,
+  width: "100%",
+  padding: "9px 12px",
+  borderRadius: 14,
+};
+const compactGhostButtonStyle: React.CSSProperties = {
+  ...ghostButtonStyle,
+  width: "100%",
+  padding: "9px 12px",
+  borderRadius: 14,
+};
+const workspaceTabStyle = (active: boolean): React.CSSProperties => ({
+  padding: "10px 14px",
+  borderRadius: 999,
+  border: active ? "1px solid var(--checkout-border-strong)" : "1px solid var(--checkout-border)",
+  background: active ? "var(--accent-strong)" : "var(--page-panel-strong-bg)",
+  color: active ? "var(--accent-contrast)" : "var(--account-text-strong)",
+  cursor: "pointer",
+  fontWeight: 700,
+});
+const customerSegmentStyle = (
+  tone: "neutral" | "soft" | "info" | "success" | "warning",
+): React.CSSProperties => {
+  const palette = {
+    neutral: {
+      background: "var(--admin-status-idle-bg)",
+      border: "var(--admin-status-idle-border)",
+      color: "var(--admin-status-idle-color)",
+    },
+    soft: {
+      background: "var(--admin-tone-soft-bg)",
+      border: "var(--admin-tone-soft-border)",
+      color: "var(--admin-tone-soft-color)",
+    },
+    info: {
+      background: "var(--admin-tone-info-bg)",
+      border: "var(--admin-tone-info-border)",
+      color: "var(--admin-tone-info-color)",
+    },
+    success: {
+      background: "var(--admin-tone-success-bg)",
+      border: "var(--admin-tone-success-border)",
+      color: "var(--admin-tone-success-color)",
+    },
+    warning: {
+      background: "var(--admin-tone-warning-bg)",
+      border: "var(--admin-tone-warning-border)",
+      color: "var(--admin-tone-warning-color)",
+    },
+  } as const;
+
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: `1px solid ${palette[tone].border}`,
+    background: palette[tone].background,
+    color: palette[tone].color,
+    fontSize: 12,
+    fontWeight: 700,
+  };
+};
+const chipToggleStyle = (selected: boolean): React.CSSProperties => ({ padding: "9px 12px", borderRadius: 999, border: selected ? "1px solid var(--admin-chip-selected-border)" : "1px solid var(--admin-chip-border)", background: selected ? "var(--admin-chip-selected-bg)" : "var(--admin-chip-bg)", color: selected ? "var(--admin-chip-selected-color)" : "var(--admin-chip-color)", boxShadow: selected ? "var(--admin-chip-selected-shadow)" : "none", cursor: "pointer" });
+const chipActionWrapStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "nowrap" };
+const removeChipStyle: React.CSSProperties = { padding: "8px 12px", borderRadius: 999, border: "1px solid var(--admin-danger-border)", background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)", cursor: "pointer" };

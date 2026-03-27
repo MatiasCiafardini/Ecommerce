@@ -14,10 +14,23 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('login')
-  async login(@Body() loginDto: LoginDto) {
+  async login(@Body() loginDto: LoginDto, @Req() req: Request) {
+    const storeIdHeader = req.headers['x-store-id'];
+
+    if (!storeIdHeader) {
+      throw new Error('x-store-id header is required');
+    }
+
+    const storeId = Number(storeIdHeader);
+
+    if (isNaN(storeId)) {
+      throw new Error('x-store-id must be a number');
+    }
+
     const user = await this.authService.validateUser(
       loginDto.email,
       loginDto.password,
+      storeId,
     );
 
     return this.authService.login(user);

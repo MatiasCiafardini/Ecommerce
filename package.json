@@ -1,0 +1,9 @@
+{
+  "name": "ecommerce-workspace",
+  "private": true,
+  "scripts": {
+    "dev:up": "powershell -ExecutionPolicy Bypass -File scripts/dev-up.ps1",
+    "dev:down": "powershell -ExecutionPolicy Bypass -File scripts/dev-down.ps1",
+    "dev:status": "powershell -ExecutionPolicy Bypass -File scripts/dev-status.ps1"
+  }
+}

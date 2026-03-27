@@ -1,0 +1,22 @@
+
+> ecommerce-storefront@0.1.0 dev:store2
+> next dev --webpack --port 3002
+
+▲ Next.js 16.1.6 (webpack)
+- Local:         http://localhost:3002
+- Network:       http://192.168.0.15:3002
+- Environments: .env.local
+
+✓ Starting...
+✓ Ready in 1920ms
+ GET /product 200 in 2.9s (compile: 2.3s, render: 537ms)
+ GET / 200 in 3.5s (compile: 2.3s, render: 1139ms)
+ GET / 200 in 595ms (compile: 7ms, render: 588ms)
+▲ Next.js 16.1.6 (webpack)
+- Local:         http://localhost:3002
+- Network:       http://192.168.0.15:3002
+- Environments: .env.local
+
+✓ Starting...
+✓ Ready in 1853ms
+[?25h

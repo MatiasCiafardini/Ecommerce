@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 800 1066" fill="none">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#161313" />
+        <stop offset="55%" stop-color="#70534a" />
+        <stop offset="100%" stop-color="#caa696" />
+      </linearGradient>
+      <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="rgba(255,255,255,0.14)" />
+        <stop offset="100%" stop-color="rgba(255,255,255,0.02)" />
+      </linearGradient>
+    </defs>
+    <rect width="800" height="1066" rx="44" fill="url(#bg)" />
+    <g opacity="0.12" stroke="#f3eee7" stroke-width="2">
+      <path d="M0 150h800" />
+      <path d="M0 330h800" />
+      <path d="M0 510h800" />
+      <path d="M0 690h800" />
+      <path d="M0 870h800" />
+      <path d="M140 0v1066" />
+      <path d="M320 0v1066" />
+      <path d="M500 0v1066" />
+      <path d="M680 0v1066" />
+    </g>
+    <circle cx="634" cy="186" r="132" fill="#ffffff" opacity="0.07" />
+    <rect x="72" y="72" width="656" height="922" rx="36" fill="#0f0f0f" fill-opacity="0.22" stroke="rgba(255,255,255,0.14)" />
+    <text x="92" y="118" fill="#f3eee7" font-size="22" font-family="Arial, sans-serif" letter-spacing="6">ASPHALT TEST LAB</text>
+    <text x="92" y="902" fill="#f3eee7" font-size="48" font-weight="700" font-family="Arial, sans-serif">Block Shirt Detail</text>
+    <text x="92" y="944" fill="rgba(243,238,231,0.82)" font-size="20" font-family="Arial, sans-serif">Urban catalog asset</text>
+    <text x="92" y="980" fill="rgba(243,238,231,0.72)" font-size="18" font-family="Arial, sans-serif">SKU S2-CAM-064 · test image</text>
+    <g transform="translate(0 80)">
+      
+        <path d="M308 178l82-44 26 32 26-32 82 44-26 70-34-18v256H336V230l-34 18z" fill="#f5ece3" />
+        <rect x="395" y="170" width="10" height="316" rx="5" fill="#70534a" />
+        <path d="M356 198h88" stroke="#70534a" stroke-width="8" opacity="0.45" />
+      
+    </g>
+    <rect x="92" y="130" width="170" height="38" rx="19" fill="#111111" fill-opacity="0.32" stroke="rgba(255,255,255,0.16)" />
+    <text x="118" y="154" fill="#f3eee7" font-size="16" font-family="Arial, sans-serif" letter-spacing="3">URBAN TEST DROP</text>
+  </svg>

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Cron } from '@nestjs/schedule';
 import { TrackingService } from './tracking.service';
+import { StoreShippingProviderConfigService } from '../../shipping/services/store-shipping-provider-config.service';
 
 @Injectable()
 export class TrackingSyncService {
@@ -10,11 +11,9 @@ export class TrackingSyncService {
   constructor(
     private prisma: PrismaService,
     private trackingService: TrackingService,
+    private providerConfigService: StoreShippingProviderConfigService,
   ) {}
 
-  /**
-   * Ejecuta cada 5 minutos
-   */
   @Cron('*/5 * * * *')
   async syncTracking() {
     const shipments = await this.prisma.shipment.findMany({
@@ -31,14 +30,56 @@ export class TrackingSyncService {
 
     for (const shipment of shipments) {
       try {
-        /**
-         * Aquí normalmente llamarías al provider
-         * (EnvioPack, Shippo, etc.)
-         *
-         * Por ahora simulamos tracking.
-         */
+        const resolvedProvider =
+          await this.providerConfigService.resolveProviderForStore(
+            shipment.storeId,
+            {
+              providerCode: shipment.provider,
+              providerConfigId: (shipment as any).providerConfigId,
+            },
+          );
 
-        const simulatedStatus = this.simulateTracking(shipment.status);
+        const autoTrackingEnabled =
+          resolvedProvider.provider.providerCode === 'mock' ||
+          ((resolvedProvider.config?.metadata as Record<string, unknown> | null)
+            ?.autoTrackingEnabled === true);
+
+        const providerEvents = autoTrackingEnabled && resolvedProvider.provider.getTracking
+          ? await resolvedProvider.provider.getTracking({
+              externalShipmentId: (shipment as any).externalShipmentId,
+              trackingNumber: shipment.trackingNumber,
+            }, resolvedProvider.context)
+          : [];
+
+        if (providerEvents.length > 0) {
+          const latestEvent = providerEvents.at(-1);
+
+          if (
+            latestEvent &&
+            latestEvent.status &&
+            latestEvent.status !== shipment.status
+          ) {
+            await this.trackingService.addTrackingEvent(shipment.storeId, {
+              shipmentId: shipment.id,
+              status: latestEvent.status as any,
+              description:
+                latestEvent.description || 'Automatic tracking update',
+              location: latestEvent.location || undefined,
+            });
+
+            this.logger.log(
+              `Shipment ${shipment.id} updated to ${latestEvent.status}`,
+            );
+          }
+
+          continue;
+        }
+
+        const simulatedStatus = this.shouldSimulateTracking(
+          resolvedProvider.provider.providerCode,
+        )
+          ? this.simulateTracking(shipment.status)
+          : null;
 
         if (!simulatedStatus) continue;
 
@@ -58,9 +99,6 @@ export class TrackingSyncService {
     }
   }
 
-  /**
-   * Simulación de estados para testing
-   */
   private simulateTracking(status: string) {
     const flow = {
       created: 'picked_up',
@@ -70,5 +108,15 @@ export class TrackingSyncService {
     };
 
     return flow[status];
+  }
+
+  private shouldSimulateTracking(providerCode: string) {
+    if (
+      process.env.SHIPPING_TRACKING_SIMULATION_ENABLED?.trim() === 'true'
+    ) {
+      return true;
+    }
+
+    return providerCode === 'mock';
   }
 }

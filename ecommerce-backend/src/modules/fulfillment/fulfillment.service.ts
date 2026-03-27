@@ -3,6 +3,7 @@ import { ShipmentService } from './services/shipment.service';
 import { TrackingService } from './services/tracking.service';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { TrackingEventDto } from './dto/tracking-event.dto';
+import { UpdateManualShipmentDto } from './dto/update-manual-shipment.dto';
 
 @Injectable()
 export class FulfillmentService {
@@ -25,5 +26,21 @@ export class FulfillmentService {
 
   async addTracking(storeId: number | string, dto: TrackingEventDto) {
     return this.trackingService.addTrackingEvent(Number(storeId), dto);
+  }
+
+  async updateManualShipment(
+    storeId: number | string,
+    shipmentId: string,
+    dto: UpdateManualShipmentDto,
+  ) {
+    return this.shipmentService.updateManualShipment(
+      Number(storeId),
+      shipmentId,
+      dto,
+    );
+  }
+
+  async getPrintableLabel(storeId: number | string, shipmentId: string) {
+    return this.shipmentService.getPrintableLabel(Number(storeId), shipmentId);
   }
 }

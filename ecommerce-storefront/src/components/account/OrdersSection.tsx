@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { resolveAssetUrl } from "@/lib/asset-url";
 import {
   CustomerOrder,
   money,
@@ -40,11 +42,11 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
 
   return (
     <section
+      data-account-panel
       style={{
         borderRadius: 32,
-        border: "1px solid rgba(255,255,255,0.08)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+        border: "1px solid var(--border-soft)",
+        background: "var(--page-panel-bg)",
         padding: 32,
         display: "grid",
         gap: 24,
@@ -66,7 +68,7 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
               textTransform: "uppercase",
               letterSpacing: "0.26em",
               fontSize: 12,
-              color: "rgba(247,241,232,0.55)",
+              color: "var(--text-muted)",
             }}
           >
             Mis compras
@@ -90,9 +92,9 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
               alignItems: "center",
               justifyContent: "center",
               borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.12)",
+              border: "1px solid var(--border-soft)",
               background: "transparent",
-              color: "#f7f1e8",
+              color: "var(--text-strong)",
               textDecoration: "none",
               padding: "12px 16px",
             }}
@@ -106,10 +108,10 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
         <div
           style={{
             borderRadius: 24,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.03)",
+            border: "1px solid var(--border-soft)",
+            background: "var(--page-panel-bg)",
             padding: 24,
-            color: "rgba(247,241,232,0.66)",
+            color: "var(--text-muted)",
           }}
         >
           Cargando compras...
@@ -118,10 +120,10 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
         <div
           style={{
             borderRadius: 24,
-            border: "1px dashed rgba(255,255,255,0.14)",
-            background: "rgba(255,255,255,0.02)",
+            border: "1px dashed var(--border-soft)",
+            background: "var(--page-panel-bg)",
             padding: 28,
-            color: "rgba(247,241,232,0.68)",
+            color: "var(--text-muted)",
             lineHeight: 1.7,
           }}
         >
@@ -135,8 +137,8 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
               key={order.id}
               style={{
                 borderRadius: 24,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(8,8,8,0.52)",
+                border: "1px solid var(--border-soft)",
+                background: "var(--page-panel-strong-bg)",
                 padding: 24,
                 display: "grid",
                 gap: 18,
@@ -158,7 +160,7 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                       textTransform: "uppercase",
                       letterSpacing: "0.18em",
                       fontSize: 11,
-                      color: "rgba(247,241,232,0.48)",
+                      color: "var(--text-muted)",
                     }}
                   >
                     Pedido #{order.id}
@@ -166,7 +168,7 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                   <h3 style={{ margin: "10px 0 6px", fontSize: 24 }}>
                     {new Date(order.createdAt).toLocaleDateString("es-AR")}
                   </h3>
-                  <p style={{ margin: 0, color: "rgba(247,241,232,0.68)" }}>
+                  <p style={{ margin: 0, color: "var(--text-muted)" }}>
                     Estado: {orderStatusLabel(order.status)}
                   </p>
                 </div>
@@ -175,9 +177,9 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                   style={{
                     padding: "10px 14px",
                     borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "#fff",
+                    border: "1px solid var(--border-soft)",
+                    background: "var(--block-card-bg)",
+                    color: "var(--text-strong)",
                     fontWeight: 700,
                   }}
                 >
@@ -188,6 +190,7 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
               <div style={{ display: "grid", gap: 12 }}>
                 {order.items.slice(0, 2).map((item) => (
                   <div
+                    className="layout-review-item"
                     key={item.id}
                     style={{
                       display: "grid",
@@ -202,22 +205,28 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                         aspectRatio: "4 / 5",
                         borderRadius: 16,
                         overflow: "hidden",
-                        background: "rgba(255,255,255,0.06)",
+                        background: "var(--product-media-fallback)",
                       }}
                     >
                       {item.variant.product.images?.[0]?.url ? (
-                        <img
-                          src={item.variant.product.images[0].url}
+                        <Image
+                          src={
+                            resolveAssetUrl(item.variant.product.images[0].url) ??
+                            item.variant.product.images[0].url
+                          }
                           alt={item.variant.product.title}
-                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          width={68}
+                          height={85}
+                          unoptimized
+                          style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center center", padding: 8 }}
                         />
                       ) : null}
                     </div>
                     <div>
-                      <strong style={{ display: "block", color: "#fff" }}>
+                      <strong style={{ display: "block", color: "var(--text-strong)" }}>
                         {item.variant.product.title}
                       </strong>
-                      <span style={{ color: "rgba(247,241,232,0.66)" }}>
+                      <span style={{ color: "var(--text-muted)" }}>
                         x{item.quantity} {item.variant.Size ?? ""} {item.variant.Color ?? ""}
                       </span>
                     </div>
@@ -225,7 +234,7 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                   </div>
                 ))}
                 {order.items.length > 2 ? (
-                  <span style={{ color: "rgba(247,241,232,0.6)" }}>
+                  <span style={{ color: "var(--text-muted)" }}>
                     +{order.items.length - 2} producto{order.items.length - 2 === 1 ? "" : "s"} mas
                   </span>
                 ) : null}
@@ -240,7 +249,7 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                   flexWrap: "wrap",
                 }}
               >
-                <div style={{ color: "rgba(247,241,232,0.66)", lineHeight: 1.7 }}>
+                <div style={{ color: "var(--text-muted)", lineHeight: 1.7 }}>
                   {order.shipment?.trackingNumber
                     ? `Tracking: ${order.shipment.trackingNumber}`
                     : "El envio todavia no tiene tracking asignado"}
@@ -251,9 +260,9 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                     onClick={() => openReceipt(order.id)}
                     style={{
                       borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.12)",
+                      border: "1px solid var(--border-soft)",
                       background: "transparent",
-                      color: "#f7f1e8",
+                      color: "var(--text-strong)",
                       padding: "12px 16px",
                       cursor: "pointer",
                     }}
@@ -267,8 +276,8 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                       alignItems: "center",
                       justifyContent: "center",
                       borderRadius: 999,
-                      background: "#f7f1e8",
-                      color: "#0b0b0b",
+                      background: "var(--text-strong)",
+                      color: "var(--page-panel-bg)",
                       textDecoration: "none",
                       padding: "12px 16px",
                       fontWeight: 700,

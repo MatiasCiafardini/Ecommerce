@@ -1,7 +1,8 @@
-import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrdersService } from './orders.service';
+import { RequestCancellationDto } from './dto/request-cancellation.dto';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
@@ -19,5 +20,24 @@ export class CustomerOrdersController {
   @Get(':id')
   findOneMine(@Param('id') id: string, @Req() req) {
     return this.ordersService.findOneMine(Number(id), req.storeId, req.user.sub);
+  }
+
+  @Post(':id/cancel')
+  cancelMine(@Param('id') id: string, @Req() req) {
+    return this.ordersService.cancelMine(Number(id), req.storeId, req.user.sub);
+  }
+
+  @Post(':id/cancellation-request')
+  requestCancellation(
+    @Param('id') id: string,
+    @Req() req,
+    @Body() dto: RequestCancellationDto,
+  ) {
+    return this.ordersService.requestCancellation(
+      Number(id),
+      req.storeId,
+      req.user.sub,
+      dto,
+    );
   }
 }

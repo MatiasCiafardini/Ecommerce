@@ -1,22 +1,29 @@
-import { concreteTexture, editorialLines, urbanSkyline } from "@/themes/minimal/visuals";
+import { editorialLines } from "@/themes/minimal/visuals";
 
-export default function Newsletter() {
+type Props = {
+  title?: string;
+  subtitle?: string;
+};
+
+export default function Newsletter({
+  title = "Suscribite al drop list",
+  subtitle = "Enterate antes que nadie de capsulas nuevas, reposiciones y descuentos exclusivos.",
+}: Props) {
   return (
     <section
+      className="theme-block-section theme-block-section--newsletter"
       style={{
         padding: "84px 20px",
       }}
     >
       <div
-        className="theme-pulse-glow"
+        className="theme-pulse-glow theme-newsletter-shell"
         style={{
           maxWidth: 960,
           margin: "0 auto",
           padding: "42px 30px",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 36,
-          background:
-            `linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02)), ${urbanSkyline}, ${concreteTexture}`,
+          border: "1px solid var(--border-soft)",
+          borderRadius: "var(--theme-radius-shell)",
           backgroundSize: "cover, cover, cover",
           textAlign: "center",
           overflow: "hidden",
@@ -40,14 +47,13 @@ export default function Newsletter() {
               fontSize: "clamp(1.8rem, 3vw, 3rem)",
               textTransform: "uppercase",
               marginBottom: 12,
-              color: "#fff",
+              color: "var(--text-strong)",
             }}
           >
-            Suscribite al drop list
+            {title}
           </h2>
-          <p style={{ color: "rgba(250,244,236,0.76)", marginBottom: 24, lineHeight: 1.8 }}>
-            Enterate antes que nadie de capsulas nuevas, reposiciones y descuentos
-            exclusivos.
+          <p style={{ color: "var(--text-muted)", marginBottom: 24, lineHeight: 1.8 }}>
+            {subtitle}
           </p>
 
           <div
@@ -64,10 +70,10 @@ export default function Newsletter() {
               style={{
                 padding: "14px 16px",
                 minWidth: 280,
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.14)",
+                background: "var(--newsletter-input-bg)",
+                border: "1px solid var(--border-soft)",
                 borderRadius: 999,
-                color: "#fff",
+                color: "var(--text-strong)",
               }}
             />
 
@@ -75,8 +81,8 @@ export default function Newsletter() {
               className="theme-button"
               style={{
                 padding: "14px 18px",
-                background: "#f3eee7",
-                color: "#111",
+                background: "var(--paper)",
+                color: "var(--background)",
                 border: "none",
                 borderRadius: 999,
                 textTransform: "uppercase",

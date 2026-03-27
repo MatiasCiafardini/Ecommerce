@@ -1,6 +1,7 @@
 export default function PaymentSection() {
   return (
     <section
+      data-account-panel
       style={{
         borderRadius: 32,
         border: "1px solid rgba(255,255,255,0.08)",

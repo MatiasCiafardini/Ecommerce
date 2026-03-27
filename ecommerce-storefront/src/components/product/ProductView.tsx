@@ -1,50 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCart } from "@/context/cart-context";
+import { useAuth } from "@/context/auth-context";
 import { useRouter } from "next/navigation";
-
-type Variant = {
-  id: number;
-  price?: number | string | null;
-  Size?: string | null;
-  Color?: string | null;
-  weight?: number | null;
-  width?: number | null;
-  height?: number | null;
-  length?: number | null;
-  inventories?: Array<{
-    quantity: number;
-    reserved: number;
-  }>;
-};
-
-type ProductOption = {
-  id: number;
-  name: string;
-  values: Array<{
-    id: number;
-    value: string;
-    productId: number;
-  }>;
-};
-
-type Product = {
-  id: number | string;
-  slug: string;
-  title: string;
-  description?: string | null;
-  price?: number | string | null;
-  images?: Array<{ url: string }>;
-  variants?: Variant[];
-};
+import { StoreProduct, StoreProductOption, StoreVariant } from "@/types/store";
+import { resolveAssetUrl } from "@/lib/asset-url";
+import { formatCurrency, roundCurrency } from "@/lib/currency";
+import { getProductImageTransform } from "@/lib/product-image-layout";
 
 type Props = {
-  product: Product;
-  productOptions?: ProductOption[];
+  product: StoreProduct;
+  productOptions?: StoreProductOption[];
 };
 
-const getDefaultOptionValues = (options: ProductOption[]) =>
+const getDefaultOptionValues = (options: StoreProductOption[]) =>
   Object.fromEntries(
     options
       .filter((option) => option.values.length > 0)
@@ -57,13 +29,13 @@ const formatMeasure = (value?: number | string | null, suffix = "cm") => {
   return `${value} ${suffix}`;
 };
 
-const formatVariantTitle = (variant?: Variant | null) => {
+const formatVariantTitle = (variant?: StoreVariant | null) => {
   if (!variant) return "Variante principal";
   const parts = [variant.Size, variant.Color].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "Variante principal";
 };
 
-const getAvailableStock = (variant: Variant) => {
+const getAvailableStock = (variant: StoreVariant) => {
   const inventories = variant.inventories ?? [];
   if (inventories.length === 0) return 0;
   return inventories.reduce(
@@ -73,7 +45,28 @@ const getAvailableStock = (variant: Variant) => {
   );
 };
 
-const normalizeProductOptions = (productOptions: ProductOption[] = []) =>
+const resolvePromotionalPrice = (
+  basePrice: number,
+  pricing?: StoreProduct["pricing"],
+) => {
+  if (!pricing?.hasActivePromotion) {
+    return roundCurrency(basePrice);
+  }
+
+  if (pricing.promotionType === "percentage") {
+    return roundCurrency(
+      Math.max(basePrice * (1 - Number(pricing.discountPercentage ?? 0) / 100), 0),
+    );
+  }
+
+  if (pricing.promotionType === "fixed_amount") {
+    return roundCurrency(Math.max(basePrice - Number(pricing.discountAmount ?? 0), 0));
+  }
+
+  return roundCurrency(basePrice);
+};
+
+const normalizeProductOptions = (productOptions: StoreProductOption[] = []) =>
   productOptions.map((option) => ({
     id: option.id,
     name: option.name,
@@ -88,10 +81,11 @@ const normalizeProductOptions = (productOptions: ProductOption[] = []) =>
   }));
 
 export default function ProductView({ product, productOptions = [] }: Props) {
+  const { user } = useAuth();
   const { addToCart, cart } = useCart();
   const router = useRouter();
   const productImages = useMemo(() => product.images ?? [], [product.images]);
-  const variants = useMemo<Variant[]>(
+  const variants = useMemo<StoreVariant[]>(
     () => product.variants ?? [],
     [product.variants],
   );
@@ -140,6 +134,34 @@ export default function ProductView({ product, productOptions = [] }: Props) {
   const [cartMessage, setCartMessage] = useState("");
   const [showCartPrompt, setShowCartPrompt] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showGalleryUi, setShowGalleryUi] = useState(false);
+  const galleryHideTimeoutRef = useRef<number | null>(null);
+
+  const revealGalleryUi = () => {
+    if (galleryHideTimeoutRef.current) {
+      window.clearTimeout(galleryHideTimeoutRef.current);
+      galleryHideTimeoutRef.current = null;
+    }
+    setShowGalleryUi(true);
+  };
+
+  const scheduleGalleryUiHide = () => {
+    if (galleryHideTimeoutRef.current) {
+      window.clearTimeout(galleryHideTimeoutRef.current);
+    }
+    galleryHideTimeoutRef.current = window.setTimeout(() => {
+      setShowGalleryUi(false);
+      galleryHideTimeoutRef.current = null;
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (galleryHideTimeoutRef.current) {
+        window.clearTimeout(galleryHideTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const selectedVariant = useMemo(() => {
     if (!hasVariants) return null;
@@ -164,31 +186,31 @@ export default function ProductView({ product, productOptions = [] }: Props) {
   }, [hasVariants, inStockVariants, selectedColor, selectedSize]);
 
   const isSizeAvailable = (size: string) =>
-    inStockVariants.some((variant) => {
-      const matchesSize = variant.Size === size;
-      const matchesColor = selectedColor
-        ? variant.Color === selectedColor
-        : true;
-      return matchesSize && matchesColor;
-    });
+    inStockVariants.some((variant) => variant.Size === size);
 
   const isColorAvailable = (color: string) =>
-    inStockVariants.some((variant) => {
-      const matchesColor = variant.Color === color;
-      const matchesSize = selectedSize ? variant.Size === selectedSize : true;
-      return matchesColor && matchesSize;
-    });
+    inStockVariants.some((variant) => variant.Color === color);
+
+  const findFirstVariantForSize = (size: string) =>
+    inStockVariants.find((variant) => variant.Size === size) ?? null;
+
+  const findFirstVariantForColor = (color: string) =>
+    inStockVariants.find((variant) => variant.Color === color) ?? null;
 
   const image =
-    productImages[selectedImageIndex]?.url ?? productImages[0]?.url ?? null;
+    resolveAssetUrl(
+      productImages[selectedImageIndex]?.url ?? productImages[0]?.url ?? null,
+    );
 
-  const currentPrice = Number(
+  const currentPrice = roundCurrency(
     selectedVariant?.price ??
       inStockVariants[0]?.price ??
       product.variants?.[0]?.price ??
       product.price ??
       0,
   );
+  const activePricing = selectedVariant?.pricing ?? product.pricing;
+  const currentFinalPrice = resolvePromotionalPrice(currentPrice, activePricing);
 
   const hasStock = inStockVariants.length > 0;
   const selectedVariantStock = selectedVariant
@@ -198,6 +220,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
     ? (cart.find((item) => item.variantId === String(selectedVariant.id))
         ?.quantity ?? 0)
     : 0;
+  const isAdmin = Boolean(user?.role && user.role !== "CUSTOMER");
   const canAddSelectedVariant = Boolean(
     selectedVariant &&
     selectedVariantStock > 0 &&
@@ -232,7 +255,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
         slug: product.slug,
         imageUrl: image,
         name: product.title,
-        price: Number(selectedVariant.price || product.price || 0),
+        price: currentFinalPrice,
         quantity: 1,
         maxAvailable: selectedVariantStock,
         size: selectedVariant.Size ?? undefined,
@@ -274,8 +297,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
   return (
     <section
       style={{
-        background:
-          "radial-gradient(circle at top left, rgba(255,255,255,0.07), transparent 28%), linear-gradient(180deg, #161616 0%, #0b0b0b 100%)",
+        background: "var(--page-shell-bg)",
       }}
     >
       <div
@@ -297,25 +319,39 @@ export default function ProductView({ product, productOptions = [] }: Props) {
         >
           <div
             style={{
-              border: "1px solid rgba(255,255,255,0.08)",
+              border: "1px solid var(--border-soft)",
               borderRadius: 36,
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
+              background: "var(--page-panel-bg)",
               overflow: "hidden",
               alignSelf: "start",
               padding: 16,
             }}
           >
-            <div style={galleryFrameStyle}>
+            <div
+              className={`gallery-frame${showGalleryUi ? " is-gallery-ui-visible" : ""}`}
+              style={galleryFrameStyle}
+              onMouseEnter={revealGalleryUi}
+              onMouseLeave={scheduleGalleryUiHide}
+              onFocusCapture={revealGalleryUi}
+              onBlurCapture={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  scheduleGalleryUiHide();
+                }
+              }}
+            >
               {image ? (
-                <img
+                <Image
                   src={image}
                   alt={product.title}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 900px) 100vw, 56vw"
                   style={{
                     width: "100%",
                     aspectRatio: "4 / 5",
-                    objectFit: "cover",
                     display: "block",
+                    ...getProductImageTransform(productImages[selectedImageIndex] ?? productImages[0]),
+                    background: "#ffffff",
                   }}
                 />
               ) : (
@@ -325,9 +361,8 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                     aspectRatio: "4 / 5",
                     display: "grid",
                     placeItems: "center",
-                    background:
-                      "linear-gradient(145deg, #3b3b3b 0%, #aca295 100%)",
-                    color: "rgba(255,255,255,0.82)",
+                    background: "var(--product-media-fallback)",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.18em",
                   }}
@@ -342,7 +377,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                     type="button"
                     onClick={goToPreviousImage}
                     aria-label="Ver imagen anterior"
-                    className="gallery-arrow-button"
+                    className="gallery-arrow-button gallery-hover-ui gallery-hover-side"
                     style={galleryArrowStyle("left")}
                   >
                     <span style={galleryArrowIconStyle}>
@@ -366,7 +401,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                     type="button"
                     onClick={goToNextImage}
                     aria-label="Ver imagen siguiente"
-                    className="gallery-arrow-button"
+                    className="gallery-arrow-button gallery-hover-ui gallery-hover-side"
                     style={galleryArrowStyle("right")}
                   >
                     <span style={galleryArrowIconStyle}>
@@ -386,11 +421,11 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                       </svg>
                     </span>
                   </button>
-                  <div style={galleryCounterStyle}>
+                  <div className="gallery-hover-ui gallery-hover-up" style={galleryCounterStyle}>
                     {selectedImageIndex + 1} / {productImages.length}
                   </div>
 
-                  <div style={thumbnailDockStyle}>
+                  <div className="gallery-hover-ui gallery-hover-up" style={thumbnailDockStyle}>
                     {productImages.map((productImage, index) => {
                       const isActive = index === selectedImageIndex;
 
@@ -400,12 +435,18 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                           type="button"
                           onClick={() => setSelectedImageIndex(index)}
                           aria-label={`Ver imagen ${index + 1}`}
-                          style={thumbnailButtonStyle(isActive)}
+                          style={{ ...thumbnailButtonStyle(isActive), position: "relative" }}
                         >
-                          <img
-                            src={productImage.url}
+                          <Image
+                            src={resolveAssetUrl(productImage.url) ?? productImage.url}
                             alt={`${product.title} vista ${index + 1}`}
-                            style={thumbnailImageStyle}
+                            fill
+                            unoptimized
+                            sizes="88px"
+                            style={{
+                              ...thumbnailImageStyle,
+                              ...getProductImageTransform(productImage),
+                            }}
                           />
                         </button>
                       );
@@ -419,9 +460,8 @@ export default function ProductView({ product, productOptions = [] }: Props) {
           <div
             style={{
               borderRadius: 36,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+              border: "1px solid var(--border-soft)",
+              background: "var(--page-panel-bg)",
               padding: "30px",
               display: "grid",
               gap: 22,
@@ -432,7 +472,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
               <p
                 style={{
                   margin: "0 0 10px",
-                  color: "rgba(250,244,236,0.68)",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.18em",
                   fontSize: 12,
@@ -444,14 +484,27 @@ export default function ProductView({ product, productOptions = [] }: Props) {
               <div
                 style={{
                   display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: 12,
                   marginBottom: 12,
                 }}
               >
-                <span style={slugChipStyle}>/{product.slug}</span>
-                {stockUrgencyMessage ? (
-                  <span style={urgencyChipStyle}>{stockUrgencyMessage}</span>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
+                  <span style={slugChipStyle}>/{product.slug}</span>
+                  {stockUrgencyMessage ? (
+                    <span style={urgencyChipStyle}>{stockUrgencyMessage}</span>
+                  ) : null}
+                </div>
+                {isAdmin ? (
+                  <Link
+                    href={`/account?section=admin-products&productId=${product.id}`}
+                    style={adminEditButtonStyle}
+                    aria-label="Editar producto"
+                    title="Editar producto"
+                  >
+                    <EditIcon />
+                  </Link>
                 ) : null}
               </div>
 
@@ -462,7 +515,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                   margin: "0 0 14px",
                   textTransform: "uppercase",
                   letterSpacing: "-0.05em",
-                  color: "#ffffff",
+                  color: "var(--text-strong)",
                 }}
               >
                 {product.title}
@@ -472,8 +525,8 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                 style={{
                   margin: "0 0 14px",
                   color: hasStock
-                    ? "rgba(250,244,236,0.78)"
-                    : "rgba(255,255,255,0.46)",
+                    ? "var(--text-muted)"
+                    : "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.16em",
                   fontSize: 12,
@@ -484,31 +537,57 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                   : "Sin stock disponible"}
               </p>
 
-              <p
-                style={{
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                  margin: 0,
-                  color: "#f3eee7",
-                }}
-              >
-                ${currentPrice}
-              </p>
-              {selectedVariant && stockUrgencyMessage ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                {activePricing?.hasActivePromotion ? (
+                  <>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                      <span
+                        style={{
+                          padding: "7px 10px",
+                          borderRadius: 999,
+                          background: "var(--accent)",
+                          color: "var(--accent-contrast, #fff)",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        -{activePricing.discountPercentage}%
+                      </span>
+                      {activePricing.promotionLabel ? (
+                        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                          {activePricing.promotionLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "var(--text-muted)",
+                        textDecoration: "line-through",
+                      }}
+                    >
+                      {formatCurrency(currentPrice)}
+                    </p>
+                  </>
+                ) : null}
                 <p
                   style={{
-                    margin: "12px 0 0",
-                    color: "#ffe4bf",
-                    lineHeight: 1.6,
+                    fontSize: "28px",
+                    fontWeight: "bold",
+                    margin: 0,
+                    color: "var(--text-strong)",
                   }}
                 >
-                  {stockUrgencyMessage}
+                  {formatCurrency(currentFinalPrice)}
                 </p>
-              ) : selectedVariant && remainingUnits === 0 ? (
+              </div>
+              {selectedVariant && remainingUnits === 0 ? (
                 <p
                   style={{
                     margin: "12px 0 0",
-                    color: "rgba(250,244,236,0.68)",
+                    color: "var(--text-muted)",
                     lineHeight: 1.6,
                   }}
                 >
@@ -519,7 +598,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
 
             <p
               style={{
-                color: "rgba(250,244,236,0.78)",
+                color: "var(--text-muted)",
                 lineHeight: 1.8,
                 margin: 0,
               }}
@@ -538,7 +617,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                         textTransform: "uppercase",
                         letterSpacing: "0.16em",
                         fontSize: 12,
-                        color: "rgba(250,244,236,0.8)",
+                        color: "var(--text-muted)",
                       }}
                     >
                       Selecciona talle
@@ -556,6 +635,22 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                             onClick={() => {
                               if (!available) return;
                               setSelectedSize(size);
+
+                              const matchingVariant = inStockVariants.find(
+                                (variant) =>
+                                  variant.Size === size &&
+                                  (selectedColor
+                                    ? variant.Color === selectedColor
+                                    : true),
+                              );
+
+                              if (!matchingVariant) {
+                                const fallbackVariant =
+                                  findFirstVariantForSize(size);
+                                if (fallbackVariant?.Color) {
+                                  setSelectedColor(fallbackVariant.Color);
+                                }
+                              }
                             }}
                             className={available ? "theme-button" : undefined}
                             style={variantChipStyle(selected, available)}
@@ -576,7 +671,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                         textTransform: "uppercase",
                         letterSpacing: "0.16em",
                         fontSize: 12,
-                        color: "rgba(250,244,236,0.8)",
+                        color: "var(--text-muted)",
                       }}
                     >
                       Selecciona color
@@ -594,6 +689,22 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                             onClick={() => {
                               if (!available) return;
                               setSelectedColor(color);
+
+                              const matchingVariant = inStockVariants.find(
+                                (variant) =>
+                                  variant.Color === color &&
+                                  (selectedSize
+                                    ? variant.Size === selectedSize
+                                    : true),
+                              );
+
+                              if (!matchingVariant) {
+                                const fallbackVariant =
+                                  findFirstVariantForColor(color);
+                                if (fallbackVariant?.Size) {
+                                  setSelectedSize(fallbackVariant.Size);
+                                }
+                              }
                             }}
                             className={available ? "theme-button" : undefined}
                             style={variantChipStyle(selected, available)}
@@ -621,9 +732,11 @@ export default function ProductView({ product, productOptions = [] }: Props) {
               style={{
                 padding: "16px 24px",
                 background: canAddSelectedVariant
-                  ? "#f3eee7"
-                  : "rgba(255,255,255,0.08)",
-                color: canAddSelectedVariant ? "#111" : "rgba(255,255,255,0.4)",
+                  ? "var(--text-strong)"
+                  : "var(--block-card-bg)",
+                color: canAddSelectedVariant
+                  ? "var(--page-panel-bg)"
+                  : "var(--text-muted)",
                 border: "none",
                 borderRadius: 999,
                 cursor: canAddSelectedVariant ? "pointer" : "not-allowed",
@@ -649,7 +762,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
               <p
                 style={{
                   margin: "-8px 0 0",
-                  color: "rgba(250,244,236,0.62)",
+                  color: "var(--text-muted)",
                   lineHeight: 1.6,
                 }}
               >
@@ -674,9 +787,8 @@ export default function ProductView({ product, productOptions = [] }: Props) {
         <div
           style={{
             borderRadius: 36,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+            border: "1px solid var(--border-soft)",
+            background: "var(--page-panel-bg)",
             padding: "30px",
             display: "grid",
             gap: 18,
@@ -689,7 +801,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                 textTransform: "uppercase",
                 letterSpacing: "0.16em",
                 fontSize: 12,
-                color: "rgba(250,244,236,0.74)",
+                color: "var(--text-muted)",
               }}
             >
               Informacion del producto
@@ -697,7 +809,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
             <p
               style={{
                 margin: 0,
-                color: "rgba(250,244,236,0.72)",
+                color: "var(--text-muted)",
                 lineHeight: 1.8,
                 maxWidth: 920,
               }}
@@ -733,8 +845,8 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                 key={item.label}
                 style={{
                   borderRadius: 22,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: "rgba(8,8,8,0.42)",
+                  border: "1px solid var(--border-soft)",
+                  background: "var(--block-card-bg)",
                   padding: 18,
                   display: "grid",
                   gap: 6,
@@ -745,12 +857,12 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                     textTransform: "uppercase",
                     letterSpacing: "0.14em",
                     fontSize: 11,
-                    color: "rgba(250,244,236,0.54)",
+                    color: "var(--text-muted)",
                   }}
                 >
                   {item.label}
                 </span>
-                <strong style={{ color: "#fff", fontSize: 18 }}>
+                <strong style={{ color: "var(--text-strong)", fontSize: 18 }}>
                   {item.value}
                 </strong>
               </div>
@@ -772,9 +884,9 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                   width: "fit-content",
                   padding: "12px 16px",
                   borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  border: "1px solid var(--border-soft)",
                   background: "transparent",
-                  color: "#f7f1e8",
+                  color: "var(--text-strong)",
                   cursor: "pointer",
                   textTransform: "uppercase",
                   letterSpacing: "0.12em",
@@ -797,8 +909,8 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                       key={option.id}
                       style={{
                         borderRadius: 22,
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        background: "rgba(8,8,8,0.36)",
+                        border: "1px solid var(--border-soft)",
+                        background: "var(--block-card-bg)",
                         padding: 18,
                         display: "grid",
                         gap: 12,
@@ -810,7 +922,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                           textTransform: "uppercase",
                           letterSpacing: "0.16em",
                           fontSize: 11,
-                          color: "rgba(250,244,236,0.74)",
+                          color: "var(--text-muted)",
                         }}
                       >
                         {option.name}
@@ -837,12 +949,12 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                                 padding: "10px 12px",
                                 borderRadius: 999,
                                 border: selected
-                                  ? "1px solid rgba(255,255,255,0.28)"
-                                  : "1px solid rgba(255,255,255,0.12)",
+                                  ? "1px solid var(--text-strong)"
+                                  : "1px solid var(--border-soft)",
                                 background: selected
-                                  ? "rgba(243,238,231,0.16)"
-                                  : "rgba(255,255,255,0.03)",
-                                color: "white",
+                                  ? "var(--block-card-bg)"
+                                  : "transparent",
+                                color: "var(--text-strong)",
                                 cursor: "pointer",
                                 textTransform: "uppercase",
                                 letterSpacing: "0.1em",
@@ -882,7 +994,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
               <p
                 style={{
                   margin: 0,
-                  color: "#fff",
+                  color: "var(--text-strong)",
                   fontSize: 28,
                   lineHeight: 1.1,
                 }}
@@ -892,7 +1004,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
               <p
                 style={{
                   margin: 0,
-                  color: "rgba(247,241,232,0.68)",
+                  color: "var(--text-muted)",
                   lineHeight: 1.7,
                 }}
               >
@@ -928,6 +1040,36 @@ export default function ProductView({ product, productOptions = [] }: Props) {
 
         .cart-prompt-actions {
           flex-direction: row;
+        }
+
+        .gallery-hover-ui {
+          opacity: 0;
+          pointer-events: none;
+          transition:
+            opacity 260ms cubic-bezier(0.22, 1, 0.36, 1),
+            transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+          will-change: opacity, transform;
+        }
+
+        .gallery-hover-up {
+          transform: translate3d(0, 18px, 0);
+        }
+
+        .gallery-hover-side {
+          transform: translate3d(0, -50%, 0) scale(0.96);
+        }
+
+        .gallery-frame.is-gallery-ui-visible .gallery-hover-ui {
+          opacity: 1;
+          pointer-events: auto;
+        }
+
+        .gallery-frame.is-gallery-ui-visible .gallery-hover-up {
+          transform: translate3d(0, 0, 0);
+        }
+
+        .gallery-frame.is-gallery-ui-visible .gallery-hover-side {
+          transform: translate3d(0, -50%, 0) scale(1);
         }
 
         .gallery-arrow-button:hover {
@@ -970,6 +1112,19 @@ export default function ProductView({ product, productOptions = [] }: Props) {
           .cart-prompt-actions {
             flex-direction: column;
           }
+
+          .gallery-hover-ui {
+            opacity: 1;
+            pointer-events: auto;
+          }
+
+          .gallery-hover-up {
+            transform: none;
+          }
+
+          .gallery-hover-side {
+            transform: translate3d(0, -50%, 0) scale(1);
+          }
         }
       `}</style>
     </section>
@@ -983,14 +1138,14 @@ const variantChipStyle = (
   padding: "12px 14px",
   borderRadius: 999,
   border: selected
-    ? "1px solid rgba(255,255,255,0.28)"
-    : "1px solid rgba(255,255,255,0.12)",
+    ? "1px solid var(--text-strong)"
+    : "1px solid var(--border-soft)",
   background: !available
-    ? "rgba(255,255,255,0.02)"
+    ? "transparent"
     : selected
-      ? "rgba(243,238,231,0.16)"
-      : "rgba(255,255,255,0.03)",
-  color: !available ? "rgba(255,255,255,0.32)" : "white",
+      ? "var(--block-card-bg)"
+      : "transparent",
+  color: !available ? "var(--text-muted)" : "var(--text-strong)",
   cursor: available ? "pointer" : "not-allowed",
   textTransform: "uppercase",
   letterSpacing: "0.12em",
@@ -1004,9 +1159,9 @@ const slugChipStyle: React.CSSProperties = {
   alignItems: "center",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(250,244,236,0.72)",
+  border: "1px solid var(--border-soft)",
+  background: "var(--block-card-bg)",
+  color: "var(--text-muted)",
   fontSize: 12,
   letterSpacing: "0.08em",
 };
@@ -1025,13 +1180,48 @@ const urgencyChipStyle: React.CSSProperties = {
   textTransform: "uppercase",
 };
 
+function EditIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20h9" />
+      <path d="m16.5 3.5 4 4L7 21l-4 1 1-4L16.5 3.5Z" />
+    </svg>
+  );
+}
+
+const adminEditButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flex: "0 0 auto",
+  width: 40,
+  height: 40,
+  padding: 0,
+  borderRadius: 999,
+  border: "1px solid var(--border-soft)",
+  background: "var(--block-card-bg)",
+  color: "var(--text-strong)",
+  textDecoration: "none",
+  boxSizing: "border-box",
+};
+
 const galleryFrameStyle: React.CSSProperties = {
   position: "relative",
   borderRadius: 28,
   overflow: "hidden",
-  border: "1px solid rgba(255,255,255,0.06)",
-  background: "rgba(255,255,255,0.02)",
-  boxShadow: "inset 0 -120px 120px rgba(0,0,0,0.12)",
+  border: "1px solid var(--border-soft)",
+  background: "#ffffff",
+  boxShadow: "inset 0 -80px 120px rgba(0,0,0,0.04)",
 };
 
 const galleryArrowStyle = (side: "left" | "right"): React.CSSProperties => ({
@@ -1042,7 +1232,7 @@ const galleryArrowStyle = (side: "left" | "right"): React.CSSProperties => ({
   padding: 0,
   border: "none",
   background: "transparent",
-  color: "#fff",
+  color: "var(--text-strong)",
   cursor: "pointer",
   display: "grid",
   placeItems: "center",
@@ -1072,9 +1262,9 @@ const galleryCounterStyle: React.CSSProperties = {
   top: 16,
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "rgba(10,10,10,0.55)",
-  color: "#f7f1e8",
+  border: "1px solid var(--border-soft)",
+  background: "color-mix(in srgb, var(--page-panel-bg) 82%, transparent)",
+  color: "var(--text-strong)",
   fontSize: 12,
   letterSpacing: "0.12em",
   textTransform: "uppercase",
@@ -1090,7 +1280,7 @@ const thumbnailDockStyle: React.CSSProperties = {
   gap: 10,
   padding: 10,
   borderRadius: 24,
-  background: "linear-gradient(180deg, rgba(8,8,8,0.1), rgba(8,8,8,0.4))",
+  background: "color-mix(in srgb, var(--page-panel-bg) 88%, transparent)",
   backdropFilter: "blur(8px)",
   overflowX: "auto",
   scrollbarWidth: "none",
@@ -1101,9 +1291,9 @@ const thumbnailButtonStyle = (isActive: boolean): React.CSSProperties => ({
   borderRadius: 16,
   overflow: "hidden",
   border: isActive
-    ? "1px solid rgba(255,255,255,0.42)"
-    : "1px solid rgba(255,255,255,0.12)",
-  background: isActive ? "rgba(243,238,231,0.14)" : "rgba(255,255,255,0.04)",
+    ? "1px solid var(--text-strong)"
+    : "1px solid var(--border-soft)",
+  background: "#ffffff",
   cursor: "pointer",
   boxShadow: "none",
   flex: "0 0 76px",
@@ -1114,7 +1304,9 @@ const thumbnailImageStyle: React.CSSProperties = {
   width: "100%",
   height: 92,
   objectFit: "cover",
+  objectPosition: "center center",
   display: "block",
+  background: "#ffffff",
 };
 
 const cartPromptOverlayStyle: React.CSSProperties = {
@@ -1142,9 +1334,9 @@ const promptPrimaryStyle: React.CSSProperties = {
 const promptSecondaryStyle: React.CSSProperties = {
   padding: "12px 16px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.12)",
+  border: "1px solid var(--border-soft)",
   background: "transparent",
-  color: "#f7f1e8",
+  color: "var(--text-strong)",
   cursor: "pointer",
   flex: 1,
 };
@@ -1153,9 +1345,8 @@ const cartPromptPanelStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 520,
   borderRadius: 30,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background:
-    "linear-gradient(180deg, rgba(26,26,26,0.98), rgba(10,10,10,0.98))",
+  border: "1px solid var(--border-soft)",
+  background: "var(--page-panel-bg)",
   padding: "28px",
   display: "grid",
   gap: 22,

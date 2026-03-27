@@ -38,24 +38,31 @@ export class ProductsController {
     return this.productsService.update(Number(id), dto, req.storeId);
   }
 
+  @Delete(':id')
+  remove(@Param('id') id: string, @Req() req) {
+    return this.productsService.remove(Number(id), req.storeId);
+  }
+
   @Post(':id/categories/:categoryId')
   addCategory(
     @Param('id') id: string,
     @Param('categoryId') categoryId: string,
+    @Req() req,
   ) {
-    return this.productsService.addCategory(Number(id), Number(categoryId));
+    return this.productsService.addCategory(Number(id), Number(categoryId), req.storeId);
   }
 
   @Delete(':id/categories/:categoryId')
   removeCategory(
     @Param('id') id: string,
     @Param('categoryId') categoryId: string,
+    @Req() req,
   ) {
-    return this.productsService.removeCategory(Number(id), Number(categoryId));
+    return this.productsService.removeCategory(Number(id), Number(categoryId), req.storeId);
   }
 
   @Get(':id/categories')
-  getCategories(@Param('id') id: string) {
-    return this.productsService.getCategories(Number(id));
+  getCategories(@Param('id') id: string, @Req() req) {
+    return this.productsService.getCategories(Number(id), req.storeId);
   }
 }

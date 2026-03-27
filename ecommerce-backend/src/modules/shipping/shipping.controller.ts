@@ -20,6 +20,11 @@ export class ShippingController {
       dto.cartId,
       (req as any).user.sub,
       dto.postalCode,
+      {
+        state: dto.state,
+        city: dto.city,
+        country: dto.country,
+      },
     );
   }
 }

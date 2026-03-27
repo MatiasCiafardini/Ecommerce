@@ -6,22 +6,23 @@ type Props = {
 
 export default function Banner({
   text = "Envios gratis en compras desde $120.000",
-  backgroundColor = "#101010",
-  textColor = "#f4f0ea",
+  backgroundColor,
+  textColor,
 }: Props) {
-  const isLight = backgroundColor.toLowerCase() !== "#101010";
+  const resolvedBackground =
+    backgroundColor ??
+    "color-mix(in srgb, var(--paper) 78%, var(--surface))";
+  const resolvedTextColor = textColor ?? "var(--text-strong)";
 
   return (
     <section
       style={{
-        background: isLight
-          ? `linear-gradient(90deg, ${backgroundColor} 0%, #d6cfc4 100%)`
-          : `linear-gradient(90deg, ${backgroundColor} 0%, #1d1d1d 100%)`,
-        color: textColor,
+        background: `linear-gradient(90deg, ${resolvedBackground} 0%, color-mix(in srgb, ${resolvedBackground} 72%, var(--paper-muted)) 100%)`,
+        color: resolvedTextColor,
         padding: "18px 20px",
         textAlign: "center",
-        borderTop: "1px solid rgba(255,255,255,0.08)",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        borderTop: "1px solid var(--border-soft)",
+        borderBottom: "1px solid var(--border-soft)",
       }}
     >
       <h2
@@ -30,7 +31,7 @@ export default function Banner({
           fontSize: 13,
           letterSpacing: "0.22em",
           textTransform: "uppercase",
-          color: textColor,
+          color: resolvedTextColor,
         }}
       >
         {text}

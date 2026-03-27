@@ -2,6 +2,11 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import {
+  getScopedStorageItem,
+  removeScopedStorageItem,
+  setScopedStorageItem,
+} from "@/lib/store-browser-storage";
 
 type User = {
   id: number;
@@ -12,6 +17,9 @@ type User = {
   lastName?: string | null;
   phone?: string | null;
   name?: string | null;
+  storeFeatures?: {
+    manualSalesEnabled?: boolean;
+  };
 };
 
 export type { User };
@@ -31,8 +39,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const storedUser = localStorage.getItem("user");
+    const token = getScopedStorageItem("token");
+    const storedUser = getScopedStorageItem("user");
 
     if (!token || !storedUser) {
       setLoading(false);
@@ -46,11 +54,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Refresh the session from the API so the account shown in UI matches the JWT.
         const freshUser = await api("/auth/me");
-        localStorage.setItem("user", JSON.stringify(freshUser));
+        setScopedStorageItem("user", JSON.stringify(freshUser));
         setUser(freshUser);
       } catch {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        removeScopedStorageItem("token");
+        removeScopedStorageItem("user");
         setUser(null);
       } finally {
         setLoading(false);
@@ -61,8 +69,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       JSON.parse(storedUser);
       void hydrateSession();
     } catch {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+      removeScopedStorageItem("token");
+      removeScopedStorageItem("user");
       setUser(null);
       setLoading(false);
     }
@@ -74,16 +82,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       body: JSON.stringify(data),
     });
 
-    localStorage.setItem("token", res.access_token);
-    localStorage.setItem("user", JSON.stringify(res.user));
+    setScopedStorageItem("token", res.access_token);
+    setScopedStorageItem("user", JSON.stringify(res.user));
 
     setUser(res.user);
     return res.user;
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    removeScopedStorageItem("token");
+    removeScopedStorageItem("user");
     setUser(null);
   };
 

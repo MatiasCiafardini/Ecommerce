@@ -1,1 +1,1 @@
-export type NewsletterProps = {}
+export type NewsletterProps = Record<string, never>;

@@ -1,16 +1,15 @@
 import { getProducts } from "@/services/products.service";
 import ProductCard from "@/components/product/ProductCard";
-import {
-  concreteTexture,
-  editorialLines,
-  urbanCrowdScene,
-} from "@/themes/minimal/visuals";
+import { StoreProduct } from "@/types/store";
 
 type Props = {
   title?: string;
   category?: string;
   limit?: number;
   columns?: number;
+  eyebrow?: string;
+  editorialLabel?: string;
+  editorialTitle?: string;
 };
 
 export default async function ProductGrid({
@@ -18,11 +17,20 @@ export default async function ProductGrid({
   category,
   limit = 8,
   columns = 4,
+  eyebrow = "Curado para el street",
+  editorialLabel = "Urban people",
+  editorialTitle = "Editorial street energy",
 }: Props) {
   const products = await getProducts({ category, limit });
+  const featurePanelHeight = "clamp(260px, 30vw, 340px)";
 
   return (
-    <section style={{ padding: "84px 20px" }}>
+    <section
+      className="theme-block-section theme-block-section--product-grid"
+      style={{
+        padding: "84px 20px",
+      }}
+    >
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
         {title && (
           <div
@@ -32,27 +40,27 @@ export default async function ProductGrid({
             }}
           >
             <div
+              className="theme-block-panel"
               style={{
-                borderRadius: 32,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+                borderRadius: "var(--theme-radius-panel)",
+                border: "1px solid var(--border-soft)",
                 padding: "28px",
                 display: "grid",
                 alignContent: "end",
-                minHeight: 240,
+                minHeight: featurePanelHeight,
+                height: featurePanelHeight,
               }}
             >
               <span
                 style={{
-                  color: "rgba(250,244,236,0.68)",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.18em",
                   fontSize: 12,
                   marginBottom: 14,
                 }}
               >
-                Curado para el street
+                {eyebrow}
               </span>
               <h2
                 style={{
@@ -60,7 +68,7 @@ export default async function ProductGrid({
                   fontSize: "clamp(1.8rem, 3vw, 3rem)",
                   textTransform: "uppercase",
                   letterSpacing: "-0.04em",
-                  color: "#fff",
+                  color: "var(--text-strong)",
                 }}
               >
                 {title}
@@ -68,13 +76,12 @@ export default async function ProductGrid({
             </div>
 
             <div
-              className="theme-hover-lift theme-ambient-pan"
+              className="theme-hover-lift theme-ambient-pan theme-editorial-panel"
               style={{
-                minHeight: 240,
-                borderRadius: 32,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background:
-                  `linear-gradient(135deg, rgba(12,12,12,0.14), rgba(243,238,231,0.06)), ${urbanCrowdScene}, ${editorialLines}, ${concreteTexture}`,
+                minHeight: featurePanelHeight,
+                height: featurePanelHeight,
+                borderRadius: "var(--theme-radius-panel)",
+                border: "1px solid var(--border-soft)",
                 backgroundSize: "cover, cover, cover, cover",
                 backgroundPosition: "center, center, center, center",
                 overflow: "hidden",
@@ -85,8 +92,7 @@ export default async function ProductGrid({
                 style={{
                   position: "absolute",
                   inset: 0,
-                  background:
-                    "linear-gradient(90deg, rgba(11,11,11,0.18) 0%, rgba(11,11,11,0.04) 46%, rgba(243,238,231,0.04) 100%)",
+                  background: "var(--editorial-panel-overlay)",
                 }}
               />
               <div
@@ -105,24 +111,25 @@ export default async function ProductGrid({
                     width: "fit-content",
                     padding: "8px 12px",
                     borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    background: "rgba(10,10,10,0.32)",
-                    color: "#fff",
+                    border: "1px solid var(--border-soft)",
+                    background: "var(--editorial-pill-bg)",
+                    color: "var(--text-strong)",
                     letterSpacing: "0.18em",
                     textTransform: "uppercase",
                   }}
                 >
-                  Urban people
+                  {editorialLabel}
                 </span>
                 <strong
                   className="feature-title"
                   style={{
-                    color: "#fff",
+                    color: "var(--text-strong)",
                     textTransform: "uppercase",
                     letterSpacing: "-0.03em",
+                    textShadow: "var(--editorial-title-shadow)",
                   }}
                 >
-                  Editorial street energy
+                  {editorialTitle}
                 </strong>
               </div>
             </div>
@@ -132,10 +139,11 @@ export default async function ProductGrid({
         <div
           className="layout-product-grid"
           style={{
-            gridTemplateColumns: `repeat(${Math.max(1, columns)}, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${Math.max(1, columns)}, var(--product-card-width))`,
+            justifyContent: "center",
           }}
         >
-          {products.map((product: any) => (
+          {products.map((product: StoreProduct) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>

@@ -1,11 +1,14 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
   CustomerOrder,
+  hasOrderShippingSnapshot,
   money,
   openReceipt,
+  orderShippingAddressLines,
+  orderShippingRecipient,
   orderStatusLabel,
 } from "./order-utils";
 
@@ -43,6 +46,8 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
   if (!order) {
     return <div style={{ padding: 32 }}>No se pudo cargar el comprobante.</div>;
   }
+
+  const shippingAddressLines = orderShippingAddressLines(order);
 
   return (
     <>
@@ -190,6 +195,14 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
                   {order.shippingMethod ? ` · ${order.shippingMethod}` : ""}
                   <br />
                   Tracking: {order.shipment?.trackingNumber ?? "Sin asignar"}
+                  {hasOrderShippingSnapshot(order) ? (
+                    <>
+                      <br />
+                      Destinatario: {orderShippingRecipient(order)}
+                      <br />
+                      {shippingAddressLines.join(" · ")}
+                    </>
+                  ) : null}
                 </p>
               </section>
 
@@ -305,3 +318,4 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
     </>
   );
 }
+

@@ -29,6 +29,7 @@ import { ProductOptionsModule } from './modules/product-options/product-options.
 import { ScheduleModule } from '@nestjs/schedule';
 import { CustomerAddressesModule } from './modules/customers/customer-addresses/customer-addresses.module';
 import { BullModule } from '@nestjs/bullmq';
+import { runtimeConfig } from './config/runtime-config';
 
 
 @Module({
@@ -37,8 +38,8 @@ import { BullModule } from '@nestjs/bullmq';
 
     BullModule.forRoot({
       connection: {
-        host: '127.0.0.1',
-        port: 6379,
+        host: runtimeConfig.redisHost,
+        port: runtimeConfig.redisPort,
       },
     }),
 

@@ -1,5 +1,3 @@
-import { concreteTexture, editorialLines } from "@/themes/minimal/visuals";
-
 export default function Testimonials() {
   const reviews = [
     {
@@ -17,14 +15,19 @@ export default function Testimonials() {
   ];
 
   return (
-    <section style={{ padding: "84px 20px" }}>
+    <section
+      className="theme-block-section theme-block-section--testimonials"
+      style={{
+        padding: "84px 20px",
+      }}
+    >
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
         <h2
           style={{
             fontSize: "clamp(1.8rem, 3vw, 3rem)",
             textTransform: "uppercase",
             marginBottom: 28,
-            color: "#fff",
+            color: "var(--text-strong)",
           }}
         >
           Lo que se esta usando
@@ -40,25 +43,22 @@ export default function Testimonials() {
           {reviews.map((r, index) => (
             <blockquote
               key={r.name}
-              className="theme-hover-lift"
+              className="theme-hover-lift theme-block-card theme-testimonial-card"
+              data-featured={index === 1 ? "true" : "false"}
               style={{
                 margin: 0,
                 padding: 24,
-                borderRadius: 28,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background:
-                  index === 1
-                    ? `linear-gradient(180deg, rgba(243,238,231,0.16), rgba(255,255,255,0.05)), ${editorialLines}, ${concreteTexture}`
-                    : `linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)), ${editorialLines}, ${concreteTexture}`,
+                borderRadius: "var(--theme-radius-card)",
+                border: "1px solid var(--border-soft)",
                 backgroundSize: "cover, cover, cover",
               }}
             >
-              <p style={{ fontSize: 18, lineHeight: 1.7, marginBottom: 18, color: "#fff" }}>
-                "{r.text}"
+              <p style={{ fontSize: 18, lineHeight: 1.7, marginBottom: 18, color: "var(--text-strong)" }}>
+                &quot;{r.text}&quot;
               </p>
               <small
                 style={{
-                  color: "rgba(250,244,236,0.68)",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.14em",
                 }}

@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ecommerce Storefront
 
-## Getting Started
+Storefront publico del ecommerce, construido con Next.js App Router.
 
-First, run the development server:
+## Que cubre hoy
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Home composable por bloques.
+- Catalogo, categoria y detalle de producto.
+- Carrito y checkout.
+- Login, registro y area de cuenta.
+- Workspace administrativo embebido dentro del storefront.
+- Resolucion de tienda por host para desarrollo multi-tenant.
+
+## Variables de entorno
+
+Copiar `.env.example` a `.env.local`.
+
+Variables principales:
+
+- `NEXT_PUBLIC_API_URL`: URL base del backend, por ejemplo `http://localhost:3000/api`
+- `NEXT_PUBLIC_STORE_HOST_MAP`: mapa `host=storeId` para resolver tenants
+- `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY`: public key del checkout con Mercado Pago
+
+## Arranque local
+
+1. Instalar dependencias:
+
+```powershell
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Configurar `.env.local`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Levantar desarrollo en el puerto 3001:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+npm run dev:store1
+npm run dev:store2
+```
 
-## Learn More
+## Hosts de desarrollo
 
-To learn more about Next.js, take a look at the following resources:
+Por defecto:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `localhost:3001` -> tienda 1
+- `127.0.0.1:3001` -> tienda 1
+- `localhost:3002` -> tienda 2
+- `127.0.0.1:3002` -> tienda 2
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Si el host no esta mapeado, el storefront ahora falla de forma explicita en lugar de mandar todo a la tienda 1.
 
-## Deploy on Vercel
+## Scripts utiles
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `npm run dev`
+- `npm run dev:store1`
+- `npm run dev:store2`
+- `npm run lint`
+- `npm run build`
+- `npm run start`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Integracion local esperada
+
+- Backend corriendo en `http://localhost:3000`
+- Storefront corriendo en `http://localhost:3001`
+- Host mapping configurado para la tienda que quieras abrir
+
+## Notas
+
+- `NEXT_PUBLIC_API_URL` es obligatoria en produccion.
+- En desarrollo existe fallback local para evitar que el storefront explote temprano si falta esa variable.
+- Hoy la home multi-tienda sigue teniendo contenido hardcodeado por tienda en `src/lib/tenant/get-tenant.ts`.

@@ -22,7 +22,13 @@ export class ReturnsController {
   @UseGuards(JwtAuthGuard)
   @Post()
   create(@Req() req, @Body() dto: CreateReturnDto) {
-    return this.returnsService.createReturn(req.storeId, dto);
+    return this.returnsService.createReturn(req.storeId, req.user.sub, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('mine')
+  findMine(@Req() req) {
+    return this.returnsService.findMine(req.storeId, req.user.sub);
   }
 
   @UseGuards(AdminAuthGuard)

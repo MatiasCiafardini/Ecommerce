@@ -1,3 +1,5 @@
+import { getProducts } from "@/services/products.service";
+import HeroProductSpotlight from "@/blocks/hero/HeroProductSpotlight";
 import { concreteTexture, editorialLines, urbanSkyline } from "@/themes/minimal/visuals";
 
 type Props = {
@@ -10,7 +12,7 @@ type Props = {
   image?: string;
 };
 
-export default function Hero({
+export default async function Hero({
   title = "Streetwear para todos los dias",
   subtitle = "Remeras pesadas, buzos amplios y basicos con actitud urbana. Menos ruido, mas presencia.",
   buttonText = "Explorar catalogo",
@@ -19,14 +21,30 @@ export default function Hero({
   textColor = "white",
   image,
 }: Props) {
+  const products = await getProducts({ limit: 4 });
+  const normalizedTextColor = textColor.toLowerCase();
+  const isLightText = normalizedTextColor !== "white" && normalizedTextColor !== "#fff";
+  const titleColor = textColor;
+  const subtitleColor = isLightText ? "rgba(35,24,21,0.74)" : "rgba(255,255,255,0.82)";
+  const pillBorder = isLightText ? "rgba(35,24,21,0.16)" : "rgba(255,255,255,0.2)";
+  const pillBackground = isLightText ? "rgba(255,255,255,0.52)" : "rgba(255,255,255,0.05)";
+  const surfaceBorder = isLightText ? "rgba(63,37,29,0.14)" : "rgba(255,255,255,0.14)";
+  const surfaceText = isLightText ? "rgba(35,24,21,0.72)" : "rgba(255,255,255,0.72)";
+  const tagBorder = isLightText ? "rgba(63,37,29,0.12)" : "rgba(255,255,255,0.16)";
+  const tagBackground = isLightText ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.05)";
+  const tagText = isLightText ? "rgba(35,24,21,0.8)" : "rgba(255,255,255,0.82)";
+  const endGradientColor = isLightText ? "#fff4e8" : "#b3aba0";
+  const imageOverlayStart = isLightText ? "rgba(255,248,240,0.76)" : "rgba(16,16,16,0.74)";
+  const imageOverlayEnd = isLightText ? "rgba(214,190,166,0.42)" : "rgba(36,36,36,0.42)";
+
   return (
     <section
       className="theme-ambient-pan"
       style={{
         background:
           image
-            ? `linear-gradient(135deg, rgba(16,16,16,0.74), rgba(36,36,36,0.42)), url(${image}), ${urbanSkyline}`
-            : `linear-gradient(135deg, ${backgroundColor} 0%, #232323 48%, #b3aba0 100%), ${urbanSkyline}`,
+            ? `linear-gradient(135deg, ${imageOverlayStart}, ${imageOverlayEnd}), url(${image}), ${urbanSkyline}`
+            : `linear-gradient(135deg, ${backgroundColor} 0%, ${isLightText ? "#f3dfcf" : "#232323"} 48%, ${endGradientColor} 100%), ${urbanSkyline}`,
         padding: "88px 20px 96px",
         color: textColor,
         backgroundSize: "cover",
@@ -48,13 +66,13 @@ export default function Hero({
             style={{
               display: "inline-flex",
               padding: "8px 12px",
-              border: "1px solid rgba(255,255,255,0.2)",
+              border: `1px solid ${pillBorder}`,
               borderRadius: 999,
               fontSize: 12,
               letterSpacing: "0.18em",
               textTransform: "uppercase",
               marginBottom: 20,
-              background: "rgba(255,255,255,0.05)",
+              background: pillBackground,
             }}
           >
             Nueva capsula 2026
@@ -67,7 +85,7 @@ export default function Hero({
               marginBottom: 18,
               textTransform: "uppercase",
               letterSpacing: "-0.04em",
-              color: "#ffffff",
+              color: titleColor,
             }}
           >
             {title}
@@ -79,7 +97,7 @@ export default function Hero({
                 fontSize: 18,
                 maxWidth: 560,
                 marginBottom: 28,
-                color: "rgba(255,255,255,0.82)",
+                color: subtitleColor,
                 lineHeight: 1.7,
               }}
             >
@@ -92,8 +110,8 @@ export default function Hero({
               <button
                 className="theme-button"
                 style={{
-                  background: "#f3eee7",
-                  color: "#101010",
+                  background: "var(--paper)",
+                  color: "var(--background)",
                   padding: "16px 24px",
                   border: "none",
                   borderRadius: 999,
@@ -114,14 +132,16 @@ export default function Hero({
           style={{
             minHeight: 420,
             borderRadius: 32,
-            border: "1px solid rgba(255,255,255,0.14)",
+            border: `1px solid ${surfaceBorder}`,
             background:
               `linear-gradient(160deg, rgba(255,255,255,0.16), rgba(255,255,255,0.03)), ${editorialLines}, ${concreteTexture}`,
             padding: 24,
             display: "grid",
             alignContent: "space-between",
             backgroundSize: "cover, cover, cover",
+            width: "100%",
           }}
+          data-hero-product-spotlight
         >
           <div
             style={{
@@ -130,41 +150,26 @@ export default function Hero({
               fontSize: 12,
               letterSpacing: "0.18em",
               textTransform: "uppercase",
-              color: "rgba(255,255,255,0.72)",
+              color: surfaceText,
             }}
           >
             <span>Oversized fit</span>
             <span>Drop limitado</span>
           </div>
 
-          <div
-            style={{
-              border: "1px dashed rgba(255,255,255,0.18)",
-              borderRadius: 26,
-              minHeight: 260,
-              display: "grid",
-              placeItems: "center",
-              color: "rgba(255,255,255,0.7)",
-              textTransform: "uppercase",
-              letterSpacing: "0.18em",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))",
-            }}
-          >
-            Placeholder editorial
-          </div>
+          <HeroProductSpotlight products={products ?? []} />
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {["Heavy cotton", "Wide leg", "Neutral tones"].map((tag) => (
+            {["Heavy cotton", "Wide leg", "Rotacion diaria"].map((tag) => (
               <span
                 key={tag}
                 style={{
-                  border: "1px solid rgba(255,255,255,0.16)",
+                  border: `1px solid ${tagBorder}`,
                   borderRadius: 999,
                   padding: "10px 12px",
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.82)",
-                  background: "rgba(255,255,255,0.05)",
+                  color: tagText,
+                  background: tagBackground,
                 }}
               >
                 {tag}

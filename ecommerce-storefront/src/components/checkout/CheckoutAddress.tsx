@@ -8,8 +8,11 @@ type Address = {
   id: number;
   firstName: string;
   lastName: string;
+  phone?: string | null;
   address1: string;
+  address2?: string | null;
   city: string;
+  state?: string | null;
   zip: string;
   country: string;
 };
@@ -18,9 +21,9 @@ const fieldStyle = {
   width: "100%",
   padding: "14px 16px",
   borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#f7f1e8",
+  border: "1px solid var(--checkout-border)",
+  background: "var(--checkout-field-bg)",
+  color: "var(--checkout-field-color)",
 } as const;
 
 export default function CheckoutAddress({
@@ -86,9 +89,8 @@ export default function CheckoutAddress({
       <div
         style={{
           borderRadius: 32,
-          border: "1px solid rgba(255,255,255,0.08)",
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03))",
+          border: "1px solid var(--checkout-border)",
+          background: "var(--checkout-panel-bg)",
           padding: 28,
           display: "grid",
           gap: 18,
@@ -101,12 +103,18 @@ export default function CheckoutAddress({
               textTransform: "uppercase",
               letterSpacing: "0.24em",
               fontSize: 12,
-              color: "rgba(247,241,232,0.52)",
+              color: "var(--checkout-text-muted)",
             }}
           >
             Direccion de envio
           </p>
-          <h2 style={{ margin: "12px 0 0", fontSize: "clamp(2rem, 3vw, 3rem)" }}>
+          <h2
+            style={{
+              margin: "12px 0 0",
+              fontSize: "clamp(2rem, 3vw, 3rem)",
+              color: "var(--checkout-text-strong)",
+            }}
+          >
             Elegi donde llega el pedido
           </h2>
         </div>
@@ -116,10 +124,10 @@ export default function CheckoutAddress({
             <div
               style={{
                 borderRadius: 22,
-                border: "1px dashed rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.02)",
+                border: "1px dashed var(--checkout-border-strong)",
+                background: "var(--checkout-card-alt-bg)",
                 padding: 22,
-                color: "rgba(247,241,232,0.66)",
+                color: "var(--checkout-text-muted)",
                 lineHeight: 1.8,
               }}
             >
@@ -134,17 +142,19 @@ export default function CheckoutAddress({
                 <button
                   key={addr.id}
                   onClick={() => setSelected(addr)}
+                  className="checkout-select-card"
+                  data-active={active ? "true" : "false"}
                   style={{
                     width: "100%",
                     textAlign: "left",
                     borderRadius: 24,
                     border: active
-                      ? "1px solid rgba(255,255,255,0.24)"
-                      : "1px solid rgba(255,255,255,0.08)",
-                    background: active ? "rgba(255,255,255,0.08)" : "rgba(8,8,8,0.5)",
+                      ? "1px solid var(--checkout-border-strong)"
+                      : "1px solid var(--checkout-border)",
+                    background: active ? "var(--checkout-card-alt-bg)" : "var(--checkout-card-bg)",
                     padding: 22,
                     cursor: "pointer",
-                    color: "#f7f1e8",
+                    color: "var(--checkout-text-strong)",
                   }}
                 >
                   <p
@@ -153,18 +163,24 @@ export default function CheckoutAddress({
                       textTransform: "uppercase",
                       letterSpacing: "0.18em",
                       fontSize: 11,
-                      color: active ? "rgba(247,241,232,0.72)" : "rgba(247,241,232,0.44)",
+                      color: active ? "var(--checkout-text-strong)" : "var(--checkout-text-muted)",
                     }}
                   >
                     {active ? "Seleccionada" : "Disponible"}
                   </p>
-                  <h3 style={{ margin: "10px 0 8px", fontSize: 22 }}>
+                  <h3
+                    style={{
+                      margin: "10px 0 8px",
+                      fontSize: 22,
+                      color: "var(--checkout-text-strong)",
+                    }}
+                  >
                     {addr.firstName} {addr.lastName}
                   </h3>
                   <p
                     style={{
                       margin: 0,
-                      color: "rgba(247,241,232,0.72)",
+                      color: "var(--checkout-text-muted)",
                       lineHeight: 1.7,
                     }}
                   >
@@ -185,9 +201,8 @@ export default function CheckoutAddress({
         className="layout-sidebar"
         style={{
           borderRadius: 32,
-          border: "1px solid rgba(255,255,255,0.08)",
-          background:
-            "linear-gradient(180deg, rgba(243,238,231,0.14), rgba(255,255,255,0.04))",
+          border: "1px solid var(--checkout-border)",
+          background: "var(--checkout-panel-bg)",
           padding: 28,
           display: "grid",
           gap: 18,
@@ -201,12 +216,12 @@ export default function CheckoutAddress({
               textTransform: "uppercase",
               letterSpacing: "0.24em",
               fontSize: 12,
-              color: "rgba(247,241,232,0.52)",
+              color: "var(--checkout-text-muted)",
             }}
           >
             Nueva direccion
           </p>
-          <h3 style={{ margin: "12px 0 0", fontSize: 28 }}>
+          <h3 style={{ margin: "12px 0 0", fontSize: 28, color: "var(--checkout-text-strong)" }}>
             Suma una alternativa
           </h3>
         </div>
@@ -259,10 +274,10 @@ export default function CheckoutAddress({
           onClick={saveAddress}
           disabled={saving}
           style={{
-            border: "1px solid rgba(255,255,255,0.08)",
+            border: "1px solid var(--checkout-border)",
             borderRadius: 999,
-            background: "rgba(255,255,255,0.06)",
-            color: "#f7f1e8",
+            background: "var(--checkout-secondary-bg)",
+            color: "var(--checkout-secondary-color)",
             padding: "14px 18px",
             cursor: "pointer",
           }}
@@ -276,8 +291,8 @@ export default function CheckoutAddress({
           style={{
             border: "none",
             borderRadius: 999,
-            background: selected ? "#f7f1e8" : "rgba(255,255,255,0.12)",
-            color: selected ? "#0b0b0b" : "rgba(247,241,232,0.58)",
+            background: selected ? "var(--checkout-primary-bg)" : "var(--checkout-card-alt-bg)",
+            color: selected ? "var(--checkout-primary-color)" : "var(--checkout-text-muted)",
             padding: "15px 18px",
             fontWeight: 700,
             cursor: selected ? "pointer" : "not-allowed",

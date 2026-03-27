@@ -1,6 +1,8 @@
 import { getProducts } from "@/services/products.service";
 import ProductCard from "@/components/product/ProductCard";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{
     slug: string;
@@ -15,8 +17,7 @@ export default async function CategoryPage({ params }: Props) {
     <section
       style={{
         padding: "72px 20px",
-        background:
-          "radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 28%), linear-gradient(180deg, #141414 0%, #0b0b0b 100%)",
+        background: "var(--page-shell-bg)",
       }}
     >
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
@@ -26,12 +27,12 @@ export default async function CategoryPage({ params }: Props) {
             textTransform: "uppercase",
             letterSpacing: "-0.05em",
             marginBottom: 12,
-            color: "#ffffff",
+            color: "var(--text-strong)",
           }}
         >
           {slug.replace("-", " ")}
         </h1>
-        <p style={{ color: "rgba(250,244,236,0.76)", marginBottom: 28 }}>
+        <p style={{ color: "var(--text-muted)", marginBottom: 28 }}>
           Curaduria de prendas pensadas para armar un uniforme urbano simple,
           solido y versatil.
         </p>
@@ -39,10 +40,11 @@ export default async function CategoryPage({ params }: Props) {
         <div
           className="layout-product-grid"
           style={{
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, var(--product-card-width))",
+            justifyContent: "center",
           }}
         >
-          {products.map((product: any) => (
+          {products.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>

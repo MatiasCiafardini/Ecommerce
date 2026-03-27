@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { setScopedStorageItem } from "@/lib/store-browser-storage";
 import { useAuth, type User } from "@/context/auth-context";
 
 type ProfileForm = {
@@ -90,7 +91,7 @@ export default function ProfileSection({ user }: { user: User }) {
         body: JSON.stringify(payload),
       });
 
-      localStorage.setItem("user", JSON.stringify(updatedUser));
+      setScopedStorageItem("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
       setEditing(false);
       setForm((prev) => ({ ...prev, password: "", confirmPassword: "" }));
@@ -103,7 +104,7 @@ export default function ProfileSection({ user }: { user: User }) {
   };
 
   return (
-    <section style={cardStyle}>
+    <section style={cardStyle} data-account-panel>
       <div style={sectionHeader}>
         <div>
           <p style={eyebrowStyle}>Perfil</p>

@@ -1,21 +1,22 @@
 import {
   Injectable,
   NotFoundException,
-  Inject,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
-import type { ShippingProvider } from './providers/shipping-provider.interface';
+import { ShippingProvidersRegistryService } from './services/shipping-providers-registry.service';
+import { ShippingQuotesService } from './services/shipping-quotes.service';
+import { StoreShippingProviderConfigService } from './services/store-shipping-provider-config.service';
 
 @Injectable()
 export class ShippingService {
   constructor(
     private prisma: PrismaService,
-
-    @Inject('ShippingProvider')
-    private provider: ShippingProvider,
+    private providersRegistry: ShippingProvidersRegistryService,
+    private quotesService: ShippingQuotesService,
+    private providerConfigService: StoreShippingProviderConfigService,
   ) {}
 
   async getOptions(
@@ -23,6 +24,11 @@ export class ShippingService {
     cartId: number,
     customerId: number,
     postalCode: string,
+    destination?: {
+      state?: string;
+      city?: string;
+      country?: string;
+    },
   ) {
     const cart = await this.prisma.cart.findFirst({
       where: {
@@ -58,10 +64,46 @@ export class ShippingService {
       value += Number(item.variant.price) * item.quantity;
     }
 
-    return this.provider.getRates({
+    const request = {
       postalCode,
       weight,
       value,
+      ...(destination ?? {}),
+    };
+    const resolvedProvider =
+      await this.providerConfigService.resolveProviderForStore(storeId);
+    let rates;
+
+    try {
+      rates = await resolvedProvider.provider.getRates(
+        request,
+        resolvedProvider.context,
+      );
+    } catch (error) {
+      if (resolvedProvider.provider.providerCode === 'manual') {
+        throw error;
+      }
+
+      const manualProvider = this.providersRegistry.getProvider('manual');
+      rates = await manualProvider.getRates(request, {
+        storeId,
+        config: {
+          provider: 'manual',
+          source: 'env',
+        },
+      });
+    }
+
+    return this.quotesService.persistQuotes({
+      storeId,
+      cartId,
+      customerId,
+      postalCode,
+      weight,
+      value,
+      ...(destination ?? {}),
+      providerConfigId: resolvedProvider.config?.id ?? null,
+      rates,
     });
   }
 }

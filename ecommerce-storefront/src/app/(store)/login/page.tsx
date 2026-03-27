@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLoadingState />}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const { login } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
@@ -42,8 +50,8 @@ export default function LoginPage() {
     <section
       style={{
         padding: "72px 20px",
-        background:
-          "radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 30%), #0b0b0b",
+        background: "transparent",
+        color: "var(--text-strong)",
       }}
     >
       <div
@@ -61,9 +69,8 @@ export default function LoginPage() {
             minHeight: 620,
             padding: 32,
             borderRadius: 36,
-            background:
-              "linear-gradient(150deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "var(--page-panel-bg)",
+            border: "1px solid var(--border-soft)",
             display: "grid",
             alignContent: "space-between",
           }}
@@ -75,7 +82,7 @@ export default function LoginPage() {
                 textTransform: "uppercase",
                 letterSpacing: "0.2em",
                 fontSize: 12,
-                color: "rgba(247,241,232,0.56)",
+                color: "var(--text-muted)",
               }}
             >
               Asphalt members
@@ -91,7 +98,7 @@ export default function LoginPage() {
             >
               Volvé a tu cuenta
             </h1>
-            <p style={{ maxWidth: 460, color: "rgba(247,241,232,0.68)", lineHeight: 1.8 }}>
+            <p style={{ maxWidth: 460, color: "var(--text-muted)", lineHeight: 1.8 }}>
               Ingresá para revisar tus direcciones, completar tu compra y seguir el
               próximo drop urbano.
             </p>
@@ -102,12 +109,11 @@ export default function LoginPage() {
               minHeight: 260,
               padding: 24,
               borderRadius: 28,
-              border: "1px dashed rgba(255,255,255,0.16)",
-              color: "rgba(247,241,232,0.66)",
+              border: "1px dashed var(--border-soft)",
+              color: "var(--text-muted)",
               display: "grid",
               alignContent: "end",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))",
+              background: "var(--block-card-bg)",
             }}
           >
             <p
@@ -116,7 +122,7 @@ export default function LoginPage() {
                 textTransform: "uppercase",
                 letterSpacing: "0.18em",
                 fontSize: 11,
-                color: "rgba(247,241,232,0.42)",
+                color: "var(--text-muted)",
               }}
             >
               Access panel
@@ -133,8 +139,8 @@ export default function LoginPage() {
           style={{
             padding: 32,
             borderRadius: 36,
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "var(--page-panel-bg)",
+            border: "1px solid var(--border-soft)",
           }}
         >
           <h2 style={{ margin: "0 0 24px", fontSize: 28, textTransform: "uppercase" }}>
@@ -158,7 +164,7 @@ export default function LoginPage() {
             />
           </div>
 
-          {error ? <p style={{ color: "#ff8f8f", marginTop: 14 }}>{error}</p> : null}
+          {error ? <p style={{ color: "#d14f4f", marginTop: 14 }}>{error}</p> : null}
 
           <button
             onClick={handleLogin}
@@ -172,13 +178,13 @@ export default function LoginPage() {
             {loading ? "Ingresando..." : "Ingresar"}
           </button>
 
-          <p style={{ marginTop: 20, color: "rgba(247,241,232,0.68)" }}>
+          <p style={{ marginTop: 20, color: "var(--text-muted)" }}>
             ¿No tenés cuenta?{" "}
             <span
               onClick={() => router.push("/register")}
               style={{
                 cursor: "pointer",
-                color: "white",
+                color: "var(--text-strong)",
                 textDecoration: "underline",
                 textUnderlineOffset: 4,
               }}
@@ -192,20 +198,45 @@ export default function LoginPage() {
   );
 }
 
+function LoginLoadingState() {
+  return (
+    <section
+      style={{
+        padding: "72px 20px",
+        background: "transparent",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: 32,
+          borderRadius: 36,
+          background: "var(--page-panel-bg)",
+          border: "1px solid var(--border-soft)",
+          color: "var(--text-muted)",
+        }}
+      >
+        Cargando acceso...
+      </div>
+    </section>
+  );
+}
+
 const fieldStyle: React.CSSProperties = {
   width: "100%",
   padding: "14px 16px",
-  background: "rgba(255,255,255,0.04)",
-  color: "white",
-  border: "1px solid rgba(255,255,255,0.12)",
+  background: "var(--block-card-bg)",
+  color: "var(--text-strong)",
+  border: "1px solid var(--border-soft)",
   borderRadius: 16,
   outline: "none",
 };
 
 const primaryButton: React.CSSProperties = {
   padding: "16px 20px",
-  background: "white",
-  color: "#111",
+  background: "var(--text-strong)",
+  color: "var(--page-panel-bg)",
   border: "none",
   borderRadius: 999,
   cursor: "pointer",

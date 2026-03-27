@@ -2,26 +2,22 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateReturnDto } from './dto/create-return.dto';
 import { ApproveReturnDto } from './dto/approve-return.dto';
-import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 
 @Injectable()
 export class ReturnsService {
   constructor(
     private prisma: PrismaService,
-    private inventoryLockService: InventoryLockService,
     private mercadopago: MercadoPagoProvider,
   ) {}
 
-  /**
-   * Customer requests a return
-   */
-  async createReturn(storeId: number, dto: CreateReturnDto) {
+  async createReturn(storeId: number, customerId: number, dto: CreateReturnDto) {
     const order = await this.prisma.order.findFirst({
       where: {
         id: dto.orderId,
@@ -29,6 +25,11 @@ export class ReturnsService {
       },
       include: {
         items: true,
+        returns: {
+          include: {
+            items: true,
+          },
+        },
       },
     });
 
@@ -36,7 +37,35 @@ export class ReturnsService {
       throw new NotFoundException('Order not found');
     }
 
-    const orderItemsMap = new Map(order.items.map((i) => [i.id, i]));
+    if (order.customerId !== customerId) {
+      throw new ForbiddenException('You cannot request a return for this order');
+    }
+
+    if (order.status !== 'delivered') {
+      throw new BadRequestException(
+        'Returns are only available after the order is delivered',
+      );
+    }
+
+    if (!dto.items.length) {
+      throw new BadRequestException('Select at least one item to return');
+    }
+
+    const orderItemsMap = new Map(order.items.map((item) => [item.id, item]));
+    const pendingRequestedByItem = new Map<number, number>();
+
+    for (const existingReturn of order.returns) {
+      if (existingReturn.status !== 'requested') {
+        continue;
+      }
+
+      for (const item of existingReturn.items) {
+        pendingRequestedByItem.set(
+          item.orderItemId,
+          (pendingRequestedByItem.get(item.orderItemId) ?? 0) + item.quantity,
+        );
+      }
+    }
 
     for (const item of dto.items) {
       const orderItem = orderItemsMap.get(item.orderItemId);
@@ -45,10 +74,15 @@ export class ReturnsService {
         throw new BadRequestException('Invalid order item');
       }
 
-      const available = orderItem.quantity - orderItem.returnedQuantity;
+      if (item.quantity <= 0) {
+        throw new BadRequestException('Return quantity must be greater than zero');
+      }
+
+      const alreadyRequested = pendingRequestedByItem.get(item.orderItemId) ?? 0;
+      const available = orderItem.quantity - orderItem.returnedQuantity - alreadyRequested;
 
       if (item.quantity > available) {
-        throw new BadRequestException(`Cannot return more than purchased`);
+        throw new BadRequestException('Cannot return more than available units');
       }
     }
 
@@ -56,28 +90,22 @@ export class ReturnsService {
       data: {
         storeId,
         orderId: dto.orderId,
-        reason: dto.reason,
+        reason: dto.reason?.trim() || null,
         items: {
-          create: dto.items.map((i) => ({
-            orderItemId: i.orderItemId,
-            quantity: i.quantity,
+          create: dto.items.map((item) => ({
+            orderItemId: item.orderItemId,
+            quantity: item.quantity,
           })),
         },
       },
       include: {
         items: true,
+        refund: true,
       },
     });
   }
 
-  /**
-   * Admin approves return
-   */
-  async approveReturn(
-    storeId: number,
-    returnId: number,
-    dto: ApproveReturnDto,
-  ) {
+  async approveReturn(storeId: number, returnId: number, dto: ApproveReturnDto) {
     return this.prisma.$transaction(async (tx) => {
       const returnRequest = await tx.return.findFirst({
         where: {
@@ -86,7 +114,12 @@ export class ReturnsService {
         },
         include: {
           items: true,
-          order: true,
+          order: {
+            include: {
+              items: true,
+              refunds: true,
+            },
+          },
         },
       });
 
@@ -105,9 +138,6 @@ export class ReturnsService {
         });
       }
 
-      /**
-       * Restock inventory
-       */
       for (const item of returnRequest.items) {
         const orderItem = await tx.orderItem.findUnique({
           where: { id: item.orderItemId },
@@ -137,13 +167,12 @@ export class ReturnsService {
         });
       }
 
-      /**
-       * Refund payment
-       */
       const payment = await tx.payment.findFirst({
         where: {
           orderId: returnRequest.orderId,
-          status: 'approved',
+          status: {
+            in: ['approved', 'partially_refunded'],
+          },
         },
       });
 
@@ -151,16 +180,18 @@ export class ReturnsService {
 
       if (payment) {
         const refundAmount =
-          dto.refundAmount ?? returnRequest.order.total.toNumber();
+          dto.refundAmount ??
+          this.calculateSuggestedRefundAmount(returnRequest.order, returnRequest.items);
 
         try {
           if (payment.externalId) {
             await this.mercadopago.refundPayment(
+              storeId,
               payment.externalId,
               refundAmount,
             );
           }
-        } catch (error) {
+        } catch {
           console.warn('MercadoPago refund skipped (test mode)');
         }
 
@@ -173,6 +204,22 @@ export class ReturnsService {
             amount: refundAmount,
           },
         });
+
+        await tx.payment.update({
+          where: {
+            id: payment.id,
+          },
+          data: {
+            status:
+              this.hasFullyRefundedPayment(
+                Number(payment.amount),
+                Number(refundAmount),
+                returnRequest.order.refunds,
+              )
+                ? 'refunded'
+                : 'partially_refunded',
+          },
+        });
       }
 
       await tx.return.update({
@@ -182,7 +229,7 @@ export class ReturnsService {
         },
       });
 
-      if (refund) {
+      if (refund && this.isOrderFullyReturned(returnRequest.order, returnRequest.items)) {
         await tx.order.update({
           where: { id: returnRequest.orderId },
           data: {
@@ -198,12 +245,121 @@ export class ReturnsService {
     });
   }
 
+  private calculateSuggestedRefundAmount(
+    order: {
+      subtotal: { toNumber(): number } | number;
+      discountAmount: { toNumber(): number } | number;
+      shippingCost?: { toNumber(): number } | number | null;
+      items: Array<{
+        id: number;
+        quantity: number;
+        returnedQuantity: number;
+        price: { toNumber(): number } | number;
+      }>;
+    },
+    returnItems: Array<{
+      orderItemId: number;
+      quantity: number;
+    }>,
+  ) {
+    const orderSubtotal = Number(order.subtotal ?? 0);
+    const orderDiscount = Number(order.discountAmount ?? 0);
+    const shippingCost = Number(order.shippingCost ?? 0);
+    const orderItemsById = new Map(order.items.map((item) => [item.id, item]));
+
+    const returnedMerchandiseSubtotal = returnItems.reduce((total, item) => {
+      const orderItem = orderItemsById.get(item.orderItemId);
+      if (!orderItem) return total;
+
+      return total + Number(orderItem.price) * item.quantity;
+    }, 0);
+
+    const proportionalDiscount =
+      orderSubtotal > 0
+        ? (returnedMerchandiseSubtotal / orderSubtotal) * orderDiscount
+        : 0;
+
+    const allItemsReturnedAfterApproval = order.items.every((orderItem) => {
+      const requestedQuantity =
+        returnItems.find((item) => item.orderItemId === orderItem.id)?.quantity ?? 0;
+
+      return orderItem.returnedQuantity + requestedQuantity >= orderItem.quantity;
+    });
+
+    const refundAmount =
+      returnedMerchandiseSubtotal -
+      proportionalDiscount +
+      (allItemsReturnedAfterApproval ? shippingCost : 0);
+
+    return Math.max(Number(refundAmount.toFixed(2)), 0);
+  }
+
+  private isOrderFullyReturned(
+    order: {
+      items: Array<{
+        id: number;
+        quantity: number;
+        returnedQuantity: number;
+      }>;
+    },
+    returnItems: Array<{
+      orderItemId: number;
+      quantity: number;
+    }>,
+  ) {
+    return order.items.every((item) => {
+      const requestedQuantity =
+        returnItems.find((returnItem) => returnItem.orderItemId === item.id)
+          ?.quantity ?? 0;
+
+      return item.returnedQuantity + requestedQuantity >= item.quantity;
+    });
+  }
+
+  private hasFullyRefundedPayment(
+    paymentAmount: number,
+    latestRefundAmount: number,
+    existingRefunds: Array<{ amount: { toNumber(): number } | number }>,
+  ) {
+    const refundedSoFar = existingRefunds.reduce(
+      (total, refund) => total + Number(refund.amount),
+      0,
+    );
+
+    return refundedSoFar + latestRefundAmount >= paymentAmount;
+  }
+
   async findAll(storeId: number) {
     return this.prisma.return.findMany({
       where: { storeId },
       include: {
         items: true,
         refund: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async findMine(storeId: number, customerId: number) {
+    return this.prisma.return.findMany({
+      where: {
+        storeId,
+        order: {
+          customerId,
+        },
+      },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

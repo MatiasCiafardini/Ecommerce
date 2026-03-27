@@ -15,9 +15,6 @@ export class CheckoutController {
     @Param('cartId') cartId: string,
     @Body() dto: CheckoutDto,
   ) {
-    return this.checkoutService.checkout(req.storeId, Number(cartId), {
-      ...dto,
-      customerId: req.user.sub,
-    });
+    return this.checkoutService.checkout(req.storeId, Number(cartId), dto, req.user.sub);
   }
 }

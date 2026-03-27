@@ -1,9 +1,41 @@
-import { Controller, Post, Param, Body, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Param,
+  Post,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiConsumes, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { ReviewPaymentDto } from './dto/review-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { uploadsDir } from '../../common/uploads';
 
+const allowedTransferProofExtensions = new Set([
+  '.pdf',
+  '.png',
+  '.jpg',
+  '.jpeg',
+]);
+const allowedTransferProofMimeTypes = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+]);
+
+@ApiSecurity('x-store-id')
+@ApiBearerAuth('jwt')
+@ApiTags('Payments')
 @Controller()
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
@@ -20,6 +52,85 @@ export class PaymentsController {
       Number(orderId),
       dto,
       req.user,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('store/payments/:orderId/bank-transfer')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: uploadsDir,
+        filename: (_, file, callback) => {
+          const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `transfer-${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+      fileFilter: (_, file, callback) => {
+        const extension = extname(file.originalname).toLowerCase();
+        const mimeType = file.mimetype?.toLowerCase();
+
+        if (
+          !allowedTransferProofExtensions.has(extension) ||
+          !allowedTransferProofMimeTypes.has(mimeType)
+        ) {
+          callback(
+            new BadRequestException(
+              'Only PDF, PNG, JPG and JPEG transfer proofs are supported',
+            ) as Error,
+            false,
+          );
+          return;
+        }
+
+        callback(null, true);
+      },
+    }),
+  )
+  createBankTransferPayment(
+    @Req() req,
+    @Param('orderId') orderId: string,
+    @Body() dto: CreatePaymentDto,
+    @UploadedFile() file?: { filename: string; originalname: string },
+  ) {
+    return this.paymentsService.createBankTransferPayment(
+      req.storeId,
+      Number(orderId),
+      dto,
+      file,
+      req.user,
+    );
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('admin/payments/:paymentId/approve')
+  approvePayment(
+    @Req() req,
+    @Param('paymentId') paymentId: string,
+    @Body() dto: ReviewPaymentDto,
+  ) {
+    return this.paymentsService.approvePayment(
+      req.storeId,
+      Number(paymentId),
+      dto,
+    );
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('admin/payments/:paymentId/reject')
+  rejectPayment(
+    @Req() req,
+    @Param('paymentId') paymentId: string,
+    @Body() dto: ReviewPaymentDto,
+  ) {
+    return this.paymentsService.rejectPayment(
+      req.storeId,
+      Number(paymentId),
+      dto,
     );
   }
 

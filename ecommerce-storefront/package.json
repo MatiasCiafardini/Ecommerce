@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
+    "dev:store1": "set \"NEXT_DEV_DIST_DIR=.next-store1\" && next dev --webpack --port 3001",
+    "dev:store2": "set \"NEXT_DEV_DIST_DIR=.next-store2\" && next dev --webpack --port 3002",
+    "dev:store3": "set \"NEXT_DEV_DIST_DIR=.next-store3\" && next dev --webpack --port 3003",
+    "dev:store4": "set \"NEXT_DEV_DIST_DIR=.next-store4\" && next dev --webpack --port 3004",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

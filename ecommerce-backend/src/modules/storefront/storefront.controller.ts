@@ -25,6 +25,11 @@ export class StorefrontController {
     return this.storefrontService.getStoreConfig(req.headers.host);
   }
 
+  @Get('payment-config')
+  getPaymentConfig(@Req() req) {
+    return this.storefrontService.getPaymentConfig(req.storeId);
+  }
+
   @Get('products')
   getProducts(@Req() req, @Query() query: GetStoreProductsDto) {
     return this.storefrontService.getProducts(req.storeId, query);

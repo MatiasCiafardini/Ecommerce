@@ -1,7 +1,7 @@
 const axios = require('axios');
 
-const API = 'http://localhost:3000/api';
-const STORE_ID = 1;
+const API = process.env.BACKEND_API_URL || 'http://localhost:3000/api';
+const STORE_ID = Number(process.env.TEST_STORE_ID || 1);
 
 const api = axios.create({
   baseURL: API,
@@ -10,12 +10,29 @@ const api = axios.create({
 
 let token;
 let variantId;
+const ADMIN_PASSWORD_CANDIDATES = process.env.TEST_ADMIN_PASSWORD
+  ? [process.env.TEST_ADMIN_PASSWORD]
+  : ['admin123', '123456'];
 
 async function login() {
-  const res = await api.post('/auth/login', {
-    email: 'admin@demo.com',
-    password: '123456',
-  });
+  let res;
+  let lastError;
+
+  for (const password of ADMIN_PASSWORD_CANDIDATES) {
+    try {
+      res = await api.post('/auth/login', {
+        email: 'admin@demo.com',
+        password,
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!res) {
+    throw lastError;
+  }
 
   token = res.data.access_token;
   api.defaults.headers.Authorization = `Bearer ${token}`;

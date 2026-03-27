@@ -15,6 +15,10 @@
 
 # next.js
 /.next/
+/.next-store1/
+/.next-store2/
+/.next-store3/
+/.next-store4/
 /out/
 
 # production

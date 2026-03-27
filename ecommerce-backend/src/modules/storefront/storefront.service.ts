@@ -4,15 +4,19 @@ import { OrdersService } from '../orders/orders.service';
 import { CreateOrderDto } from '../orders/dto/create-order.dto';
 import { GetStoreProductsDto } from './dto/get-store-products.dto';
 import { Prisma } from '@prisma/client';
+import { ProductPricingService } from '../discounts/product-pricing.service';
+import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 
 @Injectable()
 export class StorefrontService {
   constructor(
     private prisma: PrismaService,
     private ordersService: OrdersService,
+    private productPricingService: ProductPricingService,
+    private mercadoPagoProvider: MercadoPagoProvider,
   ) {}
   async getStoreConfig(domain: string) {
-    const normalizedDomain = domain?.split(':')[0]?.toLowerCase();
+    const normalizedDomain = this.normalizeStoreDomain(domain);
     const store = await this.prisma.store.findUnique({
       where: { domain: normalizedDomain },
     });
@@ -24,15 +28,39 @@ export class StorefrontService {
     return {
       storeId: store.id,
       theme: 'minimal',
+      paymentProviders: {
+        mercadopago: await this.mercadoPagoProvider.getPublicConfig(store.id),
+      },
     };
   }
+
+  async getPaymentConfig(storeId: number) {
+    return {
+      mercadopago: await this.mercadoPagoProvider.getPublicConfig(storeId),
+    };
+  }
+
+  private normalizeStoreDomain(domain?: string) {
+    const normalized = domain?.trim().toLowerCase() ?? '';
+
+    if (
+      normalized.startsWith('localhost:') ||
+      normalized.startsWith('127.0.0.1:')
+    ) {
+      return normalized;
+    }
+
+    return normalized.split(':')[0];
+  }
+
   async getProducts(storeId: number, query?: GetStoreProductsDto) {
     const where = await this.buildProductsWhere(storeId, query);
-
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where,
       include: this.productInclude(storeId),
     });
+
+    return this.productPricingService.attachPricingToProducts(storeId, products);
   }
 
   getStoreProductOptions(storeId: number) {
@@ -58,12 +86,13 @@ export class StorefrontService {
     });
   }
 
-  getProduct(slug: string, storeId: number) {
-    return this.prisma.product.findFirst({
+  async getProduct(slug: string, storeId: number) {
+    const product = await this.prisma.product.findFirst({
       where: {
         slug,
         storeId,
         published: true,
+        deletedAt: null,
       },
       include: {
         images: true,
@@ -80,12 +109,34 @@ export class StorefrontService {
           },
         },
         categories: {
+          where: {
+            category: {
+              deletedAt: null,
+            },
+          },
           include: {
             category: true,
           },
         },
+        optionValues: {
+          select: {
+            productOptionId: true,
+            value: true,
+          },
+        },
       },
     });
+
+    if (!product) {
+      return null;
+    }
+
+    const [pricedProduct] = await this.productPricingService.attachPricingToProducts(
+      storeId,
+      [product],
+    );
+
+    return pricedProduct;
   }
 
   async getProductOptions(slug: string, storeId: number) {
@@ -136,7 +187,10 @@ export class StorefrontService {
 
   getCategories(storeId: number) {
     return this.prisma.category.findMany({
-      where: { storeId },
+      where: {
+        storeId,
+        deletedAt: null,
+      },
     });
   }
 
@@ -147,10 +201,12 @@ export class StorefrontService {
   ) {
     const where = await this.buildProductsWhere(storeId, query, slug);
 
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where,
       include: this.productInclude(storeId),
     });
+
+    return this.productPricingService.attachPricingToProducts(storeId, products);
   }
 
   createOrder(dto: CreateOrderDto, storeId: number) {
@@ -173,8 +229,19 @@ export class StorefrontService {
         },
       },
       categories: {
+        where: {
+          category: {
+            deletedAt: null,
+          },
+        },
         include: {
           category: true,
+        },
+      },
+      optionValues: {
+        select: {
+          productOptionId: true,
+          value: true,
         },
       },
     } satisfies Prisma.ProductInclude;
@@ -188,6 +255,7 @@ export class StorefrontService {
     const where: Prisma.ProductWhereInput = {
       storeId,
       published: true,
+      deletedAt: null,
     };
 
     if (categorySlug) {
@@ -196,6 +264,7 @@ export class StorefrontService {
           category: {
             slug: categorySlug,
             storeId,
+            deletedAt: null,
           },
         },
       };

@@ -1,6 +1,11 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import {
+  getScopedStorageItem,
+  setScopedStorageItem,
+} from "@/lib/store-browser-storage";
+import { roundCurrency } from "@/lib/currency";
 
 type CartItem = {
   productId: string;
@@ -29,6 +34,7 @@ type CartContextType = {
   updateQuantity: (variantId: string, quantity: number) => CartMutationResult;
   removeFromCart: (variantId: string) => void;
   clearCart: () => void;
+  replaceCart: (items: CartItem[]) => void;
 };
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -39,8 +45,15 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("cart");
-      setCart(stored ? (JSON.parse(stored) as CartItem[]) : []);
+      const stored = getScopedStorageItem("cart");
+      setCart(
+        stored
+          ? (JSON.parse(stored) as CartItem[]).map((item) => ({
+              ...item,
+              price: roundCurrency(item.price),
+            }))
+          : [],
+      );
     } catch {
       setCart([]);
     } finally {
@@ -51,7 +64,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   // guardar carrito
   useEffect(() => {
     if (!isHydrated) return;
-    localStorage.setItem("cart", JSON.stringify(cart));
+    setScopedStorageItem("cart", JSON.stringify(cart));
   }, [cart, isHydrated]);
 
   const addToCart = (item: CartItem, amount = 1): CartMutationResult => {
@@ -90,6 +103,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
             ? {
                 ...i,
                 ...item,
+                price: roundCurrency(item.price),
                 maxAvailable: safeMax,
                 quantity: i.quantity + amount,
               }
@@ -97,7 +111,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         );
       }
 
-      return [...prev, item];
+      return [...prev, { ...item, price: roundCurrency(item.price) }];
     });
 
     return {
@@ -167,10 +181,12 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const clearCart = () => setCart([]);
+  const replaceCart = (items: CartItem[]) =>
+    setCart(items.map((item) => ({ ...item, price: roundCurrency(item.price) })));
 
   return (
     <CartContext.Provider
-      value={{ cart, isHydrated, addToCart, updateQuantity, removeFromCart, clearCart }}
+      value={{ cart, isHydrated, addToCart, updateQuantity, removeFromCart, clearCart, replaceCart }}
     >
       {children}
     </CartContext.Provider>

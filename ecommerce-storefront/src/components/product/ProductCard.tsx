@@ -1,78 +1,105 @@
+import Image from "next/image";
 import Link from "next/link";
-
-type ProductCardImage = {
-  url: string;
-};
-
-type ProductCardVariant = {
-  price?: number | string | null;
-};
-
-type ProductCardProduct = {
-  slug: string;
-  title: string;
-  images?: ProductCardImage[];
-  variants?: ProductCardVariant[];
-};
+import { StoreProduct } from "@/types/store";
+import { resolveAssetUrl } from "@/lib/asset-url";
+import { formatCurrency, roundCurrency } from "@/lib/currency";
+import { getCatalogImageTransform } from "@/lib/product-image-layout";
 
 type Props = {
-  product: ProductCardProduct;
+  product: StoreProduct;
 };
 
 export default function ProductCard({ product }: Props) {
   const imageUrl =
     product.images && product.images.length > 0
-      ? product.images[0].url
+      ? resolveAssetUrl(product.images[0].url)
       : null;
 
-  const price = product.variants?.[0]?.price;
+  const fallbackPrice = Number(product.variants?.[0]?.price ?? product.price ?? 0);
+  const hasPromotion = Boolean(product.pricing?.hasActivePromotion);
+  const displayPrice = hasPromotion
+    ? roundCurrency(product.pricing?.finalPrice ?? fallbackPrice)
+    : roundCurrency(fallbackPrice);
+  const basePrice = hasPromotion
+    ? roundCurrency(product.pricing?.basePrice ?? fallbackPrice)
+    : roundCurrency(fallbackPrice);
 
   return (
     <Link
       href={`/product/${product.slug}`}
-      className="theme-hover-lift"
+      className="theme-hover-lift theme-block-card theme-product-card"
       style={{
         textDecoration: "none",
         color: "inherit",
         display: "grid",
-        gridTemplateRows: "320px 1fr",
-        height: "100%",
-        minHeight: 470,
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 28,
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
+        gridTemplateRows: "var(--product-card-media-height) 1fr",
+        width: "var(--product-card-width)",
+        maxWidth: "100%",
+        height: "var(--product-card-height)",
+        minHeight: "var(--product-card-height)",
+        border: "1px solid var(--border-soft)",
+        borderRadius: "var(--theme-radius-card)",
         overflow: "hidden",
       }}
     >
       <div
         className="product-card-media"
+        data-has-image={imageUrl ? "true" : "false"}
         style={{
-          minHeight: 320,
-          background: imageUrl
-            ? undefined
-            : "linear-gradient(145deg, #3a3a3a 0%, #a89f94 100%)",
+          height: "var(--product-card-media-height)",
+          minHeight: "var(--product-card-media-height)",
+          maxHeight: "var(--product-card-media-height)",
+          background: "#ffffff",
           display: "grid",
           placeItems: "center",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          overflow: "hidden",
+          borderBottom: "1px solid var(--border-soft)",
+          position: "relative",
+          zIndex: 0,
         }}
       >
+        {hasPromotion ? (
+          <span
+            style={{
+              position: "absolute",
+              top: 14,
+              left: 14,
+              zIndex: 2,
+              padding: "8px 10px",
+              borderRadius: "var(--theme-radius-pill)",
+              background: "var(--accent)",
+              color: "var(--accent-contrast, #fff)",
+              textTransform: "uppercase",
+              letterSpacing: "0.14em",
+              fontSize: 11,
+              fontWeight: 700,
+            }}
+          >
+            -{product.pricing?.discountPercentage}%
+          </span>
+        ) : null}
+
         {imageUrl ? (
-          <img
+          <Image
             src={imageUrl}
             alt={product.title}
-            className="product-card-image"
+            fill
+            unoptimized
+            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
             style={{
+              position: "absolute",
+              inset: 0,
               width: "100%",
               height: "100%",
-              objectFit: "cover",
-              objectPosition: "center top",
+              display: "block",
+              pointerEvents: "none",
+              ...getCatalogImageTransform(product.images?.[0]),
             }}
           />
         ) : (
           <span
             style={{
-              color: "rgba(255,255,255,0.8)",
+              color: "var(--text-muted)",
               textTransform: "uppercase",
               letterSpacing: "0.18em",
               fontSize: 12,
@@ -86,34 +113,50 @@ export default function ProductCard({ product }: Props) {
       <div
         className="product-card-copy"
         style={{
-          minHeight: 150,
+          minHeight: "var(--product-card-copy-min-height)",
           display: "grid",
           alignContent: "start",
+          gap: 6,
+          position: "relative",
+          zIndex: 1,
         }}
       >
+        {displayPrice > 0 ? (
+          <div style={{ display: "grid", gap: 6 }}>
+            {hasPromotion ? (
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--text-muted)",
+                  textDecoration: "line-through",
+                }}
+              >
+                {formatCurrency(basePrice)}
+              </p>
+            ) : null}
+            <p className="product-card-price" style={{ margin: 0, fontWeight: 700, color: "var(--text-strong)" }}>
+              {formatCurrency(displayPrice)}
+            </p>
+          </div>
+        ) : (
+          <p className="product-card-price" style={{ margin: 0, color: "var(--text-muted)" }}>
+            Consultar precio
+          </p>
+        )}
+        <h3 className="product-card-title" style={{ margin: 0, color: "var(--text-strong)" }}>
+          {product.title}
+        </h3>
         <p
           className="product-card-kicker"
           style={{
-            margin: "0 0 10px",
-            color: "rgba(250,244,236,0.68)",
+            margin: 0,
+            color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.16em",
           }}
         >
           Streetwear essential
         </p>
-        <h3 className="product-card-title" style={{ margin: "0 0 8px", color: "#ffffff" }}>
-          {product.title}
-        </h3>
-        {price ? (
-          <p className="product-card-price" style={{ margin: 0, fontWeight: 700, color: "#f3eee7" }}>
-            ${price}
-          </p>
-        ) : (
-          <p className="product-card-price" style={{ margin: 0, color: "rgba(250,244,236,0.7)" }}>
-            Consultar precio
-          </p>
-        )}
       </div>
     </Link>
   );

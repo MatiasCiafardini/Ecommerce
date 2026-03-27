@@ -10,17 +10,20 @@ const steps = [
 export default function CheckoutLayout({
   children,
   step,
+  onStepSelect,
+  canNavigateToStep,
 }: {
   children: React.ReactNode;
   step: number;
+  onStepSelect?: (step: number) => void;
+  canNavigateToStep?: (step: number) => boolean;
 }) {
   return (
     <main
       style={{
         minHeight: "calc(100vh - 180px)",
         padding: "72px 24px 96px",
-        background:
-          "radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 30%), radial-gradient(circle at top right, rgba(243,238,231,0.2), transparent 24%), linear-gradient(180deg, #1a1a1a 0%, #0b0b0b 100%)",
+        background: "var(--page-shell-bg)",
       }}
     >
       <div
@@ -34,9 +37,8 @@ export default function CheckoutLayout({
         <section
           style={{
             borderRadius: 36,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background:
-              "linear-gradient(180deg, rgba(243,238,231,0.12), rgba(255,255,255,0.04))",
+            border: "1px solid var(--checkout-border)",
+            background: "var(--checkout-panel-strong-bg)",
             padding: "30px 32px",
             display: "grid",
             gap: 24,
@@ -50,7 +52,7 @@ export default function CheckoutLayout({
                 textTransform: "uppercase",
                 letterSpacing: "0.28em",
                 fontSize: 12,
-                color: "rgba(247,241,232,0.52)",
+                color: "var(--text-muted)",
               }}
             >
               Checkout
@@ -76,37 +78,53 @@ export default function CheckoutLayout({
             {steps.map((item) => {
               const state =
                 item.number === step ? "active" : item.number < step ? "done" : "idle";
+              const isClickable =
+                typeof onStepSelect === "function" &&
+                (canNavigateToStep ? canNavigateToStep(item.number) : item.number <= step);
 
               return (
-                <div
+                <button
+                  type="button"
                   key={item.number}
+                  className="checkout-step-button"
+                  data-state={state}
+                  onClick={() => {
+                    if (!isClickable) return;
+                    onStepSelect?.(item.number);
+                  }}
+                  disabled={!isClickable}
                   style={{
                     borderRadius: 22,
                     border:
                       state === "active"
-                        ? "1px solid rgba(255,255,255,0.2)"
-                        : "1px solid rgba(255,255,255,0.08)",
+                        ? "1px solid var(--checkout-border-strong)"
+                        : "1px solid var(--checkout-border)",
                     background:
                       state === "active"
-                        ? "rgba(243,238,231,0.18)"
+                        ? "var(--ghost-chip-active-bg)"
                         : state === "done"
-                          ? "rgba(255,255,255,0.08)"
-                          : "rgba(255,255,255,0.02)",
+                          ? "var(--ghost-chip-bg)"
+                          : "transparent",
                     padding: "16px 18px",
                     display: "flex",
                     alignItems: "center",
                     gap: 14,
+                    textAlign: "left",
+                    color: "var(--checkout-text-strong)",
+                    cursor: isClickable ? "pointer" : "default",
+                    opacity: isClickable ? 1 : 0.86,
                   }}
                 >
                   <div
+                    className="checkout-step-badge"
                     style={{
                       width: 34,
                       height: 34,
                       borderRadius: "50%",
                       display: "grid",
                       placeItems: "center",
-                      background: state === "active" ? "#f7f1e8" : "rgba(255,255,255,0.08)",
-                      color: state === "active" ? "#0b0b0b" : "#f7f1e8",
+                      background: state === "active" ? "var(--paper)" : "var(--ghost-chip-bg)",
+                      color: state === "active" ? "var(--background)" : "var(--checkout-text-strong)",
                       fontWeight: 700,
                     }}
                   >
@@ -119,7 +137,7 @@ export default function CheckoutLayout({
                         fontSize: 11,
                         textTransform: "uppercase",
                         letterSpacing: "0.18em",
-                        color: "rgba(247,241,232,0.48)",
+                        color: "var(--checkout-text-muted)",
                       }}
                     >
                       Paso {item.number}
@@ -128,7 +146,7 @@ export default function CheckoutLayout({
                       {item.label}
                     </strong>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

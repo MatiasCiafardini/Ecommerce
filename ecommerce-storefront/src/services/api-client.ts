@@ -1,21 +1,56 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+import { headers } from "next/headers";
+import { resolveStoreIdFromHost } from "@/lib/tenant/store-context";
+import { getPublicApiUrl } from "@/lib/runtime-config";
 
-export async function apiFetch(path: string) {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: {
-      "x-store-id": "1",
-    },
-    cache: "no-store",
-  });
+const API_URL = getPublicApiUrl();
 
-  if (!res.ok) {
-    console.error("API ERROR", res.status);
+export async function apiFetch<T>(path: string): Promise<T | null> {
+  if (!API_URL) {
+    console.error("API ERROR missing NEXT_PUBLIC_API_URL", { path });
     return null;
   }
 
-  const text = await res.text();
+  try {
+    const requestHeaders = await headers();
+    const storeId = resolveStoreIdFromHost(requestHeaders.get("host"));
 
-  if (!text) return null;
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: {
+        "x-store-id": String(storeId),
+      },
+      cache: "no-store",
+    });
 
-  return JSON.parse(text);
+    if (!res.ok) {
+      console.error("API ERROR", {
+        path,
+        status: res.status,
+        storeId,
+      });
+      return null;
+    }
+
+    const text = await res.text();
+
+    if (!text) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(text) as T;
+    } catch (error) {
+      console.error("API ERROR invalid JSON", {
+        path,
+        text: text.slice(0, 180),
+        error,
+      });
+      return null;
+    }
+  } catch (error) {
+    console.error("API ERROR request failed", {
+      path,
+      error,
+    });
+    return null;
+  }
 }

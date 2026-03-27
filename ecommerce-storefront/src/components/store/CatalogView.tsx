@@ -1,51 +1,43 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ProductCard from "@/components/product/ProductCard";
-
-type StoreOption = {
-  id: number;
-  name: string;
-  values: Array<{
-    id: number;
-    productId: number;
-    value: string;
-  }>;
-};
+import { StoreCategory, StoreProduct, StoreProductOption, StoreVariant } from "@/types/store";
+import { formatCurrency, roundCurrency } from "@/lib/currency";
 
 type CatalogViewProps = {
-  products: any[];
-  storeOptions: StoreOption[];
+  products: StoreProduct[];
+  storeOptions: StoreProductOption[];
 };
 
-const getPrice = (product: any) => {
+const getPrice = (product: StoreProduct) => {
   const prices = (product.variants ?? [])
-    .map((variant: any) => Number(variant.price ?? 0))
+    .map((variant) => Number(variant.price ?? 0))
     .filter((price: number) => Number.isFinite(price) && price > 0);
 
   if (prices.length > 0) {
-    return Math.min(...prices);
+    return roundCurrency(Math.min(...prices));
   }
 
-  return Number(product.price ?? 0);
+  return roundCurrency(product.price ?? 0);
 };
 
-const getAvailableStock = (variant: any) => {
+const getAvailableStock = (variant: StoreVariant) => {
   const inventories = variant.inventories ?? [];
   return inventories.reduce(
-    (total: number, inventory: any) =>
+    (total: number, inventory) =>
       total + Math.max(Number(inventory.quantity ?? 0) - Number(inventory.reserved ?? 0), 0),
     0,
   );
 };
 
-const hasStock = (product: any) =>
-  (product.variants ?? []).some((variant: any) => getAvailableStock(variant) > 0);
+const hasStock = (product: StoreProduct) =>
+  (product.variants ?? []).some((variant) => getAvailableStock(variant) > 0);
 
-const getProductCategories = (product: any) =>
-  (product.categories ?? []).map((entry: any) => entry.category).filter(Boolean);
+const getProductCategories = (product: StoreProduct): StoreCategory[] =>
+  (product.categories ?? []).map((entry) => entry.category).filter(Boolean);
 
-const normalizeOptionGroups = (storeOptions: StoreOption[]) =>
+const normalizeOptionGroups = (storeOptions: StoreProductOption[]) =>
   storeOptions.map((option) => {
     const groupedValues = new Map<
       string,
@@ -92,7 +84,7 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
     const map = new Map<string, string>();
 
     products.forEach((product) => {
-      getProductCategories(product).forEach((category: any) => {
+      getProductCategories(product).forEach((category) => {
         if (!map.has(category.slug)) {
           map.set(category.slug, category.name);
         }
@@ -107,7 +99,7 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
       [
         ...new Set(
           products.flatMap((product) =>
-            (product.variants ?? []).map((variant: any) => variant.Size).filter(Boolean),
+            (product.variants ?? []).map((variant) => variant.Size).filter(Boolean),
           ),
         ),
       ] as string[],
@@ -122,6 +114,21 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
   const [priceMin, setPriceMin] = useState(String(minCatalogPrice || ""));
   const [priceMax, setPriceMax] = useState(String(maxCatalogPrice || ""));
   const [onlyStock, setOnlyStock] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [isMobileLayout, setIsMobileLayout] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+
+    const syncViewport = () => {
+      setIsMobileLayout(mediaQuery.matches);
+    };
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+
+    return () => mediaQuery.removeEventListener("change", syncViewport);
+  }, []);
 
   const toggleValue = (
     value: string,
@@ -154,9 +161,9 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const price = getPrice(product);
-      const productCategories = getProductCategories(product).map((category: any) => category.slug);
+      const productCategories = getProductCategories(product).map((category) => category.slug);
       const productSizes = (product.variants ?? [])
-        .map((variant: any) => variant.Size)
+        .map((variant) => variant.Size)
         .filter(Boolean);
       const available = hasStock(product);
 
@@ -226,15 +233,44 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
     setOnlyStock(true);
   };
 
+  const activeFilterCount =
+    selectedCategories.length +
+    selectedSizes.length +
+    Object.values(selectedOptionValues).reduce(
+      (total, values) => total + values.length,
+      0,
+    ) +
+    (onlyStock ? 1 : 0) +
+    (priceMin !== String(minCatalogPrice || "") ? 1 : 0) +
+    (priceMax !== String(maxCatalogPrice || "") ? 1 : 0);
+
+  const desktopCatalogMetrics = filtersOpen
+    ? {
+        cardWidth: "258px",
+        cardHeight: "390px",
+        mediaHeight: "264px",
+        copyMinHeight: "126px",
+        gap: 20,
+        columns: "repeat(3, minmax(0, var(--product-card-width)))",
+      }
+    : {
+        cardWidth: "272px",
+        cardHeight: "412px",
+        mediaHeight: "282px",
+        copyMinHeight: "130px",
+        gap: 18,
+        columns: "repeat(4, minmax(0, var(--product-card-width)))",
+      };
+
   return (
     <section
       style={{
         padding: "72px 20px",
-        background:
-          "radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 28%), linear-gradient(180deg, #141414 0%, #0b0b0b 100%)",
+        background: "var(--page-shell-bg)",
+        overflowX: "clip",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto", display: "grid", gap: 28 }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto", display: "grid", gap: 28, width: "100%", minWidth: 0 }}>
         <div>
           <h1
             style={{
@@ -242,184 +278,28 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
               textTransform: "uppercase",
               letterSpacing: "-0.05em",
               marginBottom: 12,
-              color: "#ffffff",
+              color: "var(--text-strong)",
             }}
           >
             Catalogo
           </h1>
-          <p style={{ color: "rgba(250,244,236,0.76)", maxWidth: 680, margin: 0 }}>
+          <p style={{ color: "var(--text-muted)", maxWidth: 680, margin: 0 }}>
             Seleccion completa de prendas urbanas con siluetas relajadas, tonos
             neutros y basicos listos para la calle.
           </p>
         </div>
 
-        <div
-          className="layout-two-col"
-          style={{ gridTemplateColumns: "minmax(260px, 0.34fr) minmax(0, 1fr)" }}
-        >
-          <aside
+        <div style={{ display: "grid", gap: 18 }}>
+          <div
             style={{
-              borderRadius: 30,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
-              padding: 24,
+              borderRadius: 24,
+              border: "1px solid var(--border-soft)",
+              background: "var(--page-panel-bg)",
+              padding: "16px 18px",
               display: "grid",
-              gap: 22,
-              alignSelf: "start",
+              gap: 16,
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    margin: "0 0 8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.18em",
-                    fontSize: 12,
-                    color: "rgba(247,241,232,0.54)",
-                  }}
-                >
-                  Filtros
-                </p>
-                <strong style={{ fontSize: 24, color: "#fff" }}>
-                  Refina tu seleccion
-                </strong>
-              </div>
-
-              <button
-                type="button"
-                onClick={clearFilters}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "transparent",
-                  color: "#f7f1e8",
-                  cursor: "pointer",
-                }}
-              >
-                Limpiar
-              </button>
-            </div>
-
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#f7f1e8",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={onlyStock}
-                onChange={(event) => setOnlyStock(event.target.checked)}
-              />
-              Solo mostrar productos con stock
-            </label>
-
-            <div style={{ display: "grid", gap: 12 }}>
-              <p style={filterLabelStyle}>Rango de precio</p>
-              <div className="layout-form-two">
-                <input
-                  value={priceMin}
-                  onChange={(event) => setPriceMin(event.target.value)}
-                  placeholder="Min"
-                  style={fieldStyle}
-                  inputMode="numeric"
-                />
-                <input
-                  value={priceMax}
-                  onChange={(event) => setPriceMax(event.target.value)}
-                  placeholder="Max"
-                  style={fieldStyle}
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-
-            {categoryOptions.length > 0 ? (
-              <div style={{ display: "grid", gap: 12 }}>
-                <p style={filterLabelStyle}>Categorias</p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {categoryOptions.map((category) => {
-                    const selected = selectedCategories.includes(category.slug);
-                    return (
-                      <button
-                        key={category.slug}
-                        type="button"
-                        onClick={() =>
-                          toggleValue(category.slug, selectedCategories, setSelectedCategories)
-                        }
-                        className="theme-button"
-                        style={chipStyle(selected)}
-                      >
-                        {category.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-
-            {sizeOptions.length > 0 ? (
-              <div style={{ display: "grid", gap: 12 }}>
-                <p style={filterLabelStyle}>Talles</p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {sizeOptions.map((size) => {
-                    const selected = selectedSizes.includes(size);
-                    return (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => toggleValue(size, selectedSizes, setSelectedSizes)}
-                        className="theme-button"
-                        style={chipStyle(selected)}
-                      >
-                        {size}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-
-            {dynamicOptions.map((option) => (
-              <div key={option.id} style={{ display: "grid", gap: 12 }}>
-                <p style={filterLabelStyle}>{option.name}</p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {option.values.map((value) => {
-                    const selected = (selectedOptionValues[option.id] ?? []).includes(
-                      value.label,
-                    );
-
-                    return (
-                      <button
-                        key={`${option.id}-${value.label}`}
-                        type="button"
-                        onClick={() => toggleDynamicValue(option.id, value.label)}
-                        className="theme-button"
-                        style={chipStyle(selected)}
-                      >
-                        {value.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </aside>
-
-          <div style={{ display: "grid", gap: 18 }}>
             <div
               style={{
                 display: "flex",
@@ -429,42 +309,246 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
                 flexWrap: "wrap",
               }}
             >
-              <p style={{ margin: 0, color: "rgba(247,241,232,0.7)" }}>
-                {filteredProducts.length} producto{filteredProducts.length === 1 ? "" : "s"} encontrados
-              </p>
-              <p style={{ margin: 0, color: "rgba(247,241,232,0.5)" }}>
-                Precio entre ${minCatalogPrice.toLocaleString("es-AR")} y $
-                {maxCatalogPrice.toLocaleString("es-AR")}
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen((current) => !current)}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 999,
+                    border: "1px solid var(--border-soft)",
+                    background: "transparent",
+                    color: "var(--text-strong)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+                </button>
+
+                <p style={{ margin: 0, color: "var(--text-muted)" }}>
+                  {filteredProducts.length} producto{filteredProducts.length === 1 ? "" : "s"} encontrados
+                </p>
+              </div>
+
+              <p style={{ margin: 0, color: "var(--text-muted)" }}>
+                Precio entre {formatCurrency(minCatalogPrice)} y {formatCurrency(maxCatalogPrice)}
               </p>
             </div>
+          </div>
 
-            {filteredProducts.length === 0 ? (
-              <div
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobileLayout
+                ? "minmax(0, 1fr)"
+                : filtersOpen
+                  ? "minmax(280px, 320px) minmax(0, 1fr)"
+                  : "0 minmax(0, 1fr)",
+              gridTemplateRows: isMobileLayout
+                ? filtersOpen
+                  ? "auto minmax(0, 1fr)"
+                  : "0 minmax(0, 1fr)"
+                : undefined,
+              gap: filtersOpen ? (isMobileLayout ? 18 : 28) : 0,
+              alignItems: "start",
+              transition:
+                "grid-template-columns 320ms var(--ease-theme), grid-template-rows 320ms var(--ease-theme), gap 320ms var(--ease-theme)",
+            }}
+          >
+            <aside
+              style={{
+                minWidth: 0,
+                width: isMobileLayout ? "100%" : filtersOpen ? "100%" : 0,
+                maxHeight: isMobileLayout ? (filtersOpen ? 2000 : 0) : "none",
+                opacity: filtersOpen ? 1 : 0,
+                overflow: "hidden",
+                pointerEvents: filtersOpen ? "auto" : "none",
+                borderRadius: 28,
+                border: filtersOpen
+                  ? "1px solid var(--border-soft)"
+                  : "1px solid transparent",
+                background: "var(--page-panel-bg)",
+                padding: filtersOpen ? 24 : 0,
+                display: "grid",
+                gap: 22,
+                transition:
+                  "width 320ms var(--ease-theme), max-height 320ms var(--ease-theme), opacity 220ms var(--ease-theme), padding 320ms var(--ease-theme), border-color 320ms var(--ease-theme)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <strong style={{ fontSize: 22, color: "var(--text-strong)" }}>
+                  Refina tu seleccion
+                </strong>
+
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 999,
+                    border: "1px solid var(--border-soft)",
+                    background: "transparent",
+                    color: "var(--text-strong)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Limpiar
+                </button>
+              </div>
+
+              <label
                 style={{
-                  borderRadius: 28,
-                  border: "1px dashed rgba(255,255,255,0.14)",
-                  background: "rgba(255,255,255,0.02)",
-                  padding: 30,
-                  color: "rgba(247,241,232,0.7)",
-                  lineHeight: 1.8,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  color: "var(--text-strong)",
                 }}
               >
-                No encontramos productos con esa combinacion de filtros. Prueba abrir el rango de
-                precio o quitar alguna seleccion.
+                <input
+                  type="checkbox"
+                  checked={onlyStock}
+                  onChange={(event) => setOnlyStock(event.target.checked)}
+                />
+                Solo mostrar productos con stock
+              </label>
+
+              <div style={{ display: "grid", gap: 12 }}>
+                <p style={filterLabelStyle}>Rango de precio</p>
+                <div className="layout-form-two">
+                  <input
+                    value={priceMin}
+                    onChange={(event) => setPriceMin(event.target.value)}
+                    placeholder="Min"
+                    style={fieldStyle}
+                    inputMode="numeric"
+                  />
+                  <input
+                    value={priceMax}
+                    onChange={(event) => setPriceMax(event.target.value)}
+                    placeholder="Max"
+                    style={fieldStyle}
+                    inputMode="numeric"
+                  />
+                </div>
               </div>
-            ) : (
-              <div
-                className="layout-product-grid"
-                style={{
-                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 280px))",
-                  justifyContent: "start",
-                }}
-              >
-                {filteredProducts.map((product: any) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-            )}
+
+              {categoryOptions.length > 0 ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <p style={filterLabelStyle}>Categorias</p>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {categoryOptions.map((category) => {
+                      const selected = selectedCategories.includes(category.slug);
+                      return (
+                        <button
+                          key={category.slug}
+                          type="button"
+                          onClick={() =>
+                            toggleValue(category.slug, selectedCategories, setSelectedCategories)
+                          }
+                          className="theme-button"
+                          style={chipStyle(selected)}
+                        >
+                          {category.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {sizeOptions.length > 0 ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <p style={filterLabelStyle}>Talles</p>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {sizeOptions.map((size) => {
+                      const selected = selectedSizes.includes(size);
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => toggleValue(size, selectedSizes, setSelectedSizes)}
+                          className="theme-button"
+                          style={chipStyle(selected)}
+                        >
+                          {size}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {dynamicOptions.map((option) => (
+                <div key={option.id} style={{ display: "grid", gap: 12 }}>
+                  <p style={filterLabelStyle}>{option.name}</p>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {option.values.map((value) => {
+                      const selected = (selectedOptionValues[option.id] ?? []).includes(
+                        value.label,
+                      );
+
+                      return (
+                        <button
+                          key={`${option.id}-${value.label}`}
+                          type="button"
+                          onClick={() => toggleDynamicValue(option.id, value.label)}
+                          className="theme-button"
+                          style={chipStyle(selected)}
+                        >
+                          {value.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </aside>
+
+            <div style={{ minWidth: 0, width: "100%", overflowX: "clip" }}>
+              {filteredProducts.length === 0 ? (
+                <div
+                  style={{
+                    borderRadius: 28,
+                    border: "1px dashed var(--border-soft)",
+                    background: "var(--page-panel-bg)",
+                    padding: 30,
+                    color: "var(--text-muted)",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  No encontramos productos con esa combinacion de filtros. Prueba abrir el rango de
+                  precio o quitar alguna seleccion.
+                </div>
+              ) : (
+                <div
+                  className="layout-product-grid"
+                  style={{
+                    ["--product-card-width" as string]: isMobileLayout
+                      ? undefined
+                      : desktopCatalogMetrics.cardWidth,
+                    ["--product-card-height" as string]: isMobileLayout
+                      ? undefined
+                      : desktopCatalogMetrics.cardHeight,
+                    ["--product-card-media-height" as string]: isMobileLayout
+                      ? undefined
+                      : desktopCatalogMetrics.mediaHeight,
+                    ["--product-card-copy-min-height" as string]: isMobileLayout
+                      ? undefined
+                      : desktopCatalogMetrics.copyMinHeight,
+                    gridTemplateColumns: isMobileLayout
+                      ? "repeat(auto-fit, var(--product-card-width))"
+                      : desktopCatalogMetrics.columns,
+                    gap: isMobileLayout ? 16 : desktopCatalogMetrics.gap,
+                    width: "100%",
+                    justifyContent: "center",
+                  }}
+                >
+                  {filteredProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -475,9 +559,9 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
 const fieldStyle: React.CSSProperties = {
   width: "100%",
   padding: "12px 14px",
-  background: "rgba(255,255,255,0.04)",
-  color: "white",
-  border: "1px solid rgba(255,255,255,0.12)",
+  background: "var(--muted-field-bg)",
+  color: "var(--muted-field-color)",
+  border: "1px solid var(--border-soft)",
   borderRadius: 16,
   outline: "none",
 };
@@ -487,19 +571,19 @@ const filterLabelStyle: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.16em",
   fontSize: 12,
-  color: "rgba(247,241,232,0.72)",
+  color: "var(--text-muted)",
 };
 
 const chipStyle = (selected: boolean): React.CSSProperties => ({
   padding: "10px 14px",
   borderRadius: 999,
   border: selected
-    ? "1px solid rgba(255,255,255,0.28)"
-    : "1px solid rgba(255,255,255,0.12)",
+    ? "1px solid var(--ghost-chip-active-border)"
+    : "1px solid var(--ghost-chip-border)",
   background: selected
-    ? "rgba(243,238,231,0.16)"
-    : "rgba(255,255,255,0.03)",
-  color: "white",
+    ? "var(--ghost-chip-active-bg)"
+    : "var(--ghost-chip-bg)",
+  color: "var(--ghost-chip-color)",
   cursor: "pointer",
   textTransform: "uppercase",
   letterSpacing: "0.12em",

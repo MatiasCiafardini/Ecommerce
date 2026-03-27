@@ -6,6 +6,8 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { AddProductOptionValueDto } from './dto/add-product-option-value.dto';
+import { UpdateProductOptionDto } from './dto/update-product-option.dto';
+import { RenameProductOptionValueDto } from './dto/rename-product-option-value.dto';
 
 @Injectable()
 export class ProductOptionsService {
@@ -32,12 +34,25 @@ export class ProductOptionsService {
     });
 
     return options.map((option) => ({
-      ...option,
+      id: option.id,
+      name: option.name,
+      storeId: option.storeId,
+      createdAt: option.createdAt,
+      productsCount: new Set(option.values.map((value) => value.productId)).size,
+      usageCount: option.values.length,
       reusableValues: [
         ...new Map(
           option.values.map((value) => [
             value.value.trim().toLowerCase(),
-            { id: value.id, value: value.value },
+            {
+              id: value.id,
+              value: value.value,
+              productsCount: option.values.filter(
+                (entry) =>
+                  entry.value.trim().toLowerCase() ===
+                  value.value.trim().toLowerCase(),
+              ).length,
+            },
           ]),
         ).values(),
       ],
@@ -67,6 +82,108 @@ export class ProductOptionsService {
         name: normalizedName,
       },
     });
+  }
+
+  async updateOption(
+    storeId: number,
+    optionId: number,
+    dto: UpdateProductOptionDto,
+  ) {
+    const normalizedName = dto.name.trim();
+    const option = await this.prisma.productOption.findFirst({
+      where: {
+        id: optionId,
+        storeId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!option) {
+      throw new NotFoundException('Product option not found');
+    }
+
+    const existing = await this.prisma.productOption.findFirst({
+      where: {
+        storeId,
+        id: {
+          not: optionId,
+        },
+        name: {
+          equals: normalizedName,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Product option already exists');
+    }
+
+    return this.prisma.productOption.update({
+      where: {
+        id: optionId,
+      },
+      data: {
+        name: normalizedName,
+      },
+    });
+  }
+
+  async deleteOption(storeId: number, optionId: number, force = false) {
+    const option = await this.prisma.productOption.findFirst({
+      where: {
+        id: optionId,
+        storeId,
+      },
+      include: {
+        values: {
+          select: {
+            id: true,
+            productId: true,
+          },
+        },
+      },
+    });
+
+    if (!option) {
+      throw new NotFoundException('Product option not found');
+    }
+
+    const productsCount = new Set(option.values.map((value) => value.productId)).size;
+
+    if (productsCount > 0 && !force) {
+      throw new BadRequestException(
+        `Product option is still used by ${productsCount} product(s)`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (option.values.length > 0) {
+        await tx.productOptionValue.deleteMany({
+          where: {
+            productOptionId: optionId,
+          },
+        });
+      }
+
+      await tx.productOption.delete({
+        where: {
+          id: optionId,
+        },
+      });
+    });
+
+    return {
+      deleted: true,
+      optionId,
+      removedValues: option.values.length,
+      affectedProducts: productsCount,
+    };
   }
 
   async addValueToProduct(
@@ -205,5 +322,188 @@ export class ProductOptionsService {
         id: valueId,
       },
     });
+  }
+
+  async renameReusableValue(
+    storeId: number,
+    optionId: number,
+    dto: RenameProductOptionValueDto,
+  ) {
+    const currentValue = dto.currentValue.trim();
+    const nextValue = dto.nextValue.trim();
+
+    if (
+      currentValue.localeCompare(nextValue, undefined, {
+        sensitivity: 'accent',
+      }) === 0
+    ) {
+      throw new BadRequestException('Value name did not change');
+    }
+
+    const option = await this.prisma.productOption.findFirst({
+      where: {
+        id: optionId,
+        storeId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!option) {
+      throw new NotFoundException('Product option not found');
+    }
+
+    const currentEntries = await this.prisma.productOptionValue.findMany({
+      where: {
+        productOptionId: optionId,
+        value: {
+          equals: currentValue,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+        productId: true,
+      },
+    });
+
+    if (currentEntries.length === 0) {
+      throw new NotFoundException('Product option value not found');
+    }
+
+    const conflictEntries = await this.prisma.productOptionValue.findMany({
+      where: {
+        productOptionId: optionId,
+        value: {
+          equals: nextValue,
+          mode: 'insensitive',
+        },
+        productId: {
+          in: currentEntries.map((entry) => entry.productId),
+        },
+      },
+      select: {
+        id: true,
+        productId: true,
+      },
+    });
+
+    const conflictProductIds = conflictEntries.map((entry) => entry.productId);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const deleted = conflictProductIds.length
+        ? await tx.productOptionValue.deleteMany({
+            where: {
+              productOptionId: optionId,
+              productId: {
+                in: conflictProductIds,
+              },
+              value: {
+                equals: currentValue,
+                mode: 'insensitive',
+              },
+            },
+          })
+        : { count: 0 };
+
+      const updated = await tx.productOptionValue.updateMany({
+        where: {
+          productOptionId: optionId,
+          value: {
+            equals: currentValue,
+            mode: 'insensitive',
+          },
+          productId: conflictProductIds.length
+            ? {
+                notIn: conflictProductIds,
+              }
+            : undefined,
+        },
+        data: {
+          value: nextValue,
+        },
+      });
+
+      return {
+        deletedCount: deleted.count,
+        updatedCount: updated.count,
+      };
+    });
+
+    return {
+      renamed: true,
+      optionId,
+      currentValue,
+      nextValue,
+      updatedCount: result.updatedCount,
+      mergedCount: result.deletedCount,
+    };
+  }
+
+  async deleteReusableValue(
+    storeId: number,
+    optionId: number,
+    value: string,
+    force = false,
+  ) {
+    const normalizedValue = value.trim();
+    const option = await this.prisma.productOption.findFirst({
+      where: {
+        id: optionId,
+        storeId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!option) {
+      throw new NotFoundException('Product option not found');
+    }
+
+    const usageEntries = await this.prisma.productOptionValue.findMany({
+      where: {
+        productOptionId: optionId,
+        value: {
+          equals: normalizedValue,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+        productId: true,
+      },
+    });
+
+    if (usageEntries.length === 0) {
+      throw new NotFoundException('Product option value not found');
+    }
+
+    const productsCount = new Set(usageEntries.map((entry) => entry.productId)).size;
+
+    if (productsCount > 0 && !force) {
+      throw new BadRequestException(
+        `Product option value is still used by ${productsCount} product(s)`,
+      );
+    }
+
+    const deleted = await this.prisma.productOptionValue.deleteMany({
+      where: {
+        productOptionId: optionId,
+        value: {
+          equals: normalizedValue,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    return {
+      deleted: true,
+      optionId,
+      value: normalizedValue,
+      removedValues: deleted.count,
+      affectedProducts: productsCount,
+    };
   }
 }

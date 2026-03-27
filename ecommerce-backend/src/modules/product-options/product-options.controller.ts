@@ -4,7 +4,9 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -13,6 +15,9 @@ import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { ProductOptionsService } from './product-options.service';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { AddProductOptionValueDto } from './dto/add-product-option-value.dto';
+import { UpdateProductOptionDto } from './dto/update-product-option.dto';
+import { RenameProductOptionValueDto } from './dto/rename-product-option-value.dto';
+import { RemoveProductOptionValueDto } from './dto/remove-product-option-value.dto';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
@@ -30,6 +35,47 @@ export class ProductOptionsController {
   @Post('product-options')
   createOption(@Req() req, @Body() dto: CreateProductOptionDto) {
     return this.service.createOption(req.storeId, dto);
+  }
+
+  @Patch('product-options/:id')
+  updateOption(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: UpdateProductOptionDto,
+  ) {
+    return this.service.updateOption(req.storeId, Number(id), dto);
+  }
+
+  @Delete('product-options/:id')
+  deleteOption(
+    @Req() req,
+    @Param('id') id: string,
+    @Query('force') force?: string,
+  ) {
+    return this.service.deleteOption(req.storeId, Number(id), force === 'true');
+  }
+
+  @Post('product-options/:id/reusable-values/rename')
+  renameReusableValue(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: RenameProductOptionValueDto,
+  ) {
+    return this.service.renameReusableValue(req.storeId, Number(id), dto);
+  }
+
+  @Post('product-options/:id/reusable-values/remove')
+  removeReusableValue(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: RemoveProductOptionValueDto,
+  ) {
+    return this.service.deleteReusableValue(
+      req.storeId,
+      Number(id),
+      dto.value,
+      dto.force ?? false,
+    );
   }
 
   @Post('products/:productId/option-values')

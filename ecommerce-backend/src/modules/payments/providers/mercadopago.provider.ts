@@ -1,20 +1,52 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class MercadoPagoProvider {
-  private client: MercadoPagoConfig;
-  private accessToken: string;
+  constructor(private readonly prisma: PrismaService) {}
 
-  constructor() {
-    this.accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN!;
-    this.client = new MercadoPagoConfig({
-      accessToken: this.accessToken,
+  private async getAccessToken(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        mercadoPagoAccessToken: true,
+      },
+    });
+    const accessToken = store?.mercadoPagoAccessToken?.trim();
+
+    if (!accessToken) {
+      throw new ServiceUnavailableException(
+        'Mercado Pago is not configured for this store. Set mercadoPagoAccessToken before enabling card payments.',
+      );
+    }
+
+    return accessToken;
+  }
+
+  async getPublicConfig(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        mercadoPagoPublicKey: true,
+      },
+    });
+    const publicKey = store?.mercadoPagoPublicKey?.trim() ?? '';
+
+    return {
+      enabled: Boolean(publicKey),
+      publicKey: publicKey || null,
+    };
+  }
+
+  private async createClient(storeId: number) {
+    return new MercadoPagoConfig({
+      accessToken: await this.getAccessToken(storeId),
     });
   }
 
   async createPayment(data: any) {
-    const payment = new Payment(this.client);
+    const payment = new Payment(await this.createClient(data.storeId));
 
     const result = await payment.create({
       body: {
@@ -24,17 +56,25 @@ export class MercadoPagoProvider {
         installments: data.installments,
         payment_method_id: data.paymentMethodId,
         issuer_id: data.issuerId,
+        external_reference: data.externalReference,
         payer: {
           email: data.email,
+          first_name: data.firstName,
+          last_name: data.lastName,
         },
       },
+      requestOptions: data.idempotencyKey
+        ? {
+            idempotencyKey: data.idempotencyKey,
+          }
+        : undefined,
     });
 
     return result;
   }
 
-  async getPayment(paymentId: string) {
-    const payment = new Payment(this.client);
+  async getPayment(storeId: number, paymentId: string) {
+    const payment = new Payment(await this.createClient(storeId));
 
     const result = await payment.get({
       id: paymentId,
@@ -46,13 +86,14 @@ export class MercadoPagoProvider {
   /**
    * Refund payment
    */
-  async refundPayment(paymentId: string, amount?: number) {
+  async refundPayment(storeId: number, paymentId: string, amount?: number) {
+    const accessToken = await this.getAccessToken(storeId);
     const response = await fetch(
       `https://api.mercadopago.com/v1/payments/${paymentId}/refunds`,
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${this.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(amount ? { amount } : {}),

@@ -4,6 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Error al crear cuenta";
+};
+
 export default function RegisterPage() {
   const router = useRouter();
 
@@ -41,8 +49,8 @@ export default function RegisterPage() {
       });
 
       router.push("/login");
-    } catch (err: any) {
-      setError(err.message || "Error al crear cuenta");
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -52,8 +60,8 @@ export default function RegisterPage() {
     <section
       style={{
         padding: "72px 20px",
-        background:
-          "radial-gradient(circle at top, rgba(255,255,255,0.08), transparent 34%), #0b0b0b",
+        background: "var(--page-shell-bg)",
+        color: "var(--text-strong)",
       }}
     >
       <div
@@ -62,8 +70,8 @@ export default function RegisterPage() {
           margin: "0 auto",
           padding: 32,
           borderRadius: 36,
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "var(--page-panel-bg)",
+          border: "1px solid var(--border-soft)",
         }}
       >
         <p
@@ -72,7 +80,7 @@ export default function RegisterPage() {
             textTransform: "uppercase",
             letterSpacing: "0.18em",
             fontSize: 12,
-            color: "rgba(247,241,232,0.56)",
+            color: "var(--text-muted)",
           }}
         >
           New member
@@ -90,7 +98,7 @@ export default function RegisterPage() {
         </h1>
         <p
           style={{
-            color: "rgba(247,241,232,0.68)",
+            color: "var(--text-muted)",
             maxWidth: 520,
             lineHeight: 1.8,
             marginBottom: 24,
@@ -150,7 +158,7 @@ export default function RegisterPage() {
           />
         </div>
 
-        {error ? <p style={{ color: "#ff8f8f", marginTop: 14 }}>{error}</p> : null}
+        {error ? <p style={{ color: "#d14f4f", marginTop: 14 }}>{error}</p> : null}
 
         <button
           onClick={handleRegister}
@@ -167,17 +175,17 @@ export default function RegisterPage() {
 const fieldStyle: React.CSSProperties = {
   width: "100%",
   padding: "14px 16px",
-  background: "rgba(255,255,255,0.04)",
-  color: "white",
-  border: "1px solid rgba(255,255,255,0.12)",
+  background: "var(--muted-field-bg)",
+  color: "var(--muted-field-color)",
+  border: "1px solid var(--border-soft)",
   borderRadius: 16,
   outline: "none",
 };
 
 const primaryButton: React.CSSProperties = {
   padding: "16px 20px",
-  background: "white",
-  color: "#111",
+  background: "var(--text-strong)",
+  color: "var(--page-panel-bg)",
   border: "none",
   borderRadius: 999,
   cursor: "pointer",

@@ -2,6 +2,8 @@ import { getProductBySlug } from "@/services/products.service";
 import { getProductOptions } from "@/services/product-options.service";
 import ProductView from "@/components/product/ProductView";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{
     slug: string;

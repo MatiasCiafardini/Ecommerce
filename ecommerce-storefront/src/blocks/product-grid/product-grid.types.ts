@@ -1,1 +1,1 @@
-export type ProductGridProps = {}
+export type ProductGridProps = Record<string, never>;
