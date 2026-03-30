@@ -8,7 +8,12 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateReturnDto } from './dto/create-return.dto';
 import { ApproveReturnDto } from './dto/approve-return.dto';
+import { ReviewReturnDto } from './dto/review-return.dto';
+import { ReceiveReturnDto } from './dto/receive-return.dto';
+import { ShipReturnDto } from './dto/ship-return.dto';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
+
+type UploadedReturnProof = { filename: string; originalname: string };
 
 @Injectable()
 export class ReturnsService {
@@ -106,6 +111,141 @@ export class ReturnsService {
   }
 
   async approveReturn(storeId: number, returnId: number, dto: ApproveReturnDto) {
+    return this.reviewReturn(storeId, returnId, {
+      approve: dto.approve,
+      adminNotes: dto.approve && dto.refundAmount != null
+        ? `Refund amount requested for resolution: ${dto.refundAmount}`
+        : undefined,
+    });
+  }
+
+  async reviewReturn(storeId: number, returnId: number, dto: ReviewReturnDto) {
+    const returnRequest = await this.prisma.return.findFirst({
+      where: {
+        id: returnId,
+        storeId,
+      },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!returnRequest) {
+      throw new NotFoundException('Return not found');
+    }
+
+    if (returnRequest.status !== 'requested') {
+      throw new BadRequestException('Return already processed');
+    }
+
+    return this.prisma.return.update({
+      where: { id: returnId },
+      data: dto.approve
+        ? {
+            status: 'approved',
+            approvedAt: new Date(),
+            adminInstructions: dto.adminInstructions?.trim() || null,
+            adminNotes: dto.adminNotes?.trim() || null,
+          }
+        : {
+            status: 'rejected',
+            adminNotes: dto.adminNotes?.trim() || null,
+          },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+  }
+
+  async shipReturn(
+    storeId: number,
+    customerId: number,
+    returnId: number,
+    dto: ShipReturnDto,
+    file?: UploadedReturnProof,
+  ) {
+    const returnRequest = await this.prisma.return.findFirst({
+      where: {
+        id: returnId,
+        storeId,
+        order: {
+          customerId,
+        },
+      },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!returnRequest) {
+      throw new NotFoundException('Return not found');
+    }
+
+    if (returnRequest.status !== 'approved') {
+      throw new BadRequestException(
+        'Only approved returns can be marked as shipped by the customer',
+      );
+    }
+
+    if (returnRequest.shippedAt || returnRequest.receivedAt || returnRequest.resolvedAt) {
+      throw new BadRequestException('Return shipping was already registered');
+    }
+
+    if (!dto.carrier?.trim() && !dto.trackingNumber?.trim() && !file?.filename) {
+      throw new BadRequestException(
+        'Provide at least one shipping detail or proof for this return',
+      );
+    }
+
+    return this.prisma.return.update({
+      where: { id: returnId },
+      data: {
+        customerShipmentCarrier: dto.carrier?.trim() || null,
+        customerShipmentTracking: dto.trackingNumber?.trim() || null,
+        customerShipmentProofUrl: file?.filename
+          ? `/uploads/${file.filename}`
+          : returnRequest.customerShipmentProofUrl,
+        shippedAt: new Date(),
+      },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+  }
+
+  async receiveReturn(storeId: number, returnId: number, dto: ReceiveReturnDto) {
     return this.prisma.$transaction(async (tx) => {
       const returnRequest = await tx.return.findFirst({
         where: {
@@ -127,44 +267,50 @@ export class ReturnsService {
         throw new NotFoundException('Return not found');
       }
 
-      if (returnRequest.status !== 'requested') {
-        throw new BadRequestException('Return already processed');
+      if (
+        returnRequest.status !== 'approved' &&
+        returnRequest.status !== 'received'
+      ) {
+        throw new BadRequestException(
+          'Only approved or received returns can be processed from this step',
+        );
       }
 
-      if (!dto.approve) {
-        return tx.return.update({
-          where: { id: returnId },
-          data: { status: 'rejected' },
-        });
+      if (returnRequest.resolvedAt) {
+        throw new BadRequestException('Return was already resolved');
       }
 
-      for (const item of returnRequest.items) {
-        const orderItem = await tx.orderItem.findUnique({
-          where: { id: item.orderItemId },
-        });
+      const wasAlreadyReceived = Boolean(returnRequest.receivedAt);
 
-        if (!orderItem) continue;
+      if (!wasAlreadyReceived) {
+        for (const item of returnRequest.items) {
+          const orderItem = await tx.orderItem.findUnique({
+            where: { id: item.orderItemId },
+          });
 
-        await tx.inventory.updateMany({
-          where: {
-            variantId: orderItem.variantId,
-            storeId,
-          },
-          data: {
-            quantity: {
-              increment: item.quantity,
+          if (!orderItem) continue;
+
+          await tx.inventory.updateMany({
+            where: {
+              variantId: orderItem.variantId,
+              storeId,
             },
-          },
-        });
-
-        await tx.orderItem.update({
-          where: { id: orderItem.id },
-          data: {
-            returnedQuantity: {
-              increment: item.quantity,
+            data: {
+              quantity: {
+                increment: item.quantity,
+              },
             },
-          },
-        });
+          });
+
+          await tx.orderItem.update({
+            where: { id: orderItem.id },
+            data: {
+              returnedQuantity: {
+                increment: item.quantity,
+              },
+            },
+          });
+        }
       }
 
       const payment = await tx.payment.findFirst({
@@ -176,9 +322,10 @@ export class ReturnsService {
         },
       });
 
-      let refund;
+      const shouldRefund = dto.refundCustomer !== false;
+      let refund: { id: number; amount: { toNumber(): number } | number } | null = null;
 
-      if (payment) {
+      if (payment && shouldRefund) {
         const refundAmount =
           dto.refundAmount ??
           this.calculateSuggestedRefundAmount(returnRequest.order, returnRequest.items);
@@ -222,10 +369,37 @@ export class ReturnsService {
         });
       }
 
-      await tx.return.update({
+      const nextStatus = refund
+        ? 'refunded'
+        : shouldRefund || wasAlreadyReceived
+          ? 'resolved'
+          : 'received';
+
+      const updatedReturn = await tx.return.update({
         where: { id: returnId },
         data: {
-          status: refund ? 'refunded' : 'approved',
+          status: nextStatus,
+          receivedAt: returnRequest.receivedAt ?? new Date(),
+          resolvedAt:
+            nextStatus === 'resolved' || nextStatus === 'refunded'
+              ? new Date()
+              : null,
+          adminNotes: dto.adminNotes?.trim()
+            ? [returnRequest.adminNotes, dto.adminNotes.trim()]
+                .filter(Boolean)
+                .join('\n')
+            : returnRequest.adminNotes,
+        },
+        include: {
+          items: true,
+          refund: true,
+          order: {
+            select: {
+              id: true,
+              status: true,
+              createdAt: true,
+            },
+          },
         },
       });
 
@@ -240,6 +414,7 @@ export class ReturnsService {
 
       return {
         success: true,
+        return: updatedReturn,
         refund,
       };
     });

@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { OrderStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -12,6 +13,7 @@ import { MercadoPagoProvider } from './providers/mercadopago.provider';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ReviewPaymentDto } from './dto/review-payment.dto';
 import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
+import { runtimeConfig } from '../../config/runtime-config';
 
 type Requester = { sub: number; role?: string };
 type UploadedTransferProof = { filename: string; originalname: string };
@@ -92,6 +94,10 @@ export class PaymentsService {
 
     if (mpPayment.status === 'approved') {
       await this.finalizeApprovedOrder(order.id);
+    }
+
+    if (mpPayment.status === 'rejected' || mpPayment.status === 'cancelled') {
+      await this.cancelPendingOrder(order.id);
     }
 
     return payment;
@@ -188,7 +194,7 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
-    return this.prisma.payment.update({
+    const updated = await this.prisma.payment.update({
       where: { id: payment.id },
       data: {
         status: 'rejected',
@@ -198,9 +204,17 @@ export class PaymentsService {
         reviewedAt: new Date(),
       },
     });
+
+    await this.cancelPendingOrder(payment.orderId);
+
+    return updated;
   }
 
-  async handleWebhook(body: any) {
+  async handleWebhook(
+    body: any,
+    headers?: Record<string, string | string[] | undefined>,
+    query?: Record<string, string | string[] | undefined>,
+  ) {
     if (body.type !== 'payment') {
       return { received: true };
     }
@@ -219,6 +233,13 @@ export class PaymentsService {
     if (!payment) {
       return { received: true };
     }
+
+    await this.verifyMercadoPagoWebhookSignature(
+      payment.storeId,
+      body,
+      headers,
+      query,
+    );
 
     const mpPayment = await this.mercadopago.getPayment(
       payment.storeId,
@@ -367,5 +388,100 @@ export class PaymentsService {
         },
       });
     });
+  }
+
+  private async verifyMercadoPagoWebhookSignature(
+    storeId: number,
+    body: any,
+    headers?: Record<string, string | string[] | undefined>,
+    query?: Record<string, string | string[] | undefined>,
+  ) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        mercadoPagoWebhookSecret: true,
+      },
+    });
+    const webhookSecret =
+      store?.mercadoPagoWebhookSecret?.trim() ||
+      runtimeConfig.mercadoPagoWebhookSecret?.trim();
+
+    if (!webhookSecret) {
+      throw new ServiceUnavailableException(
+        'Mercado Pago webhook secret is not configured',
+      );
+    }
+
+    const signatureHeader = this.readHeaderValue(headers, 'x-signature');
+    const requestIdHeader = this.readHeaderValue(headers, 'x-request-id');
+    const dataId =
+      this.readQueryValue(query, 'data.id') ??
+      String(body?.data?.id ?? '').trim();
+
+    if (!signatureHeader || !requestIdHeader || !dataId) {
+      throw new BadRequestException(
+        'Mercado Pago webhook signature headers are missing',
+      );
+    }
+
+    const signatureParts = new Map(
+      signatureHeader.split(',').map((part) => {
+        const [key, ...rest] = part.trim().split('=');
+        return [key?.trim().toLowerCase(), rest.join('=').trim()];
+      }),
+    );
+
+    const ts = signatureParts.get('ts');
+    const receivedV1 = signatureParts.get('v1');
+
+    if (!ts || !receivedV1) {
+      throw new BadRequestException(
+        'Mercado Pago webhook signature is malformed',
+      );
+    }
+
+    const manifest = `id:${dataId};request-id:${requestIdHeader};ts:${ts};`;
+    const expectedV1 = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(manifest)
+      .digest('hex');
+
+    const receivedBuffer = Buffer.from(receivedV1, 'hex');
+    const expectedBuffer = Buffer.from(expectedV1, 'hex');
+
+    if (
+      receivedBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
+    ) {
+      throw new BadRequestException(
+        'Mercado Pago webhook signature is invalid',
+      );
+    }
+  }
+
+  private readHeaderValue(
+    headers: Record<string, string | string[] | undefined> | undefined,
+    name: string,
+  ) {
+    const value = headers?.[name] ?? headers?.[name.toLowerCase()];
+
+    if (Array.isArray(value)) {
+      return value[0]?.trim();
+    }
+
+    return value?.trim();
+  }
+
+  private readQueryValue(
+    query: Record<string, string | string[] | undefined> | undefined,
+    name: string,
+  ) {
+    const value = query?.[name];
+
+    if (Array.isArray(value)) {
+      return value[0]?.trim();
+    }
+
+    return value?.trim();
   }
 }
