@@ -4,15 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
-import { money, orderStatusLabel, type CustomerOrder } from "@/components/account/order-utils";
-
-type ReturnNotificationEntry = {
-  id: number;
-  orderId: number;
-  status: string;
-  createdAt: string;
-  updatedAt?: string;
-};
 
 type NotificationItem = {
   id: string;
@@ -48,39 +39,45 @@ export function NotificationsMenuInner({
 
     const storageKey = readStorageKey(user.id, user.role);
     setLastSeenAt(localStorage.getItem(storageKey));
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !open) {
+      return;
+    }
+
+    let active = true;
 
     const loadNotifications = async () => {
       try {
         setLoading(true);
 
-        if (isAdmin) {
-          const [ordersData, returnsData] = await Promise.all([api("/orders"), api("/returns")]);
-          const orderNotifications = buildAdminOrderNotifications(
-            Array.isArray(ordersData) ? (ordersData as CustomerOrder[]) : [],
-          );
-          const returnNotifications = buildAdminReturnNotifications(
-            Array.isArray(returnsData) ? (returnsData as ReturnNotificationEntry[]) : [],
-          );
+        const response = await api(
+          isAdmin ? "/orders/notifications" : "/customers/me/orders/notifications",
+        );
 
-          setItems([...orderNotifications, ...returnNotifications].sort(compareNotifications));
+        if (!active) {
           return;
         }
 
-        const ordersData = await api("/customers/me/orders");
-        setItems(
-          buildCustomerNotifications(
-            Array.isArray(ordersData) ? (ordersData as CustomerOrder[]) : [],
-          ).sort(compareNotifications),
-        );
+        setItems(Array.isArray(response?.items) ? (response.items as NotificationItem[]) : []);
       } catch {
-        setItems([]);
+        if (active) {
+          setItems([]);
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
     void loadNotifications();
-  }, [isAdmin, user]);
+
+    return () => {
+      active = false;
+    };
+  }, [isAdmin, open, user]);
 
   useEffect(() => {
     if (!open || !user) return;
@@ -300,94 +297,6 @@ function BellIcon() {
   );
 }
 
-function buildCustomerNotifications(orders: CustomerOrder[]): NotificationItem[] {
-  return orders.flatMap((order) => {
-    const createdNotification: NotificationItem = {
-      id: `customer-order-created-${order.id}`,
-      title: `Compra confirmada #${order.id}`,
-      body: `Tu compra fue registrada correctamente por ${money(order.total)}.`,
-      createdAt: order.createdAt,
-      href: `/account/orders/${order.id}`,
-    };
-
-    const statusTime =
-      order.shipment?.trackingEvents?.[0]?.createdAt ??
-      ("updatedAt" in order && typeof order.updatedAt === "string" ? order.updatedAt : order.createdAt);
-
-    const statusNotification =
-      order.status !== "pending"
-        ? {
-            id: `customer-order-status-${order.id}-${order.status}`,
-            title: getCustomerStatusTitle(order),
-            body: getCustomerStatusBody(order),
-            createdAt: statusTime,
-            href: `/account/orders/${order.id}`,
-          }
-        : null;
-
-    return statusNotification ? [statusNotification, createdNotification] : [createdNotification];
-  });
-}
-
-function buildAdminOrderNotifications(orders: CustomerOrder[]): NotificationItem[] {
-  return orders.map((order) => ({
-    id: `admin-order-${order.id}`,
-    title: `Nuevo pedido #${order.id}`,
-    body: `${getOrderCustomer(order)} · ${money(order.total)} · ${orderStatusLabel(order.status)}`,
-    createdAt: order.createdAt,
-    href: "/account?section=admin-orders",
-  }));
-}
-
-function buildAdminReturnNotifications(returns: ReturnNotificationEntry[]): NotificationItem[] {
-  return returns.map((entry) => ({
-    id: `admin-return-${entry.id}`,
-    title: `Nueva devolucion #${entry.id}`,
-    body: `Pedido #${entry.orderId} · Estado ${entry.status}`,
-    createdAt: entry.createdAt,
-    href: "/account?section=admin-returns",
-  }));
-}
-
-function getCustomerStatusTitle(order: CustomerOrder) {
-  if (order.status === "delivered") return `Pedido #${order.id} entregado`;
-  if (order.status === "shipped") return `Pedido #${order.id} en camino`;
-  if (order.status === "packed") return `Pedido #${order.id} listo para despacho`;
-  if (order.status === "processing") return `Pedido #${order.id} en preparacion`;
-  if (order.status === "paid") return `Pago confirmado para tu pedido #${order.id}`;
-  return `Actualizacion de pedido #${order.id}`;
-}
-
-function getCustomerStatusBody(order: CustomerOrder) {
-  if (order.status === "delivered") {
-    return "Tu pedido figura como entregado. Si necesitas ayuda, podes revisar el detalle desde tu cuenta.";
-  }
-
-  if (order.status === "shipped") {
-    return order.shipment?.trackingNumber
-      ? `Ya fue despachado. Tracking: ${order.shipment.trackingNumber}.`
-      : "Ya fue despachado y pronto vas a ver mas informacion del seguimiento.";
-  }
-
-  return `Estado actual: ${orderStatusLabel(order.status)}.`;
-}
-
-function getOrderCustomer(order: CustomerOrder) {
-  const fullName = [
-    order.customerFirstNameSnapshot ?? order.customer?.firstName,
-    order.customerLastNameSnapshot ?? order.customer?.lastName,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-
-  return fullName || order.customerEmailSnapshot || order.customer?.email || "Cliente sin identificar";
-}
-
-function compareNotifications(a: NotificationItem, b: NotificationItem) {
-  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-}
-
 function formatNotificationDate(value: string) {
   const date = new Date(value);
   return date.toLocaleDateString("es-AR", {
@@ -428,84 +337,94 @@ const badgeStyle: React.CSSProperties = {
   padding: "0 5px",
   borderRadius: 999,
   background: "var(--header-action-badge-bg, #f7f1e8)",
-  color: "var(--header-action-badge-color, #0b0b0b)",
+  color: "var(--header-action-badge-color, #111)",
+  fontSize: 11,
+  fontWeight: 700,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: 11,
-  fontWeight: 700,
   position: "absolute",
-  top: -4,
-  right: -4,
+  top: -5,
+  right: -5,
 };
 
 const dropdownStyle: React.CSSProperties = {
   position: "absolute",
-  top: "calc(100% + 12px)",
+  top: "calc(100% + 14px)",
   right: 0,
-  width: "min(92vw, 380px)",
-  borderRadius: 24,
+  width: "min(92vw, 360px)",
+  maxHeight: "min(70vh, 560px)",
+  overflow: "hidden",
+  borderRadius: 26,
   border: "1px solid var(--notification-panel-border, rgba(255,255,255,0.08))",
   background: "var(--notification-panel-bg, rgba(10,10,10,0.96))",
   boxShadow: "var(--notification-panel-shadow, 0 24px 70px rgba(0,0,0,0.38))",
-  overflow: "hidden",
-  zIndex: 50,
+  backdropFilter: "blur(20px)",
+  zIndex: 70,
 };
 
 const mobileSheetOverlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
+  zIndex: 79,
   background: "var(--notification-overlay-bg, rgba(0,0,0,0.42))",
-  zIndex: 35,
+  backdropFilter: "blur(8px)",
 };
 
 const mobilePopoverStyle: React.CSSProperties = {
   position: "fixed",
-  top: 78,
-  left: 14,
-  right: 14,
-  zIndex: 40,
+  left: 12,
+  right: 12,
+  bottom: 12,
+  width: "auto",
+  maxHeight: "min(78vh, 640px)",
+  overflow: "hidden",
   borderRadius: 28,
   border: "1px solid var(--notification-panel-border, rgba(255,255,255,0.08))",
-  background: "var(--notification-panel-mobile-bg, linear-gradient(180deg, rgba(18,18,18,0.98), rgba(10,10,10,0.98)))",
+  background:
+    "var(--notification-panel-mobile-bg, linear-gradient(180deg, rgba(18,18,18,0.98), rgba(10,10,10,0.98)))",
   boxShadow: "var(--notification-panel-shadow, 0 26px 70px rgba(0,0,0,0.38))",
-  overflow: "hidden",
-  maxHeight: "min(72vh, 640px)",
-  display: "grid",
+  backdropFilter: "blur(22px)",
+  zIndex: 80,
 };
 
 const dropdownHeaderStyle: React.CSSProperties = {
-  padding: 18,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "18px 20px 16px",
   borderBottom: "1px solid var(--notification-header-border, rgba(255,255,255,0.08))",
-  background: "var(--notification-header-bg, linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)))",
+  background:
+    "var(--notification-header-bg, linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)))",
 };
 
 const listStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 10,
-  padding: 14,
-  maxHeight: 420,
+  maxHeight: "min(58vh, 460px)",
   overflowY: "auto",
+  padding: 16,
+  display: "grid",
+  gap: 12,
 };
 
 const notificationCardStyle: React.CSSProperties = {
   display: "grid",
-  gap: 8,
+  gap: 10,
+  textDecoration: "none",
   padding: 14,
-  borderRadius: 18,
+  borderRadius: 20,
   border: "1px solid var(--notification-card-border, rgba(255,255,255,0.08))",
   background: "var(--notification-card-bg, rgba(255,255,255,0.03))",
   color: "var(--notification-text-strong, #f7f1e8)",
-  textDecoration: "none",
 };
 
 const emptyStyle: React.CSSProperties = {
-  borderRadius: 18,
+  borderRadius: 20,
+  padding: 18,
+  textAlign: "center",
   border: "1px dashed var(--notification-empty-border, rgba(255,255,255,0.12))",
   background: "var(--notification-empty-bg, rgba(255,255,255,0.02))",
-  padding: 18,
   color: "var(--notification-text-faint, rgba(247,241,232,0.66))",
-  lineHeight: 1.6,
 };
 
 const metaStyle: React.CSSProperties = {
@@ -515,6 +434,6 @@ const metaStyle: React.CSSProperties = {
 
 const metaCopyStyle: React.CSSProperties = {
   color: "var(--notification-text-soft, rgba(247,241,232,0.7))",
-  lineHeight: 1.5,
   fontSize: 13,
+  lineHeight: 1.6,
 };
