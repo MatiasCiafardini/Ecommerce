@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { resolveAssetUrl } from "@/lib/asset-url";
 import {
   money,
   orderCustomerName,
@@ -17,6 +18,8 @@ const returnStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
     requested: "Solicitada",
     approved: "Aprobada",
+    received: "Recibida",
+    resolved: "Resuelta",
     rejected: "Rechazada",
     refunded: "Reintegrada",
   };
@@ -31,6 +34,9 @@ export default function AdminReturnsSection() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [refundAmounts, setRefundAmounts] = useState<Record<number, string>>({});
+  const [instructionDrafts, setInstructionDrafts] = useState<Record<number, string>>({});
+  const [adminNotesDrafts, setAdminNotesDrafts] = useState<Record<number, string>>({});
+  const [refundOnReceive, setRefundOnReceive] = useState<Record<number, boolean>>({});
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -67,7 +73,14 @@ export default function AdminReturnsSection() {
   );
 
   const requestedReturns = returns.filter((item) => item.status === "requested");
-  const processedReturns = returns.filter((item) => item.status !== "requested");
+  const approvedReturns = returns.filter((item) => item.status === "approved");
+  const receivedReturns = returns.filter((item) => item.status === "received");
+  const processedReturns = returns.filter(
+    (item) =>
+      item.status !== "requested" &&
+      item.status !== "approved" &&
+      item.status !== "received",
+  );
   const requestedCancellations = cancellations.filter((item) => item.status === "requested");
   const processedCancellations = cancellations.filter((item) => item.status !== "requested");
 
@@ -77,22 +90,75 @@ export default function AdminReturnsSection() {
       setError("");
       setSuccess("");
 
-      const refundAmount = refundAmounts[returnId]?.trim();
-
-      await api(`/returns/${returnId}/approve`, {
+      await api(`/returns/${returnId}/review`, {
         method: "POST",
         body: JSON.stringify({
           approve,
-          refundAmount: approve && refundAmount ? Number(refundAmount) : undefined,
+          adminInstructions: approve ? instructionDrafts[returnId]?.trim() || undefined : undefined,
+          adminNotes: adminNotesDrafts[returnId]?.trim() || undefined,
         }),
       });
 
       await loadData();
       setSuccess(
-        approve ? "Devolucion aprobada y actualizada." : "Devolucion rechazada.",
+        approve
+          ? "Devolución aprobada. El cliente ya puede ver las instrucciones para enviarla."
+          : "Devolución rechazada.",
       );
     } catch (processError) {
       setError(getErrorMessage(processError, "No se pudo procesar la devolucion."));
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const receiveReturn = async (returnId: number) => {
+    try {
+      setProcessingId(returnId);
+      setError("");
+      setSuccess("");
+
+      const refundAmount = refundAmounts[returnId]?.trim();
+
+      await api(`/returns/${returnId}/receive`, {
+        method: "POST",
+        body: JSON.stringify({
+          refundCustomer: refundOnReceive[returnId] !== false,
+          refundAmount: refundAmount ? Number(refundAmount) : undefined,
+          adminNotes: adminNotesDrafts[returnId]?.trim() || undefined,
+        }),
+      });
+
+      await loadData();
+      setSuccess("Producto recibido. Se actualizó stock y la devolución quedó resuelta.");
+    } catch (processError) {
+      setError(getErrorMessage(processError, "No se pudo cerrar la devolución."));
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const resolveReceivedReturn = async (returnId: number) => {
+    try {
+      setProcessingId(returnId);
+      setError("");
+      setSuccess("");
+
+      const refundAmount = refundAmounts[returnId]?.trim();
+
+      await api(`/returns/${returnId}/receive`, {
+        method: "POST",
+        body: JSON.stringify({
+          refundCustomer: refundOnReceive[returnId] !== false,
+          refundAmount: refundAmount ? Number(refundAmount) : undefined,
+          adminNotes: adminNotesDrafts[returnId]?.trim() || undefined,
+        }),
+      });
+
+      await loadData();
+      setSuccess("La devolución recibida quedó resuelta correctamente.");
+    } catch (processError) {
+      setError(getErrorMessage(processError, "No se pudo resolver la devolución recibida."));
     } finally {
       setProcessingId(null);
     }
@@ -129,7 +195,7 @@ export default function AdminReturnsSection() {
     <section style={panelStyle}>
       <Header
         title="Devoluciones"
-        copy="Concentra las solicitudes pendientes arriba y deja el historial debajo, para que el equipo resuelva postventa sin perder contexto del pedido."
+        copy="Gestiona solicitudes abiertas e historial de devoluciones."
       />
 
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -240,8 +306,132 @@ export default function AdminReturnsSection() {
           <section style={blockStyle}>
             <div style={betweenStyle}>
               <div>
+                <p style={eyebrowStyle}>En espera</p>
+                <h3 style={title3Style}>Producto por recibir</h3>
+              </div>
+              <span style={metaStyle}>{approvedReturns.length} aprobadas</span>
+            </div>
+
+            {approvedReturns.length === 0 ? (
+              <StateCard label="No hay devoluciones aprobadas esperando recepción." />
+            ) : (
+              <div style={requestGridStyle}>
+                {approvedReturns.map((entry) => {
+                  const order = orderLookup.get(entry.orderId);
+                  const shouldRefund = refundOnReceive[entry.id] !== false;
+
+                  return (
+                    <article key={entry.id} style={requestCardStyle}>
+                      <div style={betweenStyle}>
+                        <div>
+                          <strong style={{ color: "#fff" }}>Solicitud #{entry.id}</strong>
+                          <p style={copyStyle}>Pedido #{entry.orderId}</p>
+                        </div>
+                        <span style={statusChipStyle(entry.status)}>
+                          {returnStatusLabel(entry.status)}
+                        </span>
+                      </div>
+
+                      {entry.adminInstructions ? (
+                        <div style={hintCardStyle}>
+                          Instrucciones enviadas: {entry.adminInstructions}
+                        </div>
+                      ) : null}
+
+                      {entry.shippedAt || entry.customerShipmentCarrier || entry.customerShipmentTracking ? (
+                        <div style={hintCardStyle}>
+                          {entry.shippedAt
+                            ? `Cliente informó despacho el ${new Date(entry.shippedAt).toLocaleString("es-AR")}. `
+                            : ""}
+                          {entry.customerShipmentCarrier
+                            ? `Método: ${entry.customerShipmentCarrier}. `
+                            : ""}
+                          {entry.customerShipmentTracking
+                            ? `Tracking: ${entry.customerShipmentTracking}.`
+                            : ""}
+                        </div>
+                      ) : null}
+                      {entry.customerShipmentProofUrl ? (
+                        <a
+                          href={resolveAssetUrl(entry.customerShipmentProofUrl) ?? entry.customerShipmentProofUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "var(--account-text-strong)", textDecoration: "underline" }}
+                        >
+                          Ver comprobante de envío
+                        </a>
+                      ) : null}
+
+                      <div style={itemListStyle}>
+                        {entry.items.map((item) => (
+                          <div key={item.id} style={inlineItemStyle}>
+                            {`Item #${item.orderItemId} · Cantidad ${item.quantity}`}
+                          </div>
+                        ))}
+                      </div>
+
+                      <label style={checkboxRowStyle}>
+                        <input
+                          type="checkbox"
+                          checked={shouldRefund}
+                          onChange={(event) =>
+                            setRefundOnReceive((current) => ({
+                              ...current,
+                              [entry.id]: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>Reintegrar dinero al cerrar la devolución</span>
+                      </label>
+
+                      <input
+                        value={refundAmounts[entry.id] ?? ""}
+                        onChange={(event) =>
+                          setRefundAmounts((current) => ({
+                            ...current,
+                            [entry.id]: event.target.value,
+                          }))
+                        }
+                        placeholder={order ? `Monto sugerido ${money(order.total)}` : "Monto opcional"}
+                        inputMode="decimal"
+                        disabled={!shouldRefund}
+                        style={{ ...fieldStyle, opacity: shouldRefund ? 1 : 0.58 }}
+                      />
+
+                      <textarea
+                        value={adminNotesDrafts[entry.id] ?? entry.adminNotes ?? ""}
+                        onChange={(event) =>
+                          setAdminNotesDrafts((current) => ({
+                            ...current,
+                            [entry.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Notas internas al recibir el producto"
+                        style={{ ...fieldStyle, minHeight: 84, resize: "vertical" }}
+                      />
+
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          onClick={() => void receiveReturn(entry.id)}
+                          disabled={processingId === entry.id}
+                          style={primaryButtonStyle}
+                        >
+                          {processingId === entry.id ? "Procesando..." : "Marcar recibido y resolver"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section style={blockStyle}>
+            <div style={betweenStyle}>
+              <div>
                 <p style={eyebrowStyle}>Pendientes</p>
-                <h3 style={title3Style}>Solicitudes para revisar</h3>
+                <h3 style={title3Style}>Solicitudes para aprobar</h3>
               </div>
               <span style={metaStyle}>{requestedReturns.length} abiertas</span>
             </div>
@@ -290,28 +480,39 @@ export default function AdminReturnsSection() {
                         </div>
                       ) : null}
 
+                      <textarea
+                        value={instructionDrafts[entry.id] ?? entry.adminInstructions ?? ""}
+                        onChange={(event) =>
+                          setInstructionDrafts((current) => ({
+                            ...current,
+                            [entry.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Instrucciones para que el cliente envíe el producto"
+                        style={{ ...fieldStyle, minHeight: 96, resize: "vertical" }}
+                      />
+
+                      <textarea
+                        value={adminNotesDrafts[entry.id] ?? entry.adminNotes ?? ""}
+                        onChange={(event) =>
+                          setAdminNotesDrafts((current) => ({
+                            ...current,
+                            [entry.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Notas internas opcionales"
+                        style={{ ...fieldStyle, minHeight: 84, resize: "vertical" }}
+                      />
+
                       <div style={itemListStyle}>
                         {entry.items.map((item) => (
                           <div key={item.id} style={inlineItemStyle}>
-                            Item #{item.orderItemId} · Cantidad {item.quantity}
+                            {`Item #${item.orderItemId} · Cantidad ${item.quantity}`}
                           </div>
                         ))}
                       </div>
 
-                      <div style={actionsRowStyle}>
-                        <input
-                          value={refundAmounts[entry.id] ?? ""}
-                          onChange={(event) =>
-                            setRefundAmounts((current) => ({
-                              ...current,
-                              [entry.id]: event.target.value,
-                            }))
-                          }
-                          placeholder={order ? `Monto sugerido ${money(order.total)}` : "Monto opcional"}
-                          inputMode="decimal"
-                          style={fieldStyle}
-                        />
-
+                      <div style={reviewActionsRowStyle}>
                         <button
                           type="button"
                           onClick={() => void processReturn(entry.id, false)}
@@ -326,7 +527,103 @@ export default function AdminReturnsSection() {
                           disabled={processingId === entry.id}
                           style={primaryButtonStyle}
                         >
-                          {processingId === entry.id ? "Procesando..." : "Aprobar"}
+                          {processingId === entry.id ? "Procesando..." : "Aprobar e informar"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section style={blockStyle}>
+            <div style={betweenStyle}>
+              <div>
+                <p style={eyebrowStyle}>Recibidas</p>
+                <h3 style={title3Style}>Pendientes de resolucion</h3>
+              </div>
+              <span style={metaStyle}>{receivedReturns.length} recibidas</span>
+            </div>
+
+            {receivedReturns.length === 0 ? (
+              <StateCard label="No hay devoluciones recibidas pendientes de resolucion." />
+            ) : (
+              <div style={requestGridStyle}>
+                {receivedReturns.map((entry) => {
+                  const order = orderLookup.get(entry.orderId);
+                  const shouldRefund = refundOnReceive[entry.id] !== false;
+
+                  return (
+                    <article key={entry.id} style={requestCardStyle}>
+                      <div style={betweenStyle}>
+                        <div>
+                          <strong style={{ color: "#fff" }}>Solicitud #{entry.id}</strong>
+                          <p style={copyStyle}>Pedido #{entry.orderId}</p>
+                        </div>
+                        <span style={statusChipStyle(entry.status)}>
+                          {returnStatusLabel(entry.status)}
+                        </span>
+                      </div>
+
+                      {entry.receivedAt ? (
+                        <div style={hintCardStyle}>
+                          Producto recibido el {new Date(entry.receivedAt).toLocaleString("es-AR")}.
+                        </div>
+                      ) : null}
+
+                      <label style={checkboxRowStyle}>
+                        <input
+                          type="checkbox"
+                          checked={shouldRefund}
+                          onChange={(event) =>
+                            setRefundOnReceive((current) => ({
+                              ...current,
+                              [entry.id]: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>Emitir reintegro al resolver</span>
+                      </label>
+
+                      <input
+                        value={refundAmounts[entry.id] ?? ""}
+                        onChange={(event) =>
+                          setRefundAmounts((current) => ({
+                            ...current,
+                            [entry.id]: event.target.value,
+                          }))
+                        }
+                        placeholder={order ? `Monto sugerido ${money(order.total)}` : "Monto opcional"}
+                        inputMode="decimal"
+                        disabled={!shouldRefund}
+                        style={{ ...fieldStyle, opacity: shouldRefund ? 1 : 0.58 }}
+                      />
+
+                      <textarea
+                        value={adminNotesDrafts[entry.id] ?? entry.adminNotes ?? ""}
+                        onChange={(event) =>
+                          setAdminNotesDrafts((current) => ({
+                            ...current,
+                            [entry.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Notas internas para cerrar el caso"
+                        style={{ ...fieldStyle, minHeight: 84, resize: "vertical" }}
+                      />
+
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          onClick={() => void resolveReceivedReturn(entry.id)}
+                          disabled={processingId === entry.id}
+                          style={primaryButtonStyle}
+                        >
+                          {processingId === entry.id
+                            ? "Procesando..."
+                            : shouldRefund
+                              ? "Resolver y reintegrar"
+                              : "Resolver sin reintegro"}
                         </button>
                       </div>
                     </article>
@@ -366,6 +663,19 @@ export default function AdminReturnsSection() {
                       <p style={metaStyle}>
                         Creada {new Date(entry.createdAt).toLocaleString("es-AR")}
                       </p>
+                      {entry.receivedAt ? (
+                        <p style={metaStyle}>
+                          Recibida {new Date(entry.receivedAt).toLocaleString("es-AR")}
+                        </p>
+                      ) : null}
+                      {entry.adminInstructions ? (
+                        <div style={hintCardStyle}>
+                          Instrucciones: {entry.adminInstructions}
+                        </div>
+                      ) : null}
+                      {entry.adminNotes ? (
+                        <p style={metaStyle}>Nota admin: {entry.adminNotes}</p>
+                      ) : null}
                       {entry.refund ? (
                         <div style={hintCardStyle}>
                           Reintegro registrado: {money(entry.refund.amount)}
@@ -461,6 +771,8 @@ const infoCellStyle: React.CSSProperties = { borderRadius: 16, border: "1px soli
 const itemListStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const inlineItemStyle: React.CSSProperties = { display: "inline-flex", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--checkout-border)", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", fontSize: 13 };
 const actionsRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(180px, 1fr) auto auto", gap: 10, alignItems: "center" };
+const reviewActionsRowStyle: React.CSSProperties = { display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" };
+const checkboxRowStyle: React.CSSProperties = { display: "flex", gap: 10, alignItems: "center", color: "var(--account-text-strong)" };
 const fieldStyle: React.CSSProperties = { width: "100%", padding: "14px 16px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 16, outline: "none" };
 const primaryButtonStyle: React.CSSProperties = { padding: "12px 16px", background: "var(--accent-strong)", color: "var(--accent-contrast)", border: "none", borderRadius: 999, cursor: "pointer", fontWeight: 700 };
 const secondaryButtonStyle: React.CSSProperties = { padding: "12px 16px", background: "transparent", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border-strong)", borderRadius: 999, cursor: "pointer" };
