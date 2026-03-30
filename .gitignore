@@ -1,1 +1,11 @@
 .local-runtime/
+.next/
+.next-store1/
+.next-store2/
+.next-store3/
+.next-store4/
+.next-store5/
+dist/
+uploads/
+*.log
+tmp-*.png
