@@ -1,5 +1,6 @@
 import { getProducts } from "@/services/products.service";
 import ProductCard from "@/components/product/ProductCard";
+import { getTenantConfig } from "@/lib/tenant/get-tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,15 @@ type Props = {
 
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
-  const products = await getProducts({ category: slug });
+  const [products, config] = await Promise.all([
+    getProducts({ category: slug }),
+    getTenantConfig(),
+  ]);
+  const categoryTitle = slug
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+  const isMiMaria = config.storeId === 3005;
 
   return (
     <section
@@ -24,17 +33,17 @@ export default async function CategoryPage({ params }: Props) {
         <h1
           style={{
             fontSize: "clamp(2.5rem, 5vw, 4.8rem)",
-            textTransform: "uppercase",
-            letterSpacing: "-0.05em",
+            letterSpacing: isMiMaria ? "-0.04em" : "-0.05em",
             marginBottom: 12,
             color: "var(--text-strong)",
           }}
         >
-          {slug.replace("-", " ")}
+          {categoryTitle}
         </h1>
         <p style={{ color: "var(--text-muted)", marginBottom: 28 }}>
-          Curaduria de prendas pensadas para armar un uniforme urbano simple,
-          solido y versatil.
+          {isMiMaria
+            ? "Explora una seleccion cuidada de prendas femeninas para vestir con equilibrio, suavidad y elegancia."
+            : "Curaduria de prendas pensadas para armar un uniforme urbano simple, solido y versatil."}
         </p>
 
         <div

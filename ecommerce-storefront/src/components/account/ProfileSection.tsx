@@ -232,8 +232,8 @@ export default function ProfileSection({ user }: { user: User }) {
 const cardStyle: React.CSSProperties = {
   padding: 28,
   borderRadius: 32,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--page-panel-bg)",
 };
 
 const sectionHeader: React.CSSProperties = {
@@ -250,7 +250,7 @@ const eyebrowStyle: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.18em",
   fontSize: 12,
-  color: "rgba(247,241,232,0.56)",
+  color: "var(--account-text-soft)",
 };
 
 const titleStyle: React.CSSProperties = {
@@ -261,32 +261,32 @@ const titleStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   display: "block",
   marginBottom: 8,
-  color: "rgba(247,241,232,0.68)",
+  color: "var(--account-text-muted)",
 };
 
 const readonlyField: React.CSSProperties = {
   padding: "14px 16px",
   borderRadius: 16,
-  background: "rgba(255,255,255,0.03)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  color: "#f7f1e8",
+  background: "var(--account-item-bg)",
+  border: "1px solid var(--account-item-border)",
+  color: "var(--account-text-strong)",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "14px 16px",
   borderRadius: 16,
-  background: "rgba(255,255,255,0.04)",
-  color: "white",
-  border: "1px solid rgba(255,255,255,0.12)",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--checkout-border)",
   outline: "none",
 };
 
 const primaryButton: React.CSSProperties = {
   padding: "12px 16px",
-  background: "#f7f1e8",
-  color: "#111",
-  border: "none",
+  background: "var(--checkout-primary-bg)",
+  color: "var(--checkout-primary-color)",
+  border: "1px solid var(--account-item-border-active)",
   borderRadius: 999,
   cursor: "pointer",
   fontWeight: 700,
@@ -294,19 +294,19 @@ const primaryButton: React.CSSProperties = {
 
 const secondaryButton: React.CSSProperties = {
   padding: "12px 16px",
-  background: "transparent",
-  color: "#f7f1e8",
-  border: "1px solid rgba(255,255,255,0.12)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--account-item-border)",
   borderRadius: 999,
   cursor: "pointer",
 };
 
 const errorStyle: React.CSSProperties = {
   margin: 0,
-  color: "#ff9f9f",
+  color: "var(--admin-danger-color)",
 };
 
 const successStyle: React.CSSProperties = {
   margin: 0,
-  color: "#b8f5c2",
+  color: "var(--admin-tone-success-color)",
 };

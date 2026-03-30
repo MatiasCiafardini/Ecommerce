@@ -1,4 +1,5 @@
 import { getProducts } from "@/services/products.service";
+import { resolveAssetUrl } from "@/lib/asset-url";
 import HeroProductSpotlight from "@/blocks/hero/HeroProductSpotlight";
 import { concreteTexture, editorialLines, urbanSkyline } from "@/themes/minimal/visuals";
 
@@ -36,14 +37,15 @@ export default async function Hero({
   const endGradientColor = isLightText ? "#fff4e8" : "#b3aba0";
   const imageOverlayStart = isLightText ? "rgba(255,248,240,0.76)" : "rgba(16,16,16,0.74)";
   const imageOverlayEnd = isLightText ? "rgba(214,190,166,0.42)" : "rgba(36,36,36,0.42)";
+  const resolvedImage = resolveAssetUrl(image) ?? image;
 
   return (
     <section
       className="theme-ambient-pan"
       style={{
         background:
-          image
-            ? `linear-gradient(135deg, ${imageOverlayStart}, ${imageOverlayEnd}), url(${image}), ${urbanSkyline}`
+          resolvedImage
+            ? `linear-gradient(135deg, ${imageOverlayStart}, ${imageOverlayEnd}), url(${resolvedImage}), ${urbanSkyline}`
             : `linear-gradient(135deg, ${backgroundColor} 0%, ${isLightText ? "#f3dfcf" : "#232323"} 48%, ${endGradientColor} 100%), ${urbanSkyline}`,
         padding: "88px 20px 96px",
         color: textColor,
@@ -61,7 +63,7 @@ export default async function Hero({
           alignItems: "center",
         }}
       >
-        <div className="theme-enter-soft">
+        <div>
           <div
             style={{
               display: "inline-flex",

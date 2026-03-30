@@ -7,24 +7,25 @@
         <stop offset="100%" stop-color="#d6c0a0" />
       </linearGradient>
     </defs>
-    <rect width="1600" height="900" rx="36" fill="url(#bg)" />
-    <g opacity="0.12" stroke="#f3eee7" stroke-width="2">
-      <path d="M0 160h1600" />
-      <path d="M0 320h1600" />
-      <path d="M0 480h1600" />
-      <path d="M0 640h1600" />
+    <rect width="1600" height="900" rx="42" fill="url(#bg)" />
+    <g opacity="0.14" stroke="#8a7557" stroke-width="2">
+      <path d="M0 170h1600" />
+      <path d="M0 340h1600" />
+      <path d="M0 510h1600" />
+      <path d="M0 680h1600" />
       <path d="M180 0v900" />
-      <path d="M500 0v900" />
-      <path d="M820 0v900" />
-      <path d="M1140 0v900" />
-      <path d="M1460 0v900" />
+      <path d="M460 0v900" />
+      <path d="M740 0v900" />
+      <path d="M1020 0v900" />
+      <path d="M1300 0v900" />
     </g>
-    <circle cx="1260" cy="180" r="150" fill="#ffffff" opacity="0.07" />
-    <rect x="90" y="90" width="1420" height="720" rx="30" fill="#0f0f0f" fill-opacity="0.18" stroke="rgba(255,255,255,0.14)" />
-    <text x="130" y="180" fill="#f3eee7" font-size="30" font-family="Arial, sans-serif" letter-spacing="10">ASPHALT CATEGORY</text>
-    <text x="130" y="600" fill="#ffffff" font-size="96" font-weight="700" font-family="Arial, sans-serif">CHALECOS</text>
-    <text x="130" y="660" fill="rgba(243,238,231,0.8)" font-size="28" font-family="Arial, sans-serif">Northline</text>
-    <rect x="1060" y="240" width="280" height="280" rx="36" fill="#f1ebdf" fill-opacity="0.9" />
-    <rect x="1180" y="180" width="240" height="380" rx="42" fill="#d6c0a0" fill-opacity="0.28" />
-    <rect x="980" y="320" width="220" height="220" rx="32" fill="#8a7557" fill-opacity="0.32" />
+    <circle cx="1290" cy="188" r="154" fill="#ffffff" opacity="0.22" />
+    <rect x="74" y="74" width="1452" height="752" rx="36" fill="rgba(255,255,255,0.34)" stroke="rgba(255,255,255,0.5)" />
+    <text x="132" y="168" fill="#8a7557" font-size="28" font-family="Arial, sans-serif" letter-spacing="7">STORE 2 CATEGORY</text>
+    <rect x="132" y="218" width="458" height="438" rx="42" fill="#f1ebdf" fill-opacity="0.9" stroke="#8a7557" stroke-width="4" />
+    <rect x="448" y="182" width="290" height="506" rx="48" fill="#8a7557" fill-opacity="0.24" />
+    <rect x="540" y="270" width="170" height="320" rx="32" fill="#d6c0a0" fill-opacity="0.48" />
+    <text x="790" y="408" fill="#8a7557" font-size="84" font-weight="700" font-family="Arial, sans-serif">CHALECOS</text>
+    <text x="790" y="486" fill="#8a7557" font-size="30" font-family="Arial, sans-serif">Visual completa para cards anchas</text>
+    <text x="790" y="560" fill="#8a7557" font-size="24" font-family="Arial, sans-serif" opacity="0.8">Northline</text>
   </svg>

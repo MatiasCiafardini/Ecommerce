@@ -1,6 +1,7 @@
-import { getProductBySlug } from "@/services/products.service";
+import { getProductBySlug, getProducts } from "@/services/products.service";
 import { getProductOptions } from "@/services/product-options.service";
 import ProductView from "@/components/product/ProductView";
+import { getTenantConfig } from "@/lib/tenant/get-tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,10 @@ type Props = {
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
 
-  const [product, productOptions] = await Promise.all([
+  const [product, productOptions, config] = await Promise.all([
     getProductBySlug(slug),
     getProductOptions(slug),
+    getTenantConfig(),
   ]);
 
   if (!product) {
@@ -25,9 +27,8 @@ export default async function ProductPage({ params }: Props) {
           minHeight: "calc(100vh - 180px)",
           display: "grid",
           placeItems: "center",
-          background:
-            "radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 30%), #0b0b0b",
-          color: "#f7f1e8",
+          background: "var(--page-shell-bg)",
+          color: "var(--text-strong)",
         }}
       >
         Producto no encontrado
@@ -35,5 +36,19 @@ export default async function ProductPage({ params }: Props) {
     );
   }
 
-  return <ProductView product={product} productOptions={productOptions} />;
+  const relatedCategory = product.categories?.[0]?.category?.slug;
+  const relatedProducts = relatedCategory
+    ? (await getProducts({ category: relatedCategory, limit: 4 })).filter(
+        (item) => item.slug !== product.slug,
+      )
+    : [];
+
+  return (
+    <ProductView
+      product={product}
+      productOptions={productOptions}
+      relatedProducts={relatedProducts.slice(0, 4)}
+      storeId={config.storeId}
+    />
+  );
 }

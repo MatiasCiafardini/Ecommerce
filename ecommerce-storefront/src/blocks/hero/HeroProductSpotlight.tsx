@@ -105,7 +105,6 @@ export default function HeroProductSpotlight({ products }: Props) {
               position: "absolute",
               inset: 0,
               width: "100%",
-              height: "100%",
               background: "#ffffff",
               ...getCatalogImageTransform(product.images?.[0]),
             }}

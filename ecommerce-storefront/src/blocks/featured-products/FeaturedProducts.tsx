@@ -1,19 +1,22 @@
 import { getProducts } from "@/services/products.service";
 import ProductCard from "@/components/product/ProductCard";
+import StaggerReveal from "@/components/motion/StaggerReveal";
 import { StoreProduct } from "@/types/store";
 
 type Props = {
   title?: string;
   limit?: number;
   columns?: number;
+  productIds?: number[];
 };
 
 export default async function FeaturedProducts({
   title = "Productos destacados",
   limit = 3,
   columns = 3,
+  productIds,
 }: Props) {
-  const products = await getProducts({ limit });
+  const products = await getProducts({ limit, productIds });
 
   return (
     <section
@@ -34,8 +37,10 @@ export default async function FeaturedProducts({
             justifyContent: "center",
           }}
         >
-          {products.map((product: StoreProduct) => (
-            <ProductCard key={product.id} product={product} />
+          {products.map((product: StoreProduct, index: number) => (
+            <StaggerReveal key={product.id} delayMs={index * 90}>
+              <ProductCard product={product} />
+            </StaggerReveal>
           ))}
         </div>
       </div>

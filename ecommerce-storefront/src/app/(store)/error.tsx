@@ -42,11 +42,10 @@ export default function StoreError({
           Storefront
         </p>
         <h2 style={{ margin: 0, color: "var(--text-strong)" }}>
-          No pudimos cargar esta página
+          No pudimos cargar esta pagina
         </h2>
         <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.6 }}>
-          Recargá la vista o reintentá en unos segundos. Si vuelve a pasar, la
-          página ahora debería recuperarse sin dejar la tienda caída.
+          Recarga la vista o reintenta en unos segundos.
         </p>
         <div>
           <button

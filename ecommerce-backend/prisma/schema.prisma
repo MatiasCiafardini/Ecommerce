@@ -13,6 +13,8 @@ model Store {
   domain                      String                        @unique
   mercadoPagoAccessToken      String?
   mercadoPagoPublicKey        String?
+  mercadoPagoWebhookSecret    String?
+  storefrontConfig            Json?
   createdAt                   DateTime                      @default(now())
   cancellationRequests        CancellationRequest[]
   carts                       Cart[]
@@ -418,17 +420,26 @@ model ShipmentTrackingEvent {
 }
 
 model Return {
-  id        Int          @id @default(autoincrement())
-  storeId   Int
-  orderId   Int
-  reason    String?
-  status    ReturnStatus @default(requested)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  refund    Refund?
-  order     Order        @relation(fields: [orderId], references: [id])
-  store     Store        @relation(fields: [storeId], references: [id])
-  items     ReturnItem[]
+  id                 Int          @id @default(autoincrement())
+  storeId            Int
+  orderId            Int
+  reason             String?
+  adminInstructions  String?
+  adminNotes         String?
+  customerShipmentCarrier String?
+  customerShipmentTracking String?
+  customerShipmentProofUrl String?
+  status             ReturnStatus @default(requested)
+  approvedAt         DateTime?
+  shippedAt          DateTime?
+  receivedAt         DateTime?
+  resolvedAt         DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  refund             Refund?
+  order              Order        @relation(fields: [orderId], references: [id])
+  store              Store        @relation(fields: [storeId], references: [id])
+  items              ReturnItem[]
 
   @@index([storeId])
   @@index([orderId])
@@ -705,6 +716,8 @@ enum DiscountType {
 enum ReturnStatus {
   requested
   approved
+  received
+  resolved
   rejected
   refunded
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { resolveAssetUrl } from "@/lib/asset-url";
 
 type HeroCarouselSlide = {
   image: string;
@@ -87,6 +87,7 @@ export default function HeroCarousel({
   }, [safeSlides, buttonText, buttonLink, showContentCard]);
 
   const activeSlide = safeSlides[activeIndex];
+  const activeSlideImage = resolveAssetUrl(activeSlide.image) ?? activeSlide.image;
 
   return (
     <section
@@ -104,21 +105,32 @@ export default function HeroCarousel({
           backgroundColor: "var(--paper-muted)",
         }}
       >
-        <Image
-          src={activeSlide.image}
-          alt={activeSlide.title}
-          fill
-          unoptimized
-          sizes="100vw"
+        <div
+          key={activeSlideImage}
+          aria-hidden="true"
           style={{
             position: "absolute",
             inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center",
+            overflow: "hidden",
           }}
-        />
+        >
+          {/* Decorative hero media renders more reliably as a plain image for local and uploaded assets. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={activeSlideImage}
+            alt=""
+            loading="eager"
+            draggable={false}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center",
+              userSelect: "none",
+              pointerEvents: "none",
+            }}
+          />
+        </div>
 
         <div
           style={{
@@ -342,20 +354,35 @@ export default function HeroCarousel({
               key={`${slide.title}-${index}`}
               type="button"
               aria-label={`Ver banner ${index + 1}`}
+              aria-pressed={index === activeIndex}
               onClick={() => setActiveIndex(index)}
               style={{
-                width: 10,
-                height: 10,
+                width: 18,
+                height: 18,
+                display: "grid",
+                placeItems: "center",
                 borderRadius: 999,
                 border: "none",
                 cursor: "pointer",
                 padding: 0,
-                background:
-                  index === activeIndex
-                    ? "var(--text-strong)"
-                    : "color-mix(in srgb, var(--text-strong) 38%, transparent)",
+                background: "transparent",
               }}
-            />
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  background:
+                    index === activeIndex
+                      ? "var(--text-strong)"
+                      : "color-mix(in srgb, var(--text-strong) 38%, transparent)",
+                  transform: index === activeIndex ? "scale(1.05)" : "scale(1)",
+                  transition: "transform 180ms ease, background-color 180ms ease",
+                }}
+              />
+            </button>
           ))}
         </div>
       </div>

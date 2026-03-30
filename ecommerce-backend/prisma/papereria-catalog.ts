@@ -352,7 +352,7 @@ export const PAPERERIA_PRODUCTS: PapereriaProductSeed[] = [
     slug: 'paleta-arcoiris-gigante',
     categorySlug: 'golosinas',
     description:
-      'Paleta de alto impacto visual para sumar color a la categoria y a las mesas de cumpleanos.',
+      'Paleta de alto impacto visual para sumar color a la categoria y a las mesas de cumpleaños.',
     imageUrls: [imageLibrary.lollipop, imageLibrary.gummies],
     presentations: ['Unidad', 'Pack x6'],
     colors: ['Arcoiris'],
@@ -442,7 +442,7 @@ export const PAPERERIA_PRODUCTS: PapereriaProductSeed[] = [
     slug: 'combo-fiesta-infantil-vial',
     categorySlug: 'cotillon',
     description:
-      'Combo tematico con visual muy potente para cumpleanos infantiles y vidriera de eventos.',
+      'Combo tematico con visual muy potente para cumpleaños infantiles y vidriera de eventos.',
     imageUrls: [imageLibrary.partyTraffic, imageLibrary.confettiBalloons],
     presentations: ['Pack x8', 'Pack x16'],
     colors: ['Multicolor'],

@@ -25,7 +25,6 @@ type Props = {
 const adminSections: Array<{ id: AccountSection; label: string; description: string }> = [
   { id: "admin-overview", label: "Resumen", description: "Estado general" },
   { id: "admin-products", label: "Productos", description: "Catalogo y altas" },
-  { id: "admin-categories", label: "Categorias", description: "Orden y visibilidad" },
   { id: "admin-promotions", label: "Promociones", description: "Ofertas y cupones" },
   { id: "admin-orders", label: "Pedidos", description: "Operacion diaria" },
   { id: "admin-customers", label: "Clientes", description: "Base activa" },
@@ -237,7 +236,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
             style={{ display: "grid", gap: 24, minWidth: 0, alignSelf: "start" }}
             data-account-content
           >
-            {renderSection(section, user)}
+            {renderSection(section, user, onSectionChange)}
           </div>
         </div>
       </div>
@@ -321,7 +320,11 @@ function NavigationGroup({
   );
 }
 
-function renderSection(section: AccountSection, user: User) {
+function renderSection(
+  section: AccountSection,
+  user: User,
+  onSectionChange: (section: AccountSection) => void,
+) {
   switch (section) {
     case "profile":
       return <ProfileSection user={user} />;
@@ -330,6 +333,7 @@ function renderSection(section: AccountSection, user: User) {
     case "payments":
       return <PaymentSection />;
     case "admin-overview":
+    case "admin-developer":
     case "admin-products":
     case "admin-promotions":
     case "admin-categories":
@@ -337,12 +341,13 @@ function renderSection(section: AccountSection, user: User) {
     case "admin-customers":
     case "admin-shipments":
     case "admin-returns":
-      return <AdminWorkspace section={section} />;
+      return <AdminWorkspace section={section} user={user} onSectionChange={onSectionChange} />;
     case "orders":
     default:
       return <OrdersSection mode="full" />;
   }
 }
+
 
 function abbreviateLabel(label: string) {
   const words = label.trim().split(/\s+/).filter(Boolean);

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import {
   getScopedStorageItem,
@@ -27,16 +28,33 @@ export type { User };
 type AuthContextType = {
   user: User | null;
   loading: boolean;
+  authUiLocked: boolean;
   login: (data: { email: string; password: string }) => Promise<User>;
   logout: () => void;
   setUser: (user: User | null) => void;
+  lockAuthUi: () => void;
+  unlockAuthUi: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authUiLockRouteKey, setAuthUiLockRouteKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authUiLockRouteKey || authUiLockRouteKey === pathname) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      setAuthUiLockRouteKey(null);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [authUiLockRouteKey, pathname]);
 
   useEffect(() => {
     const token = getScopedStorageItem("token");
@@ -95,8 +113,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
   };
 
+  const lockAuthUi = () => {
+    setAuthUiLockRouteKey(pathname);
+  };
+
+  const unlockAuthUi = () => {
+    setAuthUiLockRouteKey(null);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, setUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        authUiLocked: authUiLockRouteKey !== null,
+        login,
+        logout,
+        setUser,
+        lockAuthUi,
+        unlockAuthUi,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

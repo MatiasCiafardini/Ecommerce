@@ -15,10 +15,11 @@ const navLinkStyle = {
 } as const;
 
 export default function Header() {
-  const { user, logout } = useAuth();
+  const { user, logout, authUiLocked } = useAuth();
   const { cart } = useCart();
   const router = useRouter();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const sessionUiPending = authUiLocked;
   const manualSalesEnabled = Boolean(
     user?.role &&
     user.role !== "CUSTOMER" &&
@@ -141,7 +142,9 @@ export default function Header() {
           </Link>
 
           {!isMobile ? (
-            user ? (
+            sessionUiPending ? (
+              <HeaderSessionPlaceholder />
+            ) : user ? (
               <>
                 {manualSalesEnabled ? (
                   <Link href="/manual-sales" style={{ ...navLinkStyle, color: "white" }}>
@@ -249,7 +252,9 @@ export default function Header() {
               >
                 Cuenta
               </span>
-              {user ? (
+              {sessionUiPending ? (
+                <HeaderSessionPlaceholder mobile />
+              ) : user ? (
                 <>
                   {manualSalesEnabled ? (
                     <Link
@@ -337,6 +342,17 @@ function CartIcon() {
   );
 }
 
+function HeaderSessionPlaceholder({ mobile = false }: { mobile?: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={mobile ? mobileSessionPlaceholderStyle : sessionPlaceholderStyle}
+    >
+      Cargando...
+    </span>
+  );
+}
+
 const iconActionStyle = {
   color: "white",
   textDecoration: "none",
@@ -377,6 +393,17 @@ const sessionButtonStyle = {
   cursor: "pointer",
 } as const;
 
+const sessionPlaceholderStyle = {
+  padding: "10px 14px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.04)",
+  color: "rgba(247,241,232,0.48)",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  fontSize: 11,
+} as const;
+
 const mobileNavLinkStyle = {
   color: "#fff",
   textDecoration: "none",
@@ -384,4 +411,12 @@ const mobileNavLinkStyle = {
   borderRadius: 18,
   border: "1px solid rgba(255,255,255,0.08)",
   background: "rgba(255,255,255,0.03)",
+} as const;
+
+const mobileSessionPlaceholderStyle = {
+  ...mobileNavLinkStyle,
+  color: "rgba(247,241,232,0.48)",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  fontSize: 11,
 } as const;

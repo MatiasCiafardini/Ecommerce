@@ -1,5 +1,6 @@
 import { getProducts } from "@/services/products.service";
 import ProductCard from "@/components/product/ProductCard";
+import StaggerReveal from "@/components/motion/StaggerReveal";
 import { StoreProduct } from "@/types/store";
 
 type Props = {
@@ -7,6 +8,7 @@ type Props = {
   category?: string;
   limit?: number;
   columns?: number;
+  productIds?: number[];
   eyebrow?: string;
   editorialLabel?: string;
   editorialTitle?: string;
@@ -17,11 +19,12 @@ export default async function ProductGrid({
   category,
   limit = 8,
   columns = 4,
+  productIds,
   eyebrow = "Curado para el street",
   editorialLabel = "Urban people",
   editorialTitle = "Editorial street energy",
 }: Props) {
-  const products = await getProducts({ category, limit });
+  const products = await getProducts({ category, limit, productIds });
   const featurePanelHeight = "clamp(260px, 30vw, 340px)";
 
   return (
@@ -143,8 +146,10 @@ export default async function ProductGrid({
             justifyContent: "center",
           }}
         >
-          {products.map((product: StoreProduct) => (
-            <ProductCard key={product.id} product={product} />
+          {products.map((product: StoreProduct, index: number) => (
+            <StaggerReveal key={product.id} delayMs={index * 90}>
+              <ProductCard product={product} />
+            </StaggerReveal>
           ))}
         </div>
       </div>

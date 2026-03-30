@@ -2,12 +2,14 @@ type Props = {
   text?: string;
   backgroundColor?: string;
   textColor?: string;
+  image?: string;
 };
 
 export default function Banner({
   text = "Envios gratis en compras desde $120.000",
   backgroundColor,
   textColor,
+  image,
 }: Props) {
   const resolvedBackground =
     backgroundColor ??
@@ -17,7 +19,9 @@ export default function Banner({
   return (
     <section
       style={{
-        background: `linear-gradient(90deg, ${resolvedBackground} 0%, color-mix(in srgb, ${resolvedBackground} 72%, var(--paper-muted)) 100%)`,
+        background: image
+          ? `linear-gradient(90deg, color-mix(in srgb, ${resolvedBackground} 74%, transparent), color-mix(in srgb, ${resolvedBackground} 56%, var(--paper-muted))), url(${image}) center/cover`
+          : `linear-gradient(90deg, ${resolvedBackground} 0%, color-mix(in srgb, ${resolvedBackground} 72%, var(--paper-muted)) 100%)`,
         color: resolvedTextColor,
         padding: "18px 20px",
         textAlign: "center",

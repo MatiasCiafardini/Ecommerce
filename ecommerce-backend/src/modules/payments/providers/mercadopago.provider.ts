@@ -39,6 +39,109 @@ export class MercadoPagoProvider {
     };
   }
 
+  async getAdminConfig(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        mercadoPagoPublicKey: true,
+        mercadoPagoAccessToken: true,
+        mercadoPagoWebhookSecret: true,
+      },
+    });
+
+    return {
+      publicKey: store?.mercadoPagoPublicKey?.trim() || '',
+      accessToken: store?.mercadoPagoAccessToken?.trim() || '',
+      webhookSecret: store?.mercadoPagoWebhookSecret?.trim() || '',
+    };
+  }
+
+  async updateAdminConfig(
+    storeId: number,
+    input: {
+      publicKey?: string | null;
+      accessToken?: string | null;
+      webhookSecret?: string | null;
+    },
+  ) {
+    const updated = await this.prisma.store.update({
+      where: { id: storeId },
+      data: {
+        mercadoPagoPublicKey: input.publicKey?.trim() || null,
+        mercadoPagoAccessToken: input.accessToken?.trim() || null,
+        mercadoPagoWebhookSecret: input.webhookSecret?.trim() || null,
+      },
+      select: {
+        mercadoPagoPublicKey: true,
+        mercadoPagoAccessToken: true,
+        mercadoPagoWebhookSecret: true,
+      },
+    });
+
+    return {
+      publicKey: updated.mercadoPagoPublicKey?.trim() || '',
+      accessToken: updated.mercadoPagoAccessToken?.trim() || '',
+      webhookSecret: updated.mercadoPagoWebhookSecret?.trim() || '',
+    };
+  }
+
+  async testConfiguration(storeId: number) {
+    const config = await this.getAdminConfig(storeId);
+    const checks = {
+      publicKey: Boolean(config.publicKey),
+      accessToken: Boolean(config.accessToken),
+      webhookSecret: Boolean(config.webhookSecret),
+    };
+
+    if (!checks.accessToken) {
+      return {
+        ok: false,
+        checks,
+        message:
+          'Falta el access token de Mercado Pago para poder validar la integracion.',
+      };
+    }
+
+    const response = await fetch('https://api.mercadopago.com/users/me', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      return {
+        ok: false,
+        checks,
+        message:
+          'Mercado Pago rechazo las credenciales cargadas para esta tienda.',
+        details: errorText || null,
+      };
+    }
+
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          id?: number | string;
+          nickname?: string;
+          email?: string;
+        }
+      | null;
+
+    return {
+      ok: true,
+      checks,
+      message: 'La integracion con Mercado Pago respondio correctamente.',
+      account: payload
+        ? {
+            id: payload.id ?? null,
+            nickname: payload.nickname ?? null,
+            email: payload.email ?? null,
+          }
+        : null,
+    };
+  }
+
   private async createClient(storeId: number) {
     return new MercadoPagoConfig({
       accessToken: await this.getAccessToken(storeId),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { money } from "./order-utils";
 import type { AdminPromotion } from "./admin-types";
@@ -501,7 +501,7 @@ export default function AdminPromotionsSection() {
               />
             </Field>
 
-            <Field label="Modo">
+            {false ? <Field label="Modo">
               <div style={toggleRowStyle}>
                 <button
                   type="button"
@@ -520,24 +520,37 @@ export default function AdminPromotionsSection() {
                   Cupón
                 </button>
               </div>
-            </Field>
+            </Field> : (
+              <Field label="Modo">
+                <select
+                  value={form.automatic ? "automatic" : "coupon"}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      automatic: event.target.value === "automatic",
+                    }))
+                  }
+                  disabled={form.scope !== "order"}
+                  style={fieldStyle}
+                >
+                  <option value="automatic">AutomÃ¡tica</option>
+                  <option value="coupon">CupÃ³n</option>
+                </select>
+              </Field>
+            )}
           </div>
 
           <div style={gridTwoStyle}>
             <Field label="Inicio">
-              <input
-                type="datetime-local"
+              <DateTimeField
                 value={form.startsAt}
-                onChange={(event) => setForm((current) => ({ ...current, startsAt: event.target.value }))}
-                style={fieldStyle}
+                onChange={(value) => setForm((current) => ({ ...current, startsAt: value }))}
               />
             </Field>
             <Field label="Fin">
-              <input
-                type="datetime-local"
+              <DateTimeField
                 value={form.endsAt}
-                onChange={(event) => setForm((current) => ({ ...current, endsAt: event.target.value }))}
-                style={fieldStyle}
+                onChange={(value) => setForm((current) => ({ ...current, endsAt: value }))}
               />
             </Field>
           </div>
@@ -825,6 +838,65 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function DateTimeField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const openPicker = () => {
+    const input = inputRef.current;
+    if (!input) {
+      return;
+    }
+
+    input.focus({ preventScroll: true });
+
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+    }
+  };
+
+  return (
+    <div style={dateTimeFieldWrapStyle}>
+      <input
+        ref={inputRef}
+        type="datetime-local"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          openPicker();
+        }}
+        style={dateTimeFieldInputStyle}
+      />
+      <button
+        type="button"
+        aria-label="Abrir selector de fecha y hora"
+        onMouseDown={(event) => {
+          event.preventDefault();
+          openPicker();
+        }}
+        onClick={(event) => event.preventDefault()}
+        style={dateTimeFieldButtonStyle}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm2 8h3v3H8v-3Z"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div style={metricCardStyle}>
@@ -1064,14 +1136,45 @@ const fieldStyle: React.CSSProperties = {
   color: "var(--account-text-strong)",
   outline: "none",
 };
+const dateTimeFieldWrapStyle: React.CSSProperties = {
+  ...fieldStyle,
+  padding: 0,
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  alignItems: "center",
+  overflow: "hidden",
+};
+const dateTimeFieldInputStyle: React.CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+  padding: "14px 16px",
+  border: "none",
+  background: "transparent",
+  color: "var(--account-text-strong)",
+  outline: "none",
+  appearance: "none",
+  WebkitAppearance: "none",
+};
+const dateTimeFieldButtonStyle: React.CSSProperties = {
+  width: 44,
+  height: "100%",
+  minHeight: 52,
+  border: "none",
+  borderLeft: "1px solid var(--checkout-border)",
+  background: "transparent",
+  color: "var(--account-text-muted)",
+  display: "grid",
+  placeItems: "center",
+  cursor: "pointer",
+};
 const readOnlyFieldStyle: React.CSSProperties = {
   ...fieldStyle,
   display: "flex",
   alignItems: "center",
   minHeight: 52,
-  color: "rgba(247,241,232,0.7)",
+  color: "var(--account-text-muted)",
 };
-const fieldLabelStyle: React.CSSProperties = { fontSize: 12, color: "rgba(247,241,232,0.7)" };
+const fieldLabelStyle: React.CSSProperties = { fontSize: 12, color: "var(--account-text-muted)" };
 const scopeGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -1080,9 +1183,10 @@ const scopeGridStyle: React.CSSProperties = {
 const scopeCardStyle = (active: boolean): React.CSSProperties => ({
   borderRadius: 22,
   padding: 16,
-  border: active ? "1px solid rgba(255,255,255,0.24)" : "1px solid rgba(255,255,255,0.1)",
-  background: active ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)",
-  color: "#fff",
+  border: active ? "1px solid var(--account-item-border-active)" : "1px solid var(--account-item-border)",
+  background: active ? "var(--admin-chip-selected-bg)" : "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  boxShadow: active ? "var(--admin-chip-selected-shadow)" : "none",
   textAlign: "left",
   cursor: "pointer",
   display: "grid",
@@ -1091,15 +1195,16 @@ const scopeCardStyle = (active: boolean): React.CSSProperties => ({
 const scopeDescriptionStyle: React.CSSProperties = {
   fontSize: 13,
   lineHeight: 1.5,
-  color: "rgba(247,241,232,0.68)",
+  color: "var(--account-text-muted)",
 };
 const toggleRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 };
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   padding: "12px 14px",
   borderRadius: 14,
-  border: active ? "1px solid rgba(255,255,255,0.24)" : "1px solid rgba(255,255,255,0.08)",
-  background: active ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)",
-  color: "#fff",
+  border: active ? "1px solid var(--account-item-border-active)" : "1px solid var(--account-item-border)",
+  background: active ? "var(--admin-chip-selected-bg)" : "var(--account-item-bg)",
+  color: active ? "var(--account-text-strong)" : "var(--account-text-muted)",
+  boxShadow: active ? "var(--admin-chip-selected-shadow)" : "none",
   cursor: "pointer",
 });
 const targetPanelStyle: React.CSSProperties = {
@@ -1107,23 +1212,23 @@ const targetPanelStyle: React.CSSProperties = {
   gap: 16,
   padding: 20,
   borderRadius: 24,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.025)",
+  border: "1px solid var(--account-item-border)",
+  background: "color-mix(in srgb, white 88%, var(--theme-colors-paper-muted) 12%)",
 };
 const metaBadgeStyle: React.CSSProperties = {
   padding: "10px 14px",
   borderRadius: 999,
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  color: "rgba(247,241,232,0.72)",
+  background: "var(--account-item-bg)",
+  border: "1px solid var(--account-item-border)",
+  color: "var(--account-text-muted)",
   fontSize: 12,
 };
 const emptyTargetStyle: React.CSSProperties = {
   padding: 18,
   borderRadius: 18,
-  border: "1px dashed rgba(255,255,255,0.12)",
-  color: "rgba(247,241,232,0.7)",
-  background: "rgba(255,255,255,0.02)",
+  border: "1px dashed var(--account-item-border-active)",
+  color: "var(--account-text-soft)",
+  background: "color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%)",
 };
 const selectionGridStyle: React.CSSProperties = {
   display: "grid",
@@ -1136,31 +1241,33 @@ const selectionGridStyle: React.CSSProperties = {
 const selectionCardStyle = (active: boolean): React.CSSProperties => ({
   padding: 16,
   borderRadius: 18,
-  border: active ? "1px solid rgba(255,255,255,0.24)" : "1px solid rgba(255,255,255,0.08)",
-  background: active ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.025)",
-  color: "#fff",
+  border: active ? "1px solid var(--account-item-border-active)" : "1px solid var(--account-item-border)",
+  background: active ? "var(--admin-chip-selected-bg)" : "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  boxShadow: active ? "var(--admin-chip-selected-shadow)" : "none",
   cursor: "pointer",
   textAlign: "left",
   display: "grid",
   gap: 6,
 });
-const selectionMetaStyle: React.CSSProperties = { color: "rgba(247,241,232,0.62)", fontSize: 12 };
+const selectionMetaStyle: React.CSSProperties = { color: "var(--account-text-soft)", fontSize: 12 };
 const optionGridStyle: React.CSSProperties = { display: "grid", gap: 12 };
 const optionCardStyle: React.CSSProperties = {
   display: "grid",
   gap: 12,
   padding: 18,
   borderRadius: 20,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.025)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
 };
 const chipWrapStyle: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
 const chipStyle = (active: boolean): React.CSSProperties => ({
   padding: "10px 14px",
   borderRadius: 999,
-  border: active ? "1px solid rgba(255,255,255,0.24)" : "1px solid rgba(255,255,255,0.08)",
-  background: active ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)",
-  color: "#fff",
+  border: active ? "1px solid var(--account-item-border-active)" : "1px solid var(--account-item-border)",
+  background: active ? "var(--admin-chip-selected-bg)" : "var(--account-item-bg)",
+  color: active ? "var(--account-text-strong)" : "var(--account-text-muted)",
+  boxShadow: active ? "var(--admin-chip-selected-shadow)" : "none",
   cursor: "pointer",
 });
 const summaryCardStyle: React.CSSProperties = {
@@ -1168,8 +1275,8 @@ const summaryCardStyle: React.CSSProperties = {
   gap: 16,
   padding: 20,
   borderRadius: 24,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
 };
 const summaryGridStyle: React.CSSProperties = {
   display: "grid",
@@ -1181,25 +1288,25 @@ const summaryItemStyle: React.CSSProperties = {
   gap: 8,
   padding: 14,
   borderRadius: 18,
-  background: "rgba(255,255,255,0.025)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: "color-mix(in srgb, white 82%, var(--theme-colors-paper-muted) 18%)",
+  border: "1px solid var(--account-item-border)",
 };
 const footerStyle: React.CSSProperties = { display: "flex", justifyContent: "flex-end" };
 const primaryButtonStyle: React.CSSProperties = {
   padding: "14px 20px",
   borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.16)",
-  background: "#f7f1e8",
-  color: "#111",
+  border: "1px solid var(--account-item-border-active)",
+  background: "var(--checkout-primary-bg)",
+  color: "var(--checkout-primary-color)",
   cursor: "pointer",
   fontWeight: 600,
 };
 const ghostButtonStyle: React.CSSProperties = {
   padding: "12px 16px",
   borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "transparent",
-  color: "#f7f1e8",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
   cursor: "pointer",
 };
 const errorStyle: React.CSSProperties = { margin: 0, color: "#ffb3b3" };
@@ -1210,8 +1317,8 @@ const promotionCardStyle: React.CSSProperties = {
   gap: 16,
   padding: 18,
   borderRadius: 22,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
 };
 const promotionActionsStyle: React.CSSProperties = {
   display: "flex",
@@ -1220,25 +1327,30 @@ const promotionActionsStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 const promotionHeaderStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" };
-const cardMetaStyle: React.CSSProperties = { margin: "6px 0 0", color: "rgba(247,241,232,0.62)", lineHeight: 1.5 };
+const cardMetaStyle: React.CSSProperties = { margin: "6px 0 0", color: "var(--account-text-soft)", lineHeight: 1.5 };
 const statusPillStyle = (promotion: AdminPromotion): React.CSSProperties => ({
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.08)",
+  border: "1px solid var(--account-item-border)",
   background:
     promotionStatus(promotion) === "Activa"
-      ? "rgba(131, 241, 180, 0.16)"
+      ? "var(--admin-tone-success-bg)"
       : promotionStatus(promotion) === "Programada"
-        ? "rgba(255, 209, 102, 0.16)"
-        : "rgba(255,255,255,0.06)",
-  color: "#f7f1e8",
+        ? "var(--admin-tone-warning-bg)"
+        : "var(--account-item-bg-active)",
+  color:
+    promotionStatus(promotion) === "Activa"
+      ? "var(--admin-tone-success-color)"
+      : promotionStatus(promotion) === "Programada"
+        ? "var(--admin-tone-warning-color)"
+        : "var(--account-text-strong)",
   fontSize: 12,
 });
 const dangerButtonStyle: React.CSSProperties = {
   padding: "12px 16px",
   borderRadius: 16,
-  border: "1px solid rgba(255,159,159,0.22)",
-  background: "rgba(255,159,159,0.08)",
-  color: "#ffd7d7",
+  border: "1px solid var(--admin-danger-border)",
+  background: "var(--admin-danger-bg)",
+  color: "var(--admin-danger-color)",
   cursor: "pointer",
 };

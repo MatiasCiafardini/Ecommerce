@@ -7,7 +7,7 @@ type ImageLayout = {
 function getImageLayoutValues(image?: ImageLayout | null) {
   const offsetX = Number(image?.offsetX ?? 0);
   const offsetY = Number(image?.offsetY ?? 0);
-  const zoom = Number(image?.zoom ?? 1);
+  const zoom = Number(image?.zoom ?? 1.08);
 
   return { offsetX, offsetY, zoom };
 }

@@ -7,6 +7,16 @@ import { Prisma } from '@prisma/client';
 import { ProductPricingService } from '../discounts/product-pricing.service';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 
+type NormalizedStorefrontConfig = {
+  theme?: string;
+  pages: {
+    home: Array<{
+      type: string;
+      props?: Record<string, unknown>;
+    }>;
+  };
+};
+
 @Injectable()
 export class StorefrontService {
   constructor(
@@ -15,19 +25,36 @@ export class StorefrontService {
     private productPricingService: ProductPricingService,
     private mercadoPagoProvider: MercadoPagoProvider,
   ) {}
-  async getStoreConfig(domain: string) {
+  async getStoreConfig(storeId?: number, domain?: string) {
     const normalizedDomain = this.normalizeStoreDomain(domain);
-    const store = await this.prisma.store.findUnique({
-      where: { domain: normalizedDomain },
-    });
+    const store = storeId
+      ? await this.prisma.store.findUnique({
+          where: { id: storeId },
+          select: {
+            id: true,
+            storefrontConfig: true,
+          },
+        } as any)
+      : await this.prisma.store.findUnique({
+          where: { domain: normalizedDomain },
+          select: {
+            id: true,
+            storefrontConfig: true,
+          },
+        } as any);
 
     if (!store) {
       throw new Error('Store not found');
     }
 
+    const storefrontConfig = this.normalizeStorefrontConfig(
+      (store as any).storefrontConfig,
+    );
+
     return {
       storeId: store.id,
-      theme: 'minimal',
+      theme: storefrontConfig.theme ?? null,
+      storefrontConfig,
       paymentProviders: {
         mercadopago: await this.mercadoPagoProvider.getPublicConfig(store.id),
       },
@@ -38,6 +65,59 @@ export class StorefrontService {
     return {
       mercadopago: await this.mercadoPagoProvider.getPublicConfig(storeId),
     };
+  }
+
+  async getAdminStorefrontConfig(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        storefrontConfig: true,
+      },
+    } as any);
+
+    return {
+      storefrontConfig: this.normalizeStorefrontConfig(
+        (store as any)?.storefrontConfig,
+      ),
+    };
+  }
+
+  async updateAdminStorefrontConfig(storeId: number, input: unknown) {
+    const storefrontConfig = this.normalizeStorefrontConfig(input);
+
+    await this.prisma.store.update({
+      where: { id: storeId },
+      data: {
+        storefrontConfig: storefrontConfig as Prisma.InputJsonValue,
+      },
+    } as any);
+
+    return {
+      storefrontConfig,
+    };
+  }
+
+  async getAdminIntegrationsConfig(storeId: number) {
+    return {
+      mercadopago: await this.mercadoPagoProvider.getAdminConfig(storeId),
+    };
+  }
+
+  async updateAdminMercadoPagoConfig(
+    storeId: number,
+    input: {
+      publicKey?: string | null;
+      accessToken?: string | null;
+      webhookSecret?: string | null;
+    },
+  ) {
+    return {
+      mercadopago: await this.mercadoPagoProvider.updateAdminConfig(storeId, input),
+    };
+  }
+
+  async testAdminMercadoPagoConfig(storeId: number) {
+    return this.mercadoPagoProvider.testConfiguration(storeId);
   }
 
   private normalizeStoreDomain(domain?: string) {
@@ -270,6 +350,14 @@ export class StorefrontService {
       };
     }
 
+    const productIds = this.parseIds(query?.productIds);
+
+    if (productIds.length > 0) {
+      where.id = {
+        in: productIds,
+      };
+    }
+
     const optionValueIds = this.parseOptionValueIds(query?.optionValueIds);
 
     if (optionValueIds.length === 0) {
@@ -325,13 +413,52 @@ export class StorefrontService {
   }
 
   private parseOptionValueIds(optionValueIds?: string) {
-    if (!optionValueIds) {
+    return this.parseIds(optionValueIds);
+  }
+
+  private parseIds(raw?: string) {
+    if (!raw) {
       return [];
     }
 
-    return [...new Set(optionValueIds
+    return [...new Set(raw
       .split(',')
       .map((value) => Number(value.trim()))
       .filter((value) => Number.isInteger(value) && value > 0))];
+  }
+
+  private normalizeStorefrontConfig(input: unknown): NormalizedStorefrontConfig {
+    const source =
+      input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+    const theme =
+      typeof source.theme === 'string' && source.theme.trim()
+        ? source.theme.trim()
+        : undefined;
+    const rawPages =
+      source.pages && typeof source.pages === 'object'
+        ? (source.pages as Record<string, unknown>)
+        : {};
+    const rawHome = Array.isArray(rawPages.home) ? rawPages.home : [];
+
+    return {
+      ...(theme ? { theme } : {}),
+      pages: {
+        home: rawHome
+          .filter(
+            (block): block is Record<string, unknown> =>
+              !!block && typeof block === 'object',
+          )
+          .map((block) => ({
+            type:
+              typeof block.type === 'string' && block.type.trim()
+                ? block.type.trim()
+                : 'banner',
+            props:
+              block.props && typeof block.props === 'object'
+                ? (block.props as Record<string, unknown>)
+                : {},
+          })),
+      },
+    };
   }
 }

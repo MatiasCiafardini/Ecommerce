@@ -72,10 +72,24 @@ export type AdminReturn = {
   orderId: number;
   reason?: string | null;
   status: string;
+  adminInstructions?: string | null;
+  adminNotes?: string | null;
+  customerShipmentCarrier?: string | null;
+  customerShipmentTracking?: string | null;
+  customerShipmentProofUrl?: string | null;
+  approvedAt?: string | null;
+  shippedAt?: string | null;
+  receivedAt?: string | null;
+  resolvedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   items: AdminReturnItem[];
   refund?: AdminRefund | null;
+  order?: {
+    id: number;
+    status: string;
+    createdAt: string;
+  } | null;
 };
 
 export type AdminCancellationRequest = {
@@ -107,6 +121,7 @@ export type AdminCancellationRequest = {
 
 export type AdminSection =
   | "admin-overview"
+  | "admin-developer"
   | "admin-products"
   | "admin-categories"
   | "admin-orders"

@@ -7,7 +7,8 @@ $services = @(
   @{ Name = "store1"; Port = 3001; Url = "http://localhost:3001" },
   @{ Name = "store2"; Port = 3002; Url = "http://localhost:3002" },
   @{ Name = "store3"; Port = 3003; Url = "http://localhost:3003" },
-  @{ Name = "store4"; Port = 3004; Url = "http://localhost:3004" }
+  @{ Name = "store4"; Port = 3004; Url = "http://localhost:3004" },
+  @{ Name = "store5"; Port = 3005; Url = "http://localhost:3005" }
 )
 
 foreach ($service in $services) {

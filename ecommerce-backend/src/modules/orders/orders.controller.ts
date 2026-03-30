@@ -49,6 +49,11 @@ export class OrdersController {
     return this.ordersService.findAll(req.storeId);
   }
 
+  @Get('notifications')
+  getNotifications(@Req() req) {
+    return this.ordersService.getAdminNotifications(req.storeId);
+  }
+
   @Get('manual/list')
   findManualSales(@Req() req) {
     return this.ordersService.findManualSales(req.storeId);

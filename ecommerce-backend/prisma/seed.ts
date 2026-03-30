@@ -28,6 +28,12 @@ const DEVELOPMENT_STORES = [
     domain: 'localhost:3004',
     adminEmail: 'admin-store4@demo.com',
   },
+  {
+    id: 3005,
+    name: 'Mi Maria Indumentaria',
+    domain: 'localhost:3005',
+    adminEmail: 'admin-mimaria@demo.com',
+  },
 ] as const;
 
 type DevelopmentStoreRecord = {
@@ -37,7 +43,10 @@ type DevelopmentStoreRecord = {
   adminEmail: string;
 };
 
-function readStoreEnvCredential(storeId: number, key: "ACCESS_TOKEN" | "PUBLIC_KEY") {
+function readStoreEnvCredential(
+  storeId: number,
+  key: "ACCESS_TOKEN" | "PUBLIC_KEY" | "WEBHOOK_SECRET",
+) {
   return process.env[`STORE_${storeId}_MERCADOPAGO_${key}`]?.trim() || null;
 }
 
@@ -213,62 +222,62 @@ function shapeMarkup(kind: string, accent: string, support: string, glow: string
   switch (kind) {
     case 'tee':
       return `
-        <path d="M290 180l72-38 38 44 38-44 72 38-32 74-42-16v228H332V238l-42 16z" fill="${accent}" />
-        <path d="M332 238c48 12 92 12 134 0v228H332z" fill="${glow}" opacity="0.22" />
+        <path d="M350 286l110-66 48 44 48-44 110 66-42 94-56-22v352H392V358l-56 22z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <path d="M392 358c64 18 152 18 216 0v352H392z" fill="${glow}" opacity="0.55" />
       `;
     case 'hoodie':
       return `
-        <path d="M356 148c12-18 28-28 44-28s32 10 44 28l18 34-18 26h-88l-18-26z" fill="${support}" />
-        <path d="M286 224l64-30h100l64 30-32 68-32-12v198H350V280l-32 12z" fill="${accent}" />
-        <rect x="382" y="330" width="36" height="82" rx="18" fill="${support}" opacity="0.48" />
+        <path d="M462 206c18-28 44-44 70-44s52 16 70 44l28 54-30 42H434l-30-42z" fill="${support}" opacity="0.72" />
+        <path d="M338 324l118-52h152l118 52-42 92-60-24v318H440V392l-60 24z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <rect x="522" y="474" width="42" height="108" rx="20" fill="${support}" opacity="0.68" />
       `;
     case 'jacket':
       return `
-        <path d="M306 174l84-40 30 38 30-38 84 40-26 78-40-18v252H332V234l-40 18z" fill="${accent}" />
-        <rect x="395" y="170" width="10" height="316" rx="5" fill="${support}" />
-        <rect x="342" y="300" width="34" height="56" rx="10" fill="${support}" opacity="0.4" />
-        <rect x="424" y="300" width="34" height="56" rx="10" fill="${support}" opacity="0.4" />
+        <path d="M368 256l126-62 44 48 44-48 126 62-34 98-60-26v382H422V328l-60 26z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <rect x="534" y="224" width="12" height="486" rx="6" fill="${support}" />
+        <rect x="426" y="456" width="48" height="86" rx="16" fill="${support}" opacity="0.46" />
+        <rect x="594" y="456" width="48" height="86" rx="16" fill="${support}" opacity="0.46" />
       `;
     case 'pants':
       return `
-        <path d="M344 148h152l-12 138-34 210h-56l-16-146-16 146h-56l-34-210z" fill="${accent}" />
-        <path d="M396 148v132m48-132v132" stroke="${support}" stroke-width="8" opacity="0.45" />
+        <path d="M420 218h232l-18 188-42 304h-82l-20-208-20 208h-82l-42-304z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <path d="M500 218v180m72-180v180" stroke="${glow}" stroke-width="12" opacity="0.52" />
       `;
     case 'cargo':
       return `
-        <path d="M340 148h160l-14 130-28 218h-56l-10-122-10 122h-56l-28-218z" fill="${accent}" />
-        <rect x="330" y="286" width="42" height="60" rx="10" fill="${support}" opacity="0.36" />
-        <rect x="468" y="286" width="42" height="60" rx="10" fill="${support}" opacity="0.36" />
+        <path d="M416 220h240l-20 174-32 316h-86l-16-178-16 178h-86l-32-316z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <rect x="398" y="410" width="58" height="92" rx="16" fill="${support}" opacity="0.44" />
+        <rect x="616" y="410" width="58" height="92" rx="16" fill="${support}" opacity="0.44" />
       `;
     case 'jogger':
       return `
-        <path d="M344 148h152l-16 148-20 176c-2 18-18 32-36 32h-8l-12-118-12 118h-8c-18 0-34-14-36-32l-20-176z" fill="${accent}" />
-        <rect x="350" y="468" width="42" height="18" rx="9" fill="${support}" />
-        <rect x="448" y="468" width="42" height="18" rx="9" fill="${support}" />
+        <path d="M422 220h228l-24 196-26 248c-4 24-24 42-48 42h-14l-18-158-18 158h-14c-24 0-44-18-48-42l-26-248z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <rect x="430" y="656" width="58" height="26" rx="13" fill="${support}" />
+        <rect x="584" y="656" width="58" height="26" rx="13" fill="${support}" />
       `;
     case 'shirt':
       return `
-        <path d="M308 178l82-44 26 32 26-32 82 44-26 70-34-18v256H336V230l-34 18z" fill="${accent}" />
-        <rect x="395" y="170" width="10" height="316" rx="5" fill="${support}" />
-        <path d="M356 198h88" stroke="${support}" stroke-width="8" opacity="0.45" />
+        <path d="M370 258l120-62 38 42 38-42 120 62-36 90-54-22v384H424V326l-54 22z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <rect x="532" y="230" width="12" height="480" rx="6" fill="${support}" />
+        <path d="M458 304h148" stroke="${glow}" stroke-width="12" opacity="0.5" />
       `;
     case 'shorts':
       return `
-        <path d="M344 148h152l-18 110-18 128h-46l-18-92-18 92h-46l-18-128z" fill="${accent}" />
-        <path d="M396 148v90m48-90v90" stroke="${support}" stroke-width="8" opacity="0.45" />
+        <path d="M422 220h228l-24 144-28 182h-68l-22-122-22 122h-68l-28-182z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <path d="M500 220v120m72-120v120" stroke="${glow}" stroke-width="12" opacity="0.52" />
       `;
     case 'vest':
       return `
-        <path d="M332 164l82-34 82 34-22 322H332z" fill="${accent}" />
-        <rect x="395" y="164" width="10" height="322" rx="5" fill="${support}" />
-        <rect x="352" y="286" width="38" height="68" rx="10" fill="${support}" opacity="0.38" />
-        <rect x="410" y="286" width="38" height="68" rx="10" fill="${support}" opacity="0.38" />
+        <path d="M404 240l124-56 124 56-28 470H404z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <rect x="532" y="240" width="12" height="470" rx="6" fill="${support}" />
+        <rect x="438" y="428" width="52" height="94" rx="16" fill="${support}" opacity="0.42" />
+        <rect x="558" y="428" width="52" height="94" rx="16" fill="${support}" opacity="0.42" />
       `;
     case 'accessory':
       return `
-        <path d="M324 256c0-58 44-100 108-100s108 42 108 100v44H324z" fill="${accent}" />
-        <rect x="296" y="300" width="272" height="28" rx="14" fill="${support}" />
-        <path d="M352 374h160v64H352z" fill="${glow}" opacity="0.18" />
+        <path d="M390 452c0-82 62-138 146-138s146 56 146 138v54H390z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <rect x="354" y="506" width="364" height="34" rx="17" fill="${support}" />
+        <path d="M438 614h196v94H438z" fill="${glow}" opacity="0.42" />
       `;
     default:
       return '';
@@ -285,41 +294,43 @@ function buildSvg(args: {
   const { base, accent, support, glow } = args.palette;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-  <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 800 1066" fill="none">
+  <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1080 1440" fill="none">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="${base}" />
-        <stop offset="55%" stop-color="${support}" />
         <stop offset="100%" stop-color="${glow}" />
       </linearGradient>
       <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(255,255,255,0.14)" />
-        <stop offset="100%" stop-color="rgba(255,255,255,0.02)" />
+        <stop offset="0%" stop-color="rgba(255,255,255,0.72)" />
+        <stop offset="100%" stop-color="rgba(255,255,255,0.28)" />
       </linearGradient>
     </defs>
-    <rect width="800" height="1066" rx="44" fill="url(#bg)" />
-    <g opacity="0.12" stroke="#f3eee7" stroke-width="2">
-      <path d="M0 150h800" />
-      <path d="M0 330h800" />
-      <path d="M0 510h800" />
-      <path d="M0 690h800" />
-      <path d="M0 870h800" />
-      <path d="M140 0v1066" />
-      <path d="M320 0v1066" />
-      <path d="M500 0v1066" />
-      <path d="M680 0v1066" />
+    <rect width="1080" height="1440" rx="56" fill="url(#bg)" />
+    <g opacity="0.16" stroke="${support}" stroke-width="3">
+      <path d="M0 220h1080" />
+      <path d="M0 420h1080" />
+      <path d="M0 620h1080" />
+      <path d="M0 820h1080" />
+      <path d="M0 1020h1080" />
+      <path d="M140 0v1440" />
+      <path d="M360 0v1440" />
+      <path d="M580 0v1440" />
+      <path d="M800 0v1440" />
+      <path d="M1000 0v1440" />
     </g>
-    <circle cx="634" cy="186" r="132" fill="#ffffff" opacity="0.07" />
-    <rect x="72" y="72" width="656" height="922" rx="36" fill="#0f0f0f" fill-opacity="0.22" stroke="rgba(255,255,255,0.14)" />
-    <text x="92" y="118" fill="#f3eee7" font-size="22" font-family="Arial, sans-serif" letter-spacing="6">ASPHALT TEST LAB</text>
-    <text x="92" y="902" fill="#f3eee7" font-size="48" font-weight="700" font-family="Arial, sans-serif">${escapeXml(args.title)}</text>
-    <text x="92" y="944" fill="rgba(243,238,231,0.82)" font-size="20" font-family="Arial, sans-serif">${escapeXml(args.subtitle)}</text>
-    <text x="92" y="980" fill="rgba(243,238,231,0.72)" font-size="18" font-family="Arial, sans-serif">${escapeXml(args.detail)}</text>
-    <g transform="translate(0 80)">
+    <circle cx="860" cy="230" r="180" fill="#ffffff" opacity="0.24" />
+    <circle cx="226" cy="1170" r="160" fill="${support}" opacity="0.15" />
+    <rect x="64" y="64" width="952" height="1312" rx="46" fill="url(#panel)" stroke="rgba(255,255,255,0.46)" />
+    <text x="118" y="136" fill="${support}" font-size="26" font-family="Arial, sans-serif" letter-spacing="7">STORE 2 TEST LAB</text>
+    <text x="118" y="186" fill="${support}" font-size="18" font-family="Arial, sans-serif" letter-spacing="4">COLECCION</text>
+    <g transform="translate(0 28)">
       ${shapeMarkup(args.kind, accent, support, glow)}
     </g>
-    <rect x="92" y="130" width="170" height="38" rx="19" fill="#111111" fill-opacity="0.32" stroke="rgba(255,255,255,0.16)" />
-    <text x="118" y="154" fill="#f3eee7" font-size="16" font-family="Arial, sans-serif" letter-spacing="3">URBAN TEST DROP</text>
+    <rect x="118" y="1012" width="844" height="244" rx="34" fill="rgba(255,255,255,0.58)" stroke="rgba(255,255,255,0.48)" />
+    <text x="154" y="1098" fill="${support}" font-size="26" font-family="Arial, sans-serif" letter-spacing="4">${escapeXml(args.subtitle.toUpperCase())}</text>
+    <text x="154" y="1166" fill="${support}" font-size="56" font-weight="700" font-family="Arial, sans-serif">${escapeXml(args.title)}</text>
+    <text x="154" y="1218" fill="${support}" font-size="26" font-family="Arial, sans-serif">Vista completa</text>
+    <text x="154" y="1270" fill="${support}" font-size="22" font-family="Arial, sans-serif" opacity="0.8">${escapeXml(args.detail)}</text>
   </svg>`;
 }
 
@@ -369,26 +380,27 @@ function buildCategorySvg(args: {
         <stop offset="100%" stop-color="${glow}" />
       </linearGradient>
     </defs>
-    <rect width="1600" height="900" rx="36" fill="url(#bg)" />
-    <g opacity="0.12" stroke="#f3eee7" stroke-width="2">
-      <path d="M0 160h1600" />
-      <path d="M0 320h1600" />
-      <path d="M0 480h1600" />
-      <path d="M0 640h1600" />
+    <rect width="1600" height="900" rx="42" fill="url(#bg)" />
+    <g opacity="0.14" stroke="${support}" stroke-width="2">
+      <path d="M0 170h1600" />
+      <path d="M0 340h1600" />
+      <path d="M0 510h1600" />
+      <path d="M0 680h1600" />
       <path d="M180 0v900" />
-      <path d="M500 0v900" />
-      <path d="M820 0v900" />
-      <path d="M1140 0v900" />
-      <path d="M1460 0v900" />
+      <path d="M460 0v900" />
+      <path d="M740 0v900" />
+      <path d="M1020 0v900" />
+      <path d="M1300 0v900" />
     </g>
-    <circle cx="1260" cy="180" r="150" fill="#ffffff" opacity="0.07" />
-    <rect x="90" y="90" width="1420" height="720" rx="30" fill="#0f0f0f" fill-opacity="0.18" stroke="rgba(255,255,255,0.14)" />
-    <text x="130" y="180" fill="#f3eee7" font-size="30" font-family="Arial, sans-serif" letter-spacing="10">ASPHALT CATEGORY</text>
-    <text x="130" y="600" fill="#ffffff" font-size="96" font-weight="700" font-family="Arial, sans-serif">${escapeXml(args.title.toUpperCase())}</text>
-    <text x="130" y="660" fill="rgba(243,238,231,0.8)" font-size="28" font-family="Arial, sans-serif">${escapeXml(args.collection)}</text>
-    <rect x="1060" y="240" width="280" height="280" rx="36" fill="${accent}" fill-opacity="0.9" />
-    <rect x="1180" y="180" width="240" height="380" rx="42" fill="${glow}" fill-opacity="0.28" />
-    <rect x="980" y="320" width="220" height="220" rx="32" fill="${support}" fill-opacity="0.32" />
+    <circle cx="1290" cy="188" r="154" fill="#ffffff" opacity="0.22" />
+    <rect x="74" y="74" width="1452" height="752" rx="36" fill="rgba(255,255,255,0.34)" stroke="rgba(255,255,255,0.5)" />
+    <text x="132" y="168" fill="${support}" font-size="28" font-family="Arial, sans-serif" letter-spacing="7">STORE 2 CATEGORY</text>
+    <rect x="132" y="218" width="458" height="438" rx="42" fill="${accent}" fill-opacity="0.9" stroke="${support}" stroke-width="4" />
+    <rect x="448" y="182" width="290" height="506" rx="48" fill="${support}" fill-opacity="0.24" />
+    <rect x="540" y="270" width="170" height="320" rx="32" fill="${glow}" fill-opacity="0.48" />
+    <text x="790" y="408" fill="${support}" font-size="84" font-weight="700" font-family="Arial, sans-serif">${escapeXml(args.title.toUpperCase())}</text>
+    <text x="790" y="486" fill="${support}" font-size="30" font-family="Arial, sans-serif">Visual completa para cards anchas</text>
+    <text x="790" y="560" fill="${support}" font-size="24" font-family="Arial, sans-serif" opacity="0.8">${escapeXml(args.collection)}</text>
   </svg>`;
 }
 
@@ -481,6 +493,7 @@ async function ensureDevelopmentStores() {
             domain: definition.domain,
             mercadoPagoAccessToken: readStoreEnvCredential(definition.id, "ACCESS_TOKEN"),
             mercadoPagoPublicKey: readStoreEnvCredential(definition.id, "PUBLIC_KEY"),
+            mercadoPagoWebhookSecret: readStoreEnvCredential(definition.id, "WEBHOOK_SECRET"),
           },
         })
       : await prisma.store.create({
@@ -490,6 +503,7 @@ async function ensureDevelopmentStores() {
             domain: definition.domain,
             mercadoPagoAccessToken: readStoreEnvCredential(definition.id, "ACCESS_TOKEN"),
             mercadoPagoPublicKey: readStoreEnvCredential(definition.id, "PUBLIC_KEY"),
+            mercadoPagoWebhookSecret: readStoreEnvCredential(definition.id, "WEBHOOK_SECRET"),
           },
         });
 

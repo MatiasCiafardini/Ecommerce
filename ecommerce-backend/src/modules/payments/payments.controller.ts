@@ -135,7 +135,7 @@ export class PaymentsController {
   }
 
   @Post('payments/webhook')
-  webhook(@Body() body: any) {
-    return this.paymentsService.handleWebhook(body);
+  webhook(@Req() req, @Body() body: any) {
+    return this.paymentsService.handleWebhook(body, req.headers, req.query);
   }
 }

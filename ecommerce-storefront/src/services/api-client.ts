@@ -4,7 +4,15 @@ import { getPublicApiUrl } from "@/lib/runtime-config";
 
 const API_URL = getPublicApiUrl();
 
-export async function apiFetch<T>(path: string): Promise<T | null> {
+type ApiFetchOptions = {
+  cache?: RequestCache;
+  revalidate?: number;
+};
+
+export async function apiFetch<T>(
+  path: string,
+  options?: ApiFetchOptions,
+): Promise<T | null> {
   if (!API_URL) {
     console.error("API ERROR missing NEXT_PUBLIC_API_URL", { path });
     return null;
@@ -18,14 +26,22 @@ export async function apiFetch<T>(path: string): Promise<T | null> {
       headers: {
         "x-store-id": String(storeId),
       },
-      cache: "no-store",
+      cache: options?.cache ?? "no-store",
+      next:
+        typeof options?.revalidate === "number"
+          ? { revalidate: options.revalidate }
+          : undefined,
     });
 
     if (!res.ok) {
+      const responsePreview = await res.text().catch(() => "");
       console.error("API ERROR", {
         path,
         status: res.status,
+        statusText: res.statusText,
         storeId,
+        apiUrl: API_URL,
+        responsePreview: responsePreview.slice(0, 300),
       });
       return null;
     }

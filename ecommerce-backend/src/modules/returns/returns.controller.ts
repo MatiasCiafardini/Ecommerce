@@ -6,14 +6,24 @@ import {
   Get,
   Req,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
 import { ReturnsService } from './returns.service';
 import { CreateReturnDto } from './dto/create-return.dto';
 import { ApproveReturnDto } from './dto/approve-return.dto';
+import { ReviewReturnDto } from './dto/review-return.dto';
+import { ReceiveReturnDto } from './dto/receive-return.dto';
+import { ShipReturnDto } from './dto/ship-return.dto';
 
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { uploadsDir } from '../../common/uploads';
 
 @Controller('returns')
 export class ReturnsController {
@@ -31,10 +41,66 @@ export class ReturnsController {
     return this.returnsService.findMine(req.storeId, req.user.sub);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/ship')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: uploadsDir,
+        filename: (_, file, callback) => {
+          const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          callback(null, `return-shipment-${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (_, file, callback) => {
+        const extension = extname(file.originalname).toLowerCase();
+        const allowedExtensions = new Set(['.png', '.jpg', '.jpeg', '.pdf', '.webp']);
+
+        if (
+          !allowedExtensions.has(extension) ||
+          (!file.mimetype.startsWith('image/') && file.mimetype !== 'application/pdf')
+        ) {
+          callback(
+            new BadRequestException(
+              'Only PNG, JPG, JPEG, WEBP and PDF files are supported',
+            ) as Error,
+            false,
+          );
+          return;
+        }
+
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 8 * 1024 * 1024,
+      },
+    }),
+  )
+  ship(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: ShipReturnDto,
+    @UploadedFile() file?: { filename: string; originalname: string },
+  ) {
+    return this.returnsService.shipReturn(req.storeId, req.user.sub, Number(id), dto, file);
+  }
+
   @UseGuards(AdminAuthGuard)
   @Post(':id/approve')
   approve(@Req() req, @Param('id') id: string, @Body() dto: ApproveReturnDto) {
     return this.returnsService.approveReturn(req.storeId, Number(id), dto);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post(':id/review')
+  review(@Req() req, @Param('id') id: string, @Body() dto: ReviewReturnDto) {
+    return this.returnsService.reviewReturn(req.storeId, Number(id), dto);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post(':id/receive')
+  receive(@Req() req, @Param('id') id: string, @Body() dto: ReceiveReturnDto) {
+    return this.returnsService.receiveReturn(req.storeId, Number(id), dto);
   }
 
   @UseGuards(AdminAuthGuard)

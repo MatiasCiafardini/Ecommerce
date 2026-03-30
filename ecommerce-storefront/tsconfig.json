@@ -42,7 +42,9 @@
     ".next-store3/types/**/*.ts",
     ".next-store3/dev/types/**/*.ts",
     ".next-store4/types/**/*.ts",
-    ".next-store4/dev/types/**/*.ts"
+    ".next-store4/dev/types/**/*.ts",
+    ".next-store5/types/**/*.ts",
+    ".next-store5/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

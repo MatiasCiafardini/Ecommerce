@@ -8,6 +8,7 @@ import { formatCurrency, roundCurrency } from "@/lib/currency";
 type CatalogViewProps = {
   products: StoreProduct[];
   storeOptions: StoreProductOption[];
+  storeId?: number;
 };
 
 const getPrice = (product: StoreProduct) => {
@@ -72,7 +73,12 @@ const normalizeOptionGroups = (storeOptions: StoreProductOption[]) =>
     };
   });
 
-export default function CatalogView({ products, storeOptions }: CatalogViewProps) {
+export default function CatalogView({
+  products,
+  storeOptions,
+  storeId,
+}: CatalogViewProps) {
+  const isMiMaria = storeId === 3005;
   const priceValues = useMemo(
     () => products.map(getPrice).filter((price) => price > 0),
     [products],
@@ -116,6 +122,9 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
   const [onlyStock, setOnlyStock] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isMobileLayout, setIsMobileLayout] = useState(false);
+  const [sortBy, setSortBy] = useState<"featured" | "price-asc" | "price-desc">(
+    "featured",
+  );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 768px)");
@@ -159,7 +168,7 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
   };
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    const visibleProducts = products.filter((product) => {
       const price = getPrice(product);
       const productCategories = getProductCategories(product).map((category) => category.slug);
       const productSizes = (product.variants ?? [])
@@ -211,6 +220,16 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
 
       return true;
     });
+
+    if (sortBy === "price-asc") {
+      return [...visibleProducts].sort((a, b) => getPrice(a) - getPrice(b));
+    }
+
+    if (sortBy === "price-desc") {
+      return [...visibleProducts].sort((a, b) => getPrice(b) - getPrice(a));
+    }
+
+    return visibleProducts;
   }, [
     dynamicOptions,
     maxCatalogPrice,
@@ -222,6 +241,7 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
     selectedCategories,
     selectedOptionValues,
     selectedSizes,
+    sortBy,
   ]);
 
   const clearFilters = () => {
@@ -275,17 +295,17 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
           <h1
             style={{
               fontSize: "clamp(2.5rem, 5vw, 4.8rem)",
-              textTransform: "uppercase",
-              letterSpacing: "-0.05em",
+              letterSpacing: isMiMaria ? "-0.04em" : "-0.05em",
               marginBottom: 12,
               color: "var(--text-strong)",
             }}
           >
-            Catalogo
+            {isMiMaria ? "Coleccion" : "Catalogo"}
           </h1>
           <p style={{ color: "var(--text-muted)", maxWidth: 680, margin: 0 }}>
-            Seleccion completa de prendas urbanas con siluetas relajadas, tonos
-            neutros y basicos listos para la calle.
+            {isMiMaria
+              ? "Una seleccion femenina y actual para vestir con naturalidad, elegancia y comodidad todos los dias."
+              : "Seleccion completa de prendas urbanas con siluetas relajadas, tonos neutros y basicos listos para la calle."}
           </p>
         </div>
 
@@ -300,6 +320,23 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
               gap: 16,
             }}
           >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+                color: "var(--text-muted)",
+                fontSize: 13,
+              }}
+            >
+              <span>Inicio</span>
+              <span>/</span>
+              <strong style={{ color: "var(--text-strong)" }}>
+                {isMiMaria ? "Coleccion" : "Catalogo"}
+              </strong>
+            </div>
+
             <div
               style={{
                 display: "flex",
@@ -330,9 +367,26 @@ export default function CatalogView({ products, storeOptions }: CatalogViewProps
                 </p>
               </div>
 
-              <p style={{ margin: 0, color: "var(--text-muted)" }}>
-                Precio entre {formatCurrency(minCatalogPrice)} y {formatCurrency(maxCatalogPrice)}
-              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <p style={{ margin: 0, color: "var(--text-muted)" }}>
+                  Precio entre {formatCurrency(minCatalogPrice)} y {formatCurrency(maxCatalogPrice)}
+                </p>
+                <select
+                  value={sortBy}
+                  onChange={(event) =>
+                    setSortBy(event.target.value as "featured" | "price-asc" | "price-desc")
+                  }
+                  className="theme-select"
+                  aria-label="Ordenar catalogo"
+                  style={{ minWidth: 190 }}
+                >
+                  <option value="featured">
+                    {isMiMaria ? "Destacados" : "Recomendados"}
+                  </option>
+                  <option value="price-asc">Precio: menor a mayor</option>
+                  <option value="price-desc">Precio: mayor a menor</option>
+                </select>
+              </div>
             </div>
           </div>
 

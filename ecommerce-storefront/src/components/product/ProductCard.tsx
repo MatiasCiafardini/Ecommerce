@@ -23,6 +23,9 @@ export default function ProductCard({ product }: Props) {
   const basePrice = hasPromotion
     ? roundCurrency(product.pricing?.basePrice ?? fallbackPrice)
     : roundCurrency(fallbackPrice);
+  const categoryName =
+    product.categories?.[0]?.category?.name ??
+    "Coleccion boutique";
 
   return (
     <Link
@@ -65,14 +68,18 @@ export default function ProductCard({ product }: Props) {
               top: 14,
               left: 14,
               zIndex: 2,
-              padding: "8px 10px",
+              padding: "8px 12px",
               borderRadius: "var(--theme-radius-pill)",
-              background: "var(--accent)",
-              color: "var(--accent-contrast, #fff)",
-              textTransform: "uppercase",
-              letterSpacing: "0.14em",
-              fontSize: 11,
+              background:
+                "color-mix(in srgb, var(--paper, #fffdf9) 84%, var(--accent, #8f7868) 16%)",
+              border: "1px solid color-mix(in srgb, var(--border-soft, rgba(0,0,0,0.12)) 68%, var(--accent, #8f7868) 32%)",
+              boxShadow: "0 10px 24px rgba(56, 34, 24, 0.08)",
+              color: "var(--text-strong, #6a5247)",
+              letterSpacing: "0.08em",
+              fontSize: 12,
               fontWeight: 700,
+              lineHeight: 1,
+              backdropFilter: "blur(8px)",
             }}
           >
             -{product.pricing?.discountPercentage}%
@@ -90,7 +97,6 @@ export default function ProductCard({ product }: Props) {
               position: "absolute",
               inset: 0,
               width: "100%",
-              height: "100%",
               display: "block",
               pointerEvents: "none",
               ...getCatalogImageTransform(product.images?.[0]),
@@ -155,7 +161,7 @@ export default function ProductCard({ product }: Props) {
             letterSpacing: "0.16em",
           }}
         >
-          Streetwear essential
+          {categoryName}
         </p>
       </div>
     </Link>

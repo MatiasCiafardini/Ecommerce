@@ -7,12 +7,15 @@ import Newsletter from "@/blocks/newsletter/Newsletter";
 import Banner from "@/blocks/banner/Banner";
 import Testimonials from "@/blocks/testimonials/Testimonials";
 import HeroCarousel from "@/blocks/hero-carousel/HeroCarousel";
+import Benefits from "@/blocks/benefits/Benefits";
+import BoutiqueHero from "@/blocks/boutique-hero/BoutiqueHero";
 import { blockThemeOverrides } from "@/config/block-theme-overrides";
 import type { ThemeBlockDefinition } from "@/types/block";
 
 export const defaultBlockRegistry = {
   hero: Hero,
   hero_carousel: HeroCarousel,
+  boutique_hero: BoutiqueHero,
   product_grid: ProductGrid,
   carousel: Carousel,
   category_grid: CategoryGrid,
@@ -20,6 +23,7 @@ export const defaultBlockRegistry = {
   newsletter: Newsletter,
   banner: Banner,
   testimonials: Testimonials,
+  benefits: Benefits,
 };
 
 export function resolveBlockDefinition(

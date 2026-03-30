@@ -1,41 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
-  <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 800 1066" fill="none">
+  <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1080 1440" fill="none">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#161313" />
-        <stop offset="55%" stop-color="#70534a" />
         <stop offset="100%" stop-color="#caa696" />
       </linearGradient>
       <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(255,255,255,0.14)" />
-        <stop offset="100%" stop-color="rgba(255,255,255,0.02)" />
+        <stop offset="0%" stop-color="rgba(255,255,255,0.72)" />
+        <stop offset="100%" stop-color="rgba(255,255,255,0.28)" />
       </linearGradient>
     </defs>
-    <rect width="800" height="1066" rx="44" fill="url(#bg)" />
-    <g opacity="0.12" stroke="#f3eee7" stroke-width="2">
-      <path d="M0 150h800" />
-      <path d="M0 330h800" />
-      <path d="M0 510h800" />
-      <path d="M0 690h800" />
-      <path d="M0 870h800" />
-      <path d="M140 0v1066" />
-      <path d="M320 0v1066" />
-      <path d="M500 0v1066" />
-      <path d="M680 0v1066" />
+    <rect width="1080" height="1440" rx="56" fill="url(#bg)" />
+    <g opacity="0.16" stroke="#70534a" stroke-width="3">
+      <path d="M0 220h1080" />
+      <path d="M0 420h1080" />
+      <path d="M0 620h1080" />
+      <path d="M0 820h1080" />
+      <path d="M0 1020h1080" />
+      <path d="M140 0v1440" />
+      <path d="M360 0v1440" />
+      <path d="M580 0v1440" />
+      <path d="M800 0v1440" />
+      <path d="M1000 0v1440" />
     </g>
-    <circle cx="634" cy="186" r="132" fill="#ffffff" opacity="0.07" />
-    <rect x="72" y="72" width="656" height="922" rx="36" fill="#0f0f0f" fill-opacity="0.22" stroke="rgba(255,255,255,0.14)" />
-    <text x="92" y="118" fill="#f3eee7" font-size="22" font-family="Arial, sans-serif" letter-spacing="6">ASPHALT TEST LAB</text>
-    <text x="92" y="902" fill="#f3eee7" font-size="48" font-weight="700" font-family="Arial, sans-serif">Daily Shirt Detail</text>
-    <text x="92" y="944" fill="rgba(243,238,231,0.82)" font-size="20" font-family="Arial, sans-serif">Urban catalog asset</text>
-    <text x="92" y="980" fill="rgba(243,238,231,0.72)" font-size="18" font-family="Arial, sans-serif">SKU S2-CAM-070 · test image</text>
-    <g transform="translate(0 80)">
+    <circle cx="860" cy="230" r="180" fill="#ffffff" opacity="0.24" />
+    <circle cx="226" cy="1170" r="160" fill="#70534a" opacity="0.15" />
+    <rect x="64" y="64" width="952" height="1312" rx="46" fill="url(#panel)" stroke="rgba(255,255,255,0.46)" />
+    <text x="118" y="136" fill="#70534a" font-size="26" font-family="Arial, sans-serif" letter-spacing="7">STORE 2 TEST LAB</text>
+    <text x="118" y="186" fill="#70534a" font-size="18" font-family="Arial, sans-serif" letter-spacing="4">COLECCION</text>
+    <g transform="translate(0 28)">
       
-        <path d="M308 178l82-44 26 32 26-32 82 44-26 70-34-18v256H336V230l-34 18z" fill="#f5ece3" />
-        <rect x="395" y="170" width="10" height="316" rx="5" fill="#70534a" />
-        <path d="M356 198h88" stroke="#70534a" stroke-width="8" opacity="0.45" />
+        <path d="M370 258l120-62 38 42 38-42 120 62-36 90-54-22v384H424V326l-54 22z" fill="#f5ece3" stroke="#70534a" stroke-width="12" />
+        <rect x="532" y="230" width="12" height="480" rx="6" fill="#70534a" />
+        <path d="M458 304h148" stroke="#caa696" stroke-width="12" opacity="0.5" />
       
     </g>
-    <rect x="92" y="130" width="170" height="38" rx="19" fill="#111111" fill-opacity="0.32" stroke="rgba(255,255,255,0.16)" />
-    <text x="118" y="154" fill="#f3eee7" font-size="16" font-family="Arial, sans-serif" letter-spacing="3">URBAN TEST DROP</text>
+    <rect x="118" y="1012" width="844" height="244" rx="34" fill="rgba(255,255,255,0.58)" stroke="rgba(255,255,255,0.48)" />
+    <text x="154" y="1098" fill="#70534a" font-size="26" font-family="Arial, sans-serif" letter-spacing="4">URBAN CATALOG ASSET</text>
+    <text x="154" y="1166" fill="#70534a" font-size="56" font-weight="700" font-family="Arial, sans-serif">Daily Shirt Detail</text>
+    <text x="154" y="1218" fill="#70534a" font-size="26" font-family="Arial, sans-serif">Vista completa</text>
+    <text x="154" y="1270" fill="#70534a" font-size="22" font-family="Arial, sans-serif" opacity="0.8">SKU S3005-CAM-070 · test image</text>
   </svg>

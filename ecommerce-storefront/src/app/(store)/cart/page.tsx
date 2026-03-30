@@ -349,8 +349,8 @@ function CartPageInner() {
               lineHeight: 1.8,
             }}
           >
-            Suma algunas piezas a tu rotacion. Cuando el carrito tenga movimiento,
-            aca vas a ver todo organizado para cerrar la compra.
+            Suma tus prendas favoritas y vas a ver todo organizado para revisar tu
+            compra con calma antes de pagar.
           </p>
           <Link
             href="/"
@@ -426,7 +426,7 @@ function CartPageInner() {
                   letterSpacing: "-0.05em",
                 }}
               >
-                Rotacion lista para cerrar
+                Tu seleccion esta lista
               </h1>
             </div>
 
@@ -549,7 +549,7 @@ function CartPageInner() {
                         color: "var(--text-muted)",
                       }}
                     >
-                      Pieza seleccionada
+                      Prenda seleccionada
                     </p>
                     <h2 style={{ margin: "10px 0 8px", fontSize: 24 }}>{item.name}</h2>
                     <p
@@ -707,7 +707,7 @@ function CartPageInner() {
           </Link>
 
           <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.8 }}>
-            Las piezas quedan listas para confirmar direccion, envio y pago en el
+            Tus prendas quedan listas para confirmar direccion, envio y pago en el
             siguiente paso.
           </p>
         </aside>

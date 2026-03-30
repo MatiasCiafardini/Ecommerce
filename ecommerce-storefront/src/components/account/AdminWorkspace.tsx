@@ -5,15 +5,33 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
-import { clampImageOffset, clampImageZoom, getCatalogImageTransform } from "@/lib/product-image-layout";
+import {
+  clampImageOffset,
+  clampImageZoom,
+  getCatalogImageTransform,
+} from "@/lib/product-image-layout";
 import { money, orderStatusLabel, type CustomerOrder } from "./order-utils";
 import AdminOrderDetailPanel from "./AdminOrderDetailPanel";
 import AdminShipmentsSection from "./AdminShipmentsSection";
 import AdminReturnsSection from "./AdminReturnsSection";
 import AdminPromotionsSection from "./AdminPromotionsSection";
+import DeveloperModePanel from "./DeveloperModePanel";
 import type { AdminReturn, AdminSection, AdminShipment } from "./admin-types";
 
-type Props = { section: AdminSection };
+type Props = {
+  section: AdminSection;
+  user: {
+    id: number;
+    email: string;
+    storeId?: number;
+    role?: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
+    name?: string | null;
+  };
+  onSectionChange: (section: AdminSection) => void;
+};
 
 type Product = {
   id: number;
@@ -142,8 +160,21 @@ type DuplicateSkuPromptState = {
   title: string;
 };
 
-const statuses = ["pending", "paid", "processing", "packed", "shipped", "delivered", "cancelled"] as const;
-const operationalPendingStatuses = new Set(["pending", "paid", "processing", "packed"]);
+const statuses = [
+  "pending",
+  "paid",
+  "processing",
+  "packed",
+  "shipped",
+  "delivered",
+  "cancelled",
+] as const;
+const operationalPendingStatuses = new Set([
+  "pending",
+  "paid",
+  "processing",
+  "packed",
+]);
 
 const emptyVariant = (): DraftVariant => ({
   sku: "",
@@ -168,18 +199,38 @@ const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
 };
 
-export default function AdminWorkspace({ section }: Props) {
+export default function AdminWorkspace({
+  section,
+  user,
+  onSectionChange,
+}: Props) {
+  if (section === "admin-developer")
+    return (
+      <AdminDeveloperSection
+        user={user}
+        onBack={() => onSectionChange("admin-overview")}
+      />
+    );
   if (section === "admin-products") return <AdminProductsSection />;
-  if (section === "admin-categories") return <AdminCategoriesSection />;
+  if (section === "admin-categories")
+    return <AdminProductsSection initialTab="categories" />;
   if (section === "admin-orders") return <AdminOrdersPanelSection />;
   if (section === "admin-customers") return <AdminCustomersSection />;
   if (section === "admin-shipments") return <AdminShipmentsSection />;
   if (section === "admin-returns") return <AdminReturnsSection />;
   if (section === "admin-promotions") return <AdminPromotionsSection />;
-  return <AdminOverviewSection />;
+  return (
+    <AdminOverviewSection
+      onOpenDeveloper={() => onSectionChange("admin-developer")}
+    />
+  );
 }
 
-function AdminOverviewSection() {
+function AdminOverviewSection({
+  onOpenDeveloper,
+}: {
+  onOpenDeveloper: () => void;
+}) {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
@@ -216,33 +267,94 @@ function AdminOverviewSection() {
     <section style={panelStyle}>
       <Header
         title="Panel general"
-        copy="La administracion queda arriba de la cuenta y la barra lateral pasa a ser mas angosta para darle prioridad al area de trabajo."
+        copy="Resumen general de la tienda."
+        actions={
+          <button
+            type="button"
+            onClick={onOpenDeveloper}
+            style={primaryButtonStyle}
+          >
+            Modo desarrollador
+          </button>
+        }
       />
-      {loading ? <StateCard label="Cargando resumen..." /> : (
+      {loading ? (
+        <StateCard label="Cargando resumen..." />
+      ) : (
         <div style={statsGridStyle}>
           <Stat label="Productos" value={String(products.length)} />
           <Stat label="Categorias" value={String(categories.length)} />
           <Stat label="Clientes" value={String(customers.length)} />
           <Stat
             label="Pedidos pendientes"
-            value={String(orders.filter((item) => operationalPendingStatuses.has(item.status)).length)}
+            value={String(
+              orders.filter((item) =>
+                operationalPendingStatuses.has(item.status),
+              ).length,
+            )}
           />
           <Stat
             label="Envios activos"
-            value={String(shipments.filter((item) => !["delivered", "returned", "failed"].includes(item.status)).length)}
+            value={String(
+              shipments.filter(
+                (item) =>
+                  !["delivered", "returned", "failed"].includes(item.status),
+              ).length,
+            )}
           />
           <Stat
             label="Devoluciones abiertas"
-            value={String(returns.filter((item) => item.status === "requested").length)}
+            value={String(
+              returns.filter((item) => item.status === "requested").length,
+            )}
           />
-          <Stat label="Facturacion" value={money(orders.reduce((sum, item) => sum + Number(item.total ?? 0), 0))} />
+          <Stat
+            label="Facturacion"
+            value={money(
+              orders.reduce((sum, item) => sum + Number(item.total ?? 0), 0),
+            )}
+          />
         </div>
       )}
     </section>
   );
 }
 
-function AdminProductsSection() {
+function AdminDeveloperSection({
+  user,
+  onBack,
+}: {
+  user: Props["user"];
+  onBack: () => void;
+}) {
+  return (
+    <section style={panelStyle}>
+      <Header
+        title="Modo desarrollador"
+        copy="Edita bloques, fondos, textos y productos destacados de la home."
+        actions={
+          <button type="button" onClick={onBack} style={secondaryButtonStyle}>
+            Volver al panel general
+          </button>
+        }
+      />
+      <DeveloperModePanel user={user} forceExpanded />
+    </section>
+  );
+}
+
+type ProductAdminTab =
+  | "create"
+  | "catalog"
+  | "stock"
+  | "options"
+  | "categories";
+
+function AdminProductsSection({
+  initialTab = "create",
+}: {
+  initialTab?: ProductAdminTab;
+}) {
   const searchParams = useSearchParams();
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const optionInUseRef = useRef<HTMLElement | null>(null);
@@ -253,43 +365,66 @@ function AdminProductsSection() {
   const [options, setOptions] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [stockLoading, setStockLoading] = useState(false);
-  const [publishingProductIds, setPublishingProductIds] = useState<number[]>([]);
+  const [publishingProductIds, setPublishingProductIds] = useState<number[]>(
+    [],
+  );
   const [saving, setSaving] = useState(false);
   const [loadingEditId, setLoadingEditId] = useState<number | null>(null);
   const [creatingOption, setCreatingOption] = useState(false);
-  const [creatingCategory, setCreatingCategory] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [activeTab, setActiveTab] = useState<"create" | "catalog" | "stock" | "options">("create");
+  const [activeTab, setActiveTab] = useState<ProductAdminTab>(initialTab);
   const [newOptionName, setNewOptionName] = useState("");
-  const [newCategoryName, setNewCategoryName] = useState("");
   const [productQuery, setProductQuery] = useState("");
   const [stockQuery, setStockQuery] = useState("");
   const [optionQuery, setOptionQuery] = useState("");
   const [stockCategoryFilter, setStockCategoryFilter] = useState("all");
-  const [stockPublishedFilter, setStockPublishedFilter] = useState<"all" | "published" | "draft">("all");
+  const [stockPublishedFilter, setStockPublishedFilter] = useState<
+    "all" | "published" | "draft"
+  >("all");
   const [editingOptionId, setEditingOptionId] = useState<number | null>(null);
   const [editingOptionName, setEditingOptionName] = useState("");
   const [editingValueKey, setEditingValueKey] = useState<string | null>(null);
   const [editingValueName, setEditingValueName] = useState("");
   const [savingOptionKey, setSavingOptionKey] = useState<string | null>(null);
-  const [pendingRemoval, setPendingRemoval] = useState<PendingOptionRemoval | null>(null);
-  const [duplicateSkuPrompt, setDuplicateSkuPrompt] = useState<DuplicateSkuPromptState | null>(null);
-  const [form, setForm] = useState({ title: "", description: "", published: false });
+  const [pendingRemoval, setPendingRemoval] =
+    useState<PendingOptionRemoval | null>(null);
+  const [duplicateSkuPrompt, setDuplicateSkuPrompt] =
+    useState<DuplicateSkuPromptState | null>(null);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    published: false,
+  });
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
-  const [autoOpenedProductId, setAutoOpenedProductId] = useState<number | null>(null);
+  const [autoOpenedProductId, setAutoOpenedProductId] = useState<number | null>(
+    null,
+  );
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [imageFiles, setImageFiles] = useState<UploadImage[]>([]);
-  const [existingImages, setExistingImages] = useState<ExistingProductImage[]>([]);
+  const [existingImages, setExistingImages] = useState<ExistingProductImage[]>(
+    [],
+  );
   const [originalImageIds, setOriginalImageIds] = useState<number[]>([]);
   const [imageGridLines, setImageGridLines] = useState(5);
-  const [selectedOptionValues, setSelectedOptionValues] = useState<Record<number, string[]>>({});
-  const [loadedOptionValues, setLoadedOptionValues] = useState<ProductOptionValueEntry[]>([]);
-  const [draftOptionValues, setDraftOptionValues] = useState<Record<number, string>>({});
-  const [variantDraft, setVariantDraft] = useState<EditableVariant>(emptyVariant());
+  const [selectedOptionValues, setSelectedOptionValues] = useState<
+    Record<number, string[]>
+  >({});
+  const [loadedOptionValues, setLoadedOptionValues] = useState<
+    ProductOptionValueEntry[]
+  >([]);
+  const [draftOptionValues, setDraftOptionValues] = useState<
+    Record<number, string>
+  >({});
+  const [variantDraft, setVariantDraft] =
+    useState<EditableVariant>(emptyVariant());
   const [variants, setVariants] = useState<EditableVariant[]>([]);
   const [loadedVariants, setLoadedVariants] = useState<EditableVariant[]>([]);
   const uploadImagesRef = useRef<UploadImage[]>([]);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const loadOptions = async () => {
     const optionsData = await api("/product-options");
@@ -312,7 +447,9 @@ function AdminProductsSection() {
       setOptions(Array.isArray(o) ? o : []);
       return nextProducts;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar productos.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo cargar productos.",
+      );
       return [];
     } finally {
       setLoading(false);
@@ -341,7 +478,8 @@ function AdminProductsSection() {
           const variantsData = await api(`/variants/${product.id}`);
           const variants = Array.isArray(variantsData) ? variantsData : [];
           const totalStock = variants.reduce(
-            (sum, variant) => sum + Number(variant.inventories?.[0]?.quantity ?? 0),
+            (sum, variant) =>
+              sum + Number(variant.inventories?.[0]?.quantity ?? 0),
             0,
           );
           const lowStockVariants = variants.filter((variant) => {
@@ -354,7 +492,9 @@ function AdminProductsSection() {
             title: product.title,
             slug: product.slug,
             published: product.published,
-            categories: (product.categories ?? []).map((entry) => entry.category.name),
+            categories: (product.categories ?? []).map(
+              (entry) => entry.category.name,
+            ),
             variantsCount: variants.length,
             totalStock,
             lowStockVariants,
@@ -371,7 +511,12 @@ function AdminProductsSection() {
   };
 
   useEffect(() => {
-    if (activeTab !== "stock" || loading || stockRows.length > 0 || products.length === 0) {
+    if (
+      activeTab !== "stock" ||
+      loading ||
+      stockRows.length > 0 ||
+      products.length === 0
+    ) {
       return;
     }
 
@@ -391,7 +536,9 @@ function AdminProductsSection() {
       return;
     }
 
-    const productToEdit = products.find((product) => product.id === nextProductId);
+    const productToEdit = products.find(
+      (product) => product.id === nextProductId,
+    );
     if (!productToEdit) {
       return;
     }
@@ -400,7 +547,7 @@ function AdminProductsSection() {
     formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setAutoOpenedProductId(nextProductId);
     void hydrateFormFromProduct(productToEdit);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpenedProductId, loading, products, searchParams]);
 
   const filteredProducts = useMemo(() => {
@@ -435,7 +582,8 @@ function AdminProductsSection() {
         row.categories.join(" ").toLowerCase().includes(query);
 
       const matchesCategory =
-        stockCategoryFilter === "all" || row.categories.includes(stockCategoryFilter);
+        stockCategoryFilter === "all" ||
+        row.categories.includes(stockCategoryFilter);
 
       const matchesPublished =
         stockPublishedFilter === "all" ||
@@ -459,26 +607,28 @@ function AdminProductsSection() {
         .toLowerCase();
 
       return (
-        option.name.toLowerCase().includes(query) ||
-        valuesText.includes(query)
+        option.name.toLowerCase().includes(query) || valuesText.includes(query)
       );
     });
   }, [optionQuery, options]);
 
   const optionGroups = useMemo(() => {
-    const inUse = filteredOptions.filter((option) => Number(option.productsCount ?? 0) > 0);
-    const idle = filteredOptions.filter((option) => Number(option.productsCount ?? 0) === 0);
+    const inUse = filteredOptions.filter(
+      (option) => Number(option.productsCount ?? 0) > 0,
+    );
+    const idle = filteredOptions.filter(
+      (option) => Number(option.productsCount ?? 0) === 0,
+    );
 
     return { inUse, idle };
   }, [filteredOptions]);
 
   const variantAutocomplete = useMemo(() => {
-    const collect = (selector: (variant: EditableVariant) => string) =>
-      [...new Set(
-        variants
-          .map((variant) => selector(variant).trim())
-          .filter(Boolean),
-      )];
+    const collect = (selector: (variant: EditableVariant) => string) => [
+      ...new Set(
+        variants.map((variant) => selector(variant).trim()).filter(Boolean),
+      ),
+    ];
 
     return {
       sku: collect((variant) => variant.sku),
@@ -511,14 +661,18 @@ function AdminProductsSection() {
 
   const toggleCategory = (categoryId: number) => {
     setSelectedCategoryIds((current) =>
-      current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
+      current.includes(categoryId)
+        ? current.filter((id) => id !== categoryId)
+        : [...current, categoryId],
     );
   };
 
   const toggleOptionValue = (optionId: number, value: string) => {
     setSelectedOptionValues((current) => {
       const values = current[optionId] ?? [];
-      const next = values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+      const next = values.includes(value)
+        ? values.filter((item) => item !== value)
+        : [...values, value];
       if (next.length === 0) {
         const clone = { ...current };
         delete clone[optionId];
@@ -528,7 +682,10 @@ function AdminProductsSection() {
     });
   };
 
-  const removeOptionValueFromProduct = async (optionId: number, value: string) => {
+  const removeOptionValueFromProduct = async (
+    optionId: number,
+    value: string,
+  ) => {
     setSelectedOptionValues((current) => {
       const currentValues = current[optionId] ?? [];
       const next = currentValues.filter((item) => item !== value);
@@ -557,14 +714,23 @@ function AdminProductsSection() {
     }
 
     try {
-      await api(`/products/${editingProductId}/option-values/${existingValue.id}`, {
-        method: "DELETE",
-      });
+      await api(
+        `/products/${editingProductId}/option-values/${existingValue.id}`,
+        {
+          method: "DELETE",
+        },
+      );
 
-      setLoadedOptionValues((current) => current.filter((entry) => entry.id !== existingValue.id));
+      setLoadedOptionValues((current) =>
+        current.filter((entry) => entry.id !== existingValue.id),
+      );
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo quitar el valor del producto.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo quitar el valor del producto.",
+      );
     }
   };
 
@@ -627,7 +793,11 @@ function AdminProductsSection() {
 
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar el valor de la etiqueta.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo guardar el valor de la etiqueta.",
+      );
     }
   };
 
@@ -688,7 +858,9 @@ function AdminProductsSection() {
 
     setVariants((current) => {
       const duplicateIndex = current.findIndex(
-        (item) => item.sku.trim().toLowerCase() === normalized.sku.toLowerCase() && item.id !== normalized.id,
+        (item) =>
+          item.sku.trim().toLowerCase() === normalized.sku.toLowerCase() &&
+          item.id !== normalized.id,
       );
 
       if (duplicateIndex >= 0) {
@@ -725,7 +897,9 @@ function AdminProductsSection() {
       await loadOptions();
       setNewOptionName("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear la etiqueta.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo crear la etiqueta.",
+      );
     } finally {
       setCreatingOption(false);
     }
@@ -755,13 +929,21 @@ function AdminProductsSection() {
       setEditingOptionName("");
       setSuccess("Etiqueta actualizada.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar la etiqueta.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo actualizar la etiqueta.",
+      );
     } finally {
       setSavingOptionKey(null);
     }
   };
 
-  const removeOption = async (optionId: number, optionName: string, productsCount: number) => {
+  const removeOption = async (
+    optionId: number,
+    optionName: string,
+    productsCount: number,
+  ) => {
     const isInUse = productsCount > 0;
     try {
       setSavingOptionKey(`option-${optionId}`);
@@ -770,9 +952,15 @@ function AdminProductsSection() {
         method: "DELETE",
       });
       await loadOptions();
-      setSuccess(isInUse ? "Etiqueta eliminada de todos los productos." : "Etiqueta eliminada.");
+      setSuccess(
+        isInUse
+          ? "Etiqueta eliminada de todos los productos."
+          : "Etiqueta eliminada.",
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar la etiqueta.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo eliminar la etiqueta.",
+      );
     } finally {
       setSavingOptionKey(null);
     }
@@ -805,7 +993,9 @@ function AdminProductsSection() {
       setEditingValueName("");
       setSuccess("Valor actualizado.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar el valor.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo actualizar el valor.",
+      );
     } finally {
       setSavingOptionKey(null);
     }
@@ -828,17 +1018,25 @@ function AdminProductsSection() {
         }),
       });
       const updatedOptions = await loadOptions();
-      const updatedOption = updatedOptions.find((option) => option.id === optionId);
+      const updatedOption = updatedOptions.find(
+        (option) => option.id === optionId,
+      );
 
       if (updatedOption && (updatedOption.reusableValues?.length ?? 0) === 0) {
         setSuccess(
           `Valor eliminado. La etiqueta "${updatedOption.name}" sigue creada y ahora aparece en "Etiquetas sin uso".`,
         );
       } else {
-        setSuccess(isInUse ? "Valor eliminado de todos los productos." : "Valor eliminado.");
+        setSuccess(
+          isInUse
+            ? "Valor eliminado de todos los productos."
+            : "Valor eliminado.",
+        );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar el valor.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo eliminar el valor.",
+      );
     } finally {
       setSavingOptionKey(null);
     }
@@ -860,7 +1058,9 @@ function AdminProductsSection() {
         await loadStockData(nextProducts);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar el producto.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo eliminar el producto.",
+      );
     } finally {
       setSavingOptionKey(null);
     }
@@ -874,13 +1074,19 @@ function AdminProductsSection() {
         method: "DELETE",
       });
       const nextProducts = await loadData();
-      setSelectedCategoryIds((current) => current.filter((id) => id !== categoryId));
+      setSelectedCategoryIds((current) =>
+        current.filter((id) => id !== categoryId),
+      );
       setSuccess(`Categoria "${categoryName}" eliminada.`);
       if (activeTab === "stock") {
         await loadStockData(nextProducts);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar la categoria.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo eliminar la categoria.",
+      );
     } finally {
       setSavingOptionKey(null);
     }
@@ -905,133 +1111,157 @@ function AdminProductsSection() {
       );
     } else if (pendingRemoval.kind === "variant") {
       setVariants((current) =>
-        current.filter((_, itemIndex) => itemIndex !== pendingRemoval.variantIndex),
+        current.filter(
+          (_, itemIndex) => itemIndex !== pendingRemoval.variantIndex,
+        ),
       );
       setSuccess("Variante eliminada del borrador actual.");
     } else if (pendingRemoval.kind === "product") {
-      await removeProduct(pendingRemoval.productId, pendingRemoval.productTitle);
+      await removeProduct(
+        pendingRemoval.productId,
+        pendingRemoval.productTitle,
+      );
     } else {
-      await removeCategory(pendingRemoval.categoryId, pendingRemoval.categoryName);
+      await removeCategory(
+        pendingRemoval.categoryId,
+        pendingRemoval.categoryName,
+      );
     }
 
     setPendingRemoval(null);
   };
 
   const scrollToOptionGroup = (group: "inUse" | "idle") => {
-    const target = group === "inUse" ? optionInUseRef.current : optionIdleRef.current;
+    const target =
+      group === "inUse" ? optionInUseRef.current : optionIdleRef.current;
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const createCategory = async () => {
-    const name = newCategoryName.trim();
-    if (!name) return;
+  const hydrateFormFromProduct = useCallback(
+    async (product: Product) => {
+      setLoadingEditId(product.id);
+      setError("");
+      setSuccess("");
 
-    try {
-      setCreatingCategory(true);
-      const created = await api("/categories", {
-        method: "POST",
-        body: JSON.stringify({ name }),
-      });
-      setCategories((current) => [...current, created]);
-      setSelectedCategoryIds((current) => [...new Set([...current, created.id])]);
-      setNewCategoryName("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear la categoria.");
-    } finally {
-      setCreatingCategory(false);
-    }
-  };
+      try {
+        const [productImages, productVariants, productOptionValues] =
+          await Promise.all([
+            api(`/products/${product.id}/images`),
+            api(`/variants/${product.id}`),
+            api(`/products/${product.id}/option-values`),
+          ]);
 
-  const hydrateFormFromProduct = useCallback(async (product: Product) => {
-    setLoadingEditId(product.id);
-    setError("");
-    setSuccess("");
+        setEditingProductId(product.id);
+        setForm({
+          title: product.title,
+          description: product.description ?? "",
+          published: product.published,
+        });
+        setSelectedCategoryIds(
+          (product.categories ?? []).map((entry) => entry.category.id),
+        );
 
-    try {
-      const [productImages, productVariants, productOptionValues] = await Promise.all([
-        api(`/products/${product.id}/images`),
-        api(`/variants/${product.id}`),
-        api(`/products/${product.id}/option-values`),
-      ]);
+        const safeImages = Array.isArray(productImages) ? productImages : [];
+        revokeUploadImages(imageFiles);
+        setExistingImages(
+          safeImages.map((image, index) => ({
+            id: image.id,
+            url: image.url,
+            position: Number(image.position ?? index),
+            offsetX: Number(image.offsetX ?? 0),
+            offsetY: Number(image.offsetY ?? 0),
+            zoom: Number(image.zoom ?? 1),
+          })),
+        );
+        setOriginalImageIds(safeImages.map((image) => image.id));
+        setImageFiles([]);
 
-      setEditingProductId(product.id);
-      setForm({
-        title: product.title,
-        description: product.description ?? "",
-        published: product.published,
-      });
-      setSelectedCategoryIds((product.categories ?? []).map((entry) => entry.category.id));
+        const safeOptionValues = Array.isArray(productOptionValues)
+          ? productOptionValues
+          : [];
+        setLoadedOptionValues(safeOptionValues);
+        setSelectedOptionValues(
+          safeOptionValues.reduce<Record<number, string[]>>((acc, item) => {
+            acc[item.productOptionId] = [
+              ...(acc[item.productOptionId] ?? []),
+              item.value,
+            ];
+            return acc;
+          }, {}),
+        );
+        setDraftOptionValues({});
 
-      const safeImages = Array.isArray(productImages) ? productImages : [];
-      revokeUploadImages(imageFiles);
-      setExistingImages(
-        safeImages.map((image, index) => ({
-          id: image.id,
-          url: image.url,
-          position: Number(image.position ?? index),
-          offsetX: Number(image.offsetX ?? 0),
-          offsetY: Number(image.offsetY ?? 0),
-          zoom: Number(image.zoom ?? 1),
-        })),
-      );
-      setOriginalImageIds(safeImages.map((image) => image.id));
-      setImageFiles([]);
+        const safeVariants = Array.isArray(productVariants)
+          ? productVariants.map((variant) => ({
+              id: variant.id,
+              sku: String(variant.sku ?? ""),
+              price: String(variant.price ?? ""),
+              Size: String(variant.Size ?? ""),
+              Color: String(variant.Color ?? ""),
+              inventoryQuantity: String(
+                variant.inventories?.[0]?.quantity ?? "",
+              ),
+              weight: String(variant.weight ?? ""),
+              width: String(variant.width ?? ""),
+              height: String(variant.height ?? ""),
+              length: String(variant.length ?? ""),
+            }))
+          : [];
 
-      const safeOptionValues = Array.isArray(productOptionValues) ? productOptionValues : [];
-      setLoadedOptionValues(safeOptionValues);
-      setSelectedOptionValues(
-        safeOptionValues.reduce<Record<number, string[]>>((acc, item) => {
-          acc[item.productOptionId] = [...(acc[item.productOptionId] ?? []), item.value];
-          return acc;
-        }, {}),
-      );
-      setDraftOptionValues({});
+        setVariants(safeVariants);
+        setLoadedVariants(safeVariants);
+        setVariantDraft(emptyVariant());
+        setActiveTab("create");
 
-      const safeVariants = Array.isArray(productVariants)
-        ? productVariants.map((variant) => ({
-            id: variant.id,
-            sku: String(variant.sku ?? ""),
-            price: String(variant.price ?? ""),
-            Size: String(variant.Size ?? ""),
-            Color: String(variant.Color ?? ""),
-            inventoryQuantity: String(variant.inventories?.[0]?.quantity ?? ""),
-            weight: String(variant.weight ?? ""),
-            width: String(variant.width ?? ""),
-            height: String(variant.height ?? ""),
-            length: String(variant.length ?? ""),
-          }))
-        : [];
+        formTopRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo cargar la edicion del producto.",
+        );
+      } finally {
+        setLoadingEditId(null);
+      }
+    },
+    [imageFiles],
+  );
 
-      setVariants(safeVariants);
-      setLoadedVariants(safeVariants);
-      setVariantDraft(emptyVariant());
-      setActiveTab("create");
-
-      formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar la edicion del producto.");
-    } finally {
-      setLoadingEditId(null);
-    }
-  }, [imageFiles]);
-
-  const syncCategories = async (productId: number, currentProduct: Product | undefined) => {
-    const currentCategoryIds = (currentProduct?.categories ?? []).map((entry) => entry.category.id);
-    const categoriesToAdd = selectedCategoryIds.filter((id) => !currentCategoryIds.includes(id));
-    const categoriesToRemove = currentCategoryIds.filter((id) => !selectedCategoryIds.includes(id));
+  const syncCategories = async (
+    productId: number,
+    currentProduct: Product | undefined,
+  ) => {
+    const currentCategoryIds = (currentProduct?.categories ?? []).map(
+      (entry) => entry.category.id,
+    );
+    const categoriesToAdd = selectedCategoryIds.filter(
+      (id) => !currentCategoryIds.includes(id),
+    );
+    const categoriesToRemove = currentCategoryIds.filter(
+      (id) => !selectedCategoryIds.includes(id),
+    );
 
     await Promise.all([
       ...categoriesToAdd.map((categoryId) =>
-        api(`/products/${productId}/categories/${categoryId}`, { method: "POST" }),
+        api(`/products/${productId}/categories/${categoryId}`, {
+          method: "POST",
+        }),
       ),
       ...categoriesToRemove.map((categoryId) =>
-        api(`/products/${productId}/categories/${categoryId}`, { method: "DELETE" }),
+        api(`/products/${productId}/categories/${categoryId}`, {
+          method: "DELETE",
+        }),
       ),
     ]);
   };
 
   const syncImages = async (productId: number) => {
-    const imagesToRemove = originalImageIds.filter((id) => !existingImages.some((image) => image.id === id));
+    const imagesToRemove = originalImageIds.filter(
+      (id) => !existingImages.some((image) => image.id === id),
+    );
 
     await Promise.all(
       imagesToRemove.map((imageId) =>
@@ -1074,7 +1304,10 @@ function AdminProductsSection() {
     }
 
     setImageFiles((current) => {
-      const availableSlots = Math.max(0, 10 - existingImages.length - current.length);
+      const availableSlots = Math.max(
+        0,
+        10 - existingImages.length - current.length,
+      );
       const nextFiles = files.slice(0, availableSlots).map((file, index) => ({
         file,
         name: file.name,
@@ -1096,7 +1329,10 @@ function AdminProductsSection() {
     });
   };
 
-  const updateUploadImageLayout = (index: number, nextLayout: Partial<ImageLayoutState>) => {
+  const updateUploadImageLayout = (
+    index: number,
+    nextLayout: Partial<ImageLayoutState>,
+  ) => {
     setImageFiles((current) =>
       current.map((image, itemIndex) =>
         itemIndex === index
@@ -1109,7 +1345,10 @@ function AdminProductsSection() {
     );
   };
 
-  const updateExistingImageLayout = (imageId: number, nextLayout: Partial<ImageLayoutState>) => {
+  const updateExistingImageLayout = (
+    imageId: number,
+    nextLayout: Partial<ImageLayoutState>,
+  ) => {
     setExistingImages((current) =>
       current.map((image) =>
         image.id === imageId
@@ -1124,7 +1363,10 @@ function AdminProductsSection() {
 
   const syncOptionValues = async (productId: number) => {
     const loadedLookup = new Map(
-      loadedOptionValues.map((entry) => [`${entry.productOptionId}:${entry.value.trim().toLowerCase()}`, entry]),
+      loadedOptionValues.map((entry) => [
+        `${entry.productOptionId}:${entry.value.trim().toLowerCase()}`,
+        entry,
+      ]),
     );
     const selectedEntries = Object.entries(selectedOptionValues)
       .flatMap(([optionIdRaw, values]) =>
@@ -1136,21 +1378,32 @@ function AdminProductsSection() {
       .filter((entry) => entry.value);
 
     const selectedKeys = new Set(
-      selectedEntries.map((entry) => `${entry.productOptionId}:${entry.value.toLowerCase()}`),
+      selectedEntries.map(
+        (entry) => `${entry.productOptionId}:${entry.value.toLowerCase()}`,
+      ),
     );
 
     const valuesToDelete = loadedOptionValues.filter(
-      (entry) => !selectedKeys.has(`${entry.productOptionId}:${entry.value.trim().toLowerCase()}`),
+      (entry) =>
+        !selectedKeys.has(
+          `${entry.productOptionId}:${entry.value.trim().toLowerCase()}`,
+        ),
     );
 
     await Promise.all(
       valuesToDelete.map((entry) =>
-        api(`/products/${productId}/option-values/${entry.id}`, { method: "DELETE" }),
+        api(`/products/${productId}/option-values/${entry.id}`, {
+          method: "DELETE",
+        }),
       ),
     );
 
     for (const entry of selectedEntries) {
-      if (loadedLookup.has(`${entry.productOptionId}:${entry.value.toLowerCase()}`)) {
+      if (
+        loadedLookup.has(
+          `${entry.productOptionId}:${entry.value.toLowerCase()}`,
+        )
+      ) {
         continue;
       }
 
@@ -1161,14 +1414,27 @@ function AdminProductsSection() {
     }
   };
 
-  const syncVariants = async (productId: number, variantsToSync: EditableVariant[]) => {
-    const loadedVariantIds = new Set(loadedVariants.map((variant) => variant.id).filter((id): id is number => Boolean(id)));
-    const currentVariantIds = new Set(variantsToSync.map((variant) => variant.id).filter((id): id is number => Boolean(id)));
+  const syncVariants = async (
+    productId: number,
+    variantsToSync: EditableVariant[],
+  ) => {
+    const loadedVariantIds = new Set(
+      loadedVariants
+        .map((variant) => variant.id)
+        .filter((id): id is number => Boolean(id)),
+    );
+    const currentVariantIds = new Set(
+      variantsToSync
+        .map((variant) => variant.id)
+        .filter((id): id is number => Boolean(id)),
+    );
 
     await Promise.all(
       [...loadedVariantIds]
         .filter((variantId) => !currentVariantIds.has(variantId))
-        .map((variantId) => api(`/variants/${variantId}`, { method: "DELETE" })),
+        .map((variantId) =>
+          api(`/variants/${variantId}`, { method: "DELETE" }),
+        ),
     );
 
     for (const variant of variantsToSync) {
@@ -1177,7 +1443,9 @@ function AdminProductsSection() {
         price: Number(variant.price),
         Size: variant.Size.trim() || undefined,
         Color: variant.Color.trim() || undefined,
-        inventoryQuantity: variant.inventoryQuantity.trim() ? Number(variant.inventoryQuantity) : undefined,
+        inventoryQuantity: variant.inventoryQuantity.trim()
+          ? Number(variant.inventoryQuantity)
+          : undefined,
         weight: variant.weight.trim() ? Number(variant.weight) : undefined,
         width: variant.width.trim() ? Number(variant.width) : undefined,
         height: variant.height.trim() ? Number(variant.height) : undefined,
@@ -1210,7 +1478,9 @@ function AdminProductsSection() {
       return;
     }
 
-    if (variants.some((variant) => !variant.sku.trim() || !variant.price.trim())) {
+    if (
+      variants.some((variant) => !variant.sku.trim() || !variant.price.trim())
+    ) {
       setError("Cada variante cargada necesita al menos SKU y precio.");
       return;
     }
@@ -1222,8 +1492,12 @@ function AdminProductsSection() {
       setDuplicateSkuPrompt(null);
 
       const wasEditing = editingProductId;
-      let currentProduct = products.find((product) => product.id === editingProductId);
-      const variantsToSync = autoGenerateSkus ? generateAutomaticSkus(variants) : variants;
+      let currentProduct = products.find(
+        (product) => product.id === editingProductId,
+      );
+      const variantsToSync = autoGenerateSkus
+        ? generateAutomaticSkus(variants)
+        : variants;
 
       if (editingProductId) {
         await api(`/products/${editingProductId}`, {
@@ -1267,9 +1541,14 @@ function AdminProductsSection() {
         setLoadedVariants(variantsToSync);
       }
       resetForm();
-      setSuccess(wasEditing ? "Producto actualizado desde el formulario principal." : "Producto creado con su carga completa.");
+      setSuccess(
+        wasEditing
+          ? "Producto actualizado desde el formulario principal."
+          : "Producto creado con su carga completa.",
+      );
     } catch (err) {
-      const message = err instanceof Error ? err.message : "No se pudo guardar el producto.";
+      const message =
+        err instanceof Error ? err.message : "No se pudo guardar el producto.";
 
       if (!autoGenerateSkus && isDuplicateSkuError(message)) {
         setDuplicateSkuPrompt({
@@ -1288,18 +1567,27 @@ function AdminProductsSection() {
     }
   };
 
-  const updateProductPublishedState = async (productId: number, published: boolean) => {
+  const updateProductPublishedState = async (
+    productId: number,
+    published: boolean,
+  ) => {
     const previousProducts = products;
     const previousStockRows = stockRows;
 
     try {
       setError("");
-      setPublishingProductIds((current) => [...new Set([...current, productId])]);
+      setPublishingProductIds((current) => [
+        ...new Set([...current, productId]),
+      ]);
       setProducts((current) =>
-        current.map((product) => (product.id === productId ? { ...product, published } : product)),
+        current.map((product) =>
+          product.id === productId ? { ...product, published } : product,
+        ),
       );
       setStockRows((current) =>
-        current.map((row) => (row.id === productId ? { ...row, published } : row)),
+        current.map((row) =>
+          row.id === productId ? { ...row, published } : row,
+        ),
       );
 
       await api(`/products/${productId}`, {
@@ -1314,9 +1602,15 @@ function AdminProductsSection() {
     } catch (err) {
       setProducts(previousProducts);
       setStockRows(previousStockRows);
-      setError(err instanceof Error ? err.message : "No se pudo actualizar la publicacion.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo actualizar la publicacion.",
+      );
     } finally {
-      setPublishingProductIds((current) => current.filter((id) => id !== productId));
+      setPublishingProductIds((current) =>
+        current.filter((id) => id !== productId),
+      );
     }
   };
 
@@ -1324,362 +1618,591 @@ function AdminProductsSection() {
     <section style={panelStyle}>
       <Header
         title="Productos"
-        copy="La gestion queda unificada en una misma area para crear productos, revisar el catalogo y operar el stock."
+        copy="Gestiona altas, catalogo, stock, etiquetas y categorias."
       />
       <div ref={formTopRef} />
       <section style={tableSectionStyle}>
         <div style={betweenStyle}>
           <div>
             <p style={eyebrowStyle}>Gestion del catalogo</p>
-            <h3 style={{ ...title3Style, marginTop: 8 }}>Alta, catalogo y stock</h3>
+            <h3 style={{ ...title3Style, marginTop: 8 }}>
+              Alta, catalogo y stock
+            </h3>
           </div>
           <div style={tabRailStyle}>
-            <button type="button" onClick={() => setActiveTab("create")} style={workspaceTabStyle(activeTab === "create")}>
+            <button
+              type="button"
+              onClick={() => setActiveTab("create")}
+              style={workspaceTabStyle(activeTab === "create")}
+            >
               Alta
             </button>
-            <button type="button" onClick={() => setActiveTab("catalog")} style={workspaceTabStyle(activeTab === "catalog")}>
+            <button
+              type="button"
+              onClick={() => setActiveTab("catalog")}
+              style={workspaceTabStyle(activeTab === "catalog")}
+            >
               Catalogo
             </button>
-            <button type="button" onClick={() => setActiveTab("stock")} style={workspaceTabStyle(activeTab === "stock")}>
+            <button
+              type="button"
+              onClick={() => setActiveTab("stock")}
+              style={workspaceTabStyle(activeTab === "stock")}
+            >
               Stock
             </button>
-            <button type="button" onClick={() => setActiveTab("options")} style={workspaceTabStyle(activeTab === "options")}>
+            <button
+              type="button"
+              onClick={() => setActiveTab("options")}
+              style={workspaceTabStyle(activeTab === "options")}
+            >
               Etiquetas
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("categories")}
+              style={workspaceTabStyle(activeTab === "categories")}
+            >
+              Categorias
             </button>
           </div>
         </div>
-      <section style={{ ...shellStyle, display: activeTab === "create" ? "grid" : "none" }}>
-        {editingProductId ? (
-          <div style={editingBannerStyle}>
-            <div>
-              <p style={eyebrowStyle}>Editando</p>
-              <strong style={{ color: "#fff" }}>{form.title || "Producto sin titulo"}</strong>
+        <section
+          style={{
+            ...shellStyle,
+            display: activeTab === "create" ? "grid" : "none",
+          }}
+        >
+          {editingProductId ? (
+            <div style={editingBannerStyle}>
+              <div>
+                <p style={eyebrowStyle}>Editando</p>
+                <strong style={{ color: "#fff" }}>
+                  {form.title || "Producto sin titulo"}
+                </strong>
+              </div>
+              <button
+                type="button"
+                onClick={resetForm}
+                style={ghostButtonStyle}
+              >
+                Cancelar edicion
+              </button>
             </div>
-            <button type="button" onClick={resetForm} style={ghostButtonStyle}>
-              Cancelar edicion
-            </button>
-          </div>
-        ) : null}
+          ) : null}
 
-        <div style={topGridStyle}>
-          <Step title="Datos base">
-            <label style={checkStyle}>
+          <div style={topGridStyle}>
+            <Step title="Datos base">
+              <label style={checkStyle}>
+                <input
+                  type="checkbox"
+                  checked={form.published}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      published: event.target.checked,
+                    }))
+                  }
+                />
+                Publicado
+              </label>
               <input
-                type="checkbox"
-                checked={form.published}
-                onChange={(event) => setForm((current) => ({ ...current, published: event.target.checked }))}
+                value={form.title}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                placeholder="Nombre del producto"
+                style={fieldStyle}
               />
-              Publicado
-            </label>
+              <textarea
+                value={form.description}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                placeholder="Breve descripcion"
+                style={{ ...fieldStyle, minHeight: 120, resize: "vertical" }}
+              />
+            </Step>
+
+            <Step title="Categorias">
+              <span style={metaStyle}>
+                Selecciona las categorias para este producto.
+              </span>
+              <div style={chipRowStyle}>
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => toggleCategory(category.id)}
+                    style={chipToggleStyle(
+                      selectedCategoryIds.includes(category.id),
+                    )}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            </Step>
+          </div>
+
+          <Step title="Imagenes">
             <input
-              value={form.title}
-              onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-              placeholder="Nombre del producto"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => {
+                appendImageFiles(Array.from(event.target.files ?? []));
+                event.currentTarget.value = "";
+              }}
               style={fieldStyle}
             />
-            <textarea
-              value={form.description}
-              onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-              placeholder="Breve descripcion"
-              style={{ ...fieldStyle, minHeight: 120, resize: "vertical" }}
-            />
+            <span style={metaStyle}>
+              Hasta 10 imagenes. Arrastra cada foto dentro del cuadro para
+              definir exactamente como se vera en el catalogo.
+            </span>
+            <div style={{ ...rowWrapStyle, alignItems: "center" }}>
+              <span style={metaStyle}>Cuadricula: {imageGridLines}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setImageGridLines((current) => Math.max(0, current - 1))
+                }
+                style={secondaryButtonStyle}
+              >
+                -
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setImageGridLines((current) => Math.min(20, current + 1))
+                }
+                style={secondaryButtonStyle}
+              >
+                +
+              </button>
+            </div>
+
+            {existingImages.length > 0 ? (
+              <div style={imageEditorGridStyle}>
+                {existingImages.map((image) => (
+                  <CatalogImageLayoutEditor
+                    key={image.id}
+                    src={resolveAssetUrl(image.url) ?? image.url}
+                    label={`Imagen actual #${image.id}`}
+                    secondaryText={image.url}
+                    value={image}
+                    gridLines={imageGridLines}
+                    onChange={(nextLayout) =>
+                      updateExistingImageLayout(image.id, nextLayout)
+                    }
+                    onRemove={() =>
+                      setExistingImages((current) =>
+                        current.filter((item) => item.id !== image.id),
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {imageFiles.length > 0 ? (
+              <div style={imageEditorGridStyle}>
+                {imageFiles.map((entry, index) => (
+                  <CatalogImageLayoutEditor
+                    key={`${entry.name}-${index}`}
+                    src={entry.previewUrl}
+                    label={entry.name}
+                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB`}
+                    value={entry}
+                    gridLines={imageGridLines}
+                    onChange={(nextLayout) =>
+                      updateUploadImageLayout(index, nextLayout)
+                    }
+                    onRemove={() => removeUploadImage(index)}
+                  />
+                ))}
+              </div>
+            ) : null}
           </Step>
 
-          <Step title="Categorias">
-            <div style={optionActionsStyle}>
+          <Step title="Etiquetas reutilizables">
+            <div style={rowWrapStyle}>
               <input
-                value={newCategoryName}
-                onChange={(event) => setNewCategoryName(event.target.value)}
-                placeholder="Nueva categoria"
+                value={newOptionName}
+                onChange={(event) => setNewOptionName(event.target.value)}
+                placeholder="Crear nueva etiqueta"
                 style={smallFieldStyle}
               />
               <button
                 type="button"
-                onClick={() => void createCategory()}
-                disabled={creatingCategory || !newCategoryName.trim()}
-                style={fullWidthSecondaryButtonStyle}
+                onClick={createOption}
+                disabled={creatingOption || !newOptionName.trim()}
+                style={secondaryButtonStyle}
               >
-                {creatingCategory ? "Creando..." : "Crear categoria"}
+                {creatingOption ? "Creando..." : "Crear"}
               </button>
             </div>
-            <div style={chipRowStyle}>
-              {categories.map((category) => (
-                <div key={category.id} style={chipActionWrapStyle}>
-                  <button
-                    type="button"
-                    onClick={() => toggleCategory(category.id)}
-                    style={chipToggleStyle(selectedCategoryIds.includes(category.id))}
-                  >
-                    {category.name}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPendingRemoval({
-                        kind: "category",
-                        categoryId: category.id,
-                        categoryName: category.name,
-                        productsCount: Number(category.productsCount ?? 0),
-                      })
-                    }
-                    style={removeChipStyle}
-                    title={`Eliminar categoria ${category.name}`}
-                    aria-label={`Eliminar categoria ${category.name}`}
-                  >
-                    Quitar
-                  </button>
-                </div>
+            <div style={optionGridStyle}>
+              {options.map((option) => (
+                <article key={option.id} style={optionCardStyle}>
+                  <strong style={{ color: "#fff" }}>{option.name}</strong>
+                  <div style={optionValuesAreaStyle}>
+                    <div style={chipRowStyle}>
+                      {(option.reusableValues ?? []).map((value) => (
+                        <button
+                          key={`${option.id}-${value.id}`}
+                          type="button"
+                          onClick={() =>
+                            toggleOptionValue(option.id, value.value)
+                          }
+                          style={chipToggleStyle(
+                            (selectedOptionValues[option.id] ?? []).includes(
+                              value.value,
+                            ),
+                          )}
+                        >
+                          {value.value}
+                        </button>
+                      ))}
+                    </div>
+                    {editingProductId &&
+                    (selectedOptionValues[option.id] ?? []).length > 0 ? (
+                      <div style={selectedValuesBlockStyle}>
+                        <span style={metaStyle}>Asignados a este producto</span>
+                        <div style={chipRowStyle}>
+                          {(selectedOptionValues[option.id] ?? []).map(
+                            (value) => (
+                              <button
+                                key={`${option.id}-selected-${value}`}
+                                type="button"
+                                onClick={() =>
+                                  void removeOptionValueFromProduct(
+                                    option.id,
+                                    value,
+                                  )
+                                }
+                                style={removeChipStyle}
+                              >
+                                Quitar {value}
+                              </button>
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div style={optionActionsStyle}>
+                    <input
+                      value={draftOptionValues[option.id] ?? ""}
+                      onChange={(event) =>
+                        setDraftOptionValues((current) => ({
+                          ...current,
+                          [option.id]: event.target.value,
+                        }))
+                      }
+                      placeholder={`Nuevo valor para ${option.name}`}
+                      style={smallFieldStyle}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addOptionValue(option.id)}
+                      style={fullWidthSecondaryButtonStyle}
+                    >
+                      Agregar valor
+                    </button>
+                  </div>
+                </article>
               ))}
             </div>
           </Step>
-        </div>
 
-        <Step title="Imagenes">
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(event) => {
-              appendImageFiles(Array.from(event.target.files ?? []));
-              event.currentTarget.value = "";
-            }}
-            style={fieldStyle}
-          />
-          <span style={metaStyle}>
-            Hasta 10 imagenes. Arrastra cada foto dentro del cuadro para definir exactamente como se vera en el catalogo.
-          </span>
-          <div style={{ ...rowWrapStyle, alignItems: "center" }}>
-            <span style={metaStyle}>Cuadricula: {imageGridLines}</span>
-            <button
-              type="button"
-              onClick={() => setImageGridLines((current) => Math.max(0, current - 1))}
-              style={secondaryButtonStyle}
-            >
-              -
-            </button>
-            <button
-              type="button"
-              onClick={() => setImageGridLines((current) => Math.min(20, current + 1))}
-              style={secondaryButtonStyle}
-            >
-              +
-            </button>
-          </div>
-
-          {existingImages.length > 0 ? (
-            <div style={imageEditorGridStyle}>
-              {existingImages.map((image) => (
-                <CatalogImageLayoutEditor
-                  key={image.id}
-                  src={resolveAssetUrl(image.url) ?? image.url}
-                  label={`Imagen actual #${image.id}`}
-                  secondaryText={image.url}
-                  value={image}
-                  gridLines={imageGridLines}
-                  onChange={(nextLayout) => updateExistingImageLayout(image.id, nextLayout)}
-                  onRemove={() =>
-                    setExistingImages((current) => current.filter((item) => item.id !== image.id))
-                  }
-                />
-              ))}
+          <Step title="Variantes e inventario">
+            <div style={variantGridStyle}>
+              <SuggestionInput
+                value={variantDraft.sku}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, sku: value }))
+                }
+                placeholder="SKU"
+                suggestions={variantAutocomplete.sku}
+              />
+              <SuggestionInput
+                value={variantDraft.price}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, price: value }))
+                }
+                placeholder="Precio"
+                suggestions={variantAutocomplete.price}
+              />
+              <SuggestionInput
+                value={variantDraft.Size}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, Size: value }))
+                }
+                placeholder="Talle"
+                suggestions={variantAutocomplete.size}
+              />
+              <SuggestionInput
+                value={variantDraft.Color}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, Color: value }))
+                }
+                placeholder="Color"
+                suggestions={variantAutocomplete.color}
+              />
+              <SuggestionInput
+                value={variantDraft.inventoryQuantity}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({
+                    ...current,
+                    inventoryQuantity: value,
+                  }))
+                }
+                placeholder="Stock"
+                suggestions={variantAutocomplete.inventoryQuantity}
+              />
+              <SuggestionInput
+                value={variantDraft.weight}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, weight: value }))
+                }
+                placeholder="Peso"
+                suggestions={variantAutocomplete.weight}
+              />
+              <SuggestionInput
+                value={variantDraft.width}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, width: value }))
+                }
+                placeholder="Ancho"
+                suggestions={variantAutocomplete.width}
+              />
+              <SuggestionInput
+                value={variantDraft.height}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, height: value }))
+                }
+                placeholder="Alto"
+                suggestions={variantAutocomplete.height}
+              />
+              <SuggestionInput
+                value={variantDraft.length}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, length: value }))
+                }
+                placeholder="Largo"
+                suggestions={variantAutocomplete.length}
+              />
             </div>
-          ) : null}
-
-          {imageFiles.length > 0 ? (
-            <div style={imageEditorGridStyle}>
-              {imageFiles.map((entry, index) => (
-                <CatalogImageLayoutEditor
-                  key={`${entry.name}-${index}`}
-                  src={entry.previewUrl}
-                  label={entry.name}
-                  secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB`}
-                  value={entry}
-                  gridLines={imageGridLines}
-                  onChange={(nextLayout) => updateUploadImageLayout(index, nextLayout)}
-                  onRemove={() => removeUploadImage(index)}
-                />
-              ))}
-            </div>
-          ) : null}
-        </Step>
-
-        <Step title="Etiquetas reutilizables">
-          <div style={rowWrapStyle}>
-            <input
-              value={newOptionName}
-              onChange={(event) => setNewOptionName(event.target.value)}
-              placeholder="Crear nueva etiqueta"
-              style={smallFieldStyle}
-            />
-            <button
-              type="button"
-              onClick={createOption}
-              disabled={creatingOption || !newOptionName.trim()}
-              style={secondaryButtonStyle}
-            >
-              {creatingOption ? "Creando..." : "Crear"}
-            </button>
-          </div>
-          <div style={optionGridStyle}>
-            {options.map((option) => (
-              <article key={option.id} style={optionCardStyle}>
-                <strong style={{ color: "#fff" }}>{option.name}</strong>
-                <div style={optionValuesAreaStyle}>
-                  <div style={chipRowStyle}>
-                    {(option.reusableValues ?? []).map((value) => (
-                      <button
-                        key={`${option.id}-${value.id}`}
-                        type="button"
-                        onClick={() => toggleOptionValue(option.id, value.value)}
-                        style={chipToggleStyle((selectedOptionValues[option.id] ?? []).includes(value.value))}
-                      >
-                        {value.value}
-                      </button>
-                    ))}
-                  </div>
-                  {editingProductId && (selectedOptionValues[option.id] ?? []).length > 0 ? (
-                    <div style={selectedValuesBlockStyle}>
-                      <span style={metaStyle}>Asignados a este producto</span>
-                      <div style={chipRowStyle}>
-                        {(selectedOptionValues[option.id] ?? []).map((value) => (
-                          <button
-                            key={`${option.id}-selected-${value}`}
-                            type="button"
-                            onClick={() => void removeOptionValueFromProduct(option.id, value)}
-                            style={removeChipStyle}
-                          >
-                            Quitar {value}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                <div style={optionActionsStyle}>
-                  <input
-                    value={draftOptionValues[option.id] ?? ""}
-                    onChange={(event) =>
-                      setDraftOptionValues((current) => ({ ...current, [option.id]: event.target.value }))
-                    }
-                    placeholder={`Nuevo valor para ${option.name}`}
-                    style={smallFieldStyle}
-                  />
-                  <button type="button" onClick={() => addOptionValue(option.id)} style={fullWidthSecondaryButtonStyle}>
-                    Agregar valor
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </Step>
-
-        <Step title="Variantes e inventario">
-          <div style={variantGridStyle}>
-            <SuggestionInput
-              value={variantDraft.sku}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, sku: value }))}
-              placeholder="SKU"
-              suggestions={variantAutocomplete.sku}
-            />
-            <SuggestionInput
-              value={variantDraft.price}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, price: value }))}
-              placeholder="Precio"
-              suggestions={variantAutocomplete.price}
-            />
-            <SuggestionInput
-              value={variantDraft.Size}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, Size: value }))}
-              placeholder="Talle"
-              suggestions={variantAutocomplete.size}
-            />
-            <SuggestionInput
-              value={variantDraft.Color}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, Color: value }))}
-              placeholder="Color"
-              suggestions={variantAutocomplete.color}
-            />
-            <SuggestionInput
-              value={variantDraft.inventoryQuantity}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, inventoryQuantity: value }))}
-              placeholder="Stock"
-              suggestions={variantAutocomplete.inventoryQuantity}
-            />
-            <SuggestionInput
-              value={variantDraft.weight}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, weight: value }))}
-              placeholder="Peso"
-              suggestions={variantAutocomplete.weight}
-            />
-            <SuggestionInput
-              value={variantDraft.width}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, width: value }))}
-              placeholder="Ancho"
-              suggestions={variantAutocomplete.width}
-            />
-            <SuggestionInput
-              value={variantDraft.height}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, height: value }))}
-              placeholder="Alto"
-              suggestions={variantAutocomplete.height}
-            />
-            <SuggestionInput
-              value={variantDraft.length}
-              onChange={(value) => setVariantDraft((current) => ({ ...current, length: value }))}
-              placeholder="Largo"
-              suggestions={variantAutocomplete.length}
-            />
-          </div>
-          <div style={rowWrapStyle}>
-            <button type="button" onClick={addVariant} style={secondaryButtonStyle}>
-              {variantDraft.id ? "Actualizar variante" : "Agregar variante"}
-            </button>
-            {(variantDraft.sku || variantDraft.price) ? (
-              <button type="button" onClick={() => setVariantDraft(emptyVariant())} style={ghostButtonStyle}>
-                Limpiar variante
+            <div style={rowWrapStyle}>
+              <button
+                type="button"
+                onClick={addVariant}
+                style={secondaryButtonStyle}
+              >
+                {variantDraft.id ? "Actualizar variante" : "Agregar variante"}
               </button>
+              {variantDraft.sku || variantDraft.price ? (
+                <button
+                  type="button"
+                  onClick={() => setVariantDraft(emptyVariant())}
+                  style={ghostButtonStyle}
+                >
+                  Limpiar variante
+                </button>
+              ) : null}
+            </div>
+            {variants.length > 0 ? (
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>SKU</th>
+                      <th style={thStyle}>Atributos</th>
+                      <th style={thStyle}>Precio</th>
+                      <th style={thStyle}>Stock</th>
+                      <th style={thStyle}>Accion</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {variants.map((variant, index) => (
+                      <tr
+                        key={`${variant.id ?? "new"}-${variant.sku}-${index}`}
+                      >
+                        <td style={tdStyle}>{variant.sku}</td>
+                        <td style={tdStyle}>
+                          {[variant.Size, variant.Color]
+                            .filter(Boolean)
+                            .join(" / ") || "Base"}
+                        </td>
+                        <td style={tdStyle}>{money(variant.price)}</td>
+                        <td style={tdStyle}>
+                          {variant.inventoryQuantity || "0"}
+                        </td>
+                        <td style={tdStyle}>
+                          <div style={rowWrapStyle}>
+                            <button
+                              type="button"
+                              onClick={() => editVariant(index)}
+                              style={ghostButtonStyle}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPendingRemoval({
+                                  kind: "variant",
+                                  variantIndex: index,
+                                  variantLabel:
+                                    [variant.sku, variant.Size, variant.Color]
+                                      .filter(Boolean)
+                                      .join(" - ") || `Variante ${index + 1}`,
+                                  productsCount: 0,
+                                })
+                              }
+                              style={ghostButtonStyle}
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : null}
+          </Step>
+
+          <div style={footerStyle}>
+            <div>
+              {error ? <p style={errorStyle}>{error}</p> : null}
+              {success ? <p style={successStyle}>{success}</p> : null}
+            </div>
+            <div style={rowWrapStyle}>
+              <button
+                type="button"
+                onClick={resetForm}
+                style={ghostButtonStyle}
+              >
+                {editingProductId ? "Cancelar" : "Limpiar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveProduct()}
+                disabled={saving || !form.title.trim()}
+                style={primaryButtonStyle}
+              >
+                {saving
+                  ? "Guardando..."
+                  : editingProductId
+                    ? "Guardar cambios"
+                    : "Crear producto completo"}
+              </button>
+            </div>
           </div>
-          {variants.length > 0 ? (
+        </section>
+
+        <section
+          style={{
+            ...tableSectionStyle,
+            display: activeTab === "catalog" ? "grid" : "none",
+          }}
+        >
+          <div style={betweenStyle}>
+            <div>
+              <p style={eyebrowStyle}>Catalogo actual</p>
+              <h3 style={{ ...title3Style, marginTop: 8 }}>Vista resumida</h3>
+            </div>
+            <div style={rowWrapStyle}>
+              <input
+                value={productQuery}
+                onChange={(event) => setProductQuery(event.target.value)}
+                placeholder="Filtrar por producto, slug o categoria"
+                style={searchFieldStyle}
+              />
+              <button
+                type="button"
+                onClick={() => void loadData()}
+                style={secondaryButtonStyle}
+              >
+                Recargar
+              </button>
+            </div>
+          </div>
+          {loading ? (
+            <StateCard label="Cargando catalogo..." />
+          ) : (
             <div style={tableWrapStyle}>
               <table style={tableStyle}>
                 <thead>
                   <tr>
-                    <th style={thStyle}>SKU</th>
-                    <th style={thStyle}>Atributos</th>
-                    <th style={thStyle}>Precio</th>
-                    <th style={thStyle}>Stock</th>
+                    <th style={thStyle}>Producto</th>
+                    <th style={thStyle}>Estado</th>
+                    <th style={thStyle}>Categorias</th>
+                    <th style={thStyle}>Imagenes</th>
+                    <th style={thStyle}>Variantes</th>
                     <th style={thStyle}>Accion</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {variants.map((variant, index) => (
-                    <tr key={`${variant.id ?? "new"}-${variant.sku}-${index}`}>
-                      <td style={tdStyle}>{variant.sku}</td>
-                      <td style={tdStyle}>{[variant.Size, variant.Color].filter(Boolean).join(" / ") || "Base"}</td>
-                      <td style={tdStyle}>{money(variant.price)}</td>
-                      <td style={tdStyle}>{variant.inventoryQuantity || "0"}</td>
+                  {filteredProducts.map((product) => (
+                    <tr key={product.id}>
+                      <td style={tdStyle}>
+                        <strong style={{ display: "block", color: "#fff" }}>
+                          {product.title}
+                        </strong>
+                        <span style={metaStyle}>/{product.slug}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={statusStyle(product.published)}>
+                          {product.published ? "Publicado" : "Borrador"}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        {(product.categories ?? [])
+                          .map((entry) => entry.category.name)
+                          .join(", ") || "Sin categorias"}
+                      </td>
+                      <td style={tdStyle}>{product.images?.length ?? 0}</td>
+                      <td style={tdStyle}>{product.variants?.length ?? 0}</td>
                       <td style={tdStyle}>
                         <div style={rowWrapStyle}>
-                          <button type="button" onClick={() => editVariant(index)} style={ghostButtonStyle}>
-                            Editar
+                          <button
+                            type="button"
+                            onClick={() => void hydrateFormFromProduct(product)}
+                            style={ghostButtonStyle}
+                            disabled={loadingEditId === product.id}
+                          >
+                            {loadingEditId === product.id
+                              ? "Cargando..."
+                              : "Editar"}
                           </button>
                           <button
                             type="button"
                             onClick={() =>
                               setPendingRemoval({
-                                kind: "variant",
-                                variantIndex: index,
-                                variantLabel:
-                                  [variant.sku, variant.Size, variant.Color]
-                                    .filter(Boolean)
-                                    .join(" - ") || `Variante ${index + 1}`,
+                                kind: "product",
+                                productId: product.id,
+                                productTitle: product.title,
                                 productsCount: 0,
                               })
                             }
                             style={ghostButtonStyle}
+                            disabled={
+                              savingOptionKey === `product-${product.id}`
+                            }
                           >
-                            Quitar
+                            {savingOptionKey === `product-${product.id}`
+                              ? "Eliminando..."
+                              : "Eliminar"}
                           </button>
                         </div>
                       </td>
@@ -1688,108 +2211,20 @@ function AdminProductsSection() {
                 </tbody>
               </table>
             </div>
-          ) : null}
-        </Step>
-
-        <div style={footerStyle}>
-          <div>
-            {error ? <p style={errorStyle}>{error}</p> : null}
-            {success ? <p style={successStyle}>{success}</p> : null}
-          </div>
-          <div style={rowWrapStyle}>
-            <button type="button" onClick={resetForm} style={ghostButtonStyle}>
-              {editingProductId ? "Cancelar" : "Limpiar"}
-            </button>
-            <button type="button" onClick={() => void saveProduct()} disabled={saving || !form.title.trim()} style={primaryButtonStyle}>
-              {saving ? "Guardando..." : editingProductId ? "Guardar cambios" : "Crear producto completo"}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section style={{ ...tableSectionStyle, display: activeTab === "catalog" ? "grid" : "none" }}>
-        <div style={betweenStyle}>
-          <div>
-            <p style={eyebrowStyle}>Catalogo actual</p>
-            <h3 style={{ ...title3Style, marginTop: 8 }}>Vista resumida</h3>
-          </div>
-          <div style={rowWrapStyle}>
-            <input
-              value={productQuery}
-              onChange={(event) => setProductQuery(event.target.value)}
-              placeholder="Filtrar por producto, slug o categoria"
-              style={searchFieldStyle}
-            />
-            <button type="button" onClick={() => void loadData()} style={secondaryButtonStyle}>Recargar</button>
-          </div>
-        </div>
-        {loading ? <StateCard label="Cargando catalogo..." /> : (
-          <div style={tableWrapStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Producto</th>
-                  <th style={thStyle}>Estado</th>
-                  <th style={thStyle}>Categorias</th>
-                  <th style={thStyle}>Imagenes</th>
-                  <th style={thStyle}>Variantes</th>
-                  <th style={thStyle}>Accion</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.map((product) => (
-                  <tr key={product.id}>
-                    <td style={tdStyle}>
-                      <strong style={{ display: "block", color: "#fff" }}>{product.title}</strong>
-                      <span style={metaStyle}>/{product.slug}</span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={statusStyle(product.published)}>{product.published ? "Publicado" : "Borrador"}</span>
-                    </td>
-                    <td style={tdStyle}>
-                      {(product.categories ?? []).map((entry) => entry.category.name).join(", ") || "Sin categorias"}
-                    </td>
-                    <td style={tdStyle}>{product.images?.length ?? 0}</td>
-                    <td style={tdStyle}>{product.variants?.length ?? 0}</td>
-                    <td style={tdStyle}>
-                      <div style={rowWrapStyle}>
-                        <button
-                          type="button"
-                          onClick={() => void hydrateFormFromProduct(product)}
-                          style={ghostButtonStyle}
-                          disabled={loadingEditId === product.id}
-                        >
-                          {loadingEditId === product.id ? "Cargando..." : "Editar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPendingRemoval({
-                              kind: "product",
-                              productId: product.id,
-                              productTitle: product.title,
-                              productsCount: 0,
-                            })
-                          }
-                          style={ghostButtonStyle}
-                          disabled={savingOptionKey === `product-${product.id}`}
-                        >
-                          {savingOptionKey === `product-${product.id}` ? "Eliminando..." : "Eliminar"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-      <section style={{ ...tableSectionStyle, display: activeTab === "stock" ? "grid" : "none" }}>
+          )}
+        </section>
+        <section
+          style={{
+            ...tableSectionStyle,
+            display: activeTab === "stock" ? "grid" : "none",
+          }}
+        >
           <div style={betweenStyle}>
             <div>
               <p style={eyebrowStyle}>Stock operativo</p>
-              <h3 style={{ ...title3Style, marginTop: 8 }}>Busqueda, filtros y visibilidad</h3>
+              <h3 style={{ ...title3Style, marginTop: 8 }}>
+                Busqueda, filtros y visibilidad
+              </h3>
             </div>
             <div style={rowWrapStyle}>
               <input
@@ -1815,7 +2250,9 @@ function AdminProductsSection() {
                 className="theme-select"
                 value={stockPublishedFilter}
                 onChange={(event) =>
-                  setStockPublishedFilter(event.target.value as "all" | "published" | "draft")
+                  setStockPublishedFilter(
+                    event.target.value as "all" | "published" | "draft",
+                  )
                 }
                 style={selectStyle}
               >
@@ -1823,12 +2260,18 @@ function AdminProductsSection() {
                 <option value="published">Publicados</option>
                 <option value="draft">No publicados</option>
               </select>
-              <button type="button" onClick={() => void loadStockData(products)} style={secondaryButtonStyle}>
+              <button
+                type="button"
+                onClick={() => void loadStockData(products)}
+                style={secondaryButtonStyle}
+              >
                 Recargar stock
               </button>
             </div>
           </div>
-          {stockLoading ? <StateCard label="Cargando stock..." /> : (
+          {stockLoading ? (
+            <StateCard label="Cargando stock..." />
+          ) : (
             <div style={tableWrapStyle}>
               <table style={tableStyle}>
                 <thead>
@@ -1846,13 +2289,21 @@ function AdminProductsSection() {
                   {filteredStockRows.map((row) => (
                     <tr key={row.id}>
                       <td style={tdStyle}>
-                        <strong style={{ display: "block", color: "#fff" }}>{row.title}</strong>
+                        <strong style={{ display: "block", color: "#fff" }}>
+                          {row.title}
+                        </strong>
                         <span style={metaStyle}>/{row.slug}</span>
                       </td>
-                      <td style={tdStyle}>{row.categories.join(", ") || "Sin categorias"}</td>
+                      <td style={tdStyle}>
+                        {row.categories.join(", ") || "Sin categorias"}
+                      </td>
                       <td style={tdStyle}>{row.variantsCount}</td>
                       <td style={tdStyle}>
-                        <strong style={{ color: row.totalStock <= 0 ? "#ff9f9f" : "#fff" }}>
+                        <strong
+                          style={{
+                            color: row.totalStock <= 0 ? "#ff9f9f" : "#fff",
+                          }}
+                        >
                           {row.totalStock}
                         </strong>
                       </td>
@@ -1869,7 +2320,12 @@ function AdminProductsSection() {
                             type="checkbox"
                             checked={row.published}
                             disabled={publishingProductIds.includes(row.id)}
-                            onChange={() => void updateProductPublishedState(row.id, !row.published)}
+                            onChange={() =>
+                              void updateProductPublishedState(
+                                row.id,
+                                !row.published,
+                              )
+                            }
                           />
                           <span style={metaStyle}>
                             {publishingProductIds.includes(row.id)
@@ -1885,7 +2341,9 @@ function AdminProductsSection() {
                           <button
                             type="button"
                             onClick={() => {
-                              const product = products.find((item) => item.id === row.id);
+                              const product = products.find(
+                                (item) => item.id === row.id,
+                              );
                               if (product) {
                                 void hydrateFormFromProduct(product);
                               }
@@ -1904,124 +2362,169 @@ function AdminProductsSection() {
           )}
           {error ? <p style={errorStyle}>{error}</p> : null}
           {success ? <p style={successStyle}>{success}</p> : null}
-      </section>
-      <section style={{ ...tableSectionStyle, display: activeTab === "options" ? "grid" : "none" }}>
-        <div style={betweenStyle}>
-          <div>
-            <p style={eyebrowStyle}>Base de catalogo</p>
-            <h3 style={{ ...title3Style, marginTop: 8 }}>Etiquetas y valores</h3>
-            <p style={copyStyle}>
-              Las etiquetas se pueden renombrar o eliminar. Si una etiqueta o un valor ya esta en uso,
-              la interfaz te avisa antes de quitarlo de los productos.
-            </p>
+        </section>
+        <section
+          style={{
+            ...tableSectionStyle,
+            display: activeTab === "options" ? "grid" : "none",
+          }}
+        >
+          <div style={betweenStyle}>
+            <div>
+              <p style={eyebrowStyle}>Base de catalogo</p>
+              <h3 style={{ ...title3Style, marginTop: 8 }}>
+                Etiquetas y valores
+              </h3>
+              <p style={copyStyle}>
+                Las etiquetas se pueden renombrar o eliminar. Si una etiqueta o
+                un valor ya esta en uso, la interfaz te avisa antes de quitarlo
+                de los productos.
+              </p>
+            </div>
+            <div style={rowWrapStyle}>
+              <input
+                value={optionQuery}
+                onChange={(event) => setOptionQuery(event.target.value)}
+                placeholder="Buscar por etiqueta o valor"
+                style={searchFieldStyle}
+              />
+              <button
+                type="button"
+                onClick={() => void loadOptions()}
+                style={secondaryButtonStyle}
+              >
+                Recargar etiquetas
+              </button>
+            </div>
           </div>
-          <div style={rowWrapStyle}>
-            <input
-              value={optionQuery}
-              onChange={(event) => setOptionQuery(event.target.value)}
-              placeholder="Buscar por etiqueta o valor"
-              style={searchFieldStyle}
-            />
-            <button type="button" onClick={() => void loadOptions()} style={secondaryButtonStyle}>
-              Recargar etiquetas
-            </button>
-          </div>
-        </div>
 
-        <div style={{ ...blockStyle, padding: 16 }}>
-          <div style={rowWrapStyle}>
-            <input
-              value={newOptionName}
-              onChange={(event) => setNewOptionName(event.target.value)}
-              placeholder="Crear nueva etiqueta"
-              style={smallFieldStyle}
-            />
+          <div style={{ ...blockStyle, padding: 16 }}>
+            <div style={rowWrapStyle}>
+              <input
+                value={newOptionName}
+                onChange={(event) => setNewOptionName(event.target.value)}
+                placeholder="Crear nueva etiqueta"
+                style={smallFieldStyle}
+              />
+              <button
+                type="button"
+                onClick={createOption}
+                disabled={creatingOption || !newOptionName.trim()}
+                style={secondaryButtonStyle}
+              >
+                {creatingOption ? "Creando..." : "Crear etiqueta"}
+              </button>
+            </div>
+            <span style={metaStyle}>
+              Los valores se generan cuando se asignan a productos y desde aca
+              despues los podes renombrar o quitar.
+            </span>
+          </div>
+
+          <div style={statsGridStyle}>
             <button
               type="button"
-              onClick={createOption}
-              disabled={creatingOption || !newOptionName.trim()}
-              style={secondaryButtonStyle}
+              onClick={() => scrollToOptionGroup("inUse")}
+              style={metricCardButtonStyle}
             >
-              {creatingOption ? "Creando..." : "Crear etiqueta"}
+              <Stat
+                label="Etiquetas en uso"
+                value={String(optionGroups.inUse.length)}
+              />
             </button>
+            <button
+              type="button"
+              onClick={() => scrollToOptionGroup("idle")}
+              style={metricCardButtonStyle}
+            >
+              <Stat
+                label="Etiquetas sin uso"
+                value={String(optionGroups.idle.length)}
+              />
+            </button>
+            <Stat
+              label="Valores totales"
+              value={String(
+                filteredOptions.reduce(
+                  (sum, option) => sum + (option.reusableValues?.length ?? 0),
+                  0,
+                ),
+              )}
+            />
           </div>
-          <span style={metaStyle}>
-            Los valores se generan cuando se asignan a productos y desde aca despues los podes renombrar o quitar.
-          </span>
-        </div>
 
-        <div style={statsGridStyle}>
-          <button
-            type="button"
-            onClick={() => scrollToOptionGroup("inUse")}
-            style={metricCardButtonStyle}
-          >
-            <Stat label="Etiquetas en uso" value={String(optionGroups.inUse.length)} />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollToOptionGroup("idle")}
-            style={metricCardButtonStyle}
-          >
-            <Stat label="Etiquetas sin uso" value={String(optionGroups.idle.length)} />
-          </button>
-          <Stat label="Valores totales" value={String(filteredOptions.reduce((sum, option) => sum + (option.reusableValues?.length ?? 0), 0))} />
-        </div>
+          {filteredOptions.length ? (
+            <>
+              <OptionGroupSection
+                sectionRef={optionInUseRef}
+                title="Etiquetas en uso"
+                copy="Estas impactan productos publicados o en borrador, asi que cualquier eliminacion requiere confirmacion."
+                options={optionGroups.inUse}
+                editingOptionId={editingOptionId}
+                editingOptionName={editingOptionName}
+                setEditingOptionName={setEditingOptionName}
+                saveOptionName={saveOptionName}
+                setEditingOptionId={setEditingOptionId}
+                setEditingValueKey={setEditingValueKey}
+                setEditingValueName={setEditingValueName}
+                startEditingOption={startEditingOption}
+                savingOptionKey={savingOptionKey}
+                setPendingRemoval={setPendingRemoval}
+                editingValueKey={editingValueKey}
+                editingValueName={editingValueName}
+                saveOptionValue={saveOptionValue}
+                startEditingValue={startEditingValue}
+              />
 
-        {filteredOptions.length ? (
-          <>
-            <OptionGroupSection
-              sectionRef={optionInUseRef}
-              title="Etiquetas en uso"
-              copy="Estas impactan productos publicados o en borrador, asi que cualquier eliminacion requiere confirmacion."
-              options={optionGroups.inUse}
-              editingOptionId={editingOptionId}
-              editingOptionName={editingOptionName}
-              setEditingOptionName={setEditingOptionName}
-              saveOptionName={saveOptionName}
-              setEditingOptionId={setEditingOptionId}
-              setEditingValueKey={setEditingValueKey}
-              setEditingValueName={setEditingValueName}
-              startEditingOption={startEditingOption}
-              savingOptionKey={savingOptionKey}
-              setPendingRemoval={setPendingRemoval}
-              editingValueKey={editingValueKey}
-              editingValueName={editingValueName}
-              saveOptionValue={saveOptionValue}
-              startEditingValue={startEditingValue}
-            />
+              <OptionGroupSection
+                sectionRef={optionIdleRef}
+                title="Etiquetas sin uso"
+                copy="Estas no estan asociadas a productos en este momento. Son buenas candidatas para limpiar o renombrar."
+                options={optionGroups.idle}
+                editingOptionId={editingOptionId}
+                editingOptionName={editingOptionName}
+                setEditingOptionName={setEditingOptionName}
+                saveOptionName={saveOptionName}
+                setEditingOptionId={setEditingOptionId}
+                setEditingValueKey={setEditingValueKey}
+                setEditingValueName={setEditingValueName}
+                startEditingOption={startEditingOption}
+                savingOptionKey={savingOptionKey}
+                setPendingRemoval={setPendingRemoval}
+                editingValueKey={editingValueKey}
+                editingValueName={editingValueName}
+                saveOptionValue={saveOptionValue}
+                startEditingValue={startEditingValue}
+              />
+            </>
+          ) : (
+            <StateCard label="No encontramos etiquetas con ese filtro." />
+          )}
 
-            <OptionGroupSection
-              sectionRef={optionIdleRef}
-              title="Etiquetas sin uso"
-              copy="Estas no estan asociadas a productos en este momento. Son buenas candidatas para limpiar o renombrar."
-              options={optionGroups.idle}
-              editingOptionId={editingOptionId}
-              editingOptionName={editingOptionName}
-              setEditingOptionName={setEditingOptionName}
-              saveOptionName={saveOptionName}
-              setEditingOptionId={setEditingOptionId}
-              setEditingValueKey={setEditingValueKey}
-              setEditingValueName={setEditingValueName}
-              startEditingOption={startEditingOption}
-              savingOptionKey={savingOptionKey}
-              setPendingRemoval={setPendingRemoval}
-              editingValueKey={editingValueKey}
-              editingValueName={editingValueName}
-              saveOptionValue={saveOptionValue}
-              startEditingValue={startEditingValue}
-            />
-          </>
-        ) : (
-          <StateCard label="No encontramos etiquetas con ese filtro." />
-        )}
-
-        {error ? <p style={errorStyle}>{error}</p> : null}
-        {success ? <p style={successStyle}>{success}</p> : null}
-      </section>
+          {error ? <p style={errorStyle}>{error}</p> : null}
+          {success ? <p style={successStyle}>{success}</p> : null}
+        </section>
+        <section
+          style={{
+            ...tableSectionStyle,
+            display: activeTab === "categories" ? "grid" : "none",
+          }}
+        >
+          <div style={betweenStyle}>
+            <div>
+              <p style={eyebrowStyle}>Gestion centralizada</p>
+              <h3 style={{ ...title3Style, marginTop: 8 }}>Categorias</h3>
+            </div>
+          </div>
+          <AdminCategoriesManager />
+        </section>
       </section>
       {pendingRemoval ? (
-        <div style={modalOverlayStyle} role="presentation" onClick={() => setPendingRemoval(null)}>
+        <div
+          style={modalOverlayStyle}
+          role="presentation"
+          onClick={() => setPendingRemoval(null)}
+        >
           <section
             style={modalCardStyle}
             role="dialog"
@@ -2031,7 +2534,10 @@ function AdminProductsSection() {
           >
             <div style={{ display: "grid", gap: 10 }}>
               <p style={eyebrowStyle}>Confirmacion</p>
-              <strong id="admin-confirmation-title" style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}>
+              <strong
+                id="admin-confirmation-title"
+                style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}
+              >
                 {pendingRemoval.kind === "option"
                   ? `Eliminar etiqueta "${pendingRemoval.optionName}"`
                   : pendingRemoval.kind === "value"
@@ -2061,10 +2567,18 @@ function AdminProductsSection() {
               </p>
             </div>
             <div style={modalActionsStyle}>
-              <button type="button" onClick={() => setPendingRemoval(null)} style={ghostButtonStyle}>
+              <button
+                type="button"
+                onClick={() => setPendingRemoval(null)}
+                style={ghostButtonStyle}
+              >
                 Cancelar
               </button>
-              <button type="button" onClick={() => void confirmRemoval()} style={primaryButtonStyle}>
+              <button
+                type="button"
+                onClick={() => void confirmRemoval()}
+                style={primaryButtonStyle}
+              >
                 Confirmar eliminacion
               </button>
             </div>
@@ -2072,7 +2586,11 @@ function AdminProductsSection() {
         </div>
       ) : null}
       {duplicateSkuPrompt ? (
-        <div style={modalOverlayStyle} role="presentation" onClick={() => setDuplicateSkuPrompt(null)}>
+        <div
+          style={modalOverlayStyle}
+          role="presentation"
+          onClick={() => setDuplicateSkuPrompt(null)}
+        >
           <div
             style={modalCardStyle}
             role="dialog"
@@ -2082,15 +2600,24 @@ function AdminProductsSection() {
           >
             <div style={{ display: "grid", gap: 10 }}>
               <p style={eyebrowStyle}>SKU duplicado</p>
-              <strong id="duplicate-sku-title" style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}>
+              <strong
+                id="duplicate-sku-title"
+                style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}
+              >
                 Ese codigo no se puede usar
               </strong>
               <p style={copyStyle}>
-                Ya existe una variante con ese SKU. Quieres generar los SKU automaticamente para el producto &quot;{duplicateSkuPrompt.title}&quot;?
+                Ya existe una variante con ese SKU. Quieres generar los SKU
+                automaticamente para el producto &quot;
+                {duplicateSkuPrompt.title}&quot;?
               </p>
             </div>
             <div style={modalActionsStyle}>
-              <button type="button" onClick={() => setDuplicateSkuPrompt(null)} style={ghostButtonStyle}>
+              <button
+                type="button"
+                onClick={() => setDuplicateSkuPrompt(null)}
+                style={ghostButtonStyle}
+              >
                 No, volver atras
               </button>
               <button
@@ -2160,151 +2687,182 @@ function OptionGroupSection({
       {options.length ? (
         <div style={optionGridStyle}>
           {options.map((option) => (
-              <article key={option.id} style={{ ...optionCardStyle, minHeight: 0 }}>
-                <div style={betweenStyle}>
-                  <div style={{ display: "grid", gap: 6 }}>
-                    {editingOptionId === option.id ? (
-                      <div style={rowWrapStyle}>
-                        <input
-                          value={editingOptionName}
-                          onChange={(event) => setEditingOptionName(event.target.value)}
-                          style={smallFieldStyle}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void saveOptionName(option.id)}
-                          disabled={savingOptionKey === `option-${option.id}` || !editingOptionName.trim()}
-                          style={secondaryButtonStyle}
-                        >
-                          {savingOptionKey === `option-${option.id}` ? "Guardando..." : "Guardar"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingOptionId(null);
-                            setEditingOptionName("");
-                          }}
-                          style={ghostButtonStyle}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <strong style={{ color: "#fff" }}>{option.name}</strong>
-                        <span style={metaStyle}>
-                          {option.productsCount ?? 0} producto(s) - {(option.reusableValues ?? []).length} valor(es)
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  {editingOptionId !== option.id ? (
+            <article
+              key={option.id}
+              style={{ ...optionCardStyle, minHeight: 0 }}
+            >
+              <div style={betweenStyle}>
+                <div style={{ display: "grid", gap: 6 }}>
+                  {editingOptionId === option.id ? (
                     <div style={rowWrapStyle}>
-                      <button type="button" onClick={() => startEditingOption(option)} style={ghostButtonStyle}>
-                        Editar
+                      <input
+                        value={editingOptionName}
+                        onChange={(event) =>
+                          setEditingOptionName(event.target.value)
+                        }
+                        style={smallFieldStyle}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void saveOptionName(option.id)}
+                        disabled={
+                          savingOptionKey === `option-${option.id}` ||
+                          !editingOptionName.trim()
+                        }
+                        style={secondaryButtonStyle}
+                      >
+                        {savingOptionKey === `option-${option.id}`
+                          ? "Guardando..."
+                          : "Guardar"}
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
-                          setPendingRemoval({
-                            kind: "option",
-                            optionId: option.id,
-                            optionName: option.name,
-                            productsCount: Number(option.productsCount ?? 0),
-                          })
-                        }
-                        disabled={savingOptionKey === `option-${option.id}`}
+                        onClick={() => {
+                          setEditingOptionId(null);
+                          setEditingOptionName("");
+                        }}
                         style={ghostButtonStyle}
                       >
-                        {savingOptionKey === `option-${option.id}` ? "Eliminando..." : "Eliminar"}
+                        Cancelar
                       </button>
                     </div>
-                  ) : null}
+                  ) : (
+                    <>
+                      <strong style={{ color: "#fff" }}>{option.name}</strong>
+                      <span style={metaStyle}>
+                        {option.productsCount ?? 0} producto(s) -{" "}
+                        {(option.reusableValues ?? []).length} valor(es)
+                      </span>
+                    </>
+                  )}
                 </div>
-
-                {(option.reusableValues ?? []).length ? (
-                  <div style={{ display: "grid", gap: 10 }}>
-                    {(option.reusableValues ?? []).map((value) => {
-                      const valueKey = `${option.id}:${value.value.toLowerCase()}`;
-                      const isEditingValue = editingValueKey === valueKey;
-                      const isSavingValue = savingOptionKey === `value-${valueKey}`;
-
-                      return (
-                        <div key={valueKey} style={valueItemStyle}>
-                          {isEditingValue ? (
-                            <>
-                              <div style={{ display: "grid", gap: 10 }}>
-                                <input
-                                  value={editingValueName}
-                                  onChange={(event) => setEditingValueName(event.target.value)}
-                                  style={smallFieldStyle}
-                                />
-                              </div>
-                              <div style={valueActionsRowStyle}>
-                                <button
-                                  type="button"
-                                  onClick={() => void saveOptionValue(option.id, value.value)}
-                                  disabled={isSavingValue || !editingValueName.trim()}
-                                  style={compactActionButtonStyle}
-                                >
-                                  {isSavingValue ? "Guardando..." : "Guardar"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingValueKey(null);
-                                    setEditingValueName("");
-                                  }}
-                                  style={compactGhostButtonStyle}
-                                >
-                                  Cancelar
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div style={{ display: "grid", gap: 4 }}>
-                                <strong style={{ color: "#fff" }}>{value.value}</strong>
-                                <span style={metaStyle}>
-                                  {value.productsCount ?? 0} producto(s) usando este valor
-                                </span>
-                              </div>
-                              <div style={valueActionsRowStyle}>
-                                <button
-                                  type="button"
-                                  onClick={() => startEditingValue(option.id, value.value)}
-                                  style={compactGhostButtonStyle}
-                                >
-                                  Renombrar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setPendingRemoval({
-                                      kind: "value",
-                                      optionId: option.id,
-                                      optionName: option.name,
-                                      value: value.value,
-                                      productsCount: Number(value.productsCount ?? 0),
-                                    })
-                                  }
-                                  disabled={isSavingValue}
-                                  style={compactGhostButtonStyle}
-                                >
-                                  {isSavingValue ? "Eliminando..." : "Eliminar"}
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
+                {editingOptionId !== option.id ? (
+                  <div style={rowWrapStyle}>
+                    <button
+                      type="button"
+                      onClick={() => startEditingOption(option)}
+                      style={ghostButtonStyle}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingRemoval({
+                          kind: "option",
+                          optionId: option.id,
+                          optionName: option.name,
+                          productsCount: Number(option.productsCount ?? 0),
+                        })
+                      }
+                      disabled={savingOptionKey === `option-${option.id}`}
+                      style={ghostButtonStyle}
+                    >
+                      {savingOptionKey === `option-${option.id}`
+                        ? "Eliminando..."
+                        : "Eliminar"}
+                    </button>
                   </div>
-                ) : (
-                  <StateCard label="Todavia no hay valores generados para esta etiqueta." />
-                )}
-              </article>
-            ))}
+                ) : null}
+              </div>
+
+              {(option.reusableValues ?? []).length ? (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {(option.reusableValues ?? []).map((value) => {
+                    const valueKey = `${option.id}:${value.value.toLowerCase()}`;
+                    const isEditingValue = editingValueKey === valueKey;
+                    const isSavingValue =
+                      savingOptionKey === `value-${valueKey}`;
+
+                    return (
+                      <div key={valueKey} style={valueItemStyle}>
+                        {isEditingValue ? (
+                          <>
+                            <div style={{ display: "grid", gap: 10 }}>
+                              <input
+                                value={editingValueName}
+                                onChange={(event) =>
+                                  setEditingValueName(event.target.value)
+                                }
+                                style={smallFieldStyle}
+                              />
+                            </div>
+                            <div style={valueActionsRowStyle}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void saveOptionValue(option.id, value.value)
+                                }
+                                disabled={
+                                  isSavingValue || !editingValueName.trim()
+                                }
+                                style={compactActionButtonStyle}
+                              >
+                                {isSavingValue ? "Guardando..." : "Guardar"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingValueKey(null);
+                                  setEditingValueName("");
+                                }}
+                                style={compactGhostButtonStyle}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ display: "grid", gap: 4 }}>
+                              <strong style={{ color: "#fff" }}>
+                                {value.value}
+                              </strong>
+                              <span style={metaStyle}>
+                                {value.productsCount ?? 0} producto(s) usando
+                                este valor
+                              </span>
+                            </div>
+                            <div style={valueActionsRowStyle}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  startEditingValue(option.id, value.value)
+                                }
+                                style={compactGhostButtonStyle}
+                              >
+                                Renombrar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPendingRemoval({
+                                    kind: "value",
+                                    optionId: option.id,
+                                    optionName: option.name,
+                                    value: value.value,
+                                    productsCount: Number(
+                                      value.productsCount ?? 0,
+                                    ),
+                                  })
+                                }
+                                disabled={isSavingValue}
+                                style={compactGhostButtonStyle}
+                              >
+                                {isSavingValue ? "Eliminando..." : "Eliminar"}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <StateCard label="Todavia no hay valores generados para esta etiqueta." />
+              )}
+            </article>
+          ))}
         </div>
       ) : (
         <StateCard label="No hay etiquetas en este grupo." />
@@ -2313,11 +2871,13 @@ function OptionGroupSection({
   );
 }
 
-function AdminCategoriesSection() {
+function AdminCategoriesManager() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -2331,7 +2891,11 @@ function AdminCategoriesSection() {
         const data = await api("/categories");
         setCategories(Array.isArray(data) ? data : []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudieron cargar categorias.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudieron cargar categorias.",
+        );
       } finally {
         setLoading(false);
       }
@@ -2359,7 +2923,9 @@ function AdminCategoriesSection() {
 
       setCategories((current) =>
         editingCategoryId
-          ? current.map((category) => (category.id === editingCategoryId ? created : category))
+          ? current.map((category) =>
+              category.id === editingCategoryId ? created : category,
+            )
           : [created, ...current],
       );
       const wasEditing = editingCategoryId !== null;
@@ -2368,7 +2934,9 @@ function AdminCategoriesSection() {
       setEditingCategoryId(null);
       setSuccess(wasEditing ? "Categoria actualizada." : "Categoria creada.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la categoria.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo guardar la categoria.",
+      );
     } finally {
       setSaving(false);
     }
@@ -2385,7 +2953,9 @@ function AdminCategoriesSection() {
       await api(`/categories/${pendingRemoval.id}`, {
         method: "DELETE",
       });
-      setCategories((current) => current.filter((category) => category.id !== pendingRemoval.id));
+      setCategories((current) =>
+        current.filter((category) => category.id !== pendingRemoval.id),
+      );
       if (editingCategoryId === pendingRemoval.id) {
         setEditingCategoryId(null);
         setName("");
@@ -2394,19 +2964,31 @@ function AdminCategoriesSection() {
       setSuccess(`Categoria "${pendingRemoval.name}" eliminada.`);
       setPendingRemoval(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar la categoria.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo eliminar la categoria.",
+      );
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <section style={panelStyle}>
-      <Header title="Categorias" />
+    <>
       <div style={twoColumnStyle}>
         <div style={blockStyle}>
-          {editingCategoryId ? <span style={metaStyle}>Editando categoria #{editingCategoryId}</span> : null}
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre de categoria" style={fieldStyle} />
+          {editingCategoryId ? (
+            <span style={metaStyle}>
+              Editando categoria #{editingCategoryId}
+            </span>
+          ) : null}
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre de categoria"
+            style={fieldStyle}
+          />
           <input
             value={imageUrl}
             onChange={(e) => setImageUrl(e.target.value)}
@@ -2414,8 +2996,17 @@ function AdminCategoriesSection() {
             style={fieldStyle}
           />
           <div style={rowWrapStyle}>
-            <button type="button" onClick={create} disabled={saving || !name.trim()} style={primaryButtonStyle}>
-              {saving ? "Guardando..." : editingCategoryId ? "Guardar categoria" : "Crear categoria"}
+            <button
+              type="button"
+              onClick={create}
+              disabled={saving || !name.trim()}
+              style={primaryButtonStyle}
+            >
+              {saving
+                ? "Guardando..."
+                : editingCategoryId
+                  ? "Guardar categoria"
+                  : "Crear categoria"}
             </button>
             {editingCategoryId ? (
               <button
@@ -2439,57 +3030,81 @@ function AdminCategoriesSection() {
                 width={1200}
                 height={640}
                 unoptimized
-                style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 18 }}
+                style={{
+                  width: "100%",
+                  height: 160,
+                  objectFit: "cover",
+                  borderRadius: 18,
+                }}
               />
             </div>
           ) : null}
-          <span style={metaStyle}>Ejemplo: /images/seed-categories/remeras.svg</span>
+          <span style={metaStyle}>
+            Ejemplo: /images/seed-categories/remeras.svg
+          </span>
           {error ? <p style={errorStyle}>{error}</p> : null}
           {success ? <p style={successStyle}>{success}</p> : null}
         </div>
         <div style={blockStyle}>
-          {loading ? <StateCard label="Cargando categorias..." /> : categories.map((category) => (
-            <div key={category.id} style={itemStyle}>
-              {category.imageUrl ? (
-                <Image
-                  src={resolveAssetUrl(category.imageUrl) ?? category.imageUrl}
-                  alt={category.name}
-                  width={1200}
-                  height={720}
-                  unoptimized
-                  style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 18 }}
-                />
-              ) : null}
-              <strong style={{ color: "#fff" }}>{category.name}</strong>
-              <span style={metaStyle}>/{category.slug}</span>
-              <span style={metaStyle}>{category.imageUrl || "Sin imagen cargada"}</span>
-              <div style={rowWrapStyle}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingCategoryId(category.id);
-                    setName(category.name);
-                    setImageUrl(category.imageUrl ?? "");
-                  }}
-                  style={ghostButtonStyle}
-                >
-                  Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPendingRemoval(category)}
-                  style={ghostButtonStyle}
-                  disabled={saving}
-                >
-                  Eliminar
-                </button>
+          {loading ? (
+            <StateCard label="Cargando categorias..." />
+          ) : (
+            categories.map((category) => (
+              <div key={category.id} style={itemStyle}>
+                {category.imageUrl ? (
+                  <Image
+                    src={
+                      resolveAssetUrl(category.imageUrl) ?? category.imageUrl
+                    }
+                    alt={category.name}
+                    width={1200}
+                    height={720}
+                    unoptimized
+                    style={{
+                      width: "100%",
+                      height: 120,
+                      objectFit: "cover",
+                      borderRadius: 18,
+                    }}
+                  />
+                ) : null}
+                <strong style={{ color: "#fff" }}>{category.name}</strong>
+                <span style={metaStyle}>/{category.slug}</span>
+                <span style={metaStyle}>
+                  {category.imageUrl || "Sin imagen cargada"}
+                </span>
+                <div style={rowWrapStyle}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCategoryId(category.id);
+                      setName(category.name);
+                      setImageUrl(category.imageUrl ?? "");
+                    }}
+                    style={ghostButtonStyle}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingRemoval(category)}
+                    style={ghostButtonStyle}
+                    disabled={saving}
+                  >
+                    Eliminar
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
       {pendingRemoval ? (
-        <div style={modalOverlayStyle} role="presentation" onClick={() => setPendingRemoval(null)}>
+        <div
+          style={modalOverlayStyle}
+          role="presentation"
+          onClick={() => setPendingRemoval(null)}
+        >
           <section
             style={modalCardStyle}
             role="dialog"
@@ -2499,7 +3114,10 @@ function AdminCategoriesSection() {
           >
             <div style={{ display: "grid", gap: 10 }}>
               <p style={eyebrowStyle}>Confirmacion</p>
-              <strong id="category-confirmation-title" style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}>
+              <strong
+                id="category-confirmation-title"
+                style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}
+              >
                 {`Eliminar categoria "${pendingRemoval.name}"`}
               </strong>
               <p style={copyStyle}>
@@ -2509,17 +3127,26 @@ function AdminCategoriesSection() {
               </p>
             </div>
             <div style={modalActionsStyle}>
-              <button type="button" onClick={() => setPendingRemoval(null)} style={ghostButtonStyle}>
+              <button
+                type="button"
+                onClick={() => setPendingRemoval(null)}
+                style={ghostButtonStyle}
+              >
                 Cancelar
               </button>
-              <button type="button" onClick={() => void removeCategory()} style={primaryButtonStyle} disabled={saving}>
+              <button
+                type="button"
+                onClick={() => void removeCategory()}
+                style={primaryButtonStyle}
+                disabled={saving}
+              >
                 {saving ? "Eliminando..." : "Confirmar eliminacion"}
               </button>
             </div>
           </section>
         </div>
       ) : null}
-    </section>
+    </>
   );
 }
 
@@ -2536,7 +3163,9 @@ function AdminOrdersPanelSection() {
         const data = await api("/orders");
         setOrders(Array.isArray(data) ? data : []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudieron cargar pedidos.");
+        setError(
+          err instanceof Error ? err.message : "No se pudieron cargar pedidos.",
+        );
       } finally {
         setLoading(false);
       }
@@ -2547,7 +3176,10 @@ function AdminOrdersPanelSection() {
   const openOrderDetail = (orderId: number) => {
     setSelectedOrderId(orderId);
     window.requestAnimationFrame(() => {
-      detailTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      detailTopRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     });
   };
 
@@ -2565,7 +3197,11 @@ function AdminOrdersPanelSection() {
           onBack={() => setSelectedOrderId(null)}
           onOrderUpdated={(updatedOrder) => {
             setOrders((current) =>
-              current.map((order) => (order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order)),
+              current.map((order) =>
+                order.id === updatedOrder.id
+                  ? { ...order, ...updatedOrder }
+                  : order,
+              ),
             );
           }}
         />
@@ -2576,10 +3212,16 @@ function AdminOrdersPanelSection() {
         <div style={ordersGridStyle}>
           {orders.map((order) => {
             const customerName =
-              [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(" ").trim() ||
+              [order.customer?.firstName, order.customer?.lastName]
+                .filter(Boolean)
+                .join(" ")
+                .trim() ||
               order.customer?.email ||
               "Cliente sin identificar";
-            const units = order.items.reduce((total, item) => total + item.quantity, 0);
+            const units = order.items.reduce(
+              (total, item) => total + item.quantity,
+              0,
+            );
 
             return (
               <article
@@ -2589,28 +3231,42 @@ function AdminOrdersPanelSection() {
               >
                 <div style={betweenStyle}>
                   <div>
-                    <strong style={{ display: "block", color: "#fff" }}>Pedido #{order.id}</strong>
-                    <span style={metaStyle}>{new Date(order.createdAt).toLocaleString("es-AR")}</span>
+                    <strong style={{ display: "block", color: "#fff" }}>
+                      Pedido #{order.id}
+                    </strong>
+                    <span style={metaStyle}>
+                      {new Date(order.createdAt).toLocaleString("es-AR")}
+                    </span>
                   </div>
-                  <strong style={{ color: "#fff" }}>{money(order.total)}</strong>
+                  <strong style={{ color: "#fff" }}>
+                    {money(order.total)}
+                  </strong>
                 </div>
 
                 <div style={{ display: "grid", gap: 8 }}>
                   <p style={copyStyle}>{customerName}</p>
                   <p style={copyStyle}>
-                    {units} unidad{units === 1 ? "" : "es"} · {orderStatusLabel(order.status)}
+                    {units} unidad{units === 1 ? "" : "es"} ·{" "}
+                    {orderStatusLabel(order.status)}
                   </p>
                 </div>
 
                 <div style={rowWrapStyle}>
-                  <span style={statusChipStyle(order.status)}>{orderStatusLabel(order.status)}</span>
-                  {order.shippingMethod ? <span style={softChipStyle}>{order.shippingMethod}</span> : null}
-                  {order.shipment?.trackingNumber ? <span style={softChipStyle}>Tracking listo</span> : null}
+                  <span style={statusChipStyle(order.status)}>
+                    {orderStatusLabel(order.status)}
+                  </span>
+                  {order.shippingMethod ? (
+                    <span style={softChipStyle}>{order.shippingMethod}</span>
+                  ) : null}
+                  {order.shipment?.trackingNumber ? (
+                    <span style={softChipStyle}>Tracking listo</span>
+                  ) : null}
                 </div>
 
                 <div style={betweenStyle}>
                   <span style={metaStyle}>
-                    {order.items.length} linea{order.items.length === 1 ? "" : "s"} de pedido
+                    {order.items.length} linea
+                    {order.items.length === 1 ? "" : "s"} de pedido
                   </span>
                   <button
                     type="button"
@@ -2646,7 +3302,9 @@ function AdminOrdersSection() {
         const data = await api("/orders");
         setOrders(Array.isArray(data) ? data : []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudieron cargar pedidos.");
+        setError(
+          err instanceof Error ? err.message : "No se pudieron cargar pedidos.",
+        );
       } finally {
         setLoading(false);
       }
@@ -2661,9 +3319,15 @@ function AdminOrdersSection() {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
-      setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, ...updated } : order)));
+      setOrders((current) =>
+        current.map((order) =>
+          order.id === orderId ? { ...order, ...updated } : order,
+        ),
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar el pedido.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo actualizar el pedido.",
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -2673,31 +3337,44 @@ function AdminOrdersSection() {
     <section style={panelStyle}>
       <Header title="Pedidos" />
       {error ? <p style={errorStyle}>{error}</p> : null}
-      {loading ? <StateCard label="Cargando pedidos..." /> : orders.map((order) => (
-        <article key={order.id} style={itemStyle}>
-          <div style={betweenStyle}>
-            <div>
-              <strong style={{ display: "block", color: "#fff" }}>Pedido #{order.id}</strong>
-              <span style={metaStyle}>{new Date(order.createdAt).toLocaleDateString("es-AR")}</span>
+      {loading ? (
+        <StateCard label="Cargando pedidos..." />
+      ) : (
+        orders.map((order) => (
+          <article key={order.id} style={itemStyle}>
+            <div style={betweenStyle}>
+              <div>
+                <strong style={{ display: "block", color: "#fff" }}>
+                  Pedido #{order.id}
+                </strong>
+                <span style={metaStyle}>
+                  {new Date(order.createdAt).toLocaleDateString("es-AR")}
+                </span>
+              </div>
+              <strong style={{ color: "#fff" }}>{money(order.total)}</strong>
             </div>
-            <strong style={{ color: "#fff" }}>{money(order.total)}</strong>
-          </div>
-          <p style={copyStyle}>
-            {order.items.length} item{order.items.length === 1 ? "" : "s"} • {orderStatusLabel(order.status)}
-          </p>
-          <select
-            className="theme-select"
-            defaultValue={order.status}
-            disabled={updatingId === order.id}
-            onChange={(event) => void updateStatus(order.id, event.target.value)}
-            style={selectStyle}
-          >
-            {statuses.map((status) => (
-              <option key={status} value={status} style={optionStyle}>{orderStatusLabel(status)}</option>
-            ))}
-          </select>
-        </article>
-      ))}
+            <p style={copyStyle}>
+              {order.items.length} item{order.items.length === 1 ? "" : "s"} â€¢{" "}
+              {orderStatusLabel(order.status)}
+            </p>
+            <select
+              className="theme-select"
+              defaultValue={order.status}
+              disabled={updatingId === order.id}
+              onChange={(event) =>
+                void updateStatus(order.id, event.target.value)
+              }
+              style={selectStyle}
+            >
+              {statuses.map((status) => (
+                <option key={status} value={status} style={optionStyle}>
+                  {orderStatusLabel(status)}
+                </option>
+              ))}
+            </select>
+          </article>
+        ))
+      )}
     </section>
   );
 }
@@ -2708,7 +3385,9 @@ function AdminCustomersSection() {
   const [returns, setReturns] = useState<AdminReturn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"summary" | "customers" | "segments" | "alerts">("summary");
+  const [activeTab, setActiveTab] = useState<
+    "summary" | "customers" | "segments" | "alerts"
+  >("summary");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -2721,9 +3400,15 @@ function AdminCustomersSection() {
         ]);
         setCustomers(Array.isArray(customersData) ? customersData : []);
         setOrders(Array.isArray(ordersData) ? ordersData : []);
-        setReturns(Array.isArray(returnsData) ? (returnsData as AdminReturn[]) : []);
+        setReturns(
+          Array.isArray(returnsData) ? (returnsData as AdminReturn[]) : [],
+        );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudieron cargar clientes.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudieron cargar clientes.",
+        );
       } finally {
         setLoading(false);
       }
@@ -2733,16 +3418,25 @@ function AdminCustomersSection() {
 
   const customerRows = useMemo(() => {
     return customers.map((customer) => {
-      const relatedOrders = orders.filter((order) => order.customer?.id === customer.id || order.customerId === customer.id);
+      const relatedOrders = orders.filter(
+        (order) =>
+          order.customer?.id === customer.id ||
+          order.customerId === customer.id,
+      );
       const relatedReturns = returns.filter((entry) =>
         relatedOrders.some((order) => order.id === entry.orderId),
       );
-      const totalSpent = relatedOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+      const totalSpent = relatedOrders.reduce(
+        (sum, order) => sum + Number(order.total ?? 0),
+        0,
+      );
       const lastOrder = [...relatedOrders].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       )[0];
       const firstOrder = [...relatedOrders].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       )[0];
       const segment = getCustomerSegment({
         ordersCount: relatedOrders.length,
@@ -2757,7 +3451,9 @@ function AdminCustomersSection() {
         totalSpent,
         lastOrderAt: lastOrder?.createdAt ?? null,
         firstOrderAt: firstOrder?.createdAt ?? null,
-        averageTicket: relatedOrders.length ? totalSpent / relatedOrders.length : 0,
+        averageTicket: relatedOrders.length
+          ? totalSpent / relatedOrders.length
+          : 0,
         segment,
       };
     });
@@ -2768,7 +3464,10 @@ function AdminCustomersSection() {
     if (!normalizedQuery) return customerRows;
 
     return customerRows.filter(({ customer, segment }) => {
-      const fullName = [customer.firstName, customer.lastName].filter(Boolean).join(" ").toLowerCase();
+      const fullName = [customer.firstName, customer.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
       return (
         fullName.includes(normalizedQuery) ||
         customer.email.toLowerCase().includes(normalizedQuery) ||
@@ -2780,11 +3479,22 @@ function AdminCustomersSection() {
 
   const metrics = useMemo(() => {
     const totalCustomers = customerRows.length;
-    const customersWithOrders = customerRows.filter((row) => row.ordersCount > 0).length;
-    const recurringCustomers = customerRows.filter((row) => row.ordersCount > 1).length;
-    const vipCustomers = customerRows.filter((row) => row.segment.id === "vip").length;
-    const incompleteProfiles = customerRows.filter((row) => !row.customer.phone).length;
-    const totalRevenue = customerRows.reduce((sum, row) => sum + row.totalSpent, 0);
+    const customersWithOrders = customerRows.filter(
+      (row) => row.ordersCount > 0,
+    ).length;
+    const recurringCustomers = customerRows.filter(
+      (row) => row.ordersCount > 1,
+    ).length;
+    const vipCustomers = customerRows.filter(
+      (row) => row.segment.id === "vip",
+    ).length;
+    const incompleteProfiles = customerRows.filter(
+      (row) => !row.customer.phone,
+    ).length;
+    const totalRevenue = customerRows.reduce(
+      (sum, row) => sum + row.totalSpent,
+      0,
+    );
 
     return {
       totalCustomers,
@@ -2797,7 +3507,10 @@ function AdminCustomersSection() {
   }, [customerRows]);
 
   const segmentCards = useMemo(() => {
-    const groups = new Map<string, { label: string; description: string; count: number }>();
+    const groups = new Map<
+      string,
+      { label: string; description: string; count: number }
+    >();
     customerRows.forEach((row) => {
       const current = groups.get(row.segment.id) ?? {
         label: row.segment.label,
@@ -2847,17 +3560,31 @@ function AdminCustomersSection() {
     <section style={panelStyle}>
       <Header
         title="Clientes"
-        copy="Base comercial con foco en valor, recompra y alertas de seguimiento para que la relacion con cada cliente sea mas clara."
+        copy="Consulta clientes, compras y datos de contacto."
       />
       {error ? <p style={errorStyle}>{error}</p> : null}
-      {loading ? <StateCard label="Cargando clientes..." /> : (
+      {loading ? (
+        <StateCard label="Cargando clientes..." />
+      ) : (
         <>
           <div style={statsGridStyle}>
-            <Stat label="Clientes totales" value={String(metrics.totalCustomers)} />
-            <Stat label="Con compra" value={String(metrics.customersWithOrders)} />
-            <Stat label="Recurrentes" value={String(metrics.recurringCustomers)} />
+            <Stat
+              label="Clientes totales"
+              value={String(metrics.totalCustomers)}
+            />
+            <Stat
+              label="Con compra"
+              value={String(metrics.customersWithOrders)}
+            />
+            <Stat
+              label="Recurrentes"
+              value={String(metrics.recurringCustomers)}
+            />
             <Stat label="VIP" value={String(metrics.vipCustomers)} />
-            <Stat label="Perfiles incompletos" value={String(metrics.incompleteProfiles)} />
+            <Stat
+              label="Perfiles incompletos"
+              value={String(metrics.incompleteProfiles)}
+            />
             <Stat label="Facturacion" value={money(metrics.totalRevenue)} />
           </div>
 
@@ -2878,16 +3605,32 @@ function AdminCustomersSection() {
             </div>
 
             <div style={tabRailStyle}>
-              <button type="button" onClick={() => setActiveTab("summary")} style={workspaceTabStyle(activeTab === "summary")}>
+              <button
+                type="button"
+                onClick={() => setActiveTab("summary")}
+                style={workspaceTabStyle(activeTab === "summary")}
+              >
                 Resumen
               </button>
-              <button type="button" onClick={() => setActiveTab("customers")} style={workspaceTabStyle(activeTab === "customers")}>
+              <button
+                type="button"
+                onClick={() => setActiveTab("customers")}
+                style={workspaceTabStyle(activeTab === "customers")}
+              >
                 Clientes
               </button>
-              <button type="button" onClick={() => setActiveTab("segments")} style={workspaceTabStyle(activeTab === "segments")}>
+              <button
+                type="button"
+                onClick={() => setActiveTab("segments")}
+                style={workspaceTabStyle(activeTab === "segments")}
+              >
                 Segmentos
               </button>
-              <button type="button" onClick={() => setActiveTab("alerts")} style={workspaceTabStyle(activeTab === "alerts")}>
+              <button
+                type="button"
+                onClick={() => setActiveTab("alerts")}
+                style={workspaceTabStyle(activeTab === "alerts")}
+              >
                 Alertas
               </button>
             </div>
@@ -2895,7 +3638,9 @@ function AdminCustomersSection() {
             {activeTab === "summary" ? (
               <div style={statsGridStyle}>
                 <article style={statStyle}>
-                  <span style={metaStyle}>Ticket promedio por cliente activo</span>
+                  <span style={metaStyle}>
+                    Ticket promedio por cliente activo
+                  </span>
                   <strong style={{ color: "#fff", fontSize: 28 }}>
                     {money(
                       metrics.customersWithOrders
@@ -2945,27 +3690,43 @@ function AdminCustomersSection() {
                       {filteredRows.map((row) => (
                         <tr key={row.customer.id}>
                           <td style={tdStyle}>
-                            <strong style={{ display: "block", color: "#fff" }}>{getCustomerDisplayName(row.customer)}</strong>
-                            <span style={metaStyle}>Cliente #{row.customer.id}</span>
+                            <strong style={{ display: "block", color: "#fff" }}>
+                              {getCustomerDisplayName(row.customer)}
+                            </strong>
+                            <span style={metaStyle}>
+                              Cliente #{row.customer.id}
+                            </span>
                           </td>
                           <td style={tdStyle}>
                             <div style={{ display: "grid", gap: 4 }}>
                               <span>{row.customer.email}</span>
-                              <span style={metaStyle}>{row.customer.phone || "Sin telefono cargado"}</span>
+                              <span style={metaStyle}>
+                                {row.customer.phone || "Sin telefono cargado"}
+                              </span>
                             </div>
                           </td>
                           <td style={tdStyle}>
                             <div style={{ display: "grid", gap: 4 }}>
                               <span>{row.ordersCount}</span>
-                              <span style={metaStyle}>Promedio {money(row.averageTicket)}</span>
+                              <span style={metaStyle}>
+                                Promedio {money(row.averageTicket)}
+                              </span>
                             </div>
                           </td>
                           <td style={tdStyle}>{money(row.totalSpent)}</td>
                           <td style={tdStyle}>
-                            {row.lastOrderAt ? new Date(row.lastOrderAt).toLocaleDateString("es-AR") : "Sin compras"}
+                            {row.lastOrderAt
+                              ? new Date(row.lastOrderAt).toLocaleDateString(
+                                  "es-AR",
+                                )
+                              : "Sin compras"}
                           </td>
                           <td style={tdStyle}>
-                            <span style={customerSegmentStyle(row.segment.tone)}>{row.segment.label}</span>
+                            <span
+                              style={customerSegmentStyle(row.segment.tone)}
+                            >
+                              {row.segment.label}
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -2982,7 +3743,9 @@ function AdminCustomersSection() {
                 {segmentCards.map((segment) => (
                   <article key={segment.id} style={statStyle}>
                     <span style={metaStyle}>{segment.label}</span>
-                    <strong style={{ color: "#fff", fontSize: 28 }}>{segment.count}</strong>
+                    <strong style={{ color: "#fff", fontSize: 28 }}>
+                      {segment.count}
+                    </strong>
                     <span style={copyStyle}>{segment.description}</span>
                   </article>
                 ))}
@@ -3010,19 +3773,40 @@ function AdminCustomersSection() {
   );
 }
 
-function Header({ title, copy }: { title: string; copy?: string }) {
+function Header({
+  title,
+  copy,
+  actions,
+}: {
+  title: string;
+  copy?: string;
+  actions?: React.ReactNode;
+}) {
   return (
     <div style={betweenStyle}>
       <div>
         <p style={eyebrowStyle}>Gestion</p>
         <h2 style={title2Style}>{title}</h2>
       </div>
-      {copy ? <p style={copyStyle}>{copy}</p> : null}
+      <div style={{ display: "grid", justifyItems: "end", gap: 10 }}>
+        {actions}
+        {copy ? (
+          <p style={{ ...copyStyle, maxWidth: 520, textAlign: "right" }}>
+            {copy}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function Step({ title, children }: { title: string; children: React.ReactNode }) {
+function Step({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section style={{ ...blockStyle, height: "100%" }}>
       <div>
@@ -3038,7 +3822,9 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <article style={statStyle}>
       <span style={metaStyle}>{label}</span>
-      <strong style={{ color: "var(--account-text-strong)", fontSize: 28 }}>{value}</strong>
+      <strong style={{ color: "var(--account-text-strong)", fontSize: 28 }}>
+        {value}
+      </strong>
     </article>
   );
 }
@@ -3121,10 +3907,12 @@ function CatalogImageLayoutEditor({
             if (dragStateRef.current.mode === "move") {
               onChange({
                 offsetX: clampImageOffset(
-                  dragStateRef.current.startOffsetX + (deltaX / dragStateRef.current.width) * 100,
+                  dragStateRef.current.startOffsetX +
+                    (deltaX / dragStateRef.current.width) * 100,
                 ),
                 offsetY: clampImageOffset(
-                  dragStateRef.current.startOffsetY + (deltaY / dragStateRef.current.height) * 100,
+                  dragStateRef.current.startOffsetY +
+                    (deltaY / dragStateRef.current.height) * 100,
                 ),
               });
               return;
@@ -3157,10 +3945,7 @@ function CatalogImageLayoutEditor({
               ...getCatalogImageTransform(value),
             }}
           />
-          <div
-            ref={frameRef}
-            style={catalogPreviewFrameStyle}
-          >
+          <div ref={frameRef} style={catalogPreviewFrameStyle}>
             <div style={catalogPreviewCropMaskStyle} />
             <div style={catalogPreviewGridStyle(gridLines)} />
             <div style={catalogPreviewCenterGuideStyle} />
@@ -3210,7 +3995,8 @@ function CatalogImageLayoutEditor({
           <span style={metaStyle}>{secondaryText}</span>
         </div>
         <span style={metaStyle}>
-          Arrastra la imagen desde el centro para moverla. Usa bordes o esquinas para agrandarla o achicarla.
+          Arrastra la imagen desde el centro para moverla. Usa bordes o esquinas
+          para agrandarla o achicarla.
         </span>
 
         <div style={rowWrapStyle}>
@@ -3225,7 +4011,16 @@ function CatalogImageLayoutEditor({
 
 type ResizeHandle = "n" | "e" | "s" | "w" | "ne" | "nw" | "se" | "sw";
 
-const resizeHandles: ResizeHandle[] = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
+const resizeHandles: ResizeHandle[] = [
+  "n",
+  "e",
+  "s",
+  "w",
+  "ne",
+  "nw",
+  "se",
+  "sw",
+];
 
 function getResizeFactor(
   handle: ResizeHandle,
@@ -3247,13 +4042,13 @@ function getResizeFactor(
     case "n":
       return 1 - vertical;
     case "ne":
-      return 1 + ((horizontal - vertical) / 2);
+      return 1 + (horizontal - vertical) / 2;
     case "nw":
-      return 1 - ((horizontal + vertical) / 2);
+      return 1 - (horizontal + vertical) / 2;
     case "se":
-      return 1 + ((horizontal + vertical) / 2);
+      return 1 + (horizontal + vertical) / 2;
     case "sw":
-      return 1 + ((vertical - horizontal) / 2);
+      return 1 + (vertical - horizontal) / 2;
   }
 }
 
@@ -3336,7 +4131,10 @@ function SuggestionInput({
 }
 
 function getCustomerDisplayName(customer: Customer) {
-  return [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || "Sin nombre";
+  return (
+    [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() ||
+    "Sin nombre"
+  );
 }
 
 function getCustomerSegment({
@@ -3400,26 +4198,116 @@ function getCustomerSegment({
 
 const panelStyle: React.CSSProperties = { display: "grid", gap: 24 };
 const shellStyle: React.CSSProperties = { display: "grid", gap: 18 };
-const topGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18, alignItems: "stretch" };
-const statsGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 16 };
-const ordersGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16 };
-const twoColumnStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(280px,0.38fr) minmax(0,1fr)", gap: 20, alignItems: "start" };
-const optionGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 };
-const optionValuesAreaStyle: React.CSSProperties = { minHeight: 124, alignContent: "start" };
-const optionActionsStyle: React.CSSProperties = { display: "grid", gap: 10, alignContent: "end", marginTop: "auto", alignSelf: "end" };
-const selectedValuesBlockStyle: React.CSSProperties = { display: "grid", gap: 10, marginTop: 14 };
-const variantGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12 };
-const chipRowStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
-const rowWrapStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
-const betweenStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" };
-const footerStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" };
-const tabRailStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
-const tableWrapStyle: React.CSSProperties = { width: "100%", overflowX: "auto" };
-const fieldStyle: React.CSSProperties = { width: "100%", padding: "14px 16px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 16, outline: "none" };
-const smallFieldStyle: React.CSSProperties = { ...fieldStyle, padding: "12px 14px" };
-const searchFieldStyle: React.CSSProperties = { ...smallFieldStyle, minWidth: 280 };
-const selectStyle: React.CSSProperties = { ...fieldStyle, maxWidth: 260, background: "var(--select-bg)", color: "var(--select-color)", appearance: "auto" };
-const imageEditorGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 };
+const topGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 18,
+  alignItems: "stretch",
+};
+const statsGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+  gap: 16,
+};
+const ordersGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+  gap: 16,
+};
+const twoColumnStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(280px,0.38fr) minmax(0,1fr)",
+  gap: 20,
+  alignItems: "start",
+};
+const optionGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+  gap: 12,
+};
+const optionValuesAreaStyle: React.CSSProperties = {
+  minHeight: 124,
+  alignContent: "start",
+};
+const optionActionsStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  alignContent: "end",
+  marginTop: "auto",
+  alignSelf: "end",
+};
+const selectedValuesBlockStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  marginTop: 14,
+};
+const variantGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))",
+  gap: 12,
+};
+const chipRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+const rowWrapStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+const betweenStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 16,
+  flexWrap: "wrap",
+};
+const footerStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  gap: 16,
+  flexWrap: "wrap",
+};
+const tabRailStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+const tableWrapStyle: React.CSSProperties = {
+  width: "100%",
+  overflowX: "auto",
+};
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "14px 16px",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--checkout-border)",
+  borderRadius: 16,
+  outline: "none",
+};
+const smallFieldStyle: React.CSSProperties = {
+  ...fieldStyle,
+  padding: "12px 14px",
+};
+const searchFieldStyle: React.CSSProperties = {
+  ...smallFieldStyle,
+  minWidth: 280,
+};
+const selectStyle: React.CSSProperties = {
+  ...fieldStyle,
+  maxWidth: 260,
+  background: "var(--select-bg)",
+  color: "var(--select-color)",
+  appearance: "auto",
+};
+const imageEditorGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: 16,
+};
 const imageEditorCardStyle: React.CSSProperties = {
   borderRadius: 22,
   border: "1px solid var(--checkout-border)",
@@ -3454,7 +4342,6 @@ const catalogPreviewEditorImageStyle: React.CSSProperties = {
   position: "absolute",
   inset: 0,
   width: "100%",
-  height: "100%",
   display: "block",
   pointerEvents: "none",
 };
@@ -3547,21 +4434,77 @@ const resizeHandleBaseStyle: React.CSSProperties = {
 function resizeHandleStyle(handle: ResizeHandle): React.CSSProperties {
   switch (handle) {
     case "n":
-      return { ...resizeHandleBaseStyle, top: 0, left: 16, right: 16, height: 18, cursor: "ns-resize" };
+      return {
+        ...resizeHandleBaseStyle,
+        top: 0,
+        left: 16,
+        right: 16,
+        height: 18,
+        cursor: "ns-resize",
+      };
     case "s":
-      return { ...resizeHandleBaseStyle, bottom: 0, left: 16, right: 16, height: 18, cursor: "ns-resize" };
+      return {
+        ...resizeHandleBaseStyle,
+        bottom: 0,
+        left: 16,
+        right: 16,
+        height: 18,
+        cursor: "ns-resize",
+      };
     case "e":
-      return { ...resizeHandleBaseStyle, top: 16, bottom: 16, right: 0, width: 18, cursor: "ew-resize" };
+      return {
+        ...resizeHandleBaseStyle,
+        top: 16,
+        bottom: 16,
+        right: 0,
+        width: 18,
+        cursor: "ew-resize",
+      };
     case "w":
-      return { ...resizeHandleBaseStyle, top: 16, bottom: 16, left: 0, width: 18, cursor: "ew-resize" };
+      return {
+        ...resizeHandleBaseStyle,
+        top: 16,
+        bottom: 16,
+        left: 0,
+        width: 18,
+        cursor: "ew-resize",
+      };
     case "ne":
-      return { ...resizeHandleBaseStyle, top: 0, right: 0, width: 22, height: 22, cursor: "nesw-resize" };
+      return {
+        ...resizeHandleBaseStyle,
+        top: 0,
+        right: 0,
+        width: 22,
+        height: 22,
+        cursor: "nesw-resize",
+      };
     case "nw":
-      return { ...resizeHandleBaseStyle, top: 0, left: 0, width: 22, height: 22, cursor: "nwse-resize" };
+      return {
+        ...resizeHandleBaseStyle,
+        top: 0,
+        left: 0,
+        width: 22,
+        height: 22,
+        cursor: "nwse-resize",
+      };
     case "se":
-      return { ...resizeHandleBaseStyle, right: 0, bottom: 0, width: 22, height: 22, cursor: "nwse-resize" };
+      return {
+        ...resizeHandleBaseStyle,
+        right: 0,
+        bottom: 0,
+        width: 22,
+        height: 22,
+        cursor: "nwse-resize",
+      };
     case "sw":
-      return { ...resizeHandleBaseStyle, left: 0, bottom: 0, width: 22, height: 22, cursor: "nesw-resize" };
+      return {
+        ...resizeHandleBaseStyle,
+        left: 0,
+        bottom: 0,
+        width: 22,
+        height: 22,
+        cursor: "nesw-resize",
+      };
   }
 }
 const suggestionFieldWrapStyle: React.CSSProperties = { position: "relative" };
@@ -3591,12 +4534,49 @@ const suggestionItemStyle: React.CSSProperties = {
   textAlign: "left",
   cursor: "pointer",
 };
-const primaryButtonStyle: React.CSSProperties = { padding: "14px 18px", background: "var(--accent-strong)", color: "var(--accent-contrast)", border: "none", borderRadius: 999, cursor: "pointer", fontWeight: 700 };
-const secondaryButtonStyle: React.CSSProperties = { padding: "10px 14px", background: "transparent", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border-strong)", borderRadius: 999, cursor: "pointer" };
-const fullWidthSecondaryButtonStyle: React.CSSProperties = { ...secondaryButtonStyle, width: "fit-content" };
-const ghostButtonStyle: React.CSSProperties = { padding: "10px 14px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 999, cursor: "pointer" };
-const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--page-panel-bg)", padding: 20, display: "grid", gap: 14 };
-const editingBannerStyle: React.CSSProperties = { ...blockStyle, gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center", gap: 12 };
+const primaryButtonStyle: React.CSSProperties = {
+  padding: "14px 18px",
+  background: "var(--accent-strong)",
+  color: "var(--accent-contrast)",
+  border: "none",
+  borderRadius: 999,
+  cursor: "pointer",
+  fontWeight: 700,
+};
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  background: "transparent",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--checkout-border-strong)",
+  borderRadius: 999,
+  cursor: "pointer",
+};
+const fullWidthSecondaryButtonStyle: React.CSSProperties = {
+  ...secondaryButtonStyle,
+  width: "fit-content",
+};
+const ghostButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--checkout-border)",
+  borderRadius: 999,
+  cursor: "pointer",
+};
+const blockStyle: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-bg)",
+  padding: 20,
+  display: "grid",
+  gap: 14,
+};
+const editingBannerStyle: React.CSSProperties = {
+  ...blockStyle,
+  gridTemplateColumns: "minmax(0,1fr) auto",
+  alignItems: "center",
+  gap: 12,
+};
 const itemStyle: React.CSSProperties = { ...blockStyle, gap: 10 };
 const groupPanelStyle: React.CSSProperties = { ...blockStyle, gap: 18 };
 const modalOverlayStyle: React.CSSProperties = {
@@ -3627,10 +4607,29 @@ const modalActionsStyle: React.CSSProperties = {
   gap: 12,
   flexWrap: "wrap",
 };
-const optionCardStyle: React.CSSProperties = { ...blockStyle, padding: 16, alignContent: "stretch", minHeight: 360, gridTemplateRows: "auto minmax(0, 1fr) auto" };
+const optionCardStyle: React.CSSProperties = {
+  ...blockStyle,
+  padding: 16,
+  alignContent: "stretch",
+  minHeight: 360,
+  gridTemplateRows: "auto minmax(0, 1fr) auto",
+};
 const tableSectionStyle: React.CSSProperties = { ...blockStyle, gap: 16 };
-const statStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--admin-stat-bg)", padding: 22, display: "grid", gap: 8 };
-const stateStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border-strong)", background: "var(--page-panel-strong-bg)", padding: 24, color: "var(--account-text-muted)" };
+const statStyle: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--admin-stat-bg)",
+  padding: 22,
+  display: "grid",
+  gap: 8,
+};
+const stateStyle: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid var(--checkout-border-strong)",
+  background: "var(--page-panel-strong-bg)",
+  padding: 24,
+  color: "var(--account-text-muted)",
+};
 const metricCardButtonStyle: React.CSSProperties = {
   appearance: "none",
   background: "transparent",
@@ -3643,19 +4642,79 @@ const metricCardButtonStyle: React.CSSProperties = {
   overflow: "hidden",
   display: "block",
 };
-const metaStyle: React.CSSProperties = { color: "var(--account-text-soft)", fontSize: 13 };
-const copyStyle: React.CSSProperties = { margin: 0, color: "var(--account-text-muted)", lineHeight: 1.7, maxWidth: 720 };
-const eyebrowStyle: React.CSSProperties = { margin: 0, textTransform: "uppercase", letterSpacing: "0.18em", fontSize: 12, color: "var(--account-text-soft)" };
-const title2Style: React.CSSProperties = { margin: "10px 0 0", fontSize: "clamp(1.8rem,2vw,2.6rem)", letterSpacing: "-0.05em" };
-const title3Style: React.CSSProperties = { margin: "8px 0 0", fontSize: 22, color: "var(--account-text-strong)" };
-const checkStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, color: "var(--account-text-strong)" };
+const metaStyle: React.CSSProperties = {
+  color: "var(--account-text-soft)",
+  fontSize: 13,
+};
+const copyStyle: React.CSSProperties = {
+  margin: 0,
+  color: "var(--account-text-muted)",
+  lineHeight: 1.7,
+  maxWidth: 720,
+};
+const eyebrowStyle: React.CSSProperties = {
+  margin: 0,
+  textTransform: "uppercase",
+  letterSpacing: "0.18em",
+  fontSize: 12,
+  color: "var(--account-text-soft)",
+};
+const title2Style: React.CSSProperties = {
+  margin: "10px 0 0",
+  fontSize: "clamp(1.8rem,2vw,2.6rem)",
+  letterSpacing: "-0.05em",
+};
+const title3Style: React.CSSProperties = {
+  margin: "8px 0 0",
+  fontSize: 22,
+  color: "var(--account-text-strong)",
+};
+const checkStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  color: "var(--account-text-strong)",
+};
 const errorStyle: React.CSSProperties = { margin: 0, color: "#ff9f9f" };
 const successStyle: React.CSSProperties = { margin: 0, color: "#b8f5c2" };
-const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse" };
-const thStyle: React.CSSProperties = { textAlign: "left", padding: "0 0 12px", borderBottom: "1px solid var(--checkout-border)", color: "var(--account-text-soft)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.12em" };
-const tdStyle: React.CSSProperties = { padding: "14px 0", borderBottom: "1px solid var(--checkout-border)", color: "var(--account-text-strong)", verticalAlign: "top" };
-const optionStyle: React.CSSProperties = { background: "var(--select-bg)", color: "var(--select-color)" };
-const statusStyle = (published: boolean): React.CSSProperties => ({ display: "inline-flex", padding: "8px 12px", borderRadius: 999, border: published ? "1px solid var(--admin-tone-success-border)" : "1px solid var(--admin-status-idle-border)", background: published ? "var(--admin-tone-success-bg)" : "var(--admin-status-idle-bg)", color: published ? "var(--admin-tone-success-color)" : "var(--admin-status-idle-color)", fontSize: 12 });
+const tableStyle: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+};
+const thStyle: React.CSSProperties = {
+  textAlign: "left",
+  padding: "0 0 12px",
+  borderBottom: "1px solid var(--checkout-border)",
+  color: "var(--account-text-soft)",
+  fontSize: 12,
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+};
+const tdStyle: React.CSSProperties = {
+  padding: "14px 0",
+  borderBottom: "1px solid var(--checkout-border)",
+  color: "var(--account-text-strong)",
+  verticalAlign: "top",
+};
+const optionStyle: React.CSSProperties = {
+  background: "var(--select-bg)",
+  color: "var(--select-color)",
+};
+const statusStyle = (published: boolean): React.CSSProperties => ({
+  display: "inline-flex",
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: published
+    ? "1px solid var(--admin-tone-success-border)"
+    : "1px solid var(--admin-status-idle-border)",
+  background: published
+    ? "var(--admin-tone-success-bg)"
+    : "var(--admin-status-idle-bg)",
+  color: published
+    ? "var(--admin-tone-success-color)"
+    : "var(--admin-status-idle-color)",
+  fontSize: 12,
+});
 const statusChipStyle = (status: string): React.CSSProperties => ({
   display: "inline-flex",
   padding: "8px 12px",
@@ -3736,7 +4795,9 @@ const compactGhostButtonStyle: React.CSSProperties = {
 const workspaceTabStyle = (active: boolean): React.CSSProperties => ({
   padding: "10px 14px",
   borderRadius: 999,
-  border: active ? "1px solid var(--checkout-border-strong)" : "1px solid var(--checkout-border)",
+  border: active
+    ? "1px solid var(--checkout-border-strong)"
+    : "1px solid var(--checkout-border)",
   background: active ? "var(--accent-strong)" : "var(--page-panel-strong-bg)",
   color: active ? "var(--accent-contrast)" : "var(--account-text-strong)",
   cursor: "pointer",
@@ -3785,6 +4846,26 @@ const customerSegmentStyle = (
     fontWeight: 700,
   };
 };
-const chipToggleStyle = (selected: boolean): React.CSSProperties => ({ padding: "9px 12px", borderRadius: 999, border: selected ? "1px solid var(--admin-chip-selected-border)" : "1px solid var(--admin-chip-border)", background: selected ? "var(--admin-chip-selected-bg)" : "var(--admin-chip-bg)", color: selected ? "var(--admin-chip-selected-color)" : "var(--admin-chip-color)", boxShadow: selected ? "var(--admin-chip-selected-shadow)" : "none", cursor: "pointer" });
-const chipActionWrapStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "nowrap" };
-const removeChipStyle: React.CSSProperties = { padding: "8px 12px", borderRadius: 999, border: "1px solid var(--admin-danger-border)", background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)", cursor: "pointer" };
+const chipToggleStyle = (selected: boolean): React.CSSProperties => ({
+  padding: "9px 12px",
+  borderRadius: 999,
+  border: selected
+    ? "1px solid var(--admin-chip-selected-border)"
+    : "1px solid var(--admin-chip-border)",
+  background: selected
+    ? "var(--admin-chip-selected-bg)"
+    : "var(--admin-chip-bg)",
+  color: selected
+    ? "var(--admin-chip-selected-color)"
+    : "var(--admin-chip-color)",
+  boxShadow: selected ? "var(--admin-chip-selected-shadow)" : "none",
+  cursor: "pointer",
+});
+const removeChipStyle: React.CSSProperties = {
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: "1px solid var(--admin-danger-border)",
+  background: "var(--admin-danger-bg)",
+  color: "var(--admin-danger-color)",
+  cursor: "pointer",
+};

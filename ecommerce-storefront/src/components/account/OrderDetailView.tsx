@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import {
@@ -22,27 +22,30 @@ import {
 export default function OrderDetailView({ orderId }: { orderId: number }) {
   const [order, setOrder] = useState<CustomerOrder | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<"cancel" | "return" | null>(null);
+  const [actionLoading, setActionLoading] = useState<"cancel" | "return" | "ship" | null>(null);
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
   const [returnReason, setReturnReason] = useState("");
   const [cancellationReason, setCancellationReason] = useState("");
   const [returnQuantities, setReturnQuantities] = useState<Record<number, string>>({});
+  const [returnShipmentCarrier, setReturnShipmentCarrier] = useState<Record<number, string>>({});
+  const [returnShipmentTracking, setReturnShipmentTracking] = useState<Record<number, string>>({});
+  const [returnShipmentFiles, setReturnShipmentFiles] = useState<Record<number, File | null>>({});
+
+  const loadOrder = useCallback(async () => {
+    try {
+      const data = await api(`/customers/me/orders/${orderId}`);
+      setOrder(data);
+    } catch {
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
 
   useEffect(() => {
-    const loadOrder = async () => {
-      try {
-        const data = await api(`/customers/me/orders/${orderId}`);
-        setOrder(data);
-      } catch {
-        setOrder(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadOrder();
-  }, [orderId]);
+    void loadOrder();
+  }, [loadOrder]);
 
   if (loading) {
     return (
@@ -172,6 +175,49 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
       setActionError(
         error instanceof Error ? error.message : "No se pudo crear la solicitud de cancelación.",
       );
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleShipReturn = async (returnId: number) => {
+    try {
+      const carrier = returnShipmentCarrier[returnId]?.trim() ?? "";
+      const trackingNumber = returnShipmentTracking[returnId]?.trim() ?? "";
+      const file = returnShipmentFiles[returnId] ?? null;
+
+      if (!carrier && !trackingNumber && !file) {
+        setActionError("Cargá al menos un correo, tracking o comprobante para avisar el despacho.");
+        return;
+      }
+
+      setActionLoading("ship");
+      setActionError("");
+      setActionSuccess("");
+
+      const formData = new FormData();
+      if (carrier) {
+        formData.append("carrier", carrier);
+      }
+      if (trackingNumber) {
+        formData.append("trackingNumber", trackingNumber);
+      }
+      if (file) {
+        formData.append("file", file);
+      }
+
+      await api(`/returns/${returnId}/ship`, {
+        method: "POST",
+        body: formData,
+      });
+
+      await reloadOrder();
+      setReturnShipmentCarrier((current) => ({ ...current, [returnId]: "" }));
+      setReturnShipmentTracking((current) => ({ ...current, [returnId]: "" }));
+      setReturnShipmentFiles((current) => ({ ...current, [returnId]: null }));
+      setActionSuccess("Avisamos al comercio que ya despachaste el producto devuelto.");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "No se pudo informar el despacho de la devolución.");
     } finally {
       setActionLoading(null);
     }
@@ -456,8 +502,8 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                   >
                     <strong style={{ fontSize: 20 }}>Solicitar devolución</strong>
                     <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.7 }}>
-                      Elegí los items y cantidades que querés devolver. El equipo lo revisará desde
-                      administración antes de aprobarlo.
+                      Elegí los items y cantidades que querés devolver. Si el equipo la aprueba,
+                      acá mismo vas a ver las instrucciones para reenviar el producto.
                     </p>
 
                     <div style={{ display: "grid", gap: 12 }}>
@@ -570,9 +616,144 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                         {entry.reason ? (
                           <span style={{ color: "var(--text-muted)" }}>{entry.reason}</span>
                         ) : null}
+                        {entry.adminInstructions ? (
+                          <span style={{ color: "var(--text-muted)" }}>
+                            Instrucciones: {entry.adminInstructions}
+                          </span>
+                        ) : null}
+                        {entry.adminNotes ? (
+                          <span style={{ color: "var(--text-muted)" }}>
+                            Nota del comercio: {entry.adminNotes}
+                          </span>
+                        ) : null}
+                        {entry.approvedAt ? (
+                          <span style={{ color: "var(--text-muted)" }}>
+                            Aprobada {new Date(entry.approvedAt).toLocaleString("es-AR")}
+                          </span>
+                        ) : null}
+                        {entry.shippedAt ? (
+                          <span style={{ color: "var(--text-muted)" }}>
+                            Despachada por vos {new Date(entry.shippedAt).toLocaleString("es-AR")}
+                          </span>
+                        ) : null}
+                        {entry.customerShipmentCarrier ? (
+                          <span style={{ color: "var(--text-muted)" }}>
+                            Correo o método: {entry.customerShipmentCarrier}
+                          </span>
+                        ) : null}
+                        {entry.customerShipmentTracking ? (
+                          <span style={{ color: "var(--text-muted)" }}>
+                            Tracking: {entry.customerShipmentTracking}
+                          </span>
+                        ) : null}
+                        {entry.customerShipmentProofUrl ? (
+                          <Link
+                            href={resolveAssetUrl(entry.customerShipmentProofUrl) ?? entry.customerShipmentProofUrl}
+                            target="_blank"
+                            style={{ color: "var(--text-strong)", textDecoration: "underline" }}
+                          >
+                            Ver comprobante de envío
+                          </Link>
+                        ) : null}
+                        {entry.receivedAt ? (
+                          <span style={{ color: "var(--text-muted)" }}>
+                            Producto recibido {new Date(entry.receivedAt).toLocaleString("es-AR")}
+                          </span>
+                        ) : null}
                         <span style={{ color: "var(--text-muted)" }}>
                           {new Date(entry.createdAt).toLocaleString("es-AR")}
                         </span>
+
+                        {entry.status === "approved" && !entry.shippedAt ? (
+                          <div
+                            style={{
+                              marginTop: 8,
+                              borderRadius: 18,
+                              border: "1px solid var(--border-soft)",
+                              background: "var(--page-panel-bg)",
+                              padding: 14,
+                              display: "grid",
+                              gap: 10,
+                            }}
+                          >
+                            <strong style={{ color: "var(--text-strong)" }}>
+                              Avisar que ya lo despachaste
+                            </strong>
+                            <input
+                              value={returnShipmentCarrier[entry.id] ?? ""}
+                              onChange={(event) =>
+                                setReturnShipmentCarrier((current) => ({
+                                  ...current,
+                                  [entry.id]: event.target.value,
+                                }))
+                              }
+                              placeholder="Correo o método de envío"
+                              style={{
+                                width: "100%",
+                                padding: "12px 14px",
+                                borderRadius: 14,
+                                border: "1px solid var(--border-soft)",
+                                background: "var(--muted-field-bg)",
+                                color: "var(--muted-field-color)",
+                              }}
+                            />
+                            <input
+                              value={returnShipmentTracking[entry.id] ?? ""}
+                              onChange={(event) =>
+                                setReturnShipmentTracking((current) => ({
+                                  ...current,
+                                  [entry.id]: event.target.value,
+                                }))
+                              }
+                              placeholder="Número de tracking"
+                              style={{
+                                width: "100%",
+                                padding: "12px 14px",
+                                borderRadius: 14,
+                                border: "1px solid var(--border-soft)",
+                                background: "var(--muted-field-bg)",
+                                color: "var(--muted-field-color)",
+                              }}
+                            />
+                            <label
+                              style={{
+                                display: "grid",
+                                gap: 6,
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              <span>Comprobante opcional</span>
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp,application/pdf"
+                                onChange={(event) =>
+                                  setReturnShipmentFiles((current) => ({
+                                    ...current,
+                                    [entry.id]: event.target.files?.[0] ?? null,
+                                  }))
+                                }
+                              />
+                            </label>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => void handleShipReturn(entry.id)}
+                                disabled={actionLoading !== null}
+                                style={{
+                                  border: "none",
+                                  borderRadius: 999,
+                                  background: "var(--text-strong)",
+                                  color: "var(--page-panel-bg)",
+                                  padding: "12px 16px",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {actionLoading === "ship" ? "Enviando..." : "Ya despaché el producto"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>

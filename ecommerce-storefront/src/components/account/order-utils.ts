@@ -85,6 +85,15 @@ export type CustomerOrder = {
     id: number;
     reason?: string | null;
     status: string;
+    adminInstructions?: string | null;
+    adminNotes?: string | null;
+    customerShipmentCarrier?: string | null;
+    customerShipmentTracking?: string | null;
+    customerShipmentProofUrl?: string | null;
+    approvedAt?: string | null;
+    shippedAt?: string | null;
+    receivedAt?: string | null;
+    resolvedAt?: string | null;
     createdAt: string;
     items: Array<{
       id: number;

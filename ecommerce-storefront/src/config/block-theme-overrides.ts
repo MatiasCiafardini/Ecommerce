@@ -31,6 +31,15 @@ export const blockThemeOverrides: Record<
       },
     },
   },
+  mimaria: {
+    product_grid: {
+      defaultProps: {
+        eyebrow: "Curado para una silueta femenina y actual",
+        editorialLabel: "Mi Maria edit",
+        editorialTitle: "Prendas versatiles para vestir todos los dias con elegancia",
+      },
+    },
+  },
   libreria: {
     product_grid: {
       defaultProps: {

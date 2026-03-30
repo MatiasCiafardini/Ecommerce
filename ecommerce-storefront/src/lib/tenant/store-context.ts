@@ -7,6 +7,8 @@ const DEFAULT_HOST_STORE_MAP: Record<string, number> = {
   "127.0.0.1:3003": 3003,
   "localhost:3004": 4,
   "127.0.0.1:3004": 4,
+  "localhost:3005": 3005,
+  "127.0.0.1:3005": 3005,
 };
 
 function normalizeHost(host?: string | null) {

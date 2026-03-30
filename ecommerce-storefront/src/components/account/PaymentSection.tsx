@@ -31,7 +31,7 @@ export default function PaymentSection() {
             letterSpacing: "-0.04em",
           }}
         >
-          Tu billetera va a vivir aca
+          Pagos en tu cuenta
         </h2>
       </div>
 
@@ -68,8 +68,7 @@ export default function PaymentSection() {
             <h3 style={{ margin: "12px 0 0", fontSize: 22 }}>Tarjetas guardadas</h3>
           </div>
           <p style={{ margin: 0, color: "rgba(247,241,232,0.7)", lineHeight: 1.7 }}>
-            Vamos a sumar medios de pago persistidos para que comprar sea mucho
-            mas rapido desde tu cuenta.
+            Proximamente vas a poder guardar medios de pago desde tu cuenta.
           </p>
         </article>
 
@@ -99,8 +98,7 @@ export default function PaymentSection() {
             <h3 style={{ margin: "12px 0 0", fontSize: 22 }}>Checkout activo</h3>
           </div>
           <p style={{ margin: 0, color: "rgba(247,241,232,0.7)", lineHeight: 1.7 }}>
-            Mientras tanto, podes elegir tarjeta o efectivo dentro del checkout
-            y completar la compra sin salir del flujo.
+            Hoy puedes completar tu compra directamente desde el checkout.
           </p>
         </article>
       </div>

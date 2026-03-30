@@ -309,8 +309,7 @@ export default function AdminManualSalesSection({
                 <p style={eyebrowStyle}>Catalogo</p>
                 <h3 style={title3Style}>Buscar y agregar productos</h3>
                 <p style={copyStyle}>
-                  Esta primera card ocupa todo el ancho para que puedas buscar rapido y sumar
-                  variantes al ticket sin perder de vista el stock.
+                  Busca productos y agrega variantes al ticket.
                 </p>
               </div>
             </div>

@@ -21,6 +21,7 @@ export const runtimeConfig = {
   appUrl: readString('APP_URL', 'http://localhost:3000')!,
   apiPrefix: readString('API_PREFIX', 'api')!,
   docsPath: readString('DOCS_PATH', 'docs')!,
+  mercadoPagoWebhookSecret: readString('MERCADOPAGO_WEBHOOK_SECRET'),
   redisHost: readString('REDIS_HOST', '127.0.0.1')!,
   redisPort: readNumber('REDIS_PORT', 6379),
   uploadsDir: readString('UPLOADS_DIR', join(process.cwd(), 'uploads'))!,

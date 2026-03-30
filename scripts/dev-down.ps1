@@ -7,7 +7,8 @@ $services = @(
   @{ Name = "store1"; Port = 3001 },
   @{ Name = "store2"; Port = 3002 },
   @{ Name = "store3"; Port = 3003 },
-  @{ Name = "store4"; Port = 3004 }
+  @{ Name = "store4"; Port = 3004 },
+  @{ Name = "store5"; Port = 3005 }
 )
 
 function Stop-ProcessTree {

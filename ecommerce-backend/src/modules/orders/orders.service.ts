@@ -680,6 +680,186 @@ export class OrdersService {
     }).then((orders) => this.withCancellationRequestsList(orders));
   }
 
+  async getAdminNotifications(storeId: number) {
+    const [orders, returns, cancellations] = await Promise.all([
+      this.prisma.order.findMany({
+        where: {
+          storeId,
+          payments: {
+            none: {
+              provider: 'manual',
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 8,
+        select: {
+          id: true,
+          total: true,
+          status: true,
+          createdAt: true,
+          customerEmailSnapshot: true,
+          customerFirstNameSnapshot: true,
+          customerLastNameSnapshot: true,
+          customer: {
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+      this.prisma.return.findMany({
+        where: {
+          storeId,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 8,
+        select: {
+          id: true,
+          orderId: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.cancellationRequest.findMany({
+        where: {
+          storeId,
+          status: CancellationRequestStatus.requested,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 8,
+        select: {
+          id: true,
+          orderId: true,
+          reason: true,
+          createdAt: true,
+          customer: {
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const items = [
+      ...orders.map((order) => ({
+        id: `admin-order-${order.id}`,
+        title: `Nuevo pedido #${order.id}`,
+        body: `${this.orderCustomerLabel(order)} · ${this.formatMoney(order.total)} · ${order.status}`,
+        createdAt: order.createdAt,
+        href: '/account?section=admin-orders',
+      })),
+      ...returns.map((entry) => ({
+        id: `admin-return-${entry.id}`,
+        title: `Nueva devolucion #${entry.id}`,
+        body: `Pedido #${entry.orderId} · Estado ${entry.status}`,
+        createdAt: entry.createdAt,
+        href: '/account?section=admin-returns',
+      })),
+      ...cancellations.map((entry) => ({
+        id: `admin-cancellation-${entry.id}`,
+        title: `Solicitud de cancelacion #${entry.id}`,
+        body: `Pedido #${entry.orderId} · ${this.customerLabel(entry.customer)}${entry.reason ? ` · ${entry.reason}` : ''}`,
+        createdAt: entry.createdAt,
+        href: '/account?section=admin-orders',
+      })),
+    ]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 8)
+      .map((item) => ({
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+      }));
+
+    return {
+      items,
+    };
+  }
+
+  async getCustomerNotifications(storeId: number, customerId: number) {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        storeId,
+        customerId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 12,
+      select: {
+        id: true,
+        total: true,
+        status: true,
+        createdAt: true,
+        shipment: {
+          select: {
+            trackingNumber: true,
+            trackingEvents: {
+              orderBy: {
+                createdAt: 'desc',
+              },
+              take: 1,
+              select: {
+                createdAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const items = orders
+      .flatMap((order) => {
+        const createdNotification = {
+          id: `customer-order-created-${order.id}`,
+          title: `Compra confirmada #${order.id}`,
+          body: `Tu compra fue registrada correctamente por ${this.formatMoney(order.total)}.`,
+          createdAt: order.createdAt,
+          href: `/account/orders/${order.id}`,
+        };
+
+        const statusTime =
+          order.shipment?.trackingEvents?.[0]?.createdAt ??
+          order.createdAt;
+
+        const statusNotification =
+          order.status !== 'pending'
+            ? {
+                id: `customer-order-status-${order.id}-${order.status}`,
+                title: this.customerStatusTitle(order.id, order.status),
+                body: this.customerStatusBody(order.status, order.shipment?.trackingNumber),
+                createdAt: statusTime,
+                href: `/account/orders/${order.id}`,
+              }
+            : null;
+
+        return statusNotification
+          ? [statusNotification, createdNotification]
+          : [createdNotification];
+      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 8)
+      .map((item) => ({
+        ...item,
+        createdAt: item.createdAt.toISOString(),
+      }));
+
+    return {
+      items,
+    };
+  }
+
   async findOneMine(orderId: number, storeId: number, customerId: number) {
     const order = await this.prisma.order.findFirst({
       where: {
@@ -1201,5 +1381,75 @@ export class OrdersService {
         },
       },
     };
+  }
+
+  private formatMoney(value: { toNumber(): number } | number) {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 2,
+    }).format(Number(value));
+  }
+
+  private customerLabel(customer?: {
+    email?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null) {
+    const fullName = [customer?.firstName, customer?.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return fullName || customer?.email || 'Cliente sin identificar';
+  }
+
+  private orderCustomerLabel(order: {
+    customerEmailSnapshot?: string | null;
+    customerFirstNameSnapshot?: string | null;
+    customerLastNameSnapshot?: string | null;
+    customer?: {
+      email?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+    } | null;
+  }) {
+    const fullName = [
+      order.customerFirstNameSnapshot ?? order.customer?.firstName,
+      order.customerLastNameSnapshot ?? order.customer?.lastName,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return (
+      fullName ||
+      order.customerEmailSnapshot ||
+      order.customer?.email ||
+      'Cliente sin identificar'
+    );
+  }
+
+  private customerStatusTitle(orderId: number, status: string) {
+    if (status === 'delivered') return `Pedido #${orderId} entregado`;
+    if (status === 'shipped') return `Pedido #${orderId} en camino`;
+    if (status === 'packed') return `Pedido #${orderId} listo para despacho`;
+    if (status === 'processing') return `Pedido #${orderId} en preparacion`;
+    if (status === 'paid') return `Pago confirmado para tu pedido #${orderId}`;
+    return `Actualizacion de pedido #${orderId}`;
+  }
+
+  private customerStatusBody(status: string, trackingNumber?: string | null) {
+    if (status === 'delivered') {
+      return 'Tu pedido figura como entregado. Si necesitas ayuda, podes revisar el detalle desde tu cuenta.';
+    }
+
+    if (status === 'shipped') {
+      return trackingNumber
+        ? `Ya fue despachado. Tracking: ${trackingNumber}.`
+        : 'Ya fue despachado y pronto vas a ver mas informacion del seguimiento.';
+    }
+
+    return `Estado actual: ${status}.`;
   }
 }

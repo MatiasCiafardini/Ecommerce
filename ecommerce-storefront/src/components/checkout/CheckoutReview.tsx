@@ -137,6 +137,7 @@ export default function CheckoutReview({
   const shippingCost = roundCurrency(discountPreview?.freeShipping ? 0 : baseShippingCost);
   const total = roundCurrency(Math.max(subtotal - discountAmount + shippingCost, 0));
   const isBankTransfer = paymentMethod === "bank_transfer";
+  const useDarkCompletionPopup = user?.storeId === 1 || user?.storeId === 3003;
   const paymentDisplayLabel =
     paymentLabel ??
     (paymentMethod === "mercadopago"
@@ -248,8 +249,15 @@ export default function CheckoutReview({
   }, [previewDiscount]);
 
   const goToOrderDetail = (orderId: number) => {
-    clearCart();
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("checkoutRedirectingOrderId", String(orderId));
+    }
+
     router.push(`/account/orders/${orderId}`);
+
+    window.setTimeout(() => {
+      clearCart();
+    }, 120);
   };
 
   const goToCart = () => {
@@ -631,7 +639,15 @@ export default function CheckoutReview({
               </div>
             ) : null}
 
-            <div style={summaryCardStyle}>
+            <div
+              style={{
+                ...summaryCardStyle,
+                border: useDarkCompletionPopup
+                  ? "1px solid rgba(255,255,255,0.1)"
+                  : summaryCardStyle.border,
+                background: useDarkCompletionPopup ? "rgba(255,255,255,0.06)" : summaryCardStyle.background,
+              }}
+            >
               <strong style={{ fontSize: 18 }}>Promociones</strong>
               <div style={{ display: "grid", gap: 12 }}>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -858,12 +874,15 @@ export default function CheckoutReview({
             style={{
               width: "min(100%, 640px)",
               borderRadius: 32,
-              border: "1px solid color-mix(in srgb, var(--accent-strong) 14%, transparent)",
-              background: "var(--paper)",
+              border: useDarkCompletionPopup
+                ? "1px solid rgba(255,255,255,0.12)"
+                : "1px solid color-mix(in srgb, var(--accent-strong) 14%, transparent)",
+              background: useDarkCompletionPopup ? "#121212" : "var(--paper)",
               padding: "32px clamp(22px, 5vw, 36px)",
               display: "grid",
               gap: 18,
               boxShadow: "0 36px 90px rgba(0,0,0,0.45)",
+              color: useDarkCompletionPopup ? "#f5efe7" : "var(--accent-strong)",
             }}
           >
             <div style={{ display: "grid", gap: 10 }}>
@@ -873,7 +892,9 @@ export default function CheckoutReview({
                   textTransform: "uppercase",
                   letterSpacing: "0.24em",
                   fontSize: 12,
-                  color: "color-mix(in srgb, var(--accent-strong) 68%, transparent)",
+                  color: useDarkCompletionPopup
+                    ? "rgba(245,239,231,0.62)"
+                    : "color-mix(in srgb, var(--accent-strong) 68%, transparent)",
                 }}
               >
                 Compra confirmada
@@ -882,7 +903,7 @@ export default function CheckoutReview({
                 style={{
                   margin: 0,
                   fontSize: "clamp(2rem, 4vw, 3rem)",
-                  color: "var(--accent-strong)",
+                  color: useDarkCompletionPopup ? "#f5efe7" : "var(--accent-strong)",
                 }}
               >
                 {isBankTransfer
@@ -894,7 +915,9 @@ export default function CheckoutReview({
               <p
                 style={{
                   margin: 0,
-                  color: "color-mix(in srgb, var(--accent-strong) 72%, transparent)",
+                  color: useDarkCompletionPopup
+                    ? "rgba(245,239,231,0.78)"
+                    : "color-mix(in srgb, var(--accent-strong) 72%, transparent)",
                   lineHeight: 1.8,
                 }}
               >
@@ -908,12 +931,12 @@ export default function CheckoutReview({
 
             <div style={summaryCardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                <span style={{ color: "rgba(247,241,232,0.66)" }}>Total</span>
+                <span style={{ color: useDarkCompletionPopup ? "rgba(245,239,231,0.66)" : "rgba(247,241,232,0.66)" }}>Total</span>
                 <strong>{money(completedOrder.total)}</strong>
               </div>
               {Number(completedOrder.discountAmount ?? 0) > 0 ? (
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                  <span style={{ color: "rgba(247,241,232,0.66)" }}>
+                  <span style={{ color: useDarkCompletionPopup ? "rgba(245,239,231,0.66)" : "rgba(247,241,232,0.66)" }}>
                     {completedOrder.discountCode
                       ? `Descuento (${completedOrder.discountCode})`
                       : "Descuento aplicado"}
@@ -922,11 +945,11 @@ export default function CheckoutReview({
                 </div>
               ) : null}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                <span style={{ color: "rgba(247,241,232,0.66)" }}>Entrega</span>
+                <span style={{ color: useDarkCompletionPopup ? "rgba(245,239,231,0.66)" : "rgba(247,241,232,0.66)" }}>Entrega</span>
                 <strong>{[completedOrder.shippingProvider, completedOrder.shippingMethod].filter(Boolean).join(" · ")}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                <span style={{ color: "rgba(247,241,232,0.66)" }}>Pago</span>
+                <span style={{ color: useDarkCompletionPopup ? "rgba(245,239,231,0.66)" : "rgba(247,241,232,0.66)" }}>Pago</span>
                 <strong>{paymentDisplayLabel}</strong>
               </div>
             </div>
@@ -935,14 +958,32 @@ export default function CheckoutReview({
               <button
                 type="button"
                 onClick={() => openReceipt(completedOrder.id)}
-                style={primaryActionStyle}
+                style={
+                  useDarkCompletionPopup
+                    ? {
+                        ...primaryActionStyle,
+                        background: "#f5efe7",
+                        color: "#121212",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                      }
+                    : primaryActionStyle
+                }
               >
                 Descargar comprobante
               </button>
               <button
                 type="button"
                 onClick={() => goToOrderDetail(completedOrder.id)}
-                style={secondaryActionStyle}
+                style={
+                  useDarkCompletionPopup
+                    ? {
+                        ...secondaryActionStyle,
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        background: "rgba(255,255,255,0.05)",
+                        color: "#f5efe7",
+                      }
+                    : secondaryActionStyle
+                }
               >
                 Ver pedido ahora
               </button>
@@ -956,7 +997,9 @@ export default function CheckoutReview({
                 padding: 0,
                 border: "none",
                 background: "transparent",
-                color: "color-mix(in srgb, var(--accent-strong) 62%, transparent)",
+                color: useDarkCompletionPopup
+                  ? "rgba(245,239,231,0.62)"
+                  : "color-mix(in srgb, var(--accent-strong) 62%, transparent)",
                 fontSize: 14,
                 cursor: "pointer",
               }}

@@ -13,7 +13,7 @@ export default function LoginPage() {
 }
 
 function LoginPageInner() {
-  const { login } = useAuth();
+  const { login, lockAuthUi, unlockAuthUi } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -31,6 +31,7 @@ function LoginPageInner() {
     try {
       setLoading(true);
       setError("");
+      lockAuthUi();
 
       const user = await login(form);
       const defaultRedirect =
@@ -40,6 +41,7 @@ function LoginPageInner() {
 
       router.push(redirect === "/" ? defaultRedirect : redirect);
     } catch {
+      unlockAuthUi();
       setError("Email o contraseña incorrectos");
     } finally {
       setLoading(false);
@@ -129,8 +131,7 @@ function LoginPageInner() {
             </p>
             <strong style={{ marginTop: 10, fontSize: 24 }}>Minimal streetwear account</strong>
             <p style={{ margin: "10px 0 0", lineHeight: 1.8 }}>
-              Un acceso simple, oscuro y editorial para mantener el mismo tono que
-              el resto del storefront.
+              Accede a tu perfil para revisar pedidos, direcciones y compras.
             </p>
           </div>
         </div>

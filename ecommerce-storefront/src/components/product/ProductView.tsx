@@ -10,10 +10,13 @@ import { StoreProduct, StoreProductOption, StoreVariant } from "@/types/store";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import { formatCurrency, roundCurrency } from "@/lib/currency";
 import { getProductImageTransform } from "@/lib/product-image-layout";
+import ProductCard from "./ProductCard";
 
 type Props = {
   product: StoreProduct;
   productOptions?: StoreProductOption[];
+  relatedProducts?: StoreProduct[];
+  storeId?: number;
 };
 
 const getDefaultOptionValues = (options: StoreProductOption[]) =>
@@ -32,7 +35,7 @@ const formatMeasure = (value?: number | string | null, suffix = "cm") => {
 const formatVariantTitle = (variant?: StoreVariant | null) => {
   if (!variant) return "Variante principal";
   const parts = [variant.Size, variant.Color].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : "Variante principal";
+  return parts.length > 0 ? parts.join(" - ") : "Variante principal";
 };
 
 const getAvailableStock = (variant: StoreVariant) => {
@@ -80,7 +83,13 @@ const normalizeProductOptions = (productOptions: StoreProductOption[] = []) =>
     ],
   }));
 
-export default function ProductView({ product, productOptions = [] }: Props) {
+export default function ProductView({
+  product,
+  productOptions = [],
+  relatedProducts = [],
+  storeId,
+}: Props) {
+  const isMiMaria = storeId === 3005;
   const { user } = useAuth();
   const { addToCart, cart } = useCart();
   const router = useRouter();
@@ -113,6 +122,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
     () => normalizeProductOptions(productOptions),
     [productOptions],
   );
+  const primaryCategoryName = product.categories?.[0]?.category?.name ?? null;
 
   const [selectedSize, setSelectedSize] = useState<string | null>(
     inStockVariants.find((variant) => variant.Size)?.Size ??
@@ -478,7 +488,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                   fontSize: 12,
                 }}
               >
-                Asphalt collection
+                {primaryCategoryName ?? (isMiMaria ? "Coleccion Mi Maria" : "Coleccion")}
               </p>
 
               <div
@@ -513,8 +523,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                   fontSize: "clamp(2.4rem, 5vw, 4.5rem)",
                   lineHeight: 0.95,
                   margin: "0 0 14px",
-                  textTransform: "uppercase",
-                  letterSpacing: "-0.05em",
+                  letterSpacing: isMiMaria ? "-0.04em" : "-0.05em",
                   color: "var(--text-strong)",
                 }}
               >
@@ -604,7 +613,9 @@ export default function ProductView({ product, productOptions = [] }: Props) {
               }}
             >
               {product.description ||
-                "Pieza urbana de silueta relajada, disenada para combinar con basicos y capas de uso diario."}
+                (isMiMaria
+                  ? "Una prenda versatil de lineas suaves, pensada para vestir con elegancia, comodidad y naturalidad."
+                  : "Pieza urbana de silueta relajada, disenada para combinar con basicos y capas de uso diario.")}
             </p>
 
             {hasVariants ? (
@@ -815,7 +826,9 @@ export default function ProductView({ product, productOptions = [] }: Props) {
               }}
             >
               {product.description ||
-                "Pieza urbana pensada para rotacion diaria, capas faciles y una presencia limpia en cualquier look."}
+                (isMiMaria
+                  ? "Una prenda femenina pensada para acompanarte todos los dias con una estetica limpia, delicada y actual."
+                  : "Pieza urbana pensada para rotacion diaria, capas faciles y una presencia limpia en cualquier look.")}
             </p>
           </div>
 
@@ -828,16 +841,16 @@ export default function ProductView({ product, productOptions = [] }: Props) {
           >
             {[
               {
-                label: "Weight",
+                label: "Peso",
                 value: formatMeasure(selectedVariant?.weight, "kg"),
               },
-              { label: "Width", value: formatMeasure(selectedVariant?.width) },
+              { label: "Ancho", value: formatMeasure(selectedVariant?.width) },
               {
-                label: "Height",
+                label: "Alto",
                 value: formatMeasure(selectedVariant?.height),
               },
               {
-                label: "Length",
+                label: "Largo",
                 value: formatMeasure(selectedVariant?.length),
               },
             ].map((item) => (
@@ -973,6 +986,56 @@ export default function ProductView({ product, productOptions = [] }: Props) {
             </div>
           ) : null}
         </div>
+
+        {relatedProducts.length > 0 ? (
+          <div
+            style={{
+              borderRadius: 36,
+              border: "1px solid var(--border-soft)",
+              background: "var(--page-panel-bg)",
+              padding: "30px",
+              display: "grid",
+              gap: 20,
+            }}
+          >
+            <div style={{ display: "grid", gap: 8 }}>
+              <span
+                style={{
+                  margin: 0,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.18em",
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                }}
+              >
+                {isMiMaria ? "Tambien puede gustarte" : "Productos relacionados"}
+              </span>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "clamp(1.8rem, 3vw, 3rem)",
+                  color: "var(--text-strong)",
+                }}
+              >
+                {isMiMaria
+                  ? "Segui descubriendo la coleccion"
+                  : "Mas piezas para completar el look"}
+              </h2>
+            </div>
+
+            <div
+              className="layout-product-grid"
+              style={{
+                gridTemplateColumns: "repeat(auto-fit, var(--product-card-width))",
+                justifyContent: "center",
+              }}
+            >
+              {relatedProducts.map((relatedProduct) => (
+                <ProductCard key={relatedProduct.id} product={relatedProduct} />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {showCartPrompt ? (
@@ -999,7 +1062,7 @@ export default function ProductView({ product, productOptions = [] }: Props) {
                   lineHeight: 1.1,
                 }}
               >
-                Queres ir al carrito o seguir comprando?
+                Queres ir al carrito o seguir descubriendo la coleccion?
               </p>
               <p
                 style={{
@@ -1217,6 +1280,9 @@ const adminEditButtonStyle: React.CSSProperties = {
 
 const galleryFrameStyle: React.CSSProperties = {
   position: "relative",
+  width: "100%",
+  aspectRatio: "4 / 5",
+  minHeight: "clamp(420px, 62vw, 760px)",
   borderRadius: 28,
   overflow: "hidden",
   border: "1px solid var(--border-soft)",
@@ -1288,6 +1354,9 @@ const thumbnailDockStyle: React.CSSProperties = {
 
 const thumbnailButtonStyle = (isActive: boolean): React.CSSProperties => ({
   padding: 0,
+  position: "relative",
+  width: 76,
+  height: 92,
   borderRadius: 16,
   overflow: "hidden",
   border: isActive
@@ -1302,7 +1371,6 @@ const thumbnailButtonStyle = (isActive: boolean): React.CSSProperties => ({
 
 const thumbnailImageStyle: React.CSSProperties = {
   width: "100%",
-  height: 92,
   objectFit: "cover",
   objectPosition: "center center",
   display: "block",

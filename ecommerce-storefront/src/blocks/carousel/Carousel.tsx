@@ -1,17 +1,20 @@
 import { getProducts } from "@/services/products.service";
 import ProductCard from "@/components/product/ProductCard";
+import StaggerReveal from "@/components/motion/StaggerReveal";
 import { StoreProduct } from "@/types/store";
 
 type Props = {
   title?: string;
   limit?: number;
+  productIds?: number[];
 };
 
 export default async function Carousel({
   title = "Destacados",
   limit = 6,
+  productIds,
 }: Props) {
-  const products = await getProducts({ limit });
+  const products = await getProducts({ limit, productIds });
 
   return (
     <section
@@ -35,7 +38,7 @@ export default async function Carousel({
             scrollSnapType: "x mandatory",
           }}
         >
-          {products.map((product: StoreProduct) => (
+          {products.map((product: StoreProduct, index: number) => (
             <div
               key={product.id}
               style={{
@@ -46,7 +49,9 @@ export default async function Carousel({
                 scrollSnapAlign: "start",
               }}
             >
-              <ProductCard product={product} />
+              <StaggerReveal delayMs={index * 90}>
+                <ProductCard product={product} />
+              </StaggerReveal>
             </div>
           ))}
         </div>

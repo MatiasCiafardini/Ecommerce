@@ -262,7 +262,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
             <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
               <div style={nextStepStyle}>
                 <span style={smallLabelStyle}>Proximo foco</span>
-                <strong style={{ color: "#fff" }}>
+                <strong style={{ color: "var(--account-text-strong)" }}>
                   {currentWorkflow?.nextAction ?? "Revisar manualmente el pedido."}
                 </strong>
               </div>
@@ -303,7 +303,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                       {index < timeline.length - 1 ? <div style={timelineLineStyle(step.done)} /> : null}
                     </div>
                     <div style={{ display: "grid", gap: 4 }}>
-                      <strong style={{ color: "#fff" }}>{step.label}</strong>
+                      <strong style={{ color: "var(--account-text-strong)" }}>{step.label}</strong>
                       <span style={metaStyle}>{step.done ? "Completado" : "Pendiente"}</span>
                     </div>
                   </div>
@@ -317,7 +317,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
           <strong style={{ fontSize: 22 }}>Resumen rapido</strong>
           <div style={summaryHighlightStyle}>
             <span style={smallLabelStyle}>Entrega</span>
-            <strong style={{ color: "#fff", fontSize: 18 }}>{deliverySummary}</strong>
+            <strong style={{ color: "var(--account-text-strong)", fontSize: 18 }}>{deliverySummary}</strong>
             <span style={metaStyle}>{trackingSummary}</span>
           </div>
           <div style={summaryRowStyle}>
@@ -343,18 +343,18 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
           <div style={summaryMetaGridStyle}>
             <div style={summaryMetaCardStyle}>
               <span style={smallLabelStyle}>Cliente</span>
-              <strong style={{ color: "#fff" }}>{customerName}</strong>
+              <strong style={{ color: "var(--account-text-strong)" }}>{customerName}</strong>
               <span style={metaStyle}>{orderCustomerEmail(order)}</span>
             </div>
             <div style={summaryMetaCardStyle}>
               <span style={smallLabelStyle}>Cobro</span>
-              <strong style={{ color: "#fff" }}>{paymentSummary}</strong>
+              <strong style={{ color: "var(--account-text-strong)" }}>{paymentSummary}</strong>
               <span style={metaStyle}>
                 {paymentCount ? order.payments?.[0]?.status ?? "Pendiente" : "Sin conciliacion"}
               </span>
             </div>
           </div>
-          <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
+          <div style={{ height: 1, background: "var(--account-item-border)" }} />
           <div style={summaryRowStyle}>
             <span>Total</span>
             <strong style={{ fontSize: 28 }}>{money(order.total)}</strong>
@@ -433,7 +433,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                       ) : null}
                     </div>
                     <div style={{ display: "grid", gap: 8 }}>
-                      <strong style={{ color: "#fff", fontSize: 18 }}>{item.variant.product.title}</strong>
+                      <strong style={{ color: "var(--account-text-strong)", fontSize: 18 }}>{item.variant.product.title}</strong>
                       <div style={metaColumnStyle}>
                         <span>SKU: {item.variant.sku ?? "Sin SKU"}</span>
                         <span>
@@ -557,7 +557,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                 <div style={{ display: "grid", gap: 12 }}>
                   {order.payments.map((payment) => (
                     <article key={payment.id} style={paymentCardStyle}>
-                      <strong style={{ color: "#fff" }}>
+                      <strong style={{ color: "var(--account-text-strong)" }}>
                         {payment.provider}
                         {payment.method ? ` · ${payment.method}` : ""}
                       </strong>
@@ -621,7 +621,7 @@ function InfoCell({ label, value }: { label: string; value: string }) {
   return (
     <div style={infoCellStyle}>
       <span style={smallLabelStyle}>{label}</span>
-      <strong style={{ color: "#fff", lineHeight: 1.5 }}>{value}</strong>
+      <strong style={{ color: "var(--account-text-strong)", lineHeight: 1.5 }}>{value}</strong>
     </div>
   );
 }
@@ -846,16 +846,16 @@ const heroGridStyle: React.CSSProperties = {
 };
 const highlightCardStyle: React.CSSProperties = {
   borderRadius: 28,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "linear-gradient(180deg, rgba(243,238,231,0.14), rgba(255,255,255,0.04))",
+  border: "1px solid var(--account-item-border)",
+  background: "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-bg) 94%, var(--admin-chip-selected-bg) 6%), var(--page-panel-bg))",
   padding: 24,
   display: "grid",
   gap: 16,
 };
 const summaryCardStyle: React.CSSProperties = {
   borderRadius: 28,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(8,8,8,0.42)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--page-panel-bg)",
   padding: 24,
   display: "grid",
   gap: 14,
@@ -864,8 +864,8 @@ const summaryCardStyle: React.CSSProperties = {
 };
 const summaryHighlightStyle: React.CSSProperties = {
   borderRadius: 20,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: 16,
   display: "grid",
   gap: 8,
@@ -877,16 +877,16 @@ const summaryMetaGridStyle: React.CSSProperties = {
 };
 const summaryMetaCardStyle: React.CSSProperties = {
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: 14,
   display: "grid",
   gap: 6,
 };
 const tabShellStyle: React.CSSProperties = {
   borderRadius: 28,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(8,8,8,0.42)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--page-panel-bg)",
   display: "grid",
   overflow: "hidden",
 };
@@ -894,8 +894,8 @@ const tabHeaderWrapStyle: React.CSSProperties = {
   display: "grid",
   gap: 18,
   padding: 24,
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))",
+  borderBottom: "1px solid var(--account-item-border)",
+  background: "linear-gradient(180deg, color-mix(in srgb, var(--account-item-bg) 88%, transparent), transparent)",
 };
 const tabHeaderCopyStyle: React.CSSProperties = {
   display: "grid",
@@ -929,8 +929,8 @@ const infoGridStyle: React.CSSProperties = {
 };
 const infoCellStyle: React.CSSProperties = {
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: 16,
   display: "grid",
   gap: 8,
@@ -941,8 +941,8 @@ const orderItemCardStyle: React.CSSProperties = {
   gap: 16,
   alignItems: "center",
   borderRadius: 22,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: 16,
 };
 const orderItemImageStyle: React.CSSProperties = {
@@ -950,7 +950,7 @@ const orderItemImageStyle: React.CSSProperties = {
   aspectRatio: "4 / 5",
   borderRadius: 16,
   overflow: "hidden",
-  background: "rgba(255,255,255,0.06)",
+  background: "var(--product-media-fallback)",
 };
 const priceColumnStyle: React.CSSProperties = {
   display: "grid",
@@ -960,7 +960,7 @@ const priceColumnStyle: React.CSSProperties = {
 const metaColumnStyle: React.CSSProperties = {
   display: "grid",
   gap: 4,
-  color: "rgba(247,241,232,0.66)",
+  color: "var(--account-text-muted)",
   fontSize: 14,
 };
 const timelineRowStyle: React.CSSProperties = {
@@ -974,43 +974,43 @@ const timelineDotStyle = (done: boolean): React.CSSProperties => ({
   width: 14,
   height: 14,
   borderRadius: "50%",
-  background: done ? "#f7f1e8" : "rgba(255,255,255,0.2)",
+  background: done ? "var(--accent-strong)" : "var(--account-item-border)",
 });
 const timelineLineStyle = (done: boolean): React.CSSProperties => ({
   width: 2,
   minHeight: 34,
-  background: done ? "rgba(247,241,232,0.5)" : "rgba(255,255,255,0.12)",
+  background: done ? "color-mix(in srgb, var(--accent-strong) 42%, transparent)" : "var(--account-item-border)",
 });
 const paymentCardStyle: React.CSSProperties = {
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: 16,
   display: "grid",
   gap: 6,
 };
 const warningCardStyle: React.CSSProperties = {
   borderRadius: 18,
-  border: "1px solid rgba(255,173,51,0.24)",
-  background: "rgba(255,173,51,0.08)",
-  color: "#ffe4bf",
+  border: "1px solid var(--admin-tone-warning-border)",
+  background: "var(--admin-tone-warning-bg)",
+  color: "var(--admin-tone-warning-color)",
   padding: 14,
   lineHeight: 1.6,
 };
 const hintCardStyle: React.CSSProperties = {
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
-  color: "rgba(247,241,232,0.72)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-muted)",
   padding: 14,
   lineHeight: 1.6,
 };
 const stateStyle: React.CSSProperties = {
   borderRadius: 24,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: 24,
-  color: "rgba(247,241,232,0.72)",
+  color: "var(--account-text-muted)",
 };
 const unifiedWorkflowStyle: React.CSSProperties = {
   display: "grid",
@@ -1021,8 +1021,8 @@ const unifiedWorkflowStyle: React.CSSProperties = {
 const statusControlStyle: React.CSSProperties = { display: "grid", gap: 8 };
 const nextStepStyle: React.CSSProperties = {
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(8,8,8,0.3)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: 14,
   display: "grid",
   gap: 6,
@@ -1030,8 +1030,8 @@ const nextStepStyle: React.CSSProperties = {
 };
 const workflowMiniCardStyle: React.CSSProperties = {
   borderRadius: 22,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(8,8,8,0.28)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: 16,
   display: "grid",
   gap: 14,
@@ -1047,22 +1047,22 @@ const heroTitleStyle: React.CSSProperties = {
   fontSize: "clamp(2rem, 2.8vw, 3rem)",
   letterSpacing: "-0.05em",
 };
-const labelStyle: React.CSSProperties = { color: "rgba(247,241,232,0.68)", fontSize: 14 };
+const labelStyle: React.CSSProperties = { color: "var(--account-text-muted)", fontSize: 14 };
 const smallLabelStyle: React.CSSProperties = {
-  color: "rgba(247,241,232,0.48)",
+  color: "var(--account-text-soft)",
   fontSize: 11,
   textTransform: "uppercase",
   letterSpacing: "0.16em",
 };
-const metaStyle: React.CSSProperties = { color: "rgba(247,241,232,0.56)", fontSize: 13 };
+const metaStyle: React.CSSProperties = { color: "var(--account-text-soft)", fontSize: 13 };
 const metaPillStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(247,241,232,0.7)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-muted)",
   fontSize: 12,
 };
 const eyebrowStyle: React.CSSProperties = {
@@ -1070,42 +1070,42 @@ const eyebrowStyle: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.18em",
   fontSize: 12,
-  color: "rgba(247,241,232,0.56)",
+  color: "var(--account-text-soft)",
 };
 const title2Style: React.CSSProperties = {
   margin: "10px 0 0",
   fontSize: "clamp(1.8rem,2vw,2.6rem)",
   letterSpacing: "-0.05em",
 };
-const title3Style: React.CSSProperties = { margin: "8px 0 0", fontSize: 22, color: "#fff" };
-const tabHintStyle: React.CSSProperties = { margin: 0, color: "rgba(247,241,232,0.64)", lineHeight: 1.6 };
+const title3Style: React.CSSProperties = { margin: "8px 0 0", fontSize: 22, color: "var(--account-text-strong)" };
+const tabHintStyle: React.CSSProperties = { margin: 0, color: "var(--account-text-muted)", lineHeight: 1.6 };
 const copyStyle: React.CSSProperties = {
   margin: 0,
-  color: "rgba(247,241,232,0.68)",
+  color: "var(--account-text-muted)",
   lineHeight: 1.7,
   maxWidth: 740,
 };
-const errorStyle: React.CSSProperties = { margin: 0, color: "#ff9f9f" };
+const errorStyle: React.CSSProperties = { margin: 0, color: "var(--admin-danger-color)" };
 const ghostButtonStyle: React.CSSProperties = {
   padding: "10px 14px",
-  background: "rgba(255,255,255,0.04)",
-  color: "#f7f1e8",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--account-item-border)",
   borderRadius: 999,
   cursor: "pointer",
 };
 const secondaryButtonStyle: React.CSSProperties = {
   padding: "10px 14px",
   background: "transparent",
-  color: "#f7f1e8",
-  border: "1px solid rgba(255,255,255,0.12)",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--account-item-border-active)",
   borderRadius: 999,
   cursor: "pointer",
 };
 const primaryButtonStyle: React.CSSProperties = {
   padding: "14px 18px",
-  background: "#f7f1e8",
-  color: "#0b0b0b",
+  background: "var(--accent-strong)",
+  color: "var(--accent-contrast)",
   border: "none",
   borderRadius: 18,
   cursor: "pointer",
@@ -1114,10 +1114,10 @@ const primaryButtonStyle: React.CSSProperties = {
 };
 const disabledActionStyle: React.CSSProperties = {
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
   padding: "14px 16px",
-  color: "rgba(247,241,232,0.58)",
+  color: "var(--account-text-soft)",
   lineHeight: 1.5,
 };
 const primaryLinkStyle: React.CSSProperties = {
@@ -1125,8 +1125,8 @@ const primaryLinkStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "10px 14px",
-  background: "#f7f1e8",
-  color: "#0b0b0b",
+  background: "var(--accent-strong)",
+  color: "var(--accent-contrast)",
   borderRadius: 999,
   textDecoration: "none",
   fontWeight: 700,
@@ -1135,9 +1135,9 @@ const tabButtonStyle = (active: boolean): React.CSSProperties => ({
   flex: "0 0 auto",
   padding: "12px 16px",
   borderRadius: 999,
-  border: active ? "1px solid rgba(247,241,232,0.22)" : "1px solid rgba(255,255,255,0.08)",
-  background: active ? "#f7f1e8" : "rgba(255,255,255,0.03)",
-  color: active ? "#0b0b0b" : "#f7f1e8",
+  border: active ? "1px solid var(--account-item-border-active)" : "1px solid var(--account-item-border)",
+  background: active ? "var(--admin-chip-selected-bg)" : "var(--account-item-bg)",
+  color: active ? "var(--admin-chip-selected-color)" : "var(--account-text-strong)",
   cursor: "pointer",
   fontWeight: 700,
   whiteSpace: "nowrap",

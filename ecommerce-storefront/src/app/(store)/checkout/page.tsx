@@ -65,6 +65,14 @@ export default function CheckoutPage() {
   const [setupError, setSetupError] = useState<CheckoutSetupError | null>(null);
 
   useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem("checkoutRedirectingOrderId");
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!loading && !user) {
       router.push("/login?redirect=/checkout");
     }
@@ -91,7 +99,7 @@ export default function CheckoutPage() {
       return {
         title: "Hay productos sin stock suficiente",
         message:
-          "Mientras avanzabas en la compra, cambió la disponibilidad de uno o más productos. Vuelve al carrito para ajustar cantidades antes de seguir.",
+          "Mientras avanzabas en la compra, cambio la disponibilidad de uno o mas productos. Vuelve al carrito para ajustar cantidades antes de seguir.",
       };
     }
 
@@ -194,10 +202,10 @@ export default function CheckoutPage() {
             maxWidth: 1180,
             margin: "0 auto",
             borderRadius: 32,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.03)",
+            border: "1px solid var(--border-soft)",
+            background: "var(--page-panel-bg)",
             padding: 32,
-            color: "rgba(247,241,232,0.7)",
+            color: "var(--text-muted)",
           }}
         >
           Cargando checkout...
@@ -208,14 +216,18 @@ export default function CheckoutPage() {
 
   if (!user) return null;
 
-  if (cart.length === 0) {
+  const redirectingOrderId =
+    typeof window !== "undefined"
+      ? window.sessionStorage.getItem("checkoutRedirectingOrderId")
+      : null;
+
+  if (cart.length === 0 && redirectingOrderId) {
     return (
       <section
         style={{
           padding: "72px 24px",
           minHeight: "calc(100vh - 180px)",
-          background:
-            "radial-gradient(circle at top, rgba(255,255,255,0.08), transparent 34%), #0b0b0b",
+          background: "var(--page-shell-bg)",
         }}
       >
         <div
@@ -223,8 +235,8 @@ export default function CheckoutPage() {
             maxWidth: 820,
             margin: "0 auto",
             borderRadius: 36,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.03)",
+            border: "1px solid var(--border-soft)",
+            background: "var(--page-panel-bg)",
             padding: 40,
             textAlign: "center",
           }}
@@ -235,7 +247,56 @@ export default function CheckoutPage() {
               textTransform: "uppercase",
               letterSpacing: "0.24em",
               fontSize: 12,
-              color: "rgba(247,241,232,0.5)",
+              color: "var(--text-muted)",
+            }}
+          >
+            Checkout
+          </p>
+          <h1
+            style={{
+              margin: "18px 0 14px",
+              fontSize: "clamp(2.3rem, 6vw, 4.2rem)",
+              letterSpacing: "-0.06em",
+              color: "var(--text-strong)",
+            }}
+          >
+            Abriendo tu pedido
+          </h1>
+          <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.8 }}>
+            Te estamos llevando al detalle de la compra que acabas de confirmar.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  if (cart.length === 0) {
+    return (
+      <section
+        style={{
+          padding: "72px 24px",
+          minHeight: "calc(100vh - 180px)",
+          background: "var(--page-shell-bg)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 820,
+            margin: "0 auto",
+            borderRadius: 36,
+            border: "1px solid var(--border-soft)",
+            background: "var(--page-panel-bg)",
+            padding: 40,
+            textAlign: "center",
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              textTransform: "uppercase",
+              letterSpacing: "0.24em",
+              fontSize: 12,
+              color: "var(--text-muted)",
             }}
           >
             Checkout
@@ -247,10 +308,10 @@ export default function CheckoutPage() {
               letterSpacing: "-0.06em",
             }}
           >
-            Tu carrito está vacío
+            Tu carrito esta vacio
           </h1>
-          <p style={{ margin: 0, color: "rgba(247,241,232,0.68)", lineHeight: 1.8 }}>
-            Sumá algunas piezas antes de pasar por caja. Cuando el carrito tenga
+          <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.8 }}>
+            Suma algunas prendas antes de pasar por caja. Cuando el carrito tenga
             contenido, el checkout va a quedar listo para cerrar.
           </p>
         </div>
@@ -323,9 +384,9 @@ export default function CheckoutPage() {
                 marginBottom: 16,
                 padding: "16px 20px",
                 borderRadius: 20,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.03)",
-                color: "rgba(247,241,232,0.68)",
+                border: "1px solid var(--border-soft)",
+                background: "var(--page-panel-bg)",
+                color: "var(--text-muted)",
               }}
             >
               Preparando checkout...

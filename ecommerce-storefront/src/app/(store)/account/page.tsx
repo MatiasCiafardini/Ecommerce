@@ -10,6 +10,7 @@ import AccountWorkspace, {
 const customerSections: AccountSection[] = ["orders", "profile", "addresses", "payments"];
 const adminSections: AccountSection[] = [
   "admin-overview",
+  "admin-developer",
   "admin-products",
   "admin-categories",
   "admin-promotions",

@@ -247,9 +247,7 @@ export default function ManualSalesWorkspace() {
             <p style={eyebrowStyle}>Modulo independiente</p>
             <h1 style={titleStyle}>Venta manual</h1>
             <p style={copyStyle}>
-              Este espacio queda separado de la cuenta para que puedas crecerlo con
-              metricas, historial operativo y herramientas de mostrador sin mezclarlo
-              con el perfil.
+              Registra ventas manuales y consulta el historial del mostrador.
             </p>
           </div>
         </section>

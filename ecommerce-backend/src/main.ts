@@ -15,7 +15,14 @@ async function bootstrap() {
   }
 
   app.setGlobalPrefix(runtimeConfig.apiPrefix);
-  app.use(uploadsPublicPath, express.static(uploadsDir));
+  app.use(
+    uploadsPublicPath,
+    express.static(uploadsDir, {
+      etag: true,
+      immutable: true,
+      maxAge: '30d',
+    }),
+  );
 
   app.enableCors({
     origin: true,

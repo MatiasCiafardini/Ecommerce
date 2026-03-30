@@ -17,6 +17,11 @@ export class CustomerOrdersController {
     return this.ordersService.findMine(req.storeId, req.user.sub);
   }
 
+  @Get('notifications')
+  getNotifications(@Req() req) {
+    return this.ordersService.getCustomerNotifications(req.storeId, req.user.sub);
+  }
+
   @Get(':id')
   findOneMine(@Param('id') id: string, @Req() req) {
     return this.ordersService.findOneMine(Number(id), req.storeId, req.user.sub);

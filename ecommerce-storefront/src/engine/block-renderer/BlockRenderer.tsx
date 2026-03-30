@@ -1,5 +1,6 @@
 import { resolveBlockDefinition } from "@/config/block-registry";
 import { Block } from "@/types/block";
+import BlockReveal from "./BlockReveal";
 
 type Props = {
   blocks: Block[];
@@ -38,23 +39,17 @@ export default function BlockRenderer({ blocks, themeName }: Props) {
           ...block.props,
         };
 
-        const animationClass =
+        const animationPreset =
           resolvedProps?.animationPreset === "soft"
-            ? "theme-enter-soft"
+            ? "soft"
             : resolvedProps?.animationPreset === "none"
-              ? ""
-              : "theme-enter-up";
+              ? "none"
+              : "up";
 
         return (
-          <div
-            key={index}
-            className={animationClass}
-            style={{
-              animationDelay: `${index * 90}ms`,
-            }}
-          >
+          <BlockReveal key={index} preset={animationPreset} delayMs={index * 90}>
             <Component {...resolvedProps} />
-          </div>
+          </BlockReveal>
         );
       })}
     </>
