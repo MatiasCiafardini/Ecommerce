@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 import { money } from "./order-utils";
 import type { AdminPromotion } from "./admin-types";
 
-type Category = { id: number; name: string; slug: string };
+type Category = { id: number; name: string; slug: string; storeId?: number | null };
 type Product = { id: number; title: string; slug: string };
 type Variant = {
   id: number;
@@ -75,6 +76,23 @@ const initialForm = {
   couponUsageLimit: "",
 };
 
+function scopeCategoriesToActiveStore(items: Category[]) {
+  const storeId = (() => {
+    try {
+      return getClientStoreId();
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!storeId) {
+    return items;
+  }
+
+  const scoped = items.filter((item) => item.storeId === storeId);
+  return scoped.length > 0 ? scoped : items;
+}
+
 export default function AdminPromotionsSection() {
   const [promotions, setPromotions] = useState<AdminPromotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -120,7 +138,11 @@ export default function AdminPromotionsSection() {
               }))
             : [],
         );
-        setCategories(Array.isArray(categoryData) ? (categoryData as Category[]) : []);
+        setCategories(
+          Array.isArray(categoryData)
+            ? scopeCategoriesToActiveStore(categoryData as Category[])
+            : [],
+        );
     setVariants(Array.isArray(variantData) ? (variantData as Variant[]) : []);
     setOptions(Array.isArray(optionData) ? (optionData as ProductOption[]) : []);
       } catch (err) {
@@ -533,8 +555,8 @@ export default function AdminPromotionsSection() {
                   disabled={form.scope !== "order"}
                   style={fieldStyle}
                 >
-                  <option value="automatic">AutomÃ¡tica</option>
-                  <option value="coupon">CupÃ³n</option>
+                  <option value="automatic">Automática</option>
+                  <option value="coupon">Cupón</option>
                 </select>
               </Field>
             )}

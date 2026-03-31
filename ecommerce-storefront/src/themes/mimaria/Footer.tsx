@@ -7,15 +7,15 @@ export default function Footer() {
       className="theme-footer-shell"
       style={{
         background:
-          "linear-gradient(180deg, rgba(255,251,247,1) 0%, rgba(239,228,216,1) 100%)",
+          "linear-gradient(180deg, rgba(252,248,241,1) 0%, rgba(241,231,214,1) 100%)",
         color: "var(--theme-colors-text-strong)",
-        borderTop: "1px solid rgba(117,92,76,0.1)",
+        borderTop: "1px solid rgba(183,146,98,0.16)",
       }}
     >
       <div
         className="theme-footer-grid"
         style={{
-          maxWidth: 1280,
+          maxWidth: "var(--store-wide-max)",
           margin: "0 auto",
           padding: "64px 20px 70px",
           display: "grid",
@@ -29,9 +29,9 @@ export default function Footer() {
               style={{
                 width: 54,
                 height: 54,
-                borderRadius: 18,
-                border: "1px solid rgba(117,92,76,0.12)",
-                background: "rgba(255,255,255,0.74)",
+                borderRadius: 0,
+                border: "1px solid rgba(183,146,98,0.18)",
+                background: "rgba(255,250,244,0.94)",
                 display: "grid",
                 placeItems: "center",
                 overflow: "hidden",

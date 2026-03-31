@@ -3,9 +3,11 @@ import { apiFetch } from "@/services/api-client";
 import { resolveStoreIdFromHost } from "@/lib/tenant/store-context";
 import { getDefaultStorefrontConfig } from "@/lib/tenant/storefront-defaults";
 import type { Block } from "@/types/block";
+import type { ThemePalette } from "@/types/theme";
 
 type RemoteStorefrontConfig = {
   theme?: string;
+  themePalette?: ThemePalette;
   pages?: {
     home?: Block[];
   };
@@ -38,6 +40,9 @@ export async function getTenantConfig() {
       remoteConfig?.storefrontConfig?.theme ||
       remoteConfig?.theme ||
       fallbackConfig.theme,
+    themePalette:
+      remoteConfig?.storefrontConfig?.themePalette ??
+      fallbackConfig.themePalette,
     pages: {
       home:
         remoteHome && remoteHome.length > 0

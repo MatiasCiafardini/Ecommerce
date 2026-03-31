@@ -24,7 +24,9 @@ export default async function ProductGrid({
   editorialLabel = "Urban people",
   editorialTitle = "Editorial street energy",
 }: Props) {
-  const products = await getProducts({ category, limit, productIds });
+  const normalizedColumns = Number.isFinite(columns) ? Math.max(0, Math.floor(columns)) : 4;
+  const shouldRenderProducts = normalizedColumns > 0;
+  const products = shouldRenderProducts ? await getProducts({ category, limit, productIds }) : [];
   const featurePanelHeight = "clamp(260px, 30vw, 340px)";
 
   return (
@@ -34,7 +36,7 @@ export default async function ProductGrid({
         padding: "84px 20px",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+      <div style={{ maxWidth: "var(--store-wide-max)", margin: "0 auto" }}>
         {title && (
           <div
             className="layout-feature-split"
@@ -113,7 +115,7 @@ export default async function ProductGrid({
                     display: "inline-flex",
                     width: "fit-content",
                     padding: "8px 12px",
-                    borderRadius: 999,
+                    borderRadius: "var(--theme-radius-pill)",
                     border: "1px solid var(--border-soft)",
                     background: "var(--editorial-pill-bg)",
                     color: "var(--text-strong)",
@@ -139,19 +141,21 @@ export default async function ProductGrid({
           </div>
         )}
 
-        <div
-          className="layout-product-grid"
-          style={{
-            gridTemplateColumns: `repeat(${Math.max(1, columns)}, var(--product-card-width))`,
-            justifyContent: "center",
-          }}
-        >
-          {products.map((product: StoreProduct, index: number) => (
-            <StaggerReveal key={product.id} delayMs={index * 90}>
-              <ProductCard product={product} />
-            </StaggerReveal>
-          ))}
-        </div>
+        {shouldRenderProducts ? (
+          <div
+            className="layout-product-grid"
+            style={{
+              gridTemplateColumns: `repeat(${normalizedColumns}, var(--product-card-width))`,
+              justifyContent: "center",
+            }}
+          >
+            {products.map((product: StoreProduct, index: number) => (
+              <StaggerReveal key={product.id} delayMs={index * 90}>
+                <ProductCard product={product} />
+              </StaggerReveal>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   );

@@ -50,7 +50,7 @@ function readStoreEnvCredential(
   return process.env[`STORE_${storeId}_MERCADOPAGO_${key}`]?.trim() || null;
 }
 
-const CATEGORY_DEFINITIONS = [
+const STREETWEAR_CATEGORY_DEFINITIONS = [
   {
     name: 'Remeras',
     singular: 'Remera',
@@ -131,9 +131,84 @@ const CATEGORY_DEFINITIONS = [
     titles: ['Core Cap', 'Signal Beanie', 'Transit Bag', 'Street Tote', 'Metro Cap', 'Concrete Beanie', 'Axis Bag', 'Night Tote', 'Daily Cap', 'District Bag'],
     fits: ['street essential', 'daily carry', 'urban layer', 'everyday accessory'],
   },
+ ] as const;
+
+const BOUTIQUE_CATEGORY_DEFINITIONS = [
+  {
+    name: 'Blusas',
+    singular: 'Blusa',
+    slug: 'blusas',
+    kind: 'shirt' as const,
+    titles: ['Aurea', 'Luz Suave', 'Nacar', 'Brisa', 'Perla', 'Atelier', 'Aura', 'Seda Clara'],
+    fits: ['relajada', 'fluida', 'regular delicada', 'femenina suave'],
+  },
+  {
+    name: 'Sweaters',
+    singular: 'Sweater',
+    slug: 'sweaters',
+    kind: 'sweater' as const,
+    titles: ['Nube', 'Calma', 'Boucle', 'Rib Light', 'Avena', 'Marfil', 'Duna', 'Lino Knit'],
+    fits: ['suave', 'relajado', 'tejido liviano', 'calce noble'],
+  },
+  {
+    name: 'Jeans',
+    singular: 'Jean',
+    slug: 'jeans',
+    kind: 'pants' as const,
+    titles: ['Recto Claro', 'Linea Soft', 'Blue Atelier', 'Arena Denim', 'Pure Rise', 'Nude Fit', 'Classic Light', 'Ecru Line'],
+    fits: ['recto', 'wide leg', 'relajado', 'tiro alto'],
+  },
+  {
+    name: 'Vestidos',
+    singular: 'Vestido',
+    slug: 'vestidos',
+    kind: 'dress' as const,
+    titles: ['Luz', 'Bruma', 'Eter', 'Seda', 'Atardecer', 'Amapola', 'Nacar Midi', 'Aura Soft'],
+    fits: ['midi', 'fluido', 'evasé', 'suave al cuerpo'],
+  },
+  {
+    name: 'Tapados',
+    singular: 'Tapado',
+    slug: 'tapados',
+    kind: 'jacket' as const,
+    titles: ['Camel Line', 'Abrigo Nube', 'Soft Coat', 'Atelier Coat', 'Marfil Layer', 'Luz Coat', 'Nude Guard', 'Calma Coat'],
+    fits: ['recto', 'liviano', 'relajado', 'estructurado suave'],
+  },
+  {
+    name: 'Camisas',
+    singular: 'Camisa',
+    slug: 'camisas',
+    kind: 'shirt' as const,
+    titles: ['Lina', 'Marfil Shirt', 'Atelier Soft', 'Brisa Shirt', 'Clara', 'Nude Studio', 'Aura Shirt', 'Luz Pura'],
+    fits: ['recta', 'liviana', 'relajada', 'clasica suave'],
+  },
+  {
+    name: 'Polleras',
+    singular: 'Pollera',
+    slug: 'polleras',
+    kind: 'skirt' as const,
+    titles: ['Luz Skirt', 'Aura Midi', 'Seda Skirt', 'Bruma Line', 'Nacar Skirt', 'Calma Midi', 'Atelier Skirt', 'Perla Soft'],
+    fits: ['midi', 'evasé', 'recta', 'fluida'],
+  },
+  {
+    name: 'Cardigans',
+    singular: 'Cardigan',
+    slug: 'cardigans',
+    kind: 'sweater' as const,
+    titles: ['Avena Cardigan', 'Nube Knit', 'Soft Pearl', 'Lino Cardigan', 'Calma Knit', 'Marfil Knit', 'Brisa Layer', 'Aura Knit'],
+    fits: ['tejido liviano', 'relajado', 'suave', 'abierto'],
+  },
+  {
+    name: 'Blazers',
+    singular: 'Blazer',
+    slug: 'blazers',
+    kind: 'jacket' as const,
+    titles: ['Atelier Blazer', 'Nude Line', 'Luz Tailored', 'Camel Soft', 'Marfil Blazer', 'Calma Blazer', 'Seda Tailored', 'Aura Blazer'],
+    fits: ['sastrero suave', 'recto', 'relajado', 'liviano'],
+  },
 ] as const;
 
-const COLLECTIONS = [
+const STREETWEAR_COLLECTIONS = [
   'Asphalt Core',
   'Night Shift',
   'Concrete Echo',
@@ -146,11 +221,24 @@ const COLLECTIONS = [
   'Grey Matter',
 ] as const;
 
+const BOUTIQUE_COLLECTIONS = [
+  'Atelier Light',
+  'Luz Serena',
+  'Soft Linen',
+  'Aura Nude',
+  'Brisa Clara',
+  'Marfil Studio',
+  'Calma Edit',
+  'Nacar Boutique',
+] as const;
+
 const SIZE_MAP: Record<string, string[]> = {
   tee: ['S', 'M', 'L', 'XL'],
   hoodie: ['M', 'L', 'XL'],
+  sweater: ['S', 'M', 'L'],
   jacket: ['M', 'L', 'XL'],
   pants: ['38', '40', '42', '44'],
+  dress: ['S', 'M', 'L'],
   cargo: ['38', '40', '42', '44'],
   jogger: ['S', 'M', 'L', 'XL'],
   shirt: ['S', 'M', 'L', 'XL'],
@@ -199,8 +287,10 @@ function productPrice(kind: string, index: number) {
   const baseMap = {
     tee: 32990,
     hoodie: 69990,
+    sweater: 51990,
     jacket: 89990,
     pants: 64990,
+    dress: 57990,
     cargo: 72990,
     jogger: 58990,
     shirt: 55990,
@@ -231,6 +321,12 @@ function shapeMarkup(kind: string, accent: string, support: string, glow: string
         <path d="M338 324l118-52h152l118 52-42 92-60-24v318H440V392l-60 24z" fill="${accent}" stroke="${support}" stroke-width="12" />
         <rect x="522" y="474" width="42" height="108" rx="20" fill="${support}" opacity="0.68" />
       `;
+    case 'sweater':
+      return `
+        <path d="M372 284l110-60 58 42 58-42 110 60-36 98-66-26v354H474V356l-66 26z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <path d="M474 356c40 16 92 24 132 0v354H474z" fill="${glow}" opacity="0.5" />
+        <path d="M432 688h56m160 0h56" stroke="${support}" stroke-width="14" stroke-linecap="round" opacity="0.54" />
+      `;
     case 'jacket':
       return `
         <path d="M368 256l126-62 44 48 44-48 126 62-34 98-60-26v382H422V328l-60 26z" fill="${accent}" stroke="${support}" stroke-width="12" />
@@ -242,6 +338,12 @@ function shapeMarkup(kind: string, accent: string, support: string, glow: string
       return `
         <path d="M420 218h232l-18 188-42 304h-82l-20-208-20 208h-82l-42-304z" fill="${accent}" stroke="${support}" stroke-width="12" />
         <path d="M500 218v180m72-180v180" stroke="${glow}" stroke-width="12" opacity="0.52" />
+      `;
+    case 'dress':
+      return `
+        <path d="M500 208h80l18 64-10 48 118 398H374l118-398-10-48z" fill="${accent}" stroke="${support}" stroke-width="12" />
+        <path d="M482 272h116" stroke="${support}" stroke-width="12" opacity="0.58" />
+        <path d="M478 420c40 28 84 28 124 0" stroke="${glow}" stroke-width="12" opacity="0.5" />
       `;
     case 'cargo':
       return `
@@ -545,20 +647,35 @@ async function ensureAdmin(storeId: number, email: string) {
   });
 }
 
+function getCatalogSeedConfig(storeId: number) {
+  if (storeId === 2 || storeId === 3003 || storeId === 3005) {
+    return {
+      definitions: BOUTIQUE_CATEGORY_DEFINITIONS,
+      collections: BOUTIQUE_COLLECTIONS,
+    };
+  }
+
+  return {
+    definitions: STREETWEAR_CATEGORY_DEFINITIONS,
+    collections: STREETWEAR_COLLECTIONS,
+  };
+}
+
 async function seedCatalog(
   storeId: number,
   assetDirs: Awaited<ReturnType<typeof ensureAssetDir>>,
 ) {
   const { catalogDir, categoryDir } = assetDirs;
+  const { definitions, collections } = getCatalogSeedConfig(storeId);
   const categories = await Promise.all(
-    CATEGORY_DEFINITIONS.map(async (definition, index) => {
+    definitions.map(async (definition, index) => {
       const categoryImageName = `${definition.slug}.svg`;
       await fs.writeFile(
         path.join(categoryDir, categoryImageName),
         buildCategorySvg({
           title: definition.name,
           palette: PALETTES[index % PALETTES.length],
-          collection: COLLECTIONS[index % COLLECTIONS.length],
+          collection: collections[index % collections.length],
         }),
         'utf8',
       );
@@ -590,13 +707,13 @@ async function seedCatalog(
 
   let globalIndex = 0;
 
-  for (const [categoryIndex, definition] of CATEGORY_DEFINITIONS.entries()) {
+  for (const [categoryIndex, definition] of definitions.entries()) {
     const category = categories[categoryIndex];
 
     for (const [titleIndex, shortTitle] of definition.titles.entries()) {
       globalIndex += 1;
 
-      const collection = COLLECTIONS[(globalIndex - 1) % COLLECTIONS.length];
+      const collection = collections[(globalIndex - 1) % collections.length];
       const fit = definition.fits[(globalIndex - 1) % definition.fits.length];
       const palette = PALETTES[(globalIndex - 1) % PALETTES.length];
       const colorPair = COLOR_GROUPS[(globalIndex - 1) % COLOR_GROUPS.length];
@@ -849,7 +966,7 @@ async function main() {
       .map((store) =>
         store.id === 4
           ? `${store.domain} -> ${PAPERERIA_CATEGORIES.length} categorias / ${PAPERERIA_PRODUCTS.length} productos`
-          : `${store.domain} -> ${CATEGORY_DEFINITIONS.length} categorias / ${CATEGORY_DEFINITIONS.reduce(
+          : `${store.domain} -> ${getCatalogSeedConfig(store.id).definitions.length} categorias / ${getCatalogSeedConfig(store.id).definitions.reduce(
               (sum, category) => sum + category.titles.length,
               0,
             )} productos`,

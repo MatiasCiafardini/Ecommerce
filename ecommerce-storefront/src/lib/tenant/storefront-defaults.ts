@@ -1,7 +1,9 @@
-import type { Block } from "@/types/block";
+﻿import type { Block } from "@/types/block";
+import type { ThemePalette } from "@/types/theme";
 
 export type StorefrontTenantConfig = {
   theme: string;
+  themePalette?: ThemePalette;
   pages: {
     home: Block[];
   };
@@ -366,15 +368,20 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
     pages: {
       home: [
         {
-          type: "boutique_hero",
+          type: "hero_carousel",
           props: {
-            eyebrow: "Mi Maria Indumentaria",
-            title: "Elegancia para todos los dias",
-            subtitle:
-              "Prendas femeninas, delicadas y versatiles para una boutique moderna, calida y cercana.",
+            showContentCard: false,
             buttonText: "Ver coleccion",
             buttonLink: "/product",
-            logo: "/images/mimaria/logo.png",
+            slides: [
+              {
+                image: "/images/mimaria/fondo_banner.png",
+                eyebrow: "Mi Maria Indumentaria",
+                title: "Elegancia para todos los dias",
+                subtitle:
+                  "Prendas femeninas, delicadas y versatiles para una boutique moderna, calida y cercana.",
+              },
+            ],
             animationPreset: "soft",
           },
         },
@@ -382,61 +389,9 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           type: "banner",
           props: {
             text: "Descubri prendas pensadas para acompanarte todos los dias",
-            backgroundColor: "#eadccf",
-            textColor: "#4f3d34",
+            backgroundColor: "#e8d7bd",
+            textColor: "#7b5d3c",
             animationPreset: "none",
-          },
-        },
-        {
-          type: "category_grid",
-          props: {
-            title: "Categorias destacadas",
-            columns: 3,
-            items: [
-              {
-                title: "Blusas",
-                description: "Livianas, delicadas y faciles de combinar.",
-                href: "/category/blusas",
-                image: "/images/mimaria/logo.png",
-                tone: "soft",
-              },
-              {
-                title: "Sweaters",
-                description: "Abrigo suave para un look elegante y relajado.",
-                href: "/category/sweaters",
-                image: "/images/mimaria/logo.png",
-                tone: "warm",
-              },
-              {
-                title: "Jeans",
-                description: "Bases nobles para todos los dias.",
-                href: "/category/jeans",
-                image: "/images/mimaria/logo.png",
-                tone: "soft",
-              },
-              {
-                title: "Vestidos",
-                description: "Femeninos y versatiles para distintas ocasiones.",
-                href: "/category/vestidos",
-                image: "/images/mimaria/logo.png",
-                tone: "warm",
-              },
-              {
-                title: "Tapados",
-                description: "Capas con presencia y lineas limpias.",
-                href: "/category/tapados",
-                image: "/images/mimaria/logo.png",
-                tone: "soft",
-              },
-              {
-                title: "Nueva temporada",
-                description: "La seleccion mas reciente de la boutique.",
-                href: "/product",
-                image: "/images/mimaria/logo.png",
-                tone: "warm",
-              },
-            ],
-            animationPreset: "soft",
           },
         },
         {
@@ -461,11 +416,85 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           },
         },
         {
+          type: "category_grid",
+          props: {
+            title: "",
+            columns: 3,
+            carousel: true,
+            items: [
+              {
+                title: "Blusas",
+                description: "Livianas, delicadas y faciles de combinar.",
+                href: "/category/blusas",
+                image: "/images/mimaria/categories/blusas.png",
+                tone: "soft",
+              },
+              {
+                title: "Sweaters",
+                description: "Abrigo suave para un look elegante y relajado.",
+                href: "/category/sweaters",
+                image: "/images/mimaria/categories/sweaters.png",
+                tone: "warm",
+              },
+              {
+                title: "Jeans",
+                description: "Bases nobles para todos los dias.",
+                href: "/category/jeans",
+                image: "/images/mimaria/categories/jeans.png",
+                tone: "soft",
+              },
+              {
+                title: "Vestidos",
+                description: "Femeninos y versatiles para distintas ocasiones.",
+                href: "/category/vestidos",
+                image: "/images/mimaria/categories/vestidos.png",
+                tone: "warm",
+              },
+              {
+                title: "Tapados",
+                description: "Capas con presencia y lineas limpias.",
+                href: "/category/tapados",
+                image: "/images/mimaria/categories/tapados.png",
+                tone: "soft",
+              },
+              {
+                title: "Camisas",
+                description: "Clasicos livianos para looks pulidos y suaves.",
+                href: "/category/camisas",
+                image: "/images/mimaria/categories/camisas.png",
+                tone: "warm",
+              },
+              {
+                title: "Polleras",
+                description: "Siluetas femeninas para dias delicados y versatiles.",
+                href: "/category/polleras",
+                image: "/images/mimaria/categories/polleras.png",
+                tone: "soft",
+              },
+              {
+                title: "Cardigans",
+                description: "Tejidos nobles para sumar abrigo con liviandad.",
+                href: "/category/cardigans",
+                image: "/images/mimaria/categories/cardigans.png",
+                tone: "warm",
+              },
+              {
+                title: "Blazers",
+                description: "Capas sastreras suaves para elevar cualquier conjunto.",
+                href: "/category/blazers",
+                image: "/images/mimaria/categories/blazers.png",
+                tone: "soft",
+              },
+            ],
+            animationPreset: "soft",
+          },
+        },
+        {
           type: "banner",
           props: {
             text: "Descubri prendas pensadas para acompanarte todos los dias",
-            backgroundColor: "#f4ede6",
-            textColor: "#5f4a40",
+            backgroundColor: "#f6efe5",
+            textColor: "#7b5d3c",
             animationPreset: "soft",
           },
         },
@@ -515,3 +544,4 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
 export function getDefaultStorefrontConfig(storeId: number) {
   return storefrontDefaults[storeId];
 }
+

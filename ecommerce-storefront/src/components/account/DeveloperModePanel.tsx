@@ -1,17 +1,27 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
+import { blockThemeOverrides } from "@/config/block-theme-overrides";
+import { themes } from "@/config/theme-registry";
+import { buildThemeStyle } from "@/lib/theme/theme-palette-style";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 import { getDefaultStorefrontConfig } from "@/lib/tenant/storefront-defaults";
 import type { User } from "@/context/auth-context";
 import type { Block } from "@/types/block";
+import {
+  themePaletteColorKeys,
+  type ThemePalette,
+  type ThemePaletteKey,
+} from "@/types/theme";
 
 type Category = {
   id: number;
   name: string;
   slug: string;
+  storeId?: number | null;
 };
 
 type Product = {
@@ -22,6 +32,7 @@ type Product = {
 
 type StorefrontConfig = {
   theme?: string;
+  themePalette?: ThemePalette;
   pages: {
     home: Block[];
   };
@@ -49,6 +60,12 @@ type MercadoPagoTestResult = {
   } | null;
 };
 
+type BlockContextMenuState = {
+  index: number;
+  x: number;
+  y: number;
+} | null;
+
 type FieldDefinition =
   | { key: string; label: string; type: "text" | "textarea" | "number" | "color" }
   | { key: string; label: string; type: "select"; options: Array<{ label: string; value: string }> }
@@ -64,6 +81,8 @@ const blockLabels: Record<string, string> = {
   newsletter: "Newsletter",
   banner: "Banner",
   testimonials: "Testimonials",
+  benefits: "Benefits",
+  boutique_hero: "Boutique Hero",
 };
 
 const animationOptions = [
@@ -71,6 +90,207 @@ const animationOptions = [
   { label: "Suave", value: "soft" },
   { label: "Sin animacion", value: "none" },
 ];
+
+type ThemePaletteField = {
+  key: ThemePaletteKey;
+  label: string;
+  description: string;
+  autoSourceLabel?: string;
+  advanced?: boolean;
+};
+
+const themePaletteGroups: Array<{
+  id: "base" | "storefront" | "workspace";
+  title: string;
+  description: string;
+  fields: ThemePaletteField[];
+}> = [
+  {
+    id: "base",
+    title: "Colores Base",
+    description: "Definen la identidad general del theme: fondos, textos, bordes y acentos.",
+    fields: [
+      { key: "background", label: "Fondo base del sitio", description: "Color principal del storefront y base de toda la paleta." },
+      { key: "backgroundSoft", label: "Fondo secundario", description: "Fondo suave para secciones, bandas y superficies intermedias." },
+      { key: "backgroundElevated", label: "Fondo elevado", description: "Base para capas internas, paneles y elementos por encima del fondo." },
+      { key: "paper", label: "Superficie clara", description: "Color claro para cards, paneles o zonas tipo papel." },
+      { key: "paperMuted", label: "Superficie clara suave", description: "Version menos intensa de la superficie clara para apoyos visuales." },
+      { key: "text", label: "Texto general", description: "Color de lectura normal para parrafos y contenido corrido." },
+      { key: "textMuted", label: "Texto secundario", description: "Ayudas visuales, placeholders y textos de menor jerarquia." },
+      { key: "textStrong", label: "Titulos y destacados", description: "Titulares, precios y texto de alto contraste." },
+      { key: "border", label: "Borde suave", description: "Contornos discretos, divisores e inputs normales." },
+      { key: "borderStrong", label: "Borde fuerte", description: "Estados activos, focos y separaciones con mas presencia." },
+      { key: "accent", label: "Color principal de accion", description: "Links, botones y acciones importantes." },
+      { key: "accentStrong", label: "Color de accion intenso", description: "Hovers, botones fuertes y variantes mas profundas del acento." },
+      { key: "accentContrast", label: "Texto sobre acentos", description: "Texto e iconos que van encima del color de accion." },
+    ],
+  },
+  {
+    id: "storefront",
+    title: "Tienda Publica",
+    description: "Controles principales del storefront. El resto de superficies se calcula automaticamente a partir de estos colores.",
+    fields: [
+      { key: "pageShellBg", label: "Fondo interno de paginas", description: "Base del contenido interno de paginas como login, carrito y producto.", autoSourceLabel: "Automatico desde Fondo base del sitio", advanced: true },
+      { key: "storeShellBg", label: "Fondo exterior de la tienda", description: "Color de fondo total detras del contenido de la tienda.", autoSourceLabel: "Automatico desde Fondo base del sitio" },
+      { key: "pagePanelBg", label: "Paneles principales", description: "Cards y paneles principales del storefront.", autoSourceLabel: "Automatico desde Fondo secundario" },
+      { key: "pagePanelStrongBg", label: "Paneles destacados", description: "Paneles internos o zonas con un poco mas de contraste.", autoSourceLabel: "Automatico desde Fondo elevado" },
+      { key: "mutedFieldBg", label: "Campos e inputs", description: "Inputs, selects y campos de formularios del storefront.", autoSourceLabel: "Automatico desde Fondo elevado", advanced: true },
+      { key: "blockCardBg", label: "Cards de bloques y productos", description: "Tarjetas del storefront como productos y bloques.", autoSourceLabel: "Automatico desde Paneles principales" },
+      { key: "blockPanelBg", label: "Paneles internos de bloques", description: "Paneles secundarios dentro de bloques o modulos.", autoSourceLabel: "Automatico desde Paneles destacados", advanced: true },
+      { key: "testimonialCardBg", label: "Tarjetas de testimonios", description: "Fondo normal de las cards de testimonios.", autoSourceLabel: "Automatico desde Paneles principales", advanced: true },
+      { key: "testimonialCardFeaturedBg", label: "Testimonio destacado", description: "Version resaltada de la card de testimonios.", autoSourceLabel: "Automatico desde Paneles destacados", advanced: true },
+      { key: "newsletterShellBg", label: "Bloque de newsletter", description: "Fondo del modulo de suscripcion o newsletter.", autoSourceLabel: "Automatico desde Paneles destacados" },
+    ],
+  },
+  {
+    id: "workspace",
+    title: "Panel Interno",
+    description: "Controles principales del panel interno. Los estados secundarios siguen esta misma paleta automaticamente.",
+    fields: [
+      { key: "accountShellBg", label: "Fondo del workspace", description: "Fondo general del panel interno y areas operativas.", autoSourceLabel: "Automatico desde Fondo base del sitio" },
+      { key: "accountSidebarBg", label: "Sidebar del workspace", description: "Fondo de la columna lateral del panel.", autoSourceLabel: "Automatico desde Paneles principales" },
+      { key: "accountGroupBg", label: "Grupos del workspace", description: "Contenedores y agrupadores dentro del panel.", autoSourceLabel: "Automatico desde Paneles destacados", advanced: true },
+      { key: "accountItemBg", label: "Cards e items del workspace", description: "Tarjetas, filas y modulos base del panel.", autoSourceLabel: "Automatico desde Paneles principales" },
+      { key: "accountItemBgActive", label: "Item activo o seleccionado", description: "Estado activo para cards, tabs o items seleccionados.", autoSourceLabel: "Automatico desde Paneles destacados" },
+      { key: "accountItemBorder", label: "Borde del workspace", description: "Borde normal de cards, grupos e items internos.", autoSourceLabel: "Automatico desde Borde suave" },
+      { key: "accountItemBorderActive", label: "Borde activo del workspace", description: "Borde para seleccion, foco o estado activo.", autoSourceLabel: "Automatico desde Borde fuerte", advanced: true },
+    ],
+  },
+];
+
+const themePalettePresets: Array<{
+  id: string;
+  label: string;
+  description: string;
+  palette: ThemePalette;
+}> = [
+  {
+    id: "graphite",
+    label: "Graphite",
+    description: "Oscuro sobrio con acento arena.",
+    palette: {
+      background: "rgb(13, 15, 19)",
+      backgroundSoft: "rgb(22, 25, 31)",
+      backgroundElevated: "rgb(31, 35, 43)",
+      paper: "rgb(238, 230, 220)",
+      paperMuted: "rgb(188, 177, 164)",
+      text: "rgb(235, 230, 224)",
+      textMuted: "rgb(177, 168, 160)",
+      textStrong: "rgb(255, 250, 246)",
+      border: "rgb(71, 76, 86)",
+      borderStrong: "rgb(106, 113, 126)",
+      accent: "rgb(185, 147, 104)",
+      accentStrong: "rgb(148, 110, 72)",
+      accentContrast: "rgb(255, 248, 241)",
+      storeShellBg: "rgb(13, 15, 19)",
+      pagePanelBg: "rgb(22, 25, 31)",
+      pagePanelStrongBg: "rgb(31, 35, 43)",
+      blockCardBg: "rgb(26, 29, 35)",
+      newsletterShellBg: "rgb(34, 38, 47)",
+      accountShellBg: "rgb(13, 15, 19)",
+      accountSidebarBg: "rgb(22, 25, 31)",
+      accountItemBg: "rgb(22, 25, 31)",
+      accountItemBgActive: "rgb(31, 35, 43)",
+      accountItemBorder: "rgb(71, 76, 86)",
+    },
+  },
+  {
+    id: "linen",
+    label: "Linen",
+    description: "Claro y calido para una tienda suave.",
+    palette: {
+      background: "rgb(248, 243, 238)",
+      backgroundSoft: "rgb(255, 250, 246)",
+      backgroundElevated: "rgb(244, 235, 227)",
+      paper: "rgb(255, 255, 252)",
+      paperMuted: "rgb(229, 214, 201)",
+      text: "rgb(103, 79, 64)",
+      textMuted: "rgb(146, 121, 103)",
+      textStrong: "rgb(84, 63, 50)",
+      border: "rgb(220, 203, 190)",
+      borderStrong: "rgb(188, 165, 148)",
+      accent: "rgb(180, 127, 88)",
+      accentStrong: "rgb(145, 95, 59)",
+      accentContrast: "rgb(255, 250, 245)",
+      storeShellBg: "rgb(248, 243, 238)",
+      pagePanelBg: "rgb(255, 250, 246)",
+      pagePanelStrongBg: "rgb(244, 235, 227)",
+      blockCardBg: "rgb(255, 252, 249)",
+      newsletterShellBg: "rgb(241, 231, 222)",
+      accountShellBg: "rgb(248, 243, 238)",
+      accountSidebarBg: "rgb(255, 252, 248)",
+      accountItemBg: "rgb(255, 252, 248)",
+      accountItemBgActive: "rgb(244, 235, 227)",
+      accountItemBorder: "rgb(220, 203, 190)",
+    },
+  },
+  {
+    id: "rose-paper",
+    label: "Rose Paper",
+    description: "Claro editorial con rose y paper.",
+    palette: {
+      background: "rgb(252, 244, 247)",
+      backgroundSoft: "rgb(255, 250, 252)",
+      backgroundElevated: "rgb(244, 226, 233)",
+      paper: "rgb(255, 255, 255)",
+      paperMuted: "rgb(238, 204, 217)",
+      text: "rgb(101, 66, 82)",
+      textMuted: "rgb(149, 110, 126)",
+      textStrong: "rgb(92, 57, 73)",
+      border: "rgb(228, 197, 209)",
+      borderStrong: "rgb(191, 151, 167)",
+      accent: "rgb(186, 110, 140)",
+      accentStrong: "rgb(154, 78, 109)",
+      accentContrast: "rgb(255, 248, 251)",
+      storeShellBg: "rgb(252, 244, 247)",
+      pagePanelBg: "rgb(255, 250, 252)",
+      pagePanelStrongBg: "rgb(244, 226, 233)",
+      blockCardBg: "rgb(255, 253, 254)",
+      newsletterShellBg: "rgb(247, 232, 238)",
+      accountShellBg: "rgb(252, 244, 247)",
+      accountSidebarBg: "rgb(255, 252, 253)",
+      accountItemBg: "rgb(255, 252, 253)",
+      accountItemBgActive: "rgb(244, 226, 233)",
+      accountItemBorder: "rgb(228, 197, 209)",
+    },
+  },
+  {
+    id: "ocean-ink",
+    label: "Ocean Ink",
+    description: "Oscuro frio con acento celeste.",
+    palette: {
+      background: "rgb(10, 18, 26)",
+      backgroundSoft: "rgb(16, 28, 39)",
+      backgroundElevated: "rgb(23, 39, 53)",
+      paper: "rgb(232, 242, 247)",
+      paperMuted: "rgb(151, 182, 197)",
+      text: "rgb(221, 234, 241)",
+      textMuted: "rgb(148, 177, 191)",
+      textStrong: "rgb(244, 250, 252)",
+      border: "rgb(55, 83, 99)",
+      borderStrong: "rgb(82, 116, 136)",
+      accent: "rgb(88, 170, 197)",
+      accentStrong: "rgb(55, 132, 160)",
+      accentContrast: "rgb(244, 252, 255)",
+      storeShellBg: "rgb(10, 18, 26)",
+      pagePanelBg: "rgb(16, 28, 39)",
+      pagePanelStrongBg: "rgb(23, 39, 53)",
+      blockCardBg: "rgb(18, 31, 43)",
+      newsletterShellBg: "rgb(27, 45, 60)",
+      accountShellBg: "rgb(10, 18, 26)",
+      accountSidebarBg: "rgb(16, 28, 39)",
+      accountItemBg: "rgb(16, 28, 39)",
+      accountItemBgActive: "rgb(23, 39, 53)",
+      accountItemBorder: "rgb(55, 83, 99)",
+    },
+  },
+];
+
+type RgbColor = {
+  r: number;
+  g: number;
+  b: number;
+};
 
 const blockFieldMap: Record<string, FieldDefinition[]> = {
   hero: [
@@ -87,6 +307,15 @@ const blockFieldMap: Record<string, FieldDefinition[]> = {
     { key: "buttonText", label: "Texto del boton", type: "text" },
     { key: "buttonLink", label: "Link del boton", type: "text" },
     { key: "animationPreset", label: "Animacion", type: "select", options: animationOptions },
+  ],
+  boutique_hero: [
+    { key: "eyebrow", label: "Eyebrow", type: "text" },
+    { key: "title", label: "Titulo", type: "text" },
+    { key: "subtitle", label: "Subtitulo", type: "textarea" },
+    { key: "buttonText", label: "Texto del boton", type: "text" },
+    { key: "buttonLink", label: "Link del boton", type: "text" },
+    { key: "logo", label: "Logo", type: "image" },
+    { key: "image", label: "Imagen principal", type: "image" },
   ],
   product_grid: [
     { key: "title", label: "Titulo", type: "text" },
@@ -132,7 +361,121 @@ const blockFieldMap: Record<string, FieldDefinition[]> = {
   testimonials: [
     { key: "animationPreset", label: "Animacion", type: "select", options: animationOptions },
   ],
+  benefits: [
+    { key: "title", label: "Titulo", type: "text" },
+  ],
 };
+
+const availableBlockTypes = [
+  "hero_carousel",
+  "boutique_hero",
+  "banner",
+  "featured_products",
+  "product_grid",
+  "category_grid",
+  "carousel",
+  "benefits",
+  "testimonials",
+  "newsletter",
+] as const;
+
+const blockDefaultProps: Record<string, Record<string, unknown>> = {
+  hero: {
+    title: "Nueva coleccion",
+    subtitle: "Texturas suaves, capas livianas y productos curados para renovar la tienda.",
+    buttonText: "Ver productos",
+    buttonLink: "/product",
+  },
+  hero_carousel: {
+    slides: [
+      {
+        image: "",
+        eyebrow: "Nuevo bloque",
+        title: "Titulo del slide",
+        subtitle: "Subtitulo del slide",
+      },
+    ],
+    buttonText: "Ver productos",
+    buttonLink: "/product",
+    showContentCard: true,
+    animationPreset: "soft",
+  },
+  boutique_hero: {
+    eyebrow: "Boutique edit",
+    title: "Elegancia para todos los dias",
+    subtitle: "Una propuesta visual lista para personalizar desde el panel.",
+    buttonText: "Ver coleccion",
+    buttonLink: "/product",
+    logo: "",
+    image: "",
+  },
+  banner: {
+    text: "Anuncio destacado para la tienda",
+    backgroundColor: "#f3ede5",
+    textColor: "#6f5336",
+    animationPreset: "soft",
+  },
+  featured_products: {
+    title: "Productos destacados",
+    limit: 4,
+    columns: 4,
+    productIds: [],
+    animationPreset: "soft",
+  },
+  product_grid: {
+    title: "Nuevos ingresos",
+    eyebrow: "Curado para tu tienda",
+    editorialLabel: "Edit select",
+    editorialTitle: "Un bloque listo para destacar productos y narrativa visual",
+    category: "",
+    limit: 8,
+    columns: 4,
+    productIds: [],
+    animationPreset: "soft",
+  },
+  category_grid: {
+    title: "Categorias",
+    columns: 3,
+    carousel: false,
+    animationPreset: "soft",
+  },
+  carousel: {
+    title: "Carrusel de productos",
+    limit: 8,
+    productIds: [],
+    animationPreset: "soft",
+  },
+  benefits: {
+    title: "Una experiencia pensada para vos",
+  },
+  testimonials: {
+    animationPreset: "soft",
+  },
+  newsletter: {
+    title: "Suscribite al newsletter",
+    subtitle: "Enterate primero de novedades, ingresos y promociones.",
+    animationPreset: "soft",
+  },
+};
+
+function cloneBlockProps<T>(value: T): T {
+  return value === undefined ? value : JSON.parse(JSON.stringify(value));
+}
+
+function createDefaultBlock(blockType: string, themeName?: string): Block {
+  const baseProps = cloneBlockProps(blockDefaultProps[blockType] ?? {});
+  const themeProps = cloneBlockProps(
+    (themeName ? blockThemeOverrides[themeName]?.[blockType]?.defaultProps : undefined) ?? {},
+  );
+
+  return {
+    type: blockType,
+    props: {
+      ...baseProps,
+      ...themeProps,
+    },
+  };
+}
 
 function mergeStorefrontConfig(user: User, remoteConfig?: StorefrontConfig | null): StorefrontConfig | null {
   const fallback = user.storeId ? getDefaultStorefrontConfig(user.storeId) : null;
@@ -143,6 +486,7 @@ function mergeStorefrontConfig(user: User, remoteConfig?: StorefrontConfig | nul
 
   return {
     theme: remoteConfig?.theme || fallback?.theme,
+    themePalette: remoteConfig?.themePalette ?? fallback?.themePalette,
     pages: {
       home:
         Array.isArray(remoteConfig?.pages?.home) && remoteConfig.pages.home.length > 0
@@ -152,6 +496,105 @@ function mergeStorefrontConfig(user: User, remoteConfig?: StorefrontConfig | nul
   };
 }
 
+function clampRgbChannel(value: number) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function parseColorToRgb(value: string): RgbColor | null {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const shortHexMatch = normalized.match(/^#([0-9a-f]{3})$/i);
+  if (shortHexMatch) {
+    const [r, g, b] = shortHexMatch[1].split("");
+    return {
+      r: parseInt(`${r}${r}`, 16),
+      g: parseInt(`${g}${g}`, 16),
+      b: parseInt(`${b}${b}`, 16),
+    };
+  }
+
+  const hexMatch = normalized.match(/^#([0-9a-f]{6})$/i);
+  if (hexMatch) {
+    return {
+      r: parseInt(hexMatch[1].slice(0, 2), 16),
+      g: parseInt(hexMatch[1].slice(2, 4), 16),
+      b: parseInt(hexMatch[1].slice(4, 6), 16),
+    };
+  }
+
+  const rgbMatch = normalized.match(
+    /^rgba?\(\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*[, ]\s*(\d{1,3})(?:\s*[,/]\s*[\d.]+)?\s*\)$/i,
+  );
+  if (rgbMatch) {
+    return {
+      r: clampRgbChannel(Number(rgbMatch[1])),
+      g: clampRgbChannel(Number(rgbMatch[2])),
+      b: clampRgbChannel(Number(rgbMatch[3])),
+    };
+  }
+
+  return null;
+}
+
+function formatRgbColor(color: RgbColor) {
+  return `rgb(${clampRgbChannel(color.r)}, ${clampRgbChannel(color.g)}, ${clampRgbChannel(color.b)})`;
+}
+
+function buildThemePaletteDefaults(baseColors: Partial<Record<ThemePaletteKey, string>>): Partial<Record<ThemePaletteKey, string>> {
+  const background = baseColors.background ?? "";
+  const backgroundSoft = baseColors.backgroundSoft ?? background;
+  const backgroundElevated = baseColors.backgroundElevated ?? backgroundSoft;
+  const paperMuted = baseColors.paperMuted ?? baseColors.paper ?? backgroundElevated;
+  const border = baseColors.border ?? "";
+  const borderStrong = baseColors.borderStrong ?? border;
+  const pagePanelBg = backgroundSoft;
+  const pagePanelStrongBg = backgroundElevated;
+
+  return {
+    ...baseColors,
+    pageShellBg: background,
+    storeShellBg: background,
+    pagePanelBg,
+    pagePanelStrongBg,
+    mutedFieldBg: backgroundElevated,
+    blockCardBg: pagePanelBg,
+    blockPanelBg: pagePanelStrongBg,
+    testimonialCardBg: pagePanelBg,
+    testimonialCardFeaturedBg: pagePanelStrongBg || paperMuted,
+    newsletterShellBg: pagePanelStrongBg,
+    accountShellBg: background,
+    accountSidebarBg: pagePanelBg,
+    accountGroupBg: pagePanelStrongBg,
+    accountItemBg: pagePanelBg,
+    accountItemBgActive: pagePanelStrongBg || paperMuted,
+    accountItemBorder: border,
+    accountItemBorderActive: borderStrong,
+  };
+}
+
+function scopeCategoriesToStore(items: Category[], storeId?: number | null) {
+  const activeStoreId =
+    storeId ??
+    (() => {
+      try {
+        return getClientStoreId();
+      } catch {
+        return null;
+      }
+    })();
+
+  if (!activeStoreId) {
+    return items;
+  }
+
+  const scoped = items.filter((item) => item.storeId === activeStoreId);
+  return scoped.length > 0 ? scoped : items;
+}
+
 export default function DeveloperModePanel({
   user,
   forceExpanded = false,
@@ -159,6 +602,7 @@ export default function DeveloperModePanel({
   user: User;
   forceExpanded?: boolean;
 }) {
+  const panelRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(forceExpanded);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -168,7 +612,9 @@ export default function DeveloperModePanel({
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [config, setConfig] = useState<StorefrontConfig | null>(null);
-  const [activeSection, setActiveSection] = useState<"blocks" | "integrations">("blocks");
+  const [activeSection, setActiveSection] = useState<"blocks" | "theme" | "integrations">("blocks");
+  const [activeThemeGroup, setActiveThemeGroup] = useState<"base" | "storefront" | "workspace">("base");
+  const [showAdvancedThemeOptions, setShowAdvancedThemeOptions] = useState(false);
   const [activeBlockIndex, setActiveBlockIndex] = useState(0);
   const [mercadoPagoConfig, setMercadoPagoConfig] = useState<AdminMercadoPagoConfig>({
     publicKey: "",
@@ -177,6 +623,12 @@ export default function DeveloperModePanel({
   });
   const [mercadoPagoTestResult, setMercadoPagoTestResult] = useState<MercadoPagoTestResult | null>(null);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [draggedBlockIndex, setDraggedBlockIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  const [newBlockType, setNewBlockType] = useState<string>(availableBlockTypes[0]);
+  const [blockContextMenu, setBlockContextMenu] = useState<BlockContextMenuState>(null);
+  const [savedConfigSnapshot, setSavedConfigSnapshot] = useState("");
+  const [savedMercadoPagoSnapshot, setSavedMercadoPagoSnapshot] = useState("");
 
   useEffect(() => {
     if (!expanded) {
@@ -202,13 +654,25 @@ export default function DeveloperModePanel({
         }
 
         setConfig(mergeStorefrontConfig(user, storefrontResponse?.storefrontConfig));
+        setSavedConfigSnapshot(JSON.stringify(mergeStorefrontConfig(user, storefrontResponse?.storefrontConfig) ?? null));
         setProducts(Array.isArray(productsResponse) ? productsResponse : []);
-        setCategories(Array.isArray(categoriesResponse) ? categoriesResponse : []);
+        setCategories(
+          Array.isArray(categoriesResponse)
+            ? scopeCategoriesToStore(categoriesResponse as Category[], user.storeId)
+            : [],
+        );
         setMercadoPagoConfig({
           publicKey: String(integrationsResponse?.mercadopago?.publicKey ?? ""),
           accessToken: String(integrationsResponse?.mercadopago?.accessToken ?? ""),
           webhookSecret: String(integrationsResponse?.mercadopago?.webhookSecret ?? ""),
         });
+        setSavedMercadoPagoSnapshot(
+          JSON.stringify({
+            publicKey: String(integrationsResponse?.mercadopago?.publicKey ?? ""),
+            accessToken: String(integrationsResponse?.mercadopago?.accessToken ?? ""),
+            webhookSecret: String(integrationsResponse?.mercadopago?.webhookSecret ?? ""),
+          }),
+        );
         setMercadoPagoTestResult(null);
       } catch (err) {
         if (!active) {
@@ -232,6 +696,109 @@ export default function DeveloperModePanel({
 
   const blocks = config?.pages.home ?? [];
   const activeBlock = blocks[activeBlockIndex] ?? null;
+  const currentThemeName = config?.theme ?? "";
+  const currentThemeDefinition = themes[currentThemeName as keyof typeof themes];
+  const defaultThemePalette = useMemo(() => {
+    const rawColors =
+      currentThemeDefinition?.tokens?.colors && typeof currentThemeDefinition.tokens.colors === "object"
+        ? (currentThemeDefinition.tokens.colors as Record<string, unknown>)
+        : {};
+
+    const baseDefaults = themePaletteColorKeys.reduce<ThemePalette>((acc, key) => {
+      const value = rawColors[key];
+      if (typeof value === "string") {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+
+    return buildThemePaletteDefaults(baseDefaults);
+  }, [currentThemeDefinition]);
+  const hasUnsavedStorefrontChanges = useMemo(
+    () => JSON.stringify(config ?? null) !== savedConfigSnapshot,
+    [config, savedConfigSnapshot],
+  );
+  const hasUnsavedIntegrationChanges = useMemo(
+    () => JSON.stringify(mercadoPagoConfig) !== savedMercadoPagoSnapshot,
+    [mercadoPagoConfig, savedMercadoPagoSnapshot],
+  );
+  const hasUnsavedChanges =
+    activeSection === "integrations" ? hasUnsavedIntegrationChanges : hasUnsavedStorefrontChanges;
+  const visibleThemePaletteGroups = useMemo(
+    () =>
+      themePaletteGroups.map((group) => ({
+        ...group,
+        fields: group.fields.filter((field) => showAdvancedThemeOptions || !field.advanced),
+      })),
+    [showAdvancedThemeOptions],
+  );
+
+  useEffect(() => {
+    const sectionElement = panelRef.current;
+    const themeClassName = currentThemeDefinition?.className;
+    const hasThemePreview =
+      activeSection === "theme" && Boolean(config?.themePalette && Object.keys(config.themePalette).length > 0);
+
+    if (!sectionElement || !themeClassName || !config || !hasThemePreview) {
+      return;
+    }
+
+    const themeRoot = sectionElement.closest(`.${themeClassName}`) as HTMLElement | null;
+    if (!themeRoot) {
+      return;
+    }
+
+    const nextThemeStyle = buildThemeStyle(currentThemeDefinition.tokens, config.themePalette);
+    const appliedKeys = Object.keys(nextThemeStyle);
+    const previousInlineStyles = new Map<string, string>();
+
+    for (const [key, value] of Object.entries(nextThemeStyle)) {
+      previousInlineStyles.set(key, themeRoot.style.getPropertyValue(key));
+      themeRoot.style.setProperty(key, String(value));
+    }
+
+    return () => {
+      for (const key of appliedKeys) {
+        const previousValue = previousInlineStyles.get(key) ?? "";
+        if (previousValue) {
+          themeRoot.style.setProperty(key, previousValue);
+        } else {
+          themeRoot.style.removeProperty(key);
+        }
+      }
+    };
+  }, [activeSection, config, currentThemeDefinition]);
+
+  useEffect(() => {
+    if (blocks.length === 0) {
+      if (activeBlockIndex !== 0) {
+        setActiveBlockIndex(0);
+      }
+      return;
+    }
+
+    if (activeBlockIndex > blocks.length - 1) {
+      setActiveBlockIndex(blocks.length - 1);
+    }
+  }, [activeBlockIndex, blocks.length]);
+
+  useEffect(() => {
+    if (!blockContextMenu) {
+      return;
+    }
+
+    const closeMenu = () => setBlockContextMenu(null);
+
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [blockContextMenu]);
 
   const categoryOptions = useMemo(
     () => [{ label: "Sin filtro de categoria", value: "" }].concat(
@@ -277,6 +844,81 @@ export default function DeveloperModePanel({
     });
   };
 
+  const updateThemePaletteField = (fieldKey: ThemePaletteKey, value: string) => {
+    setConfig((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextValue = value.trim();
+      const nextPalette = {
+        ...(current.themePalette ?? {}),
+      };
+
+      if (!nextValue) {
+        delete nextPalette[fieldKey];
+      } else {
+        nextPalette[fieldKey] = nextValue;
+      }
+
+      return {
+        ...current,
+        themePalette: Object.keys(nextPalette).length > 0 ? nextPalette : undefined,
+      };
+    });
+  };
+
+  const updateThemePaletteRgbChannel = (
+    fieldKey: ThemePaletteKey,
+    channel: keyof RgbColor,
+    value: string,
+    fallbackColor: string,
+  ) => {
+    const parsedBase = parseColorToRgb(config?.themePalette?.[fieldKey] ?? "") ?? parseColorToRgb(fallbackColor) ?? {
+      r: 0,
+      g: 0,
+      b: 0,
+    };
+
+    const numericValue = Number(value);
+    const nextColor = {
+      ...parsedBase,
+      [channel]: Number.isFinite(numericValue) ? clampRgbChannel(numericValue) : 0,
+    };
+
+    updateThemePaletteField(fieldKey, formatRgbColor(nextColor));
+  };
+
+  const resetThemePalette = () => {
+    setConfig((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        themePalette: undefined,
+      };
+    });
+    setSuccess("");
+    setError("");
+  };
+
+  const applyThemePreset = (presetPalette: ThemePalette) => {
+    setConfig((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        themePalette: { ...presetPalette },
+      };
+    });
+    setSuccess("");
+    setError("");
+  };
+
   const toggleProduct = (productId: number) => {
     if (!activeBlock) {
       return;
@@ -309,6 +951,115 @@ export default function DeveloperModePanel({
       [fieldKey]: value,
     };
     updateField("slides", slides);
+  };
+
+  const reorderBlocks = (fromIndex: number, toIndex: number) => {
+    if (!config || fromIndex === toIndex || fromIndex < 0 || toIndex < 0) {
+      return;
+    }
+
+    setConfig((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextBlocks = [...current.pages.home];
+      const [movedBlock] = nextBlocks.splice(fromIndex, 1);
+
+      if (!movedBlock) {
+        return current;
+      }
+
+      nextBlocks.splice(toIndex, 0, movedBlock);
+
+      return {
+        ...current,
+        pages: {
+          ...current.pages,
+          home: nextBlocks,
+        },
+      };
+    });
+
+    setActiveBlockIndex((currentIndex) => {
+      if (currentIndex === fromIndex) {
+        return toIndex;
+      }
+
+      if (fromIndex < currentIndex && currentIndex <= toIndex) {
+        return currentIndex - 1;
+      }
+
+      if (toIndex <= currentIndex && currentIndex < fromIndex) {
+        return currentIndex + 1;
+      }
+
+      return currentIndex;
+    });
+    setDraggedBlockIndex(null);
+    setDropTargetIndex(null);
+    setBlockContextMenu(null);
+  };
+
+  const addBlock = () => {
+    if (!config) {
+      return;
+    }
+
+    const nextBlock = createDefaultBlock(newBlockType, config.theme);
+    const insertIndex = activeBlock ? activeBlockIndex + 1 : blocks.length;
+
+    setConfig((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextBlocks = [...current.pages.home];
+      nextBlocks.splice(insertIndex, 0, nextBlock);
+
+      return {
+        ...current,
+        pages: {
+          ...current.pages,
+          home: nextBlocks,
+        },
+      };
+    });
+
+    setActiveBlockIndex(insertIndex);
+    setSuccess("");
+    setError("");
+    setBlockContextMenu(null);
+  };
+
+  const removeBlock = (index: number) => {
+    setConfig((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        pages: {
+          ...current.pages,
+          home: current.pages.home.filter((_, blockIndex) => blockIndex !== index),
+        },
+      };
+    });
+
+    setActiveBlockIndex((currentIndex) => {
+      if (index === currentIndex) {
+        return Math.max(0, currentIndex - 1);
+      }
+
+      if (index < currentIndex) {
+        return currentIndex - 1;
+      }
+
+      return currentIndex;
+    });
+    setSuccess("");
+    setError("");
   };
 
   const uploadAsset = async (file: File) => {
@@ -404,6 +1155,7 @@ export default function DeveloperModePanel({
 
     setConfig({
       theme: fallback.theme,
+      themePalette: fallback.themePalette,
       pages: {
         home: fallback.pages.home,
       },
@@ -431,6 +1183,13 @@ export default function DeveloperModePanel({
           accessToken: String(response?.mercadopago?.accessToken ?? ""),
           webhookSecret: String(response?.mercadopago?.webhookSecret ?? ""),
         });
+        setSavedMercadoPagoSnapshot(
+          JSON.stringify({
+            publicKey: String(response?.mercadopago?.publicKey ?? ""),
+            accessToken: String(response?.mercadopago?.accessToken ?? ""),
+            webhookSecret: String(response?.mercadopago?.webhookSecret ?? ""),
+          }),
+        );
         setSuccess("La configuracion de Mercado Pago se guardo correctamente.");
       } catch (err) {
         setError(err instanceof Error ? err.message : "No se pudo guardar la integracion.");
@@ -456,8 +1215,13 @@ export default function DeveloperModePanel({
         }),
       });
 
-      setConfig(mergeStorefrontConfig(user, response?.storefrontConfig));
+      const mergedConfig = mergeStorefrontConfig(user, response?.storefrontConfig);
+      setConfig(mergedConfig);
+      setSavedConfigSnapshot(JSON.stringify(mergedConfig ?? null));
       setSuccess("La configuracion de bloques se guardo correctamente.");
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 180);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la configuracion.");
     } finally {
@@ -494,7 +1258,7 @@ export default function DeveloperModePanel({
   };
 
   return (
-    <section style={cardStyle}>
+    <section ref={panelRef} style={cardStyle}>
       {!forceExpanded ? (
         <div style={headerStyle}>
           <div>
@@ -522,6 +1286,13 @@ export default function DeveloperModePanel({
             </button>
             <button
               type="button"
+              onClick={() => setActiveSection("theme")}
+              style={sectionTabButtonStyle(activeSection === "theme")}
+            >
+              Theme
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveSection("integrations")}
               style={sectionTabButtonStyle(activeSection === "integrations")}
             >
@@ -529,22 +1300,151 @@ export default function DeveloperModePanel({
             </button>
           </div>
 
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || loading || (activeSection !== "integrations" && !config) || !hasUnsavedChanges}
+              style={primaryButtonStyle}
+            >
+              {saving
+                ? "Guardando..."
+                : activeSection === "integrations"
+                  ? "Guardar integracion"
+                  : activeSection === "theme"
+                    ? "Guardar theme"
+                    : "Guardar bloques"}
+            </button>
+            <div style={saveStatusChipStyle(hasUnsavedChanges)}>
+              <strong>{hasUnsavedChanges ? "Cambios sin guardar" : "Todo guardado"}</strong>
+              <span>{hasUnsavedChanges ? "Estas viendo preview en vivo" : "Sincronizado con la tienda"}</span>
+            </div>
+            {activeSection === "integrations" ? (
+              <button
+                type="button"
+                onClick={testMercadoPago}
+                disabled={saving || loading || testingIntegration}
+                style={secondaryButtonStyle}
+              >
+                {testingIntegration ? "Probando..." : "Probar integracion"}
+              </button>
+            ) : (
+              <button type="button" onClick={resetToDefaults} disabled={saving || loading} style={secondaryButtonStyle}>
+                Restaurar defaults
+              </button>
+            )}
+          </div>
+
           <div style={developerGridStyle}>
             {activeSection === "blocks" ? (
               <div style={menuCardStyle}>
                 <strong style={{ fontSize: 16 }}>Bloques activos</strong>
+                <p style={{ ...hintStyle, margin: 0 }}>
+                  Arrastra para reordenar. Click derecho sobre una card para eliminarla.
+                </p>
+                <div style={addBlockPanelStyle}>
+                  <select
+                    value={newBlockType}
+                    onChange={(event) => setNewBlockType(event.target.value)}
+                    style={inputStyle}
+                  >
+                    {availableBlockTypes.map((blockType) => (
+                      <option key={blockType} value={blockType}>
+                        {blockLabels[blockType] ?? blockType}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={addBlock} disabled={!config} style={secondaryButtonStyle}>
+                    Agregar bloque
+                  </button>
+                </div>
                 <div style={{ display: "grid", gap: 10 }}>
                   {blocks.map((block, index) => (
-                    <button
+                    <div
                       key={`${block.type}-${index}`}
-                      type="button"
-                      onClick={() => setActiveBlockIndex(index)}
-                      style={blockNavStyle(index === activeBlockIndex)}
+                      draggable
+                      onDragStart={() => {
+                        setDraggedBlockIndex(index);
+                        setDropTargetIndex(index);
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        if (draggedBlockIndex !== null && draggedBlockIndex !== index) {
+                          setDropTargetIndex(index);
+                        }
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (draggedBlockIndex !== null) {
+                          reorderBlocks(draggedBlockIndex, index);
+                        }
+                      }}
+                      onDragEnd={() => {
+                        setDraggedBlockIndex(null);
+                        setDropTargetIndex(null);
+                      }}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        setBlockContextMenu({
+                          index,
+                          x: event.clientX,
+                          y: event.clientY,
+                        });
+                      }}
+                      style={blockListItemStyle}
                     >
-                      <strong>{String(index + 1).padStart(2, "0")}</strong>
-                      <span>{blockLabels[block.type] ?? block.type}</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveBlockIndex(index)}
+                        style={blockNavStyle(index === activeBlockIndex)}
+                      >
+                        <strong>{String(index + 1).padStart(2, "0")}</strong>
+                        <span>{blockLabels[block.type] ?? block.type}</span>
+                        {draggedBlockIndex === index ? (
+                          <span style={dragHintStyle}>Moviendo...</span>
+                        ) : dropTargetIndex === index && draggedBlockIndex !== null ? (
+                          <span style={dragHintStyle}>Soltar aca</span>
+                        ) : (
+                          <span style={dragHintStyle}>Arrastrar para reordenar</span>
+                        )}
+                      </button>
+                    </div>
                   ))}
+                </div>
+                {blockContextMenu ? (
+                  <div
+                    style={{
+                      ...contextMenuStyle,
+                      left: blockContextMenu.x,
+                      top: blockContextMenu.y,
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => removeBlock(blockContextMenu.index)}
+                      style={contextMenuDangerButtonStyle}
+                    >
+                      Eliminar bloque
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : activeSection === "theme" ? (
+              <div style={menuCardStyle}>
+                <strong style={{ fontSize: 16 }}>Theme</strong>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <button type="button" style={blockNavStyle(true)}>
+                    <strong>01</strong>
+                    <span>Paleta global</span>
+                    <span style={dragHintStyle}>
+                      {hasUnsavedStorefrontChanges
+                        ? "Tienes cambios sin guardar"
+                        : Object.keys(config?.themePalette ?? {}).length > 0
+                          ? `${Object.keys(config?.themePalette ?? {}).length} colores personalizados`
+                          : "Usando colores por defecto"}
+                    </span>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -564,6 +1464,8 @@ export default function DeveloperModePanel({
                 <p style={copyStyle}>
                   {activeSection === "blocks"
                     ? "Cargando configuracion de bloques..."
+                    : activeSection === "theme"
+                      ? "Cargando configuracion del theme..."
                     : "Cargando integraciones..."}
                 </p>
               ) : activeSection === "integrations" ? (
@@ -675,8 +1577,166 @@ export default function DeveloperModePanel({
                     ) : null}
                   </div>
                 </>
+              ) : activeSection === "theme" ? (
+                <div style={themePaletteCardStyle}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <p style={eyebrowStyle}>Theme</p>
+                      <h4 style={{ margin: 0, fontSize: 22 }}>Paleta global</h4>
+                      <p style={copyStyle}>
+                        Haz click en el color para abrir el selector y ajusta cada tono con los canales RGB si quieres mayor precision.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetThemePalette}
+                      disabled={!config || Object.keys(config.themePalette ?? {}).length === 0}
+                      style={secondaryButtonStyle}
+                    >
+                      Restaurar paleta
+                    </button>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                      <strong style={{ fontSize: 14 }}>Presets de paleta</strong>
+                      <label style={advancedToggleStyle}>
+                        <input
+                          type="checkbox"
+                          checked={showAdvancedThemeOptions}
+                          onChange={(event) => setShowAdvancedThemeOptions(event.target.checked)}
+                        />
+                        <span>Mostrar opciones avanzadas</span>
+                      </label>
+                    </div>
+
+                    <div style={presetGridStyle}>
+                      {themePalettePresets.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applyThemePreset(preset.palette)}
+                          style={presetCardStyle}
+                        >
+                          <strong>{preset.label}</strong>
+                          <span style={presetDescriptionStyle}>{preset.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={themeGroupTabsStyle}>
+                    {visibleThemePaletteGroups.map((group) => (
+                      <button
+                        key={group.id}
+                        type="button"
+                        onClick={() => setActiveThemeGroup(group.id)}
+                        style={themeGroupTabButtonStyle(activeThemeGroup === group.id)}
+                      >
+                        {group.title}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "grid", gap: 18 }}>
+                    {visibleThemePaletteGroups
+                      .filter((group) => group.id === activeThemeGroup)
+                      .map((group) => (
+                      <section key={group.title} style={{ display: "grid", gap: 12 }}>
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <h5 style={themePaletteGroupTitleStyle}>{group.title}</h5>
+                          <p style={themePaletteGroupDescriptionStyle}>{group.description}</p>
+                        </div>
+
+                        <div style={themePaletteGridStyle}>
+                          {group.fields.map((field) => {
+                            const overrideValue = config?.themePalette?.[field.key] ?? "";
+                            const resolvedValue = overrideValue || defaultThemePalette[field.key] || "";
+                            const parsedRgb = parseColorToRgb(resolvedValue) ?? { r: 0, g: 0, b: 0 };
+                            const pickerColor = `#${parsedRgb.r.toString(16).padStart(2, "0")}${parsedRgb.g
+                              .toString(16)
+                              .padStart(2, "0")}${parsedRgb.b.toString(16).padStart(2, "0")}`;
+                            const autoSourceText =
+                              field.autoSourceLabel ??
+                              (defaultThemePalette[field.key] ? `Default: ${defaultThemePalette[field.key]}` : "Sin valor base");
+
+                            return (
+                              <div key={field.key} style={themePaletteFieldStyle}>
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                                  <div style={{ display: "grid", gap: 4 }}>
+                                    <label style={labelStyle}>{field.label}</label>
+                                    <p style={themePaletteDescriptionStyle}>{field.description}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateThemePaletteField(field.key, "")}
+                                    disabled={!overrideValue}
+                                    style={miniGhostButtonStyle(!overrideValue)}
+                                  >
+                                    Default
+                                  </button>
+                                </div>
+                                <div style={themePaletteInputRowStyle}>
+                                  <label style={themePalettePickerLabelStyle(resolvedValue)}>
+                                    <input
+                                      type="color"
+                                      value={pickerColor}
+                                      onChange={(event) => {
+                                        const nextRgb = parseColorToRgb(event.target.value) ?? parsedRgb;
+                                        updateThemePaletteField(field.key, formatRgbColor(nextRgb));
+                                      }}
+                                      style={themePaletteNativePickerStyle}
+                                    />
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={overrideValue}
+                                    onChange={(event) => updateThemePaletteField(field.key, event.target.value)}
+                                    placeholder={defaultThemePalette[field.key] ?? "Ej: rgb(17, 17, 17)"}
+                                    style={inputStyle}
+                                  />
+                                </div>
+                                <div style={rgbInputsGridStyle}>
+                                  {(["r", "g", "b"] as const).map((channel) => (
+                                    <label key={channel} style={rgbChannelFieldStyle}>
+                                      <span style={rgbChannelLabelStyle}>{channel.toUpperCase()}</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={255}
+                                        step={1}
+                                        value={parsedRgb[channel]}
+                                        onChange={(event) =>
+                                          updateThemePaletteRgbChannel(
+                                            field.key,
+                                            channel,
+                                            event.target.value,
+                                            defaultThemePalette[field.key] ?? "",
+                                          )
+                                        }
+                                        style={rgbChannelInputStyle}
+                                      />
+                                    </label>
+                                  ))}
+                                </div>
+                                <p style={hintStyle}>
+                                  {overrideValue
+                                    ? `Personalizado: ${overrideValue}`
+                                    : autoSourceText}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </div>
               ) : !activeBlock ? (
-                <p style={copyStyle}>No encontramos bloques para esta tienda.</p>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <p style={copyStyle}>No encontramos bloques para esta tienda.</p>
+                  <p style={hintStyle}>Puedes crear uno nuevo desde el selector de la columna izquierda.</p>
+                </div>
               ) : (
                 <>
                   <div style={{ display: "grid", gap: 8 }}>
@@ -687,6 +1747,11 @@ export default function DeveloperModePanel({
                   </div>
 
                   <div style={{ display: "grid", gap: 14 }}>
+                    {(blockFieldMap[activeBlock.type] ?? []).length === 0 ? (
+                      <p style={hintStyle}>
+                        Este bloque no tiene campos editables desde el panel por ahora, pero puedes moverlo o eliminarlo.
+                      </p>
+                    ) : null}
                     {(blockFieldMap[activeBlock.type] ?? []).map((field) => {
                       if (field.type === "products") {
                         const selectedProductIds = Array.isArray(activeBlock.props?.productIds)
@@ -917,35 +1982,6 @@ export default function DeveloperModePanel({
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving || loading || (activeSection === "blocks" && !config)}
-              style={primaryButtonStyle}
-            >
-              {saving
-                ? "Guardando..."
-                : activeSection === "integrations"
-                  ? "Guardar integracion"
-                  : "Guardar bloques"}
-            </button>
-            {activeSection === "integrations" ? (
-              <button
-                type="button"
-                onClick={testMercadoPago}
-                disabled={saving || loading || testingIntegration}
-                style={secondaryButtonStyle}
-              >
-                {testingIntegration ? "Probando..." : "Probar integracion"}
-              </button>
-            ) : (
-              <button type="button" onClick={resetToDefaults} disabled={saving || loading} style={secondaryButtonStyle}>
-                Restaurar defaults
-              </button>
-            )}
-          </div>
-
           {error ? <p style={errorStyle}>{error}</p> : null}
           {success ? <p style={successStyle}>{success}</p> : null}
         </div>
@@ -984,6 +2020,11 @@ const sectionTabsStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
+const addBlockPanelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+
 const menuCardStyle: React.CSSProperties = {
   borderRadius: 24,
   border: "1px solid var(--account-item-border)",
@@ -1001,6 +2042,184 @@ const editorCardStyle: React.CSSProperties = {
   display: "grid",
   gap: 18,
 };
+
+const themePaletteCardStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 16,
+  padding: 18,
+  borderRadius: 22,
+  border: "1px solid var(--account-item-border)",
+  background: "rgba(255,255,255,0.03)",
+};
+
+const themePaletteGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};
+
+const themePaletteFieldStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  padding: 14,
+  borderRadius: 18,
+  border: "1px solid var(--account-item-border)",
+  background: "rgba(255,255,255,0.03)",
+};
+
+const themePaletteDescriptionStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: 1.45,
+  color: "var(--account-text-soft)",
+};
+
+const themePaletteGroupTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 16,
+  color: "var(--account-text-strong)",
+};
+
+const themePaletteGroupDescriptionStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: "var(--account-text-soft)",
+};
+
+const themeGroupTabsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const themeGroupTabButtonStyle = (active: boolean): React.CSSProperties => ({
+  padding: "10px 14px",
+  borderRadius: 999,
+  border: active ? "1px solid var(--account-item-border-active)" : "1px solid var(--account-item-border)",
+  background: active ? "var(--account-item-bg-active)" : "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+  flex: "0 1 auto",
+});
+
+const presetGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+};
+
+const presetCardStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+  padding: "12px 14px",
+  borderRadius: 16,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  textAlign: "left",
+};
+
+const presetDescriptionStyle: React.CSSProperties = {
+  fontSize: 12,
+  lineHeight: 1.45,
+  color: "var(--account-text-soft)",
+};
+
+const advancedToggleStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  fontSize: 13,
+  color: "var(--account-text-strong)",
+  flexWrap: "wrap",
+};
+
+const saveStatusChipStyle = (dirty: boolean): React.CSSProperties => ({
+  display: "grid",
+  gap: 2,
+  padding: "10px 14px",
+  borderRadius: 16,
+  border: dirty
+    ? "1px solid color-mix(in srgb, var(--theme-colors-accent) 34%, var(--account-item-border-active))"
+    : "1px solid var(--account-item-border)",
+  background: dirty
+    ? "color-mix(in srgb, var(--theme-colors-accent) 14%, var(--page-panel-bg))"
+    : "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  minWidth: 180,
+});
+
+const themePaletteInputRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "40px minmax(0, 1fr)",
+  gap: 10,
+  alignItems: "center",
+};
+
+const rgbInputsGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 8,
+};
+
+const rgbChannelFieldStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+};
+
+const rgbChannelLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "var(--account-text-soft)",
+};
+
+const rgbChannelInputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid var(--account-item-border)",
+  background: "rgba(255,255,255,0.03)",
+  color: "var(--page-fg)",
+  fontSize: 14,
+};
+
+const themePalettePickerLabelStyle = (value: string): React.CSSProperties => ({
+  width: 40,
+  height: 40,
+  display: "block",
+  position: "relative",
+  borderRadius: 12,
+  border: "1px solid var(--account-item-border)",
+  background: value || "linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))",
+  overflow: "hidden",
+  cursor: "pointer",
+});
+
+const themePaletteNativePickerStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  opacity: 0,
+  cursor: "pointer",
+};
+
+const miniGhostButtonStyle = (disabled: boolean): React.CSSProperties => ({
+  borderRadius: 999,
+  border: "1px solid var(--account-item-border)",
+  background: "transparent",
+  color: "var(--page-fg)",
+  fontSize: 12,
+  padding: "6px 10px",
+  cursor: disabled ? "not-allowed" : "pointer",
+  opacity: disabled ? 0.45 : 1,
+});
 
 const eyebrowStyle: React.CSSProperties = {
   margin: 0,
@@ -1031,6 +2250,30 @@ const hintStyle: React.CSSProperties = {
   color: "var(--account-text-soft)",
   fontSize: 13,
   lineHeight: 1.6,
+};
+
+const dragHintStyle: React.CSSProperties = {
+  color: "var(--account-text-soft)",
+  fontSize: 12,
+  lineHeight: 1.4,
+};
+
+const blockListItemStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr)",
+  gap: 0,
+  alignItems: "stretch",
+};
+
+const contextMenuStyle: React.CSSProperties = {
+  position: "fixed",
+  zIndex: 1200,
+  minWidth: 188,
+  padding: 8,
+  borderRadius: 16,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--page-panel-strong-bg)",
+  boxShadow: "0 18px 40px rgba(24, 16, 12, 0.12)",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -1081,6 +2324,17 @@ const dangerButtonStyle: React.CSSProperties = {
   border: "1px solid var(--admin-danger-border)",
   borderRadius: 999,
   cursor: "pointer",
+};
+
+const contextMenuDangerButtonStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  background: "transparent",
+  color: "var(--admin-danger-color)",
+  border: "1px solid transparent",
+  borderRadius: 12,
+  cursor: "pointer",
+  textAlign: "left",
 };
 
 const errorStyle: React.CSSProperties = {

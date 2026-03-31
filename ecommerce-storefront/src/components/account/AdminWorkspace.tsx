@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 import {
   clampImageOffset,
   clampImageZoom,
@@ -68,6 +69,7 @@ type Category = {
   slug: string;
   imageUrl?: string | null;
   productsCount?: number;
+  storeId?: number | null;
 };
 type Customer = {
   id: number;
@@ -199,6 +201,23 @@ const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
 };
 
+function scopeCategoriesToActiveStore(items: Category[]) {
+  const storeId = (() => {
+    try {
+      return getClientStoreId();
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!storeId) {
+    return items;
+  }
+
+  const scoped = items.filter((item) => item.storeId === storeId);
+  return scoped.length > 0 ? scoped : items;
+}
+
 export default function AdminWorkspace({
   section,
   user,
@@ -251,7 +270,7 @@ function AdminOverviewSection({
           api("/returns"),
         ]);
         setProducts(Array.isArray(p) ? p : []);
-        setCategories(Array.isArray(c) ? c : []);
+        setCategories(Array.isArray(c) ? scopeCategoriesToActiveStore(c as Category[]) : []);
         setOrders(Array.isArray(o) ? o : []);
         setCustomers(Array.isArray(u) ? u : []);
         setShipments(Array.isArray(s) ? (s as AdminShipment[]) : []);
@@ -443,7 +462,7 @@ function AdminProductsSection({
       ]);
       const nextProducts = Array.isArray(p) ? p : [];
       setProducts(nextProducts);
-      setCategories(Array.isArray(c) ? c : []);
+      setCategories(Array.isArray(c) ? scopeCategoriesToActiveStore(c as Category[]) : []);
       setOptions(Array.isArray(o) ? o : []);
       return nextProducts;
     } catch (err) {
@@ -2889,7 +2908,7 @@ function AdminCategoriesManager() {
       try {
         setError("");
         const data = await api("/categories");
-        setCategories(Array.isArray(data) ? data : []);
+        setCategories(Array.isArray(data) ? scopeCategoriesToActiveStore(data as Category[]) : []);
       } catch (err) {
         setError(
           err instanceof Error

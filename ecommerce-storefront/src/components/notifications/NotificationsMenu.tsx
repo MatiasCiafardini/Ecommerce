@@ -47,6 +47,7 @@ export function NotificationsMenuInner({
     }
 
     let active = true;
+    const storageKey = readStorageKey(user.id, user.role);
 
     const loadNotifications = async () => {
       try {
@@ -61,6 +62,9 @@ export function NotificationsMenuInner({
         }
 
         setItems(Array.isArray(response?.items) ? (response.items as NotificationItem[]) : []);
+        const now = new Date().toISOString();
+        localStorage.setItem(storageKey, now);
+        setLastSeenAt(now);
       } catch {
         if (active) {
           setItems([]);
@@ -78,15 +82,6 @@ export function NotificationsMenuInner({
       active = false;
     };
   }, [isAdmin, open, user]);
-
-  useEffect(() => {
-    if (!open || !user) return;
-
-    const now = new Date().toISOString();
-    const storageKey = readStorageKey(user.id, user.role);
-    localStorage.setItem(storageKey, now);
-    setLastSeenAt(now);
-  }, [open, user]);
 
   useEffect(() => {
     if (!open) return;
@@ -195,7 +190,7 @@ export function NotificationsMenuInner({
                 {loading ? (
                   <div style={emptyStyle}>Cargando notificaciones...</div>
                 ) : items.length === 0 ? (
-                  <div style={emptyStyle}>Todavia no hay novedades para mostrar.</div>
+                  <div style={emptyStyle}>Todavía no hay novedades para mostrar.</div>
                 ) : (
                   items.slice(0, 8).map((item) => (
                     <Link
@@ -243,7 +238,7 @@ export function NotificationsMenuInner({
               {loading ? (
                 <div style={emptyStyle}>Cargando notificaciones...</div>
               ) : items.length === 0 ? (
-                <div style={emptyStyle}>Todavia no hay novedades para mostrar.</div>
+                <div style={emptyStyle}>Todavía no hay novedades para mostrar.</div>
               ) : (
                 items.slice(0, 8).map((item) => (
                   <Link

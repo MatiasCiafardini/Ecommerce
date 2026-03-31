@@ -106,7 +106,7 @@ export default function AdminReturnsSection() {
           : "Devolución rechazada.",
       );
     } catch (processError) {
-      setError(getErrorMessage(processError, "No se pudo procesar la devolucion."));
+      setError(getErrorMessage(processError, "No se pudo procesar la devolución."));
     } finally {
       setProcessingId(null);
     }
@@ -130,9 +130,13 @@ export default function AdminReturnsSection() {
       });
 
       await loadData();
-      setSuccess("Producto recibido. Se actualizó stock y la devolución quedó resuelta.");
+      setSuccess(
+        refundOnReceive[returnId] !== false
+          ? "Producto recibido. Se actualizó stock y la devolución quedó resuelta."
+          : "Producto recibido. La devolución quedó registrada como recibida.",
+      );
     } catch (processError) {
-      setError(getErrorMessage(processError, "No se pudo cerrar la devolución."));
+      setError(getErrorMessage(processError, "No se pudo procesar la devolución recibida."));
     } finally {
       setProcessingId(null);
     }
@@ -156,7 +160,11 @@ export default function AdminReturnsSection() {
       });
 
       await loadData();
-      setSuccess("La devolución recibida quedó resuelta correctamente.");
+      setSuccess(
+        refundOnReceive[returnId] !== false
+          ? "La devolución recibida quedó resuelta con reintegro."
+          : "La devolución recibida quedó marcada como resuelta.",
+      );
     } catch (processError) {
       setError(getErrorMessage(processError, "No se pudo resolver la devolución recibida."));
     } finally {
@@ -181,9 +189,7 @@ export default function AdminReturnsSection() {
       });
 
       await loadData();
-      setSuccess(
-        approve ? "Ticket de cancelación procesado correctamente." : "Ticket rechazado.",
-      );
+      setSuccess(approve ? "Ticket de cancelación procesado correctamente." : "Ticket rechazado.");
     } catch (processError) {
       setError(getErrorMessage(processError, "No se pudo procesar la cancelación."));
     } finally {
@@ -417,7 +423,11 @@ export default function AdminReturnsSection() {
                           disabled={processingId === entry.id}
                           style={primaryButtonStyle}
                         >
-                          {processingId === entry.id ? "Procesando..." : "Marcar recibido y resolver"}
+                          {processingId === entry.id
+                            ? "Procesando..."
+                            : shouldRefund
+                              ? "Marcar recibido y resolver"
+                              : "Marcar recibido"}
                         </button>
                       </div>
                     </article>
@@ -541,13 +551,13 @@ export default function AdminReturnsSection() {
             <div style={betweenStyle}>
               <div>
                 <p style={eyebrowStyle}>Recibidas</p>
-                <h3 style={title3Style}>Pendientes de resolucion</h3>
+                <h3 style={title3Style}>Pendientes de resolución</h3>
               </div>
               <span style={metaStyle}>{receivedReturns.length} recibidas</span>
             </div>
 
             {receivedReturns.length === 0 ? (
-              <StateCard label="No hay devoluciones recibidas pendientes de resolucion." />
+              <StateCard label="No hay devoluciones recibidas pendientes de resolución." />
             ) : (
               <div style={requestGridStyle}>
                 {receivedReturns.map((entry) => {
@@ -643,7 +653,7 @@ export default function AdminReturnsSection() {
             </div>
 
             {processedReturns.length === 0 ? (
-              <StateCard label="Todavia no hay devoluciones procesadas." />
+              <StateCard label="Todavía no hay devoluciones procesadas." />
             ) : (
               <div style={historyGridStyle}>
                 {processedReturns.map((entry) => {
@@ -658,7 +668,7 @@ export default function AdminReturnsSection() {
                         </span>
                       </div>
                       <p style={copyStyle}>
-                        Pedido #{entry.orderId} · {order ? orderCustomerName(order) : "Cliente no disponible"}
+                        Pedido #{entry.orderId} - {order ? orderCustomerName(order) : "Cliente no disponible"}
                       </p>
                       <p style={metaStyle}>
                         Creada {new Date(entry.createdAt).toLocaleString("es-AR")}
@@ -698,7 +708,7 @@ export default function AdminReturnsSection() {
             </div>
 
             {processedCancellations.length === 0 ? (
-              <StateCard label="Todavia no hay tickets de cancelación procesados." />
+              <StateCard label="Todavía no hay tickets de cancelación procesados." />
             ) : (
               <div style={historyGridStyle}>
                 {processedCancellations.map((entry) => (
@@ -710,7 +720,7 @@ export default function AdminReturnsSection() {
                       </span>
                     </div>
                     <p style={copyStyle}>
-                      Pedido #{entry.orderId} ·{" "}
+                      Pedido #{entry.orderId} -{" "}
                       {[entry.customer?.firstName, entry.customer?.lastName]
                         .filter(Boolean)
                         .join(" ")

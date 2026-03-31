@@ -71,14 +71,19 @@ export default function Header() {
         zIndex: 30,
         backdropFilter: "blur(18px)",
         background:
-          "linear-gradient(180deg, rgba(255,250,245,0.92) 0%, rgba(246,238,229,0.9) 100%)",
-        borderBottom: "1px solid rgba(117,92,76,0.1)",
+          "linear-gradient(180deg, rgba(198,186,176,0.94) 0%, rgba(188,176,166,0.92) 100%)",
+        borderBottom: "1px solid rgba(133,116,103,0.18)",
+        ["--header-action-border" as string]: "rgba(160, 141, 124, 0.18)",
+        ["--header-action-border-active" as string]: "rgba(160, 141, 124, 0.24)",
+        ["--header-action-bg" as string]: "#f1ebe4",
+        ["--header-action-bg-active" as string]: "#ece4db",
+        ["--header-action-color" as string]: "var(--theme-colors-text-strong)",
       }}
     >
       <div
         className="layout-header-bar"
         style={{
-          maxWidth: 1280,
+          maxWidth: "var(--store-wide-max)",
           margin: "0 auto",
           padding: "18px 20px",
           position: "relative",
@@ -136,10 +141,10 @@ export default function Header() {
               width: 108,
               height: 108,
               borderRadius: "50%",
-              border: "1px solid rgba(117,92,76,0.12)",
+              border: "1px solid rgba(160, 141, 124, 0.2)",
               boxShadow:
-                "0 0 0 10px rgba(255,250,245,0.96), 0 16px 30px rgba(117,92,76,0.12)",
-              background: "#fffdfa",
+                "0 0 0 10px rgba(198,186,176,0.94), 0 16px 30px rgba(110,84,53,0.12)",
+              background: "#ece4db",
               color: "var(--theme-colors-text-strong)",
               textDecoration: "none",
               display: "grid",
@@ -237,7 +242,7 @@ export default function Header() {
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(79,61,52,0.14)",
+              background: "rgba(95,69,41,0.14)",
               zIndex: 35,
             }}
           />
@@ -249,11 +254,11 @@ export default function Header() {
               left: 14,
               right: 14,
               zIndex: 40,
-              borderRadius: 30,
-              border: "1px solid rgba(117,92,76,0.1)",
+              borderRadius: 0,
+              border: "1px solid rgba(183,146,98,0.18)",
               background:
-                "linear-gradient(180deg, rgba(255,252,249,0.98), rgba(246,238,229,0.98))",
-              boxShadow: "0 26px 70px rgba(91,60,44,0.12)",
+                "linear-gradient(180deg, rgba(255,250,245,0.98), rgba(244,234,220,0.98))",
+              boxShadow: "0 26px 70px rgba(110,84,53,0.12)",
               padding: 22,
               display: "grid",
               gap: 18,
@@ -312,10 +317,10 @@ export default function Header() {
         .mimaria-header-logo:focus,
         .mimaria-header-logo:focus-visible,
         .mimaria-header-logo:active {
-          background: #fffdfa !important;
-          border-color: rgba(117, 92, 76, 0.12) !important;
-          box-shadow: 0 0 0 10px rgba(255, 250, 245, 0.96),
-            0 16px 30px rgba(117, 92, 76, 0.12) !important;
+          background: #ece4db !important;
+          border-color: rgba(160, 141, 124, 0.2) !important;
+          box-shadow: 0 0 0 10px rgba(198, 186, 176, 0.94),
+            0 16px 30px rgba(110, 84, 53, 0.12) !important;
           opacity: 1 !important;
           filter: none !important;
           transform: translateX(-50%) !important;
@@ -386,8 +391,14 @@ function AccountIcon() {
 const navLinkStyle = {
   textDecoration: "none",
   color: "var(--theme-colors-text-strong)",
-  padding: "10px 0",
+  padding: "10px 16px",
   fontSize: 14,
+  borderRadius: 999,
+  border: "1px solid rgba(160, 141, 124, 0.18)",
+  background: "#f1ebe4",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 } as const;
 
 const utilityLinkStyle = {
@@ -403,8 +414,8 @@ const iconActionStyle = {
   width: 46,
   height: 46,
   borderRadius: 999,
-  border: "1px solid rgba(117,92,76,0.12)",
-  background: "rgba(255,255,255,0.58)",
+  border: "1px solid rgba(160, 141, 124, 0.18)",
+  background: "#f1ebe4",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -436,8 +447,8 @@ const sessionButtonStyle = {
   minHeight: 46,
   padding: "0 18px",
   borderRadius: 999,
-  border: "1px solid rgba(117,92,76,0.14)",
-  background: "rgba(255,255,255,0.56)",
+  border: "1px solid rgba(160, 141, 124, 0.2)",
+  background: "#f1ebe4",
   color: "var(--theme-colors-text-strong)",
   textDecoration: "none",
   cursor: "pointer",
@@ -445,7 +456,7 @@ const sessionButtonStyle = {
 
 const placeholderStyle = {
   padding: "10px 14px",
-  borderRadius: 999,
+  borderRadius: 0,
   border: "1px solid rgba(117,92,76,0.12)",
   background: "rgba(255,255,255,0.36)",
   color: "var(--text-muted)",
@@ -465,7 +476,7 @@ const mobileLinkStyle = {
   color: "var(--theme-colors-text-strong)",
   textDecoration: "none",
   padding: "14px 16px",
-  borderRadius: 18,
+  borderRadius: 0,
   border: "1px solid rgba(117,92,76,0.08)",
   background: "rgba(255,255,255,0.7)",
 } as const;

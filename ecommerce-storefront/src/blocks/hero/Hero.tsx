@@ -55,7 +55,7 @@ export default async function Hero({
     >
       <div
         style={{
-          maxWidth: 1280,
+          maxWidth: "var(--store-wide-max)",
           margin: "0 auto",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",

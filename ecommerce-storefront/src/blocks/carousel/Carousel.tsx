@@ -23,7 +23,7 @@ export default async function Carousel({
         padding: "72px 20px",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+      <div style={{ maxWidth: "var(--store-wide-max)", margin: "0 auto" }}>
         <h2 style={{ marginBottom: "24px", fontSize: "clamp(1.8rem, 3vw, 3rem)", textTransform: "uppercase", letterSpacing: "-0.04em", color: "var(--text-strong)" }}>
           {title}
         </h2>

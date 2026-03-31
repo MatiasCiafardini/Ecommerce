@@ -6,6 +6,8 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "build": "nest build",
+    "test": "jest --runInBand src/modules/payments/payments.service.spec.ts src/modules/returns/returns.service.spec.ts",
+    "test:watch": "npm run test -- --watch",
     "test:ecommerce": "node scripts/test-ecommerce.js",
     "test:race": "node scripts/test-inventory-race.js",
     "test:load": "node scripts/test-orders-load.js",
@@ -44,9 +46,12 @@
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
     "@types/bcrypt": "^6.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "@types/passport-jwt": "^4.0.1",
+    "jest": "^30.3.0",
     "ts-node": "^10.9.2",
+    "ts-jest": "^29.4.5",
     "typescript": "^5.0.0"
   }
 }

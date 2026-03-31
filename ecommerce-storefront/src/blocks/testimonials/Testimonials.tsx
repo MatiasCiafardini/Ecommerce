@@ -21,7 +21,7 @@ export default function Testimonials() {
         padding: "84px 20px",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+      <div style={{ maxWidth: "var(--store-reading-max)", margin: "0 auto" }}>
         <h2
           style={{
             fontSize: "clamp(1.8rem, 3vw, 3rem)",

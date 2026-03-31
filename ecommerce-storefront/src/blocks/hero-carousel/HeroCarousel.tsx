@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { resolveAssetUrl } from "@/lib/asset-url";
 
 type HeroCarouselSlide = {
@@ -48,8 +48,6 @@ export default function HeroCarousel({
 }: Props) {
   const safeSlides = slides.length > 0 ? slides : defaultSlides;
   const [activeIndex, setActiveIndex] = useState(0);
-  const measureRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const [heroCardHeight, setHeroCardHeight] = useState("clamp(280px, 32vw, 360px)");
 
   useEffect(() => {
     if (safeSlides.length <= 1) {
@@ -62,29 +60,6 @@ export default function HeroCarousel({
 
     return () => window.clearInterval(interval);
   }, [safeSlides.length]);
-
-  useLayoutEffect(() => {
-    if (!showContentCard) {
-      return;
-    }
-
-    const measureHeight = () => {
-      const heights = measureRefs.current
-        .map((node) => node?.offsetHeight ?? 0)
-        .filter((height) => height > 0);
-
-      if (heights.length === 0) {
-        return;
-      }
-
-      setHeroCardHeight(`${Math.max(...heights)}px`);
-    };
-
-    measureHeight();
-    window.addEventListener("resize", measureHeight);
-
-    return () => window.removeEventListener("resize", measureHeight);
-  }, [safeSlides, buttonText, buttonLink, showContentCard]);
 
   const activeSlide = safeSlides[activeIndex];
   const activeSlideImage = resolveAssetUrl(activeSlide.image) ?? activeSlide.image;
@@ -141,106 +116,12 @@ export default function HeroCarousel({
           }}
         />
 
-        {showContentCard ? (
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              visibility: "hidden",
-              pointerEvents: "none",
-              overflow: "hidden",
-              zIndex: -1,
-            }}
-          >
-            <div
-              style={{
-                maxWidth: 1280,
-                margin: "0 auto",
-                padding: "48px 20px 84px",
-                display: "grid",
-              }}
-            >
-              {safeSlides.map((slide, index) => (
-                <div
-                  key={`${slide.title}-measure-${index}`}
-                  ref={(node) => {
-                    measureRefs.current[index] = node;
-                  }}
-                  style={{
-                    maxWidth: 560,
-                    display: "grid",
-                    gap: 16,
-                    padding: "28px",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
-                    {slide.eyebrow ? (
-                      <span
-                        style={{
-                          textTransform: "uppercase",
-                          letterSpacing: "0.18em",
-                          fontSize: 12,
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {slide.eyebrow}
-                      </span>
-                    ) : null}
-
-                    <h1
-                      style={{
-                        margin: 0,
-                        fontSize: "clamp(2.2rem, 6vw, 4.6rem)",
-                        lineHeight: 0.96,
-                        letterSpacing: "-0.05em",
-                      }}
-                    >
-                      {slide.title}
-                    </h1>
-
-                    {slide.subtitle ? (
-                      <p
-                        style={{
-                          margin: 0,
-                          maxWidth: 46 * 16,
-                          lineHeight: 1.7,
-                          fontSize: "1rem",
-                        }}
-                      >
-                        {slide.subtitle}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  {buttonText ? (
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "fit-content",
-                        minHeight: 48,
-                        padding: "0 22px",
-                        boxSizing: "border-box",
-                      }}
-                    >
-                      {buttonText}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
         <div
           style={{
             position: "relative",
             zIndex: 1,
             minHeight: "clamp(460px, 62vh, 600px)",
-            maxWidth: 1280,
+            maxWidth: "var(--store-wide-max)",
             margin: "0 auto",
             padding: "48px 20px 84px",
             display: "grid",
@@ -254,8 +135,7 @@ export default function HeroCarousel({
                 display: "grid",
                 gap: 16,
                 padding: "28px",
-                minHeight: heroCardHeight,
-                height: heroCardHeight,
+                minHeight: "clamp(360px, 42vw, 520px)",
                 borderRadius: "var(--theme-radius-panel)",
                 background: "color-mix(in srgb, var(--page-panel-bg) 82%, transparent)",
                 border: "1px solid var(--border-soft)",
@@ -329,62 +209,146 @@ export default function HeroCarousel({
                 </Link>
               ) : null}
             </div>
-          ) : null}
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: 22,
-            transform: "translateX(-50%)",
-            display: "flex",
-            gap: 10,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "10px 14px",
-            borderRadius: 999,
-            background: "color-mix(in srgb, var(--page-panel-bg) 82%, transparent)",
-            border: "1px solid var(--border-soft)",
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          {safeSlides.map((slide, index) => (
-            <button
-              key={`${slide.title}-${index}`}
-              type="button"
-              aria-label={`Ver banner ${index + 1}`}
-              aria-pressed={index === activeIndex}
-              onClick={() => setActiveIndex(index)}
+          ) : (
+            <div
               style={{
-                width: 18,
-                height: 18,
+                maxWidth: 620,
                 display: "grid",
-                placeItems: "center",
-                borderRadius: 999,
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                background: "transparent",
+                gap: 18,
+                justifyItems: activeSlide.align === "center" ? "center" : "start",
+                textAlign: activeSlide.align === "center" ? "center" : "left",
+                alignContent: "end",
               }}
             >
-              <span
-                aria-hidden="true"
+              {activeSlide.eyebrow ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    width: "fit-content",
+                    padding: "10px 14px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.22)",
+                    background: "rgba(255,255,255,0.12)",
+                    backdropFilter: "blur(10px)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.18em",
+                    fontSize: 12,
+                    color: "#fffaf3",
+                  }}
+                >
+                  {activeSlide.eyebrow}
+                </span>
+              ) : null}
+
+              <h1
                 style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 999,
-                  background:
-                    index === activeIndex
-                      ? "var(--text-strong)"
-                      : "color-mix(in srgb, var(--text-strong) 38%, transparent)",
-                  transform: index === activeIndex ? "scale(1.05)" : "scale(1)",
-                  transition: "transform 180ms ease, background-color 180ms ease",
+                  margin: 0,
+                  fontSize: "clamp(2.8rem, 7vw, 5.8rem)",
+                  lineHeight: 0.92,
+                  letterSpacing: "-0.05em",
+                  color: "#fffaf3",
+                  textShadow: "0 10px 30px rgba(62, 42, 24, 0.22)",
                 }}
-              />
-            </button>
-          ))}
+              >
+                {activeSlide.title}
+              </h1>
+
+              {activeSlide.subtitle ? (
+                <p
+                  style={{
+                    margin: 0,
+                    maxWidth: 46 * 16,
+                    color: "rgba(255,250,243,0.92)",
+                    lineHeight: 1.8,
+                    fontSize: "clamp(1rem, 1.5vw, 1.08rem)",
+                    textShadow: "0 8px 24px rgba(62, 42, 24, 0.16)",
+                  }}
+                >
+                  {activeSlide.subtitle}
+                </p>
+              ) : null}
+
+              {buttonText ? (
+                <Link
+                  href={buttonLink}
+                  className="theme-button"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "fit-content",
+                    minHeight: 48,
+                    padding: "0 22px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,250,243,0.86)",
+                    background: "rgba(255,250,243,0.9)",
+                    color: "var(--text-strong)",
+                    textDecoration: "none",
+                    fontWeight: 700,
+                  }}
+                >
+                  {buttonText}
+                </Link>
+              ) : null}
+            </div>
+          )}
         </div>
+
+        {safeSlides.length > 1 ? (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              bottom: 22,
+              transform: "translateX(-50%)",
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "10px 14px",
+              borderRadius: 999,
+              background: "color-mix(in srgb, var(--page-panel-bg) 82%, transparent)",
+              border: "1px solid var(--border-soft)",
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            {safeSlides.map((slide, index) => (
+              <button
+                key={`${slide.title}-${index}`}
+                type="button"
+                aria-label={`Ver banner ${index + 1}`}
+                aria-pressed={index === activeIndex}
+                onClick={() => setActiveIndex(index)}
+                style={{
+                  width: 18,
+                  height: 18,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 999,
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                  background: "transparent",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 999,
+                    background:
+                      index === activeIndex
+                        ? "var(--text-strong)"
+                        : "color-mix(in srgb, var(--text-strong) 38%, transparent)",
+                    transform: index === activeIndex ? "scale(1.05)" : "scale(1)",
+                    transition: "transform 180ms ease, background-color 180ms ease",
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   );

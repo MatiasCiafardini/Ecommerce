@@ -9,6 +9,41 @@ import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider'
 
 type NormalizedStorefrontConfig = {
   theme?: string;
+  themePalette?: Partial<
+    Record<
+      | 'background'
+      | 'backgroundSoft'
+      | 'backgroundElevated'
+      | 'paper'
+      | 'paperMuted'
+      | 'text'
+      | 'textMuted'
+      | 'textStrong'
+      | 'border'
+      | 'borderStrong'
+      | 'accent'
+      | 'accentStrong'
+      | 'accentContrast'
+      | 'pageShellBg'
+      | 'storeShellBg'
+      | 'pagePanelBg'
+      | 'pagePanelStrongBg'
+      | 'mutedFieldBg'
+      | 'blockCardBg'
+      | 'blockPanelBg'
+      | 'testimonialCardBg'
+      | 'testimonialCardFeaturedBg'
+      | 'newsletterShellBg'
+      | 'accountShellBg'
+      | 'accountSidebarBg'
+      | 'accountGroupBg'
+      | 'accountItemBg'
+      | 'accountItemBgActive'
+      | 'accountItemBorder'
+      | 'accountItemBorderActive',
+      string
+    >
+  >;
   pages: {
     home: Array<{
       type: string;
@@ -19,6 +54,39 @@ type NormalizedStorefrontConfig = {
 
 @Injectable()
 export class StorefrontService {
+  private readonly themePaletteKeys = [
+    'background',
+    'backgroundSoft',
+    'backgroundElevated',
+    'paper',
+    'paperMuted',
+    'text',
+    'textMuted',
+    'textStrong',
+    'border',
+    'borderStrong',
+    'accent',
+    'accentStrong',
+    'accentContrast',
+    'pageShellBg',
+    'storeShellBg',
+    'pagePanelBg',
+    'pagePanelStrongBg',
+    'mutedFieldBg',
+    'blockCardBg',
+    'blockPanelBg',
+    'testimonialCardBg',
+    'testimonialCardFeaturedBg',
+    'newsletterShellBg',
+    'accountShellBg',
+    'accountSidebarBg',
+    'accountGroupBg',
+    'accountItemBg',
+    'accountItemBgActive',
+    'accountItemBorder',
+    'accountItemBorderActive',
+  ] as const;
+
   constructor(
     private prisma: PrismaService,
     private ordersService: OrdersService,
@@ -434,6 +502,19 @@ export class StorefrontService {
       typeof source.theme === 'string' && source.theme.trim()
         ? source.theme.trim()
         : undefined;
+    const rawThemePalette =
+      source.themePalette && typeof source.themePalette === 'object'
+        ? (source.themePalette as Record<string, unknown>)
+        : {};
+    const themePalette = this.themePaletteKeys.reduce<
+      Partial<Record<(typeof this.themePaletteKeys)[number], string>>
+    >((acc, key) => {
+      const value = rawThemePalette[key];
+      if (typeof value === 'string' && value.trim()) {
+        acc[key] = value.trim();
+      }
+      return acc;
+    }, {});
     const rawPages =
       source.pages && typeof source.pages === 'object'
         ? (source.pages as Record<string, unknown>)
@@ -442,6 +523,7 @@ export class StorefrontService {
 
     return {
       ...(theme ? { theme } : {}),
+      ...(Object.keys(themePalette).length > 0 ? { themePalette } : {}),
       pages: {
         home: rawHome
           .filter(

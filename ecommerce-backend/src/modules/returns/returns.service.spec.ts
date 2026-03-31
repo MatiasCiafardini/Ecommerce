@@ -1,18 +1,337 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { ReturnsService } from './returns.service';
 
 describe('ReturnsService', () => {
   let service: ReturnsService;
+  let prisma: {
+    return: {
+      findFirst: jest.Mock;
+      update: jest.Mock;
+    };
+    $transaction: jest.Mock;
+  };
+  let mercadopago: {
+    refundPayment: jest.Mock;
+  };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [ReturnsService],
-    }).compile();
+  beforeEach(() => {
+    prisma = {
+      return: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+      $transaction: jest.fn(),
+    };
 
-    service = module.get<ReturnsService>(ReturnsService);
+    mercadopago = {
+      refundPayment: jest.fn(),
+    };
+
+    service = new ReturnsService(prisma as never, mercadopago as never);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('marks a received return without refunding and restores stock only once', async () => {
+    const updatedReturn = { id: 15, status: 'received' };
+    const tx = {
+      return: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 15,
+          orderId: 81,
+          status: 'approved',
+          receivedAt: null,
+          resolvedAt: null,
+          adminNotes: null,
+          items: [{ orderItemId: 501, quantity: 2 }],
+          order: {
+            id: 81,
+            items: [{ id: 501, variantId: 301, quantity: 2, returnedQuantity: 0, price: 12000 }],
+            refunds: [],
+          },
+        }),
+        update: jest.fn().mockResolvedValue(updatedReturn),
+      },
+      orderItem: {
+        findUnique: jest.fn().mockResolvedValue({ id: 501, variantId: 301 }),
+        update: jest.fn().mockResolvedValue({ id: 501 }),
+      },
+      inventory: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      payment: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      refund: {
+        create: jest.fn(),
+      },
+      order: {
+        update: jest.fn(),
+      },
+    };
+
+    prisma.$transaction.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    const result = await service.receiveReturn(3, 15, {
+      refundCustomer: false,
+      adminNotes: 'Producto revisado',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      return: updatedReturn,
+      refund: null,
+    });
+    expect(tx.inventory.updateMany).toHaveBeenCalledWith({
+      where: {
+        variantId: 301,
+        storeId: 3,
+      },
+      data: {
+        quantity: {
+          increment: 2,
+        },
+      },
+    });
+    expect(tx.orderItem.update).toHaveBeenCalledWith({
+      where: { id: 501 },
+      data: {
+        returnedQuantity: {
+          increment: 2,
+        },
+      },
+    });
+    expect(tx.return.update).toHaveBeenCalledWith({
+      where: { id: 15 },
+      data: {
+        status: 'received',
+        receivedAt: expect.any(Date),
+        resolvedAt: null,
+        adminNotes: 'Producto revisado',
+      },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    expect(tx.refund.create).not.toHaveBeenCalled();
+    expect(mercadopago.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it('resolves a previously received return without incrementing stock twice', async () => {
+    const receivedAt = new Date('2026-03-29T12:00:00.000Z');
+    const updatedReturn = { id: 16, status: 'resolved' };
+    const tx = {
+      return: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 16,
+          orderId: 82,
+          status: 'received',
+          receivedAt,
+          resolvedAt: null,
+          adminNotes: 'Ingreso en deposito',
+          items: [{ orderItemId: 601, quantity: 1 }],
+          order: {
+            id: 82,
+            items: [{ id: 601, variantId: 401, quantity: 1, returnedQuantity: 1, price: 9000 }],
+            refunds: [],
+          },
+        }),
+        update: jest.fn().mockResolvedValue(updatedReturn),
+      },
+      orderItem: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      },
+      inventory: {
+        updateMany: jest.fn(),
+      },
+      payment: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      refund: {
+        create: jest.fn(),
+      },
+      order: {
+        update: jest.fn(),
+      },
+    };
+
+    prisma.$transaction.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    const result = await service.receiveReturn(3, 16, {
+      refundCustomer: false,
+      adminNotes: 'Cierre sin reintegro',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      return: updatedReturn,
+      refund: null,
+    });
+    expect(tx.inventory.updateMany).not.toHaveBeenCalled();
+    expect(tx.orderItem.update).not.toHaveBeenCalled();
+    expect(tx.return.update).toHaveBeenCalledWith({
+      where: { id: 16 },
+      data: {
+        status: 'resolved',
+        receivedAt,
+        resolvedAt: expect.any(Date),
+        adminNotes: 'Ingreso en deposito\nCierre sin reintegro',
+      },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('refunds the customer and closes the order when all items were returned', async () => {
+    const updatedReturn = { id: 18, status: 'refunded' };
+    const createdRefund = { id: 301, amount: 24000 };
+    const tx = {
+      return: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 18,
+          orderId: 91,
+          status: 'approved',
+          receivedAt: null,
+          resolvedAt: null,
+          adminNotes: 'Controlado en deposito',
+          items: [{ orderItemId: 701, quantity: 2 }],
+          order: {
+            id: 91,
+            subtotal: 20000,
+            discountAmount: 1000,
+            shippingCost: 5000,
+            items: [{ id: 701, variantId: 801, quantity: 2, returnedQuantity: 0, price: 10000 }],
+            refunds: [],
+          },
+        }),
+        update: jest.fn().mockResolvedValue(updatedReturn),
+      },
+      orderItem: {
+        findUnique: jest.fn().mockResolvedValue({ id: 701, variantId: 801 }),
+        update: jest.fn().mockResolvedValue({ id: 701 }),
+      },
+      inventory: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      payment: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 41,
+          amount: 24000,
+          externalId: 'mp-payment-41',
+          status: 'approved',
+        }),
+        update: jest.fn().mockResolvedValue({ id: 41, status: 'refunded' }),
+      },
+      refund: {
+        create: jest.fn().mockResolvedValue(createdRefund),
+      },
+      order: {
+        update: jest.fn().mockResolvedValue({ id: 91, status: 'refunded' }),
+      },
+    };
+
+    prisma.$transaction.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    const result = await service.receiveReturn(3, 18, {
+      refundCustomer: true,
+      adminNotes: 'Reintegro total confirmado',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      return: updatedReturn,
+      refund: createdRefund,
+    });
+    expect(mercadopago.refundPayment).toHaveBeenCalledWith(3, 'mp-payment-41', 24000);
+    expect(tx.refund.create).toHaveBeenCalledWith({
+      data: {
+        storeId: 3,
+        orderId: 91,
+        returnId: 18,
+        paymentId: 41,
+        amount: 24000,
+      },
+    });
+    expect(tx.payment.update).toHaveBeenCalledWith({
+      where: {
+        id: 41,
+      },
+      data: {
+        status: 'refunded',
+      },
+    });
+    expect(tx.return.update).toHaveBeenCalledWith({
+      where: { id: 18 },
+      data: {
+        status: 'refunded',
+        receivedAt: expect.any(Date),
+        resolvedAt: expect.any(Date),
+        adminNotes: 'Controlado en deposito\nReintegro total confirmado',
+      },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    expect(tx.order.update).toHaveBeenCalledWith({
+      where: { id: 91 },
+      data: {
+        status: 'refunded',
+      },
+    });
+  });
+
+  it('prevents customers from registering shipment twice', async () => {
+    prisma.return.findFirst.mockResolvedValue({
+      id: 25,
+      status: 'approved',
+      shippedAt: new Date(),
+      receivedAt: null,
+      resolvedAt: null,
+      items: [],
+      refund: null,
+      order: {
+        id: 44,
+        status: 'paid',
+        createdAt: new Date(),
+      },
+    });
+
+    await expect(
+      service.shipReturn(2, 10, 25, {
+        carrier: 'Correo Argentino',
+      }),
+    ).rejects.toThrow(new BadRequestException('Return shipping was already registered'));
+
+    expect(prisma.return.update).not.toHaveBeenCalled();
   });
 });
