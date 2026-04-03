@@ -1,23 +1,24 @@
-function readRequiredEnv(name: string, fallback?: string) {
-  const value = process.env[name]?.trim();
+const DEFAULT_PRODUCTION_API_URL = "https://api.estudiosmc.cloud/api";
+const DEFAULT_DEVELOPMENT_API_URL = "http://localhost:3000/api";
 
-  if (value) {
-    return value;
-  }
+function readEnvValue(name: string) {
+  return process.env[name]?.trim() || "";
+}
 
-  if (fallback) {
-    return fallback;
+export function getApiUrl() {
+  const configuredUrl = readEnvValue("NEXT_PUBLIC_API_URL");
+
+  if (configuredUrl) {
+    return configuredUrl;
   }
 
   if (process.env.NODE_ENV !== "production") {
-    return "http://localhost:3000/api";
+    return DEFAULT_DEVELOPMENT_API_URL;
   }
 
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
+  return DEFAULT_PRODUCTION_API_URL;
 }
 
 export function getPublicApiUrl() {
-  return readRequiredEnv("NEXT_PUBLIC_API_URL");
+  return getApiUrl();
 }

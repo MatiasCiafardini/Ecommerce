@@ -2,8 +2,6 @@ import { getClientStoreId } from "@/lib/tenant/store-context";
 import { getPublicApiUrl } from "@/lib/runtime-config";
 import { getScopedStorageItem } from "@/lib/store-browser-storage";
 
-const API_URL = getPublicApiUrl();
-
 type ApiOptions = {
   method?: string;
   headers?: HeadersInit;
@@ -58,10 +56,11 @@ const extractErrorMessage = async (res: Response) => {
 };
 
 export const api = async (endpoint: string, options: ApiOptions = {}) => {
+  const apiUrl = getPublicApiUrl();
   const token = getScopedStorageItem("token");
   const storeId = getClientStoreId();
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  const res = await fetch(`${apiUrl}${endpoint}`, {
     method: options.method || "GET",
     headers: buildApiHeaders(options, storeId, token),
     body: options.body,
@@ -77,10 +76,11 @@ export const api = async (endpoint: string, options: ApiOptions = {}) => {
 };
 
 export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
+  const apiUrl = getPublicApiUrl();
   const token = getScopedStorageItem("token");
   const storeId = getClientStoreId();
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  const res = await fetch(`${apiUrl}${endpoint}`, {
     method: options.method || "GET",
     headers: buildApiHeaders(options, storeId, token),
     body: options.body,

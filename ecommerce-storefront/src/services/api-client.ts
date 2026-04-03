@@ -1,8 +1,6 @@
 import { getServerStoreContext } from "@/lib/tenant/server-store-context";
 import { getPublicApiUrl } from "@/lib/runtime-config";
 
-const API_URL = getPublicApiUrl();
-
 type ApiFetchOptions = {
   cache?: RequestCache;
   revalidate?: number;
@@ -21,12 +19,14 @@ export async function apiFetch<T>(
   path: string,
   options?: ApiFetchOptions,
 ): Promise<T | null> {
-  if (!API_URL) {
+  const apiUrl = getPublicApiUrl();
+
+  if (!apiUrl) {
     throw new Error(`API request failed for ${path}: missing NEXT_PUBLIC_API_URL`);
   }
 
   const { host, storeId } = await getServerStoreContext();
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${apiUrl}${path}`, {
     headers: {
       "x-store-id": String(storeId),
       ...options?.headers,
