@@ -10,6 +10,17 @@ type ApiOptions = {
   body?: BodyInit | null;
 };
 
+function buildApiHeaders(options: ApiOptions, storeId: number, token: string | null) {
+  const isFormData = options.body instanceof FormData;
+
+  return {
+    ...(!isFormData ? { "Content-Type": "application/json" } : {}),
+    "x-store-id": String(storeId),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  };
+}
+
 const parseJsonIfPresent = async (res: Response) => {
   const text = await res.text();
 
@@ -23,35 +34,36 @@ const parseJsonIfPresent = async (res: Response) => {
 const extractErrorMessage = async (res: Response) => {
   const text = await res.text();
 
+  const fallback = `API request failed with status ${res.status} ${res.statusText}`;
+
   if (!text) {
-    return "Error en la request";
+    return `${fallback}. Response body: <empty>`;
   }
+
+  let normalizedMessage = text;
 
   try {
     const errorData = JSON.parse(text) as { message?: string | string[] };
-    if (Array.isArray(errorData.message)) {
-      return errorData.message.join(", ");
-    }
 
-    return errorData.message || text;
+    if (Array.isArray(errorData.message)) {
+      normalizedMessage = errorData.message.join(", ");
+    } else if (typeof errorData.message === "string" && errorData.message.trim()) {
+      normalizedMessage = errorData.message;
+    }
   } catch {
-    return text;
+    normalizedMessage = text;
   }
+
+  return `${fallback}. Response body: ${normalizedMessage}`;
 };
 
 export const api = async (endpoint: string, options: ApiOptions = {}) => {
   const token = getScopedStorageItem("token");
-  const isFormData = options.body instanceof FormData;
   const storeId = getClientStoreId();
 
   const res = await fetch(`${API_URL}${endpoint}`, {
     method: options.method || "GET",
-    headers: {
-      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
-      "x-store-id": String(storeId),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
+    headers: buildApiHeaders(options, storeId, token),
     body: options.body,
   });
 
@@ -66,17 +78,11 @@ export const api = async (endpoint: string, options: ApiOptions = {}) => {
 
 export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
   const token = getScopedStorageItem("token");
-  const isFormData = options.body instanceof FormData;
   const storeId = getClientStoreId();
 
   const res = await fetch(`${API_URL}${endpoint}`, {
     method: options.method || "GET",
-    headers: {
-      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
-      "x-store-id": String(storeId),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
+    headers: buildApiHeaders(options, storeId, token),
     body: options.body,
   });
 

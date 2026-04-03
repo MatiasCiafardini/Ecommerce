@@ -1,6 +1,5 @@
-import { headers } from "next/headers";
 import { apiFetch } from "@/services/api-client";
-import { resolveStoreIdFromHost } from "@/lib/tenant/store-context";
+import { getServerStoreContext } from "@/lib/tenant/server-store-context";
 import { getDefaultStorefrontConfig } from "@/lib/tenant/storefront-defaults";
 import type { Block } from "@/types/block";
 import type { ThemePalette } from "@/types/theme";
@@ -14,20 +13,18 @@ type RemoteStorefrontConfig = {
 };
 
 export async function getTenantConfig() {
-  const requestHeaders = await headers();
-  const storeId = resolveStoreIdFromHost(requestHeaders.get("host"));
+  const { host, storeId } = await getServerStoreContext();
   const fallbackConfig = getDefaultStorefrontConfig(storeId);
 
   if (!fallbackConfig) {
-    throw new Error(`Missing storefront page config for store ${storeId}`);
+    throw new Error(`Missing storefront page config for store ${storeId} (host="${host}")`);
   }
 
   const remoteConfig = await apiFetch<{
     theme?: string | null;
     storefrontConfig?: RemoteStorefrontConfig | null;
   }>("/store/config", {
-    cache: "force-cache",
-    revalidate: 60,
+    cache: "no-store",
   });
 
   const remoteHome = Array.isArray(remoteConfig?.storefrontConfig?.pages?.home)
