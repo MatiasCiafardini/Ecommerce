@@ -3170,6 +3170,7 @@ function AdminCategoriesManager() {
 }
 
 function AdminOrdersPanelSection() {
+  const searchParams = useSearchParams();
   const detailTopRef = useRef<HTMLDivElement | null>(null);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3191,6 +3192,31 @@ function AdminOrdersPanelSection() {
     };
     void load();
   }, []);
+
+  useEffect(() => {
+    const rawOrderId = searchParams.get("orderId");
+    const nextOrderId = rawOrderId ? Number(rawOrderId) : NaN;
+
+    if (!Number.isFinite(nextOrderId) || nextOrderId <= 0) {
+      return;
+    }
+
+    if (selectedOrderId === nextOrderId) {
+      return;
+    }
+
+    if (!orders.some((order) => order.id === nextOrderId)) {
+      return;
+    }
+
+    setSelectedOrderId(nextOrderId);
+    window.requestAnimationFrame(() => {
+      detailTopRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, [orders, searchParams, selectedOrderId]);
 
   const openOrderDetail = (orderId: number) => {
     setSelectedOrderId(orderId);

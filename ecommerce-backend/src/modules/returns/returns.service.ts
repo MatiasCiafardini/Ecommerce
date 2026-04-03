@@ -12,6 +12,7 @@ import { ReviewReturnDto } from './dto/review-return.dto';
 import { ReceiveReturnDto } from './dto/receive-return.dto';
 import { ShipReturnDto } from './dto/ship-return.dto';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
+import { AdminNotificationMailService } from '../notifications/admin-notification-mail.service';
 
 type UploadedReturnProof = { filename: string; originalname: string };
 
@@ -20,6 +21,7 @@ export class ReturnsService {
   constructor(
     private prisma: PrismaService,
     private mercadopago: MercadoPagoProvider,
+    private adminNotificationMailService: AdminNotificationMailService,
   ) {}
 
   async createReturn(storeId: number, customerId: number, dto: CreateReturnDto) {
@@ -91,7 +93,7 @@ export class ReturnsService {
       }
     }
 
-    return this.prisma.return.create({
+    const createdReturn = await this.prisma.return.create({
       data: {
         storeId,
         orderId: dto.orderId,
@@ -108,6 +110,16 @@ export class ReturnsService {
         refund: true,
       },
     });
+
+    await this.adminNotificationMailService.sendAdminNotification({
+      storeId,
+      title: `Nueva devolucion #${createdReturn.id}`,
+      body: `Se genero una devolucion para el pedido #${createdReturn.orderId}.`,
+      href: '/account?section=admin-returns',
+      buttonLabel: 'Abrir devoluciones',
+    });
+
+    return createdReturn;
   }
 
   async approveReturn(storeId: number, returnId: number, dto: ApproveReturnDto) {

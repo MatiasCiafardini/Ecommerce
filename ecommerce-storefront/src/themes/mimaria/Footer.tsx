@@ -31,7 +31,7 @@ export default function Footer() {
                 height: 54,
                 borderRadius: 0,
                 border: "1px solid rgba(183,146,98,0.18)",
-                background: "rgba(255,250,244,0.94)",
+                background: "#C5A87C",
                 display: "grid",
                 placeItems: "center",
                 overflow: "hidden",

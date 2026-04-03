@@ -144,7 +144,7 @@ export default function Header() {
               border: "1px solid rgba(160, 141, 124, 0.2)",
               boxShadow:
                 "0 0 0 10px rgba(198,186,176,0.94), 0 16px 30px rgba(110,84,53,0.12)",
-              background: "#ece4db",
+              background: "#C5A87C",
               color: "var(--theme-colors-text-strong)",
               textDecoration: "none",
               display: "grid",
@@ -317,7 +317,7 @@ export default function Header() {
         .mimaria-header-logo:focus,
         .mimaria-header-logo:focus-visible,
         .mimaria-header-logo:active {
-          background: #ece4db !important;
+          background: #C5A87C !important;
           border-color: rgba(160, 141, 124, 0.2) !important;
           box-shadow: 0 0 0 10px rgba(198, 186, 176, 0.94),
             0 16px 30px rgba(110, 84, 53, 0.12) !important;

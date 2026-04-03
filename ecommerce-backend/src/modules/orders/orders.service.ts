@@ -15,6 +15,7 @@ import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider'
 import { RequestCancellationDto } from './dto/request-cancellation.dto';
 import { ReviewCancellationRequestDto } from './dto/review-cancellation-request.dto';
 import { isManualSalesEnabledForStore } from '../../common/store-features';
+import { AdminNotificationMailService } from '../notifications/admin-notification-mail.service';
 
 type OrderItemData = {
   variantId: number;
@@ -34,12 +35,13 @@ export class OrdersService {
     private inventoryLockService: InventoryLockService,
     private shipmentService: ShipmentService,
     private mercadopago: MercadoPagoProvider,
+    private adminNotificationMailService: AdminNotificationMailService,
   ) {}
 
   async create(data: CreateOrderDto, storeId: number) {
     await this.ensureCustomer(storeId, data.customerId);
 
-    return this.prisma.$transaction(async (tx) => {
+    const order = await this.prisma.$transaction(async (tx) => {
       let subtotal = 0;
 
       const orderItems: OrderItemData[] = [];
@@ -121,9 +123,43 @@ export class OrdersService {
         },
         include: {
           items: true,
+          customer: {
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
         },
       });
     });
+
+    await this.adminNotificationMailService.sendAdminNotification({
+      storeId,
+      title: `Nuevo pedido #${order.id}`,
+      body: `Se registro un nuevo pedido por ${this.formatMoney(order.total)}.`,
+      href: `/account?section=admin-orders&orderId=${order.id}`,
+      buttonLabel: `Ver pedido #${order.id}`,
+    });
+
+    const customerFullName = [order.customer?.firstName, order.customer?.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    if (order.customer?.email) {
+      await this.adminNotificationMailService.sendCustomerNotification({
+        storeId,
+        customerEmail: order.customer.email,
+        customerName: customerFullName || order.customer.email,
+        title: `Compra confirmada #${order.id}`,
+        body: `tu compra fue registrada correctamente por ${this.formatMoney(order.total)}.`,
+        href: `/account/orders/${order.id}`,
+        buttonLabel: `Ver pedido #${order.id}`,
+      });
+    }
+
+    return order;
   }
 
   async createManualSale(data: CreateManualSaleDto, storeId: number) {
@@ -614,11 +650,20 @@ export class OrdersService {
         orderId,
       );
 
-      return {
+      const enrichedResult = {
         ...this.withCancellationRequests(result),
         shipment,
       };
+
+      await this.sendCustomerOrderStatusNotification(storeId, enrichedResult);
+
+      return enrichedResult;
     }
+
+    await this.sendCustomerOrderStatusNotification(
+      storeId,
+      this.withCancellationRequests(result),
+    );
 
     return this.withCancellationRequests(result);
   }
@@ -758,7 +803,7 @@ export class OrdersService {
         title: `Nuevo pedido #${order.id}`,
         body: `${this.orderCustomerLabel(order)} · ${this.formatMoney(order.total)} · ${order.status}`,
         createdAt: order.createdAt,
-        href: '/account?section=admin-orders',
+        href: `/account?section=admin-orders&orderId=${order.id}`,
       })),
       ...returns.map((entry) => ({
         id: `admin-return-${entry.id}`,
@@ -772,7 +817,7 @@ export class OrdersService {
         title: `Solicitud de cancelacion #${entry.id}`,
         body: `Pedido #${entry.orderId} · ${this.customerLabel(entry.customer)}${entry.reason ? ` · ${entry.reason}` : ''}`,
         createdAt: entry.createdAt,
-        href: '/account?section=admin-orders',
+        href: `/account?section=admin-orders&orderId=${entry.orderId}`,
       })),
     ]
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -970,7 +1015,7 @@ export class OrdersService {
       throw new BadRequestException('This order already has a pending cancellation ticket');
     }
 
-    return this.prisma.cancellationRequest.upsert({
+    const request = await this.prisma.cancellationRequest.upsert({
       where: {
         orderId: order.id,
       },
@@ -989,6 +1034,16 @@ export class OrdersService {
       },
       include: this.cancellationRequestInclude(),
     });
+
+    await this.adminNotificationMailService.sendAdminNotification({
+      storeId,
+      title: `Solicitud de cancelacion #${request.id}`,
+      body: `El pedido #${order.id} pidio cancelacion${request.reason ? `: ${request.reason}` : '.'}`,
+      href: `/account?section=admin-orders&orderId=${order.id}`,
+      buttonLabel: `Revisar pedido #${order.id}`,
+    });
+
+    return request;
   }
 
   async findCancellationRequests(storeId: number) {
@@ -1451,5 +1506,56 @@ export class OrdersService {
     }
 
     return `Estado actual: ${status}.`;
+  }
+
+  private async sendCustomerOrderStatusNotification(
+    storeId: number,
+    order: {
+      id: number;
+      status: string;
+      customerEmailSnapshot?: string | null;
+      customerFirstNameSnapshot?: string | null;
+      customerLastNameSnapshot?: string | null;
+      customer?: {
+        email?: string | null;
+        firstName?: string | null;
+        lastName?: string | null;
+      } | null;
+      shipment?: {
+        trackingNumber?: string | null;
+      } | null;
+    },
+  ) {
+    if (order.status === 'pending') {
+      return;
+    }
+
+    const customerEmail =
+      order.customerEmailSnapshot?.trim() || order.customer?.email?.trim();
+
+    if (!customerEmail) {
+      return;
+    }
+
+    const customerName = [
+      order.customerFirstNameSnapshot ?? order.customer?.firstName,
+      order.customerLastNameSnapshot ?? order.customer?.lastName,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    await this.adminNotificationMailService.sendCustomerNotification({
+      storeId,
+      customerEmail,
+      customerName: customerName || customerEmail,
+      title: this.customerStatusTitle(order.id, order.status),
+      body: this.customerStatusBody(
+        order.status,
+        order.shipment?.trackingNumber,
+      ),
+      href: `/account/orders/${order.id}`,
+      buttonLabel: `Abrir pedido #${order.id}`,
+    });
   }
 }

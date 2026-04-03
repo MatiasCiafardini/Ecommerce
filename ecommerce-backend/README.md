@@ -35,6 +35,12 @@ Variables principales:
 - `UPLOADS_DIR`: carpeta local para comprobantes e imagenes subidas.
 - `MERCADOPAGO_ACCESS_TOKEN`: token del provider.
 - Variables de shipping: EnvioPack y Correo Argentino segun el provider activo.
+- Email de notificaciones admin y customer:
+  - `EMAIL_NOTIFICATIONS_ENABLED`: `true` para activar el envio.
+  - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`: credenciales SMTP.
+  - `EMAIL_NOTIFICATIONS_FROM`: remitente visible del correo.
+  - `EMAIL_NOTIFICATIONS_FROM_NAME`: nombre visible del remitente.
+  - `STOREFRONT_PUBLIC_URL`: opcional. Si no se define, se arma desde el dominio de la tienda.
 
 ## Arranque local
 
