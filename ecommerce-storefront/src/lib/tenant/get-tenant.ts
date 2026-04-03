@@ -1,6 +1,6 @@
 import { apiFetch } from "@/services/api-client";
 import { getServerStoreContext } from "@/lib/tenant/server-store-context";
-import { getDefaultStorefrontConfig } from "@/lib/tenant/storefront-defaults";
+import { getSafeStorefrontConfig } from "@/lib/tenant/storefront-defaults";
 import type { Block } from "@/types/block";
 import type { ThemePalette } from "@/types/theme";
 
@@ -12,33 +12,30 @@ type RemoteStorefrontConfig = {
   };
 };
 
-export async function getTenantConfig() {
-  const { host, storeId } = await getServerStoreContext();
-  const fallbackConfig = getDefaultStorefrontConfig(storeId);
-
-  if (!fallbackConfig) {
-    throw new Error(`Missing storefront page config for store ${storeId} (host="${host}")`);
-  }
-
-  const remoteConfig = await apiFetch<{
+function normalizeTenantConfig(args: {
+  storeId: number;
+  remoteConfig: {
     theme?: string | null;
     storefrontConfig?: RemoteStorefrontConfig | null;
-  }>("/store/config", {
-    cache: "no-store",
-  });
-
-  const remoteHome = Array.isArray(remoteConfig?.storefrontConfig?.pages?.home)
-    ? remoteConfig?.storefrontConfig?.pages?.home
+  } | null;
+}) {
+  const resolvedTheme =
+    args.remoteConfig?.storefrontConfig?.theme ||
+    args.remoteConfig?.theme ||
+    null;
+  const fallbackConfig = getSafeStorefrontConfig(args.storeId, resolvedTheme);
+  const remoteHome = Array.isArray(args.remoteConfig?.storefrontConfig?.pages?.home)
+    ? args.remoteConfig.storefrontConfig.pages.home
     : null;
 
   return {
-    storeId,
+    storeId: args.storeId,
     theme:
-      remoteConfig?.storefrontConfig?.theme ||
-      remoteConfig?.theme ||
-      fallbackConfig.theme,
+      resolvedTheme ||
+      fallbackConfig.theme ||
+      "minimal",
     themePalette:
-      remoteConfig?.storefrontConfig?.themePalette ??
+      args.remoteConfig?.storefrontConfig?.themePalette ??
       fallbackConfig.themePalette,
     pages: {
       home:
@@ -47,4 +44,20 @@ export async function getTenantConfig() {
           : fallbackConfig.pages.home,
     },
   };
+}
+
+export async function getTenantConfig() {
+  const { storeId } = await getServerStoreContext();
+
+  const remoteConfig = await apiFetch<{
+    theme?: string | null;
+    storefrontConfig?: RemoteStorefrontConfig | null;
+  }>("/store/config", {
+    cache: "no-store",
+  });
+
+  return normalizeTenantConfig({
+    storeId,
+    remoteConfig,
+  });
 }

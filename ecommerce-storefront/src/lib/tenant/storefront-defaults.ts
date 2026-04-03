@@ -9,6 +9,25 @@ export type StorefrontTenantConfig = {
   };
 };
 
+const safeEmptyStorefrontConfig: StorefrontTenantConfig = {
+  theme: "minimal",
+  pages: {
+    home: [],
+  },
+};
+
+const storefrontDefaultThemeIds = {
+  minimal: 1,
+  fashion: 2,
+  trojani: 3003,
+  libreria: 4,
+  mimaria: 3005,
+} as const;
+
+const storefrontDefaultAliases: Record<number, number> = {
+  3: 3003,
+};
+
 export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
   1: {
     theme: "minimal",
@@ -542,6 +561,25 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
 };
 
 export function getDefaultStorefrontConfig(storeId: number) {
-  return storefrontDefaults[storeId];
+  return storefrontDefaults[storeId] ?? storefrontDefaults[storefrontDefaultAliases[storeId]];
+}
+
+export function getStorefrontConfigByTheme(theme?: string | null) {
+  const normalizedTheme = theme?.trim().toLowerCase() ?? "";
+  const presetStoreId =
+    storefrontDefaultThemeIds[normalizedTheme as keyof typeof storefrontDefaultThemeIds];
+
+  return presetStoreId ? storefrontDefaults[presetStoreId] : undefined;
+}
+
+export function getSafeStorefrontConfig(
+  storeId: number,
+  theme?: string | null,
+): StorefrontTenantConfig {
+  return (
+    getDefaultStorefrontConfig(storeId) ??
+    getStorefrontConfigByTheme(theme) ??
+    safeEmptyStorefrontConfig
+  );
 }
 
