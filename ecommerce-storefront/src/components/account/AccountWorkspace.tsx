@@ -334,6 +334,7 @@ function renderSection(
     case "payments":
       return <PaymentSection />;
     case "admin-overview":
+    case "admin-accounting":
     case "admin-developer":
     case "admin-products":
     case "admin-promotions":

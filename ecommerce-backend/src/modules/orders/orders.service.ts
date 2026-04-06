@@ -710,6 +710,7 @@ export class OrdersService {
   }
 
   async exportAccountingCsv(storeId: number, query: ExportAccountingDto) {
+    const csvDelimiter = ';';
     const orders = await this.prisma.order.findMany({
       where: this.buildAccountingExportWhere(storeId, query),
       orderBy: {
@@ -856,7 +857,7 @@ export class OrdersService {
         order.shippingMethod ?? '',
       ]
         .map((value) => this.escapeCsv(value))
-        .join(',');
+        .join(csvDelimiter);
     });
 
     const fromLabel = query.from?.trim() || 'inicio';
@@ -864,7 +865,7 @@ export class OrdersService {
 
     return {
       filename: `contable-store-${storeId}-${fromLabel}-${toLabel}.csv`,
-      csv: [header.join(','), ...lines].join('\n'),
+      csv: `\uFEFFsep=${csvDelimiter}\n${[header.join(csvDelimiter), ...lines].join('\n')}`,
     };
   }
 
