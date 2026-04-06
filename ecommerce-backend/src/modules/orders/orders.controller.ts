@@ -6,6 +6,8 @@ import {
   Patch,
   Param,
   Req,
+  Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
@@ -14,8 +16,10 @@ import { CreateManualSaleDto } from './dto/create-manual-sale.dto';
 import { UpdateManualSaleDto } from './dto/update-manual-sale.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { ReviewCancellationRequestDto } from './dto/review-cancellation-request.dto';
+import { ExportAccountingDto } from './dto/export-accounting.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import type { Response } from 'express';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
@@ -57,6 +61,24 @@ export class OrdersController {
   @Get('manual/list')
   findManualSales(@Req() req) {
     return this.ordersService.findManualSales(req.storeId);
+  }
+
+  @Get('accounting/export')
+  async exportAccounting(
+    @Query() query: ExportAccountingDto,
+    @Req() req,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const exported = await this.ordersService.exportAccountingCsv(
+      req.storeId,
+      query,
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${exported.filename}"`,
+    );
+    return exported.csv;
   }
 
   @Get(':id')

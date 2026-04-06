@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, apiBlob } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import { getClientStoreId } from "@/lib/tenant/store-context";
 import {
@@ -230,6 +230,7 @@ export default function AdminWorkspace({
         onBack={() => onSectionChange("admin-overview")}
       />
     );
+  if (section === "admin-accounting") return <AdminAccountingSection />;
   if (section === "admin-products") return <AdminProductsSection />;
   if (section === "admin-categories")
     return <AdminProductsSection initialTab="categories" />;
@@ -335,6 +336,133 @@ function AdminOverviewSection({
           />
         </div>
       )}
+    </section>
+  );
+}
+
+function AdminAccountingSection() {
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = `${today.slice(0, 8)}01`;
+  const [from, setFrom] = useState(monthStart);
+  const [to, setTo] = useState(today);
+  const [status, setStatus] = useState("all");
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const downloadExport = async () => {
+    try {
+      setDownloading(true);
+      setError("");
+      setSuccess("");
+
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      if (status !== "all") params.set("status", status);
+
+      const blob = await apiBlob(`/orders/accounting/export?${params.toString()}`);
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `contable-${from || "inicio"}-${to || "hoy"}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      setSuccess("El CSV contable ya se descargo.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo descargar el export contable.",
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <section style={panelStyle}>
+      <Header
+        title="Contabilidad"
+        copy="Export simple para contador con ventas, pagos, descuentos, envio y refunds. Pensado para conciliacion y cierre mensual."
+      />
+      <div style={twoColumnStyle}>
+        <article style={groupPanelStyle}>
+          <p style={eyebrowStyle}>Filtros</p>
+          <h3 style={title3Style}>Periodo de exportacion</h3>
+          <label style={shellStyle}>
+            <span style={metaStyle}>Desde</span>
+            <input
+              type="date"
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
+              style={fieldStyle}
+            />
+          </label>
+          <label style={shellStyle}>
+            <span style={metaStyle}>Hasta</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(event) => setTo(event.target.value)}
+              style={fieldStyle}
+            />
+          </label>
+          <label style={shellStyle}>
+            <span style={metaStyle}>Estado</span>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              style={selectStyle}
+            >
+              <option value="all" style={optionStyle}>
+                Todos
+              </option>
+              {statuses.map((item) => (
+                <option key={item} value={item} style={optionStyle}>
+                  {orderStatusLabel(item)}
+                </option>
+              ))}
+              <option value="refunded" style={optionStyle}>
+                Reintegrado
+              </option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => void downloadExport()}
+            disabled={downloading}
+            style={primaryButtonStyle}
+          >
+            {downloading ? "Generando..." : "Descargar CSV contable"}
+          </button>
+          {error ? <p style={errorStyle}>{error}</p> : null}
+          {success ? <p style={successStyle}>{success}</p> : null}
+        </article>
+        <article style={groupPanelStyle}>
+          <p style={eyebrowStyle}>Columnas</p>
+          <h3 style={title3Style}>Que incluye</h3>
+          <div style={shellStyle}>
+            {[
+              "Fecha y numero de pedido",
+              "Estado del pedido",
+              "Cliente y email snapshot",
+              "Subtotal, descuento, envio y total",
+              "Proveedor, metodo, estado y monto del pago",
+              "Referencia externa de Mercado Pago o interna",
+              "Cuotas guardadas en metadata",
+              "Cantidad y monto de refunds",
+            ].map((item) => (
+              <div key={item} style={checkStyle}>
+                <span style={softChipStyle}>CSV</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
     </section>
   );
 }

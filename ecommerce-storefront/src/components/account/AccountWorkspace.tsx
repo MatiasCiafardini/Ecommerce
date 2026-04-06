@@ -24,6 +24,7 @@ type Props = {
 
 const adminSections: Array<{ id: AccountSection; label: string; description: string }> = [
   { id: "admin-overview", label: "Resumen", description: "Estado general" },
+  { id: "admin-accounting", label: "Contabilidad", description: "Export de ventas" },
   { id: "admin-products", label: "Productos", description: "Catalogo y altas" },
   { id: "admin-promotions", label: "Promociones", description: "Ofertas y cupones" },
   { id: "admin-orders", label: "Pedidos", description: "Operacion diaria" },

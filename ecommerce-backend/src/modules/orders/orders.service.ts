@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateManualSaleDto } from './dto/create-manual-sale.dto';
 import { UpdateManualSaleDto } from './dto/update-manual-sale.dto';
+import { ExportAccountingDto } from './dto/export-accounting.dto';
 import { CancellationRequestStatus, OrderStatus } from '@prisma/client';
 import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
 import { ShipmentService } from '../fulfillment/services/shipment.service';
@@ -706,6 +707,141 @@ export class OrdersService {
         createdAt: 'desc',
       },
     }).then((orders) => this.withCancellationRequestsList(orders));
+  }
+
+  async exportAccountingCsv(storeId: number, query: ExportAccountingDto) {
+    const orders = await this.prisma.order.findMany({
+      where: this.buildAccountingExportWhere(storeId, query),
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        status: true,
+        subtotal: true,
+        discountAmount: true,
+        discountCode: true,
+        total: true,
+        shippingCost: true,
+        shippingMethod: true,
+        shippingProvider: true,
+        customerEmailSnapshot: true,
+        customerFirstNameSnapshot: true,
+        customerLastNameSnapshot: true,
+        payments: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+          select: {
+            id: true,
+            provider: true,
+            method: true,
+            status: true,
+            amount: true,
+            externalId: true,
+            reference: true,
+            createdAt: true,
+            reviewedAt: true,
+            metadata: true,
+          },
+        },
+        refunds: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+          select: {
+            id: true,
+            amount: true,
+            createdAt: true,
+            paymentId: true,
+          },
+        },
+      },
+    });
+
+    const header = [
+      'Fecha pedido',
+      'Pedido',
+      'Estado pedido',
+      'Cliente',
+      'Email',
+      'Subtotal',
+      'Descuento',
+      'Codigo descuento',
+      'Envio',
+      'Total',
+      'Proveedor pago',
+      'Metodo pago',
+      'Estado pago',
+      'Monto pago',
+      'Referencia externa',
+      'Referencia interna',
+      'Cuotas',
+      'Fecha pago',
+      'Fecha revision pago',
+      'Cantidad refunds',
+      'Monto refunds',
+      'Fecha ultimo refund',
+      'Proveedor envio',
+      'Metodo envio',
+    ];
+
+    const lines = orders.map((order) => {
+      const primaryPayment = order.payments[0] ?? null;
+      const paymentMetadata =
+        primaryPayment?.metadata && typeof primaryPayment.metadata === 'object'
+          ? (primaryPayment.metadata as Record<string, unknown>)
+          : null;
+      const installments =
+        typeof paymentMetadata?.installments === 'number'
+          ? paymentMetadata.installments
+          : typeof paymentMetadata?.installments === 'string'
+            ? paymentMetadata.installments
+            : '';
+      const refundAmount = order.refunds.reduce(
+        (sum, refund) => sum + Number(refund.amount ?? 0),
+        0,
+      );
+      const lastRefund = order.refunds[order.refunds.length - 1] ?? null;
+
+      return [
+        this.toCsvDate(order.createdAt),
+        order.id,
+        order.status,
+        this.orderCustomerName(order),
+        order.customerEmailSnapshot ?? '',
+        this.toMoneyValue(order.subtotal),
+        this.toMoneyValue(order.discountAmount),
+        order.discountCode ?? '',
+        this.toMoneyValue(order.shippingCost),
+        this.toMoneyValue(order.total),
+        primaryPayment?.provider ?? '',
+        primaryPayment?.method ?? '',
+        primaryPayment?.status ?? '',
+        this.toMoneyValue(primaryPayment?.amount ?? null),
+        primaryPayment?.externalId ?? '',
+        primaryPayment?.reference ?? '',
+        installments,
+        this.toCsvDate(primaryPayment?.createdAt ?? null),
+        this.toCsvDate(primaryPayment?.reviewedAt ?? null),
+        order.refunds.length,
+        refundAmount.toFixed(2),
+        this.toCsvDate(lastRefund?.createdAt ?? null),
+        order.shippingProvider ?? '',
+        order.shippingMethod ?? '',
+      ]
+        .map((value) => this.escapeCsv(value))
+        .join(',');
+    });
+
+    const fromLabel = query.from?.trim() || 'inicio';
+    const toLabel = query.to?.trim() || 'hoy';
+
+    return {
+      filename: `contable-store-${storeId}-${fromLabel}-${toLabel}.csv`,
+      csv: [header.join(','), ...lines].join('\n'),
+    };
   }
 
   findOne(id: number, storeId: number) {
@@ -1456,6 +1592,97 @@ export class OrdersService {
         },
       },
     };
+  }
+
+  private buildAccountingExportWhere(storeId: number, query: ExportAccountingDto) {
+    const where: {
+      storeId: number;
+      createdAt?: {
+        gte?: Date;
+        lte?: Date;
+      };
+      status?: OrderStatus;
+    } = {
+      storeId,
+    };
+
+    const fromDate = this.parseDateBoundary(query.from, 'start');
+    const toDate = this.parseDateBoundary(query.to, 'end');
+
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) {
+        where.createdAt.gte = fromDate;
+      }
+      if (toDate) {
+        where.createdAt.lte = toDate;
+      }
+    }
+
+    if (query.status && query.status !== 'all') {
+      where.status = query.status as OrderStatus;
+    }
+
+    return where;
+  }
+
+  private parseDateBoundary(
+    value: string | undefined,
+    boundary: 'start' | 'end',
+  ) {
+    const raw = value?.trim();
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = new Date(
+      boundary === 'start' ? `${raw}T00:00:00.000Z` : `${raw}T23:59:59.999Z`,
+    );
+
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`Invalid date value: ${raw}`);
+    }
+
+    return parsed;
+  }
+
+  private toCsvDate(value: Date | string | null | undefined) {
+    if (!value) {
+      return '';
+    }
+
+    const parsed = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+  }
+
+  private toMoneyValue(value: unknown) {
+    if (value === null || value === undefined || value === '') {
+      return '';
+    }
+
+    return Number(value).toFixed(2);
+  }
+
+  private orderCustomerName(order: {
+    customerFirstNameSnapshot?: string | null;
+    customerLastNameSnapshot?: string | null;
+  }) {
+    return [order.customerFirstNameSnapshot, order.customerLastNameSnapshot]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+  }
+
+  private escapeCsv(value: unknown) {
+    const normalized =
+      value === null || value === undefined ? '' : String(value).replace(/\r?\n/g, ' ');
+
+    if (/[",;]/.test(normalized)) {
+      return `"${normalized.replace(/"/g, '""')}"`;
+    }
+
+    return normalized;
   }
 
   private formatMoney(value: { toNumber(): number } | number) {
