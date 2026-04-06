@@ -82,6 +82,14 @@ npm run start:dev
 Antes de desplegar:
 
 - Copiar `\.env.production.example` a tu entorno real y completar secretos.
+- Valores ya acordados para este proyecto:
+  - `APP_URL=https://api.estudiosmc.cloud`
+  - `CORS_ORIGINS=https://estudiosmc.cloud,https://www.estudiosmc.cloud,https://trojani.com.ar,https://www.trojani.com.ar,https://admin.estudiosmc.cloud`
+  - `UPLOADS_DIR=/var/www/ecommerce/shared/uploads`
+  - `PRIVATE_UPLOADS_DIR=/var/www/ecommerce/shared/private-uploads`
+  - `AUTH_COOKIE_DOMAIN=` vacio para soportar multidominio con cookie host-only en `api.estudiosmc.cloud`
+  - `AUTH_COOKIE_SECURE=true`
+  - `AUTH_COOKIE_SAME_SITE=none`
 - Definir `DOCS_ENABLED=false`.
 - Definir `CORS_ORIGINS` con los dominios reales del storefront y admin.
 - Definir `AUTH_COOKIE_SECURE=true`.
