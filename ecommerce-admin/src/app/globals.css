@@ -239,6 +239,54 @@ h2 {
   gap: 14px;
 }
 
+.command-panel {
+  grid-column: 1 / -1;
+}
+
+.command-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.command-card {
+  display: grid;
+  gap: 14px;
+  border-radius: 22px;
+  padding: 18px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+}
+
+.command-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.command-head span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.command-code {
+  margin: 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(4, 16, 20, 0.92);
+  border: 1px solid var(--line);
+  color: #dff7f9;
+  overflow: auto;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -330,7 +378,8 @@ h2 {
   .workspace,
   .stores-grid,
   .content-grid,
-  .stats-grid {
+  .stats-grid,
+  .command-grid {
     grid-template-columns: 1fr;
   }
 }

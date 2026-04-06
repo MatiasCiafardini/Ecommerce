@@ -62,6 +62,8 @@ type StoreFormState = {
 };
 
 const tokenStorageKey = "ecommerce-admin.token";
+const localDeployCommand = `git add .\ngit commit -m "mensaje del cambio"\ngit push origin main`;
+const vpsDeployCommand = `ssh mati@187.127.13.225\nbash /var/www/ecommerce/deploy.sh`;
 const initialLoginState: LoginState = { email: "", password: "" };
 const emptyStoreForm: StoreFormState = {
   name: "",
@@ -230,6 +232,15 @@ export default function Page() {
   const [savingLogin, setSavingLogin] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  async function copyCommandBlock(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setSuccessMessage(`${label} copiado al portapapeles.`);
+    } catch {
+      setErrorMessage(`No se pudo copiar ${label.toLowerCase()}.`);
+    }
+  }
 
   async function request<T>(path: string, init?: RequestInit) {
     const response = await fetch(`${apiUrl}${path}`, init);
@@ -450,6 +461,48 @@ export default function Page() {
                   <h2>Tiendas activas</h2>
                   <div className="store-list">
                     {stores.slice(0, 5).map((store) => <button key={store.id} className="store-row" onClick={() => { setTab("stores"); setSelectedStoreId(store.id); }}><div><strong>{store.name}</strong><span>{store.domain}</span></div><small>{formatDate(store.createdAt)}</small></button>)}
+                  </div>
+                </article>
+                <article className="panel command-panel">
+                  <div className="panel-top">
+                    <div>
+                      <p className="section-kicker">Comandos rápidos</p>
+                      <h2>Flujo de deploy</h2>
+                    </div>
+                  </div>
+                  <div className="command-grid">
+                    <div className="command-card">
+                      <div className="command-head">
+                        <div>
+                          <strong>Local</strong>
+                          <span>Subir cambios a GitHub</span>
+                        </div>
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={() => void copyCommandBlock(localDeployCommand, "Comando local")}
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                      <pre className="command-code">{localDeployCommand}</pre>
+                    </div>
+                    <div className="command-card">
+                      <div className="command-head">
+                        <div>
+                          <strong>VPS</strong>
+                          <span>Entrar y ejecutar deploy</span>
+                        </div>
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={() => void copyCommandBlock(vpsDeployCommand, "Comando VPS")}
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                      <pre className="command-code">{vpsDeployCommand}</pre>
+                    </div>
                   </div>
                 </article>
               </section>
