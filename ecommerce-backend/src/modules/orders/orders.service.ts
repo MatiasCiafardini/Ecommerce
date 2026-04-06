@@ -774,10 +774,14 @@ export class OrdersService {
       'Proveedor pago',
       'Metodo pago',
       'Estado pago',
+      'Detalle estado pago',
       'Monto pago',
       'Referencia externa',
       'Referencia interna',
+      'Merchant order MP',
       'Cuotas',
+      'Tipo pago MP',
+      'Fecha aprobacion MP',
       'Fecha pago',
       'Fecha revision pago',
       'Cantidad refunds',
@@ -799,6 +803,22 @@ export class OrdersService {
           : typeof paymentMetadata?.installments === 'string'
             ? paymentMetadata.installments
             : '';
+      const paymentStatusDetail =
+        typeof paymentMetadata?.statusDetail === 'string'
+          ? paymentMetadata.statusDetail
+          : '';
+      const paymentTypeId =
+        typeof paymentMetadata?.paymentTypeId === 'string'
+          ? paymentMetadata.paymentTypeId
+          : '';
+      const merchantOrderId =
+        typeof paymentMetadata?.merchantOrderId === 'string'
+          ? paymentMetadata.merchantOrderId
+          : '';
+      const dateApproved =
+        typeof paymentMetadata?.dateApproved === 'string'
+          ? paymentMetadata.dateApproved
+          : '';
       const refundAmount = order.refunds.reduce(
         (sum, refund) => sum + Number(refund.amount ?? 0),
         0,
@@ -819,10 +839,14 @@ export class OrdersService {
         primaryPayment?.provider ?? '',
         primaryPayment?.method ?? '',
         primaryPayment?.status ?? '',
+        paymentStatusDetail,
         this.toMoneyValue(primaryPayment?.amount ?? null),
         primaryPayment?.externalId ?? '',
         primaryPayment?.reference ?? '',
+        merchantOrderId,
         installments,
+        paymentTypeId,
+        dateApproved,
         this.toCsvDate(primaryPayment?.createdAt ?? null),
         this.toCsvDate(primaryPayment?.reviewedAt ?? null),
         order.refunds.length,
@@ -1602,6 +1626,12 @@ export class OrdersService {
         lte?: Date;
       };
       status?: OrderStatus;
+      payments?: {
+        some: {
+          provider?: string;
+          method?: string;
+        };
+      };
     } = {
       storeId,
     };
@@ -1621,6 +1651,23 @@ export class OrdersService {
 
     if (query.status && query.status !== 'all') {
       where.status = query.status as OrderStatus;
+    }
+
+    const provider = query.provider?.trim();
+    const method = query.method?.trim();
+
+    if (provider || method) {
+      where.payments = {
+        some: {},
+      };
+
+      if (provider) {
+        where.payments.some.provider = provider;
+      }
+
+      if (method) {
+        where.payments.some.method = method;
+      }
     }
 
     return where;

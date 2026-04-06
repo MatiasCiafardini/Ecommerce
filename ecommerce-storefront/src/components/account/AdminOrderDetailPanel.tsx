@@ -575,7 +575,22 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                       </strong>
                       <span style={metaStyle}>{payment.status}</span>
                       <strong>{money(payment.amount)}</strong>
+                      {payment.externalId ? (
+                        <span style={metaStyle}>Pago externo: {payment.externalId}</span>
+                      ) : null}
                       {payment.reference ? <span style={metaStyle}>Ref: {payment.reference}</span> : null}
+                      {payment.provider === "mercadopago" ? (
+                        <div style={paymentDetailsGridStyle}>
+                          {buildMercadoPagoRows(payment).map((row) => (
+                            <div key={`${payment.id}-${row.label}`} style={paymentInfoCellStyle}>
+                              <span style={smallLabelStyle}>{row.label}</span>
+                              <strong style={{ color: "var(--account-text-strong)", lineHeight: 1.4 }}>
+                                {row.value}
+                              </strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                       {payment.proofUrl ? (
                         <button
                           type="button"
@@ -639,6 +654,66 @@ function InfoCell({ label, value }: { label: string; value: string }) {
 
 function StateCard({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
+}
+
+function buildMercadoPagoRows(payment: NonNullable<CustomerOrder["payments"]>[number]) {
+  const metadata = payment.metadata;
+  const rows = [
+    {
+      label: "Detalle",
+      value: metadata?.statusDetail,
+    },
+    {
+      label: "Tipo",
+      value: metadata?.paymentTypeId,
+    },
+    {
+      label: "Cuotas",
+      value:
+        metadata?.installments !== null && metadata?.installments !== undefined
+          ? String(metadata.installments)
+          : null,
+    },
+    {
+      label: "Merchant order",
+      value: metadata?.merchantOrderId,
+    },
+    {
+      label: "Aprobado",
+      value: formatPaymentDate(metadata?.dateApproved),
+    },
+    {
+      label: "Email pagador",
+      value: metadata?.payerEmail,
+    },
+    {
+      label: "Ultimos 4",
+      value: metadata?.cardLastFourDigits,
+    },
+    {
+      label: "Webhook",
+      value: formatWebhookStatus(metadata),
+    },
+  ];
+
+  return rows.filter((row): row is { label: string; value: string } => Boolean(row.value));
+}
+
+function formatPaymentDate(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("es-AR");
+}
+
+function formatWebhookStatus(
+  metadata?: NonNullable<NonNullable<CustomerOrder["payments"]>[number]["metadata"]> | null,
+) {
+  if (!metadata?.lastWebhookAt) {
+    return metadata?.webhookTopic ?? null;
+  }
+
+  const label = metadata.webhookTopic ? `${metadata.webhookTopic} · ` : "";
+  return `${label}${formatPaymentDate(metadata.lastWebhookAt)}`;
 }
 
 function getNextOrderAction(order: CustomerOrder) {
@@ -999,6 +1074,20 @@ const paymentCardStyle: React.CSSProperties = {
   padding: 16,
   display: "grid",
   gap: 6,
+};
+const paymentDetailsGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  marginTop: 4,
+};
+const paymentInfoCellStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  padding: "10px 12px",
+  borderRadius: 14,
+  border: "1px solid var(--account-item-border)",
+  background: "rgba(255,255,255,0.03)",
 };
 const warningCardStyle: React.CSSProperties = {
   borderRadius: 18,

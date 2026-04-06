@@ -28,4 +28,14 @@ export class ExportAccountingDto {
   @IsOptional()
   @IsIn(exportStatuses)
   status?: (typeof exportStatuses)[number];
+
+  @ApiPropertyOptional({ example: 'mercadopago' })
+  @IsOptional()
+  @IsString()
+  provider?: string;
+
+  @ApiPropertyOptional({ example: 'bank_transfer' })
+  @IsOptional()
+  @IsString()
+  method?: string;
 }

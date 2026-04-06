@@ -87,12 +87,15 @@ export class PaymentsService {
         reference: dto.reference?.trim() || null,
         notes: dto.notes?.trim() || null,
         idempotencyKey,
-        metadata: {
+        metadata: this.buildMercadoPagoMetadata({
+          payment: mpPayment,
           source: 'checkout',
-          gateway: 'mercadopago',
-          paymentMethodId: dto.paymentMethodId ?? null,
-          installments: dto.installments ?? 1,
-        },
+          checkout: {
+            paymentMethodId: dto.paymentMethodId,
+            installments: dto.installments ?? 1,
+            issuerId: dto.issuerId,
+          },
+        }),
       },
     });
 
@@ -296,6 +299,12 @@ export class PaymentsService {
       where: { id: payment.id },
       data: {
         status: mpPayment.status,
+        metadata: this.buildMercadoPagoMetadata({
+          payment: mpPayment,
+          source: 'webhook',
+          existing: this.readJsonRecord(payment.metadata),
+          webhookBody: body,
+        }),
       },
     });
 
@@ -424,6 +433,171 @@ export class PaymentsService {
         });
       }
     });
+  }
+
+  private buildMercadoPagoMetadata(input: {
+    payment: any;
+    source: 'checkout' | 'webhook';
+    checkout?: {
+      paymentMethodId?: string;
+      installments?: number;
+      issuerId?: string;
+    };
+    existing?: Record<string, unknown> | null;
+    webhookBody?: any;
+  }): Prisma.InputJsonValue {
+    const payment = input.payment ?? {};
+    const payer =
+      payment?.payer && typeof payment.payer === 'object'
+        ? (payment.payer as Record<string, unknown>)
+        : null;
+    const card =
+      payment?.card && typeof payment.card === 'object'
+        ? (payment.card as Record<string, unknown>)
+        : null;
+
+    return {
+      ...(input.existing ?? {}),
+      source: input.existing?.source ?? input.source,
+      gateway: 'mercadopago',
+      paymentMethodId:
+        this.readString(payment.payment_method_id) ??
+        input.checkout?.paymentMethodId ??
+        this.readString(input.existing?.paymentMethodId) ??
+        null,
+      paymentTypeId:
+        this.readString(payment.payment_type_id) ??
+        this.readString(input.existing?.paymentTypeId) ??
+        null,
+      installments:
+        this.readNumber(payment.installments) ??
+        input.checkout?.installments ??
+        this.readNumber(input.existing?.installments) ??
+        null,
+      issuerId:
+        this.readString(payment.issuer_id) ??
+        input.checkout?.issuerId ??
+        this.readString(input.existing?.issuerId) ??
+        null,
+      statusDetail:
+        this.readString(payment.status_detail) ??
+        this.readString(input.existing?.statusDetail) ??
+        null,
+      transactionAmount:
+        this.readNumber(payment.transaction_amount) ??
+        this.readNumber(input.existing?.transactionAmount) ??
+        null,
+      currencyId:
+        this.readString(payment.currency_id) ??
+        this.readString(input.existing?.currencyId) ??
+        null,
+      externalReference:
+        this.readString(payment.external_reference) ??
+        this.readString(input.existing?.externalReference) ??
+        null,
+      merchantOrderId:
+        this.readString(payment.order?.id) ??
+        this.readString(payment.order_id) ??
+        this.readString(input.existing?.merchantOrderId) ??
+        null,
+      statementDescriptor:
+        this.readString(payment.statement_descriptor) ??
+        this.readString(input.existing?.statementDescriptor) ??
+        null,
+      authorizationCode:
+        this.readString(payment.authorization_code) ??
+        this.readString(input.existing?.authorizationCode) ??
+        null,
+      dateApproved:
+        this.readIsoDate(payment.date_approved) ??
+        this.readIsoDate(input.existing?.dateApproved) ??
+        null,
+      dateCreated:
+        this.readIsoDate(payment.date_created) ??
+        this.readIsoDate(input.existing?.dateCreated) ??
+        null,
+      dateLastUpdated:
+        this.readIsoDate(payment.date_last_updated) ??
+        this.readIsoDate(input.existing?.dateLastUpdated) ??
+        null,
+      payerEmail:
+        this.readString(payer?.email) ??
+        this.readString(input.existing?.payerEmail) ??
+        null,
+      payerIdentification:
+        this.readString(
+          payer?.identification &&
+            typeof payer.identification === 'object' &&
+            (payer.identification as Record<string, unknown>).number,
+        ) ??
+        this.readString(input.existing?.payerIdentification) ??
+        null,
+      cardLastFourDigits:
+        this.readString(card?.last_four_digits) ??
+        this.readString(input.existing?.cardLastFourDigits) ??
+        null,
+      liveMode:
+        typeof payment.live_mode === 'boolean'
+          ? payment.live_mode
+          : typeof input.existing?.liveMode === 'boolean'
+            ? input.existing.liveMode
+            : null,
+      webhookTopic:
+        this.readString(input.webhookBody?.type) ??
+        this.readString(input.existing?.webhookTopic) ??
+        null,
+      webhookResourceId:
+        this.readString(input.webhookBody?.data?.id) ??
+        this.readString(input.existing?.webhookResourceId) ??
+        null,
+      lastWebhookAt:
+        input.source === 'webhook'
+          ? new Date().toISOString()
+          : (this.readIsoDate(input.existing?.lastWebhookAt) ?? null),
+    };
+  }
+
+  private readJsonRecord(value: unknown) {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  }
+
+  private readString(value: unknown) {
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      return normalized ? normalized : null;
+    }
+
+    if (typeof value === 'number' || typeof value === 'bigint') {
+      return String(value);
+    }
+
+    return null;
+  }
+
+  private readNumber(value: unknown) {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = Number(value);
+      return Number.isFinite(normalized) ? normalized : null;
+    }
+
+    return null;
+  }
+
+  private readIsoDate(value: unknown) {
+    const raw = this.readString(value);
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }
 
   private async cancelPendingOrder(orderId: number) {

@@ -346,6 +346,8 @@ function AdminAccountingSection() {
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(today);
   const [status, setStatus] = useState("all");
+  const [provider, setProvider] = useState("all");
+  const [method, setMethod] = useState("all");
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -360,6 +362,8 @@ function AdminAccountingSection() {
       if (from) params.set("from", from);
       if (to) params.set("to", to);
       if (status !== "all") params.set("status", status);
+      if (provider !== "all") params.set("provider", provider);
+      if (method !== "all") params.set("method", method);
 
       const blob = await apiBlob(`/orders/accounting/export?${params.toString()}`);
       const url = window.URL.createObjectURL(blob);
@@ -430,6 +434,51 @@ function AdminAccountingSection() {
               </option>
             </select>
           </label>
+          <label style={shellStyle}>
+            <span style={metaStyle}>Proveedor de pago</span>
+            <select
+              value={provider}
+              onChange={(event) => setProvider(event.target.value)}
+              style={selectStyle}
+            >
+              <option value="all" style={optionStyle}>
+                Todos
+              </option>
+              <option value="mercadopago" style={optionStyle}>
+                Mercado Pago
+              </option>
+              <option value="bank_transfer" style={optionStyle}>
+                Transferencia
+              </option>
+              <option value="manual" style={optionStyle}>
+                Venta manual
+              </option>
+            </select>
+          </label>
+          <label style={shellStyle}>
+            <span style={metaStyle}>Metodo</span>
+            <select
+              value={method}
+              onChange={(event) => setMethod(event.target.value)}
+              style={selectStyle}
+            >
+              <option value="all" style={optionStyle}>
+                Todos
+              </option>
+              <option value="card" style={optionStyle}>
+                Tarjeta
+              </option>
+              <option value="bank_transfer" style={optionStyle}>
+                Transferencia
+              </option>
+              <option value="cash" style={optionStyle}>
+                Efectivo
+              </option>
+              <option value="manual" style={optionStyle}>
+                Manual
+              </option>
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => void downloadExport()}
@@ -451,9 +500,10 @@ function AdminAccountingSection() {
               "Cliente y email snapshot",
               "Subtotal, descuento, envio y total",
               "Proveedor, metodo, estado y monto del pago",
-              "Referencia externa de Mercado Pago o interna",
-              "Cuotas guardadas en metadata",
+              "Referencia externa y merchant order de Mercado Pago",
+              "Cuotas, tipo y detalle de estado del pago",
               "Cantidad y monto de refunds",
+              "Filtros por proveedor o metodo cuando haga falta separar conciliaciones",
             ].map((item) => (
               <div key={item} style={checkStyle}>
                 <span style={softChipStyle}>CSV</span>
