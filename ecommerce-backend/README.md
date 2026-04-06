@@ -31,8 +31,16 @@ Variables principales:
 - `APP_URL`: URL publica local, usada para logs y docs.
 - `API_PREFIX`: prefijo global de la API. Por defecto `api`.
 - `DOCS_PATH`: path de Swagger. Por defecto `docs`.
+- `DOCS_ENABLED`: apagar Swagger en produccion. Recomendado `false`.
+- `CORS_ORIGINS`: lista separada por comas con storefronts y admin permitidos.
 - `REDIS_HOST` y `REDIS_PORT`: conexion BullMQ.
 - `UPLOADS_DIR`: carpeta local para comprobantes e imagenes subidas.
+- `PRIVATE_UPLOADS_DIR`: carpeta privada para comprobantes sensibles.
+- `AUTH_COOKIE_NAME`: nombre de la cookie de sesion.
+- `AUTH_COOKIE_DOMAIN`: dominio compartido de la cookie. En produccion suele ser `.tu-dominio.com`.
+- `AUTH_COOKIE_SECURE`: usar `true` en HTTPS.
+- `AUTH_COOKIE_SAME_SITE`: normalmente `lax` en local y `none` en multisitio HTTPS.
+- `RATE_LIMIT_WINDOW_MS`, `AUTH_RATE_LIMIT_MAX`, `WEBHOOK_RATE_LIMIT_MAX`: hardening basico para login y webhooks.
 - `MERCADOPAGO_ACCESS_TOKEN`: token del provider.
 - Variables de shipping: EnvioPack y Correo Argentino segun el provider activo.
 - Email de notificaciones admin y customer:
@@ -68,6 +76,19 @@ npm run start:dev
 - API: `http://localhost:3000/api`
 - Swagger: `http://localhost:3000/docs`
 - Uploads: `http://localhost:3000/uploads/...`
+
+## Checklist de produccion
+
+Antes de desplegar:
+
+- Copiar `\.env.production.example` a tu entorno real y completar secretos.
+- Definir `DOCS_ENABLED=false`.
+- Definir `CORS_ORIGINS` con los dominios reales del storefront y admin.
+- Definir `AUTH_COOKIE_SECURE=true`.
+- Definir `AUTH_COOKIE_DOMAIN` si backend, admin y storefront comparten dominio base.
+- Usar `AUTH_COOKIE_SAME_SITE=none` cuando el frontend y la API operen por HTTPS en subdominios distintos.
+- Asegurar que `PRIVATE_UPLOADS_DIR` exista y tenga backup y permisos restringidos.
+- Confirmar que el proxy inverso preserve cookies, `x-forwarded-host` y HTTPS.
 
 ## Scripts utiles
 

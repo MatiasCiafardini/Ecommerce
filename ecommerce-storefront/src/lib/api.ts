@@ -1,6 +1,5 @@
 import { getClientStoreContext } from "@/lib/tenant/store-context";
 import { getPublicApiUrl } from "@/lib/runtime-config";
-import { getScopedStorageItem } from "@/lib/store-browser-storage";
 
 type ApiOptions = {
   method?: string;
@@ -12,7 +11,6 @@ function buildApiHeaders(
   options: ApiOptions,
   storeId: number,
   storeHost: string,
-  token: string | null,
 ) {
   const isFormData = options.body instanceof FormData;
 
@@ -20,7 +18,6 @@ function buildApiHeaders(
     ...(!isFormData ? { "Content-Type": "application/json" } : {}),
     "x-store-id": String(storeId),
     "x-store-host": storeHost,
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 }
@@ -63,13 +60,13 @@ const extractErrorMessage = async (res: Response) => {
 
 export const api = async (endpoint: string, options: ApiOptions = {}) => {
   const apiUrl = getPublicApiUrl();
-  const token = getScopedStorageItem("token");
   const { host, storeId } = getClientStoreContext();
 
   const res = await fetch(`${apiUrl}${endpoint}`, {
     method: options.method || "GET",
-    headers: buildApiHeaders(options, storeId, host, token),
+    headers: buildApiHeaders(options, storeId, host),
     body: options.body,
+    credentials: "include",
   });
 
   if (!res.ok) {
@@ -83,13 +80,13 @@ export const api = async (endpoint: string, options: ApiOptions = {}) => {
 
 export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
   const apiUrl = getPublicApiUrl();
-  const token = getScopedStorageItem("token");
   const { host, storeId } = getClientStoreContext();
 
   const res = await fetch(`${apiUrl}${endpoint}`, {
     method: options.method || "GET",
-    headers: buildApiHeaders(options, storeId, host, token),
+    headers: buildApiHeaders(options, storeId, host),
     body: options.body,
+    credentials: "include",
   });
 
   if (!res.ok) {
@@ -97,4 +94,22 @@ export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
   }
 
   return res.text();
+};
+
+export const apiBlob = async (endpoint: string, options: ApiOptions = {}) => {
+  const apiUrl = getPublicApiUrl();
+  const { host, storeId } = getClientStoreContext();
+
+  const res = await fetch(`${apiUrl}${endpoint}`, {
+    method: options.method || "GET",
+    headers: buildApiHeaders(options, storeId, host),
+    body: options.body,
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw new Error(await extractErrorMessage(res));
+  }
+
+  return res.blob();
 };

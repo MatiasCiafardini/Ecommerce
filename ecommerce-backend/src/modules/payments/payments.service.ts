@@ -6,6 +6,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { access } from 'fs/promises';
+import { basename, extname, join } from 'path';
 import { OrderStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,9 +16,11 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ReviewPaymentDto } from './dto/review-payment.dto';
 import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
 import { runtimeConfig } from '../../config/runtime-config';
+import { privateUploadsDir, uploadsDir } from '../../common/uploads';
 
 type Requester = { sub: number; role?: string };
 type UploadedTransferProof = { filename: string; originalname: string };
+const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'STAFF']);
 
 @Injectable()
 export class PaymentsService {
@@ -133,7 +137,7 @@ export class PaymentsService {
         status: 'pending',
         amount: order.total,
         reference: dto.reference?.trim() || null,
-        proofUrl: `/uploads/${file.filename}`,
+        proofUrl: `/private-uploads/${file.filename}`,
         proofFilename: file.originalname,
         notes: dto.notes?.trim() || null,
         idempotencyKey,
@@ -144,6 +148,48 @@ export class PaymentsService {
         },
       },
     });
+  }
+
+  async getPaymentProofFile(
+    storeId: number,
+    paymentId: number,
+    requester?: Requester,
+  ) {
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        id: paymentId,
+        storeId,
+      },
+      include: {
+        order: {
+          select: {
+            customerId: true,
+          },
+        },
+      },
+    });
+
+    if (!payment?.proofUrl) {
+      throw new NotFoundException('Payment proof not found');
+    }
+
+    const requesterRole = requester?.role?.trim() || 'CUSTOMER';
+    const isAdmin = ADMIN_ROLES.has(requesterRole);
+
+    if (!isAdmin && requester?.sub !== payment.order.customerId) {
+      throw new ForbiddenException('You cannot access this payment proof');
+    }
+
+    const absolutePath = await this.resolvePaymentProofAbsolutePath(
+      payment.proofUrl,
+    );
+
+    return {
+      absolutePath,
+      originalName:
+        payment.proofFilename?.trim() ||
+        `payment-proof-${payment.id}${extname(absolutePath)}`,
+    };
   }
 
   async approvePayment(
@@ -281,6 +327,27 @@ export class PaymentsService {
         idempotencyKey,
       },
     });
+  }
+
+  private async resolvePaymentProofAbsolutePath(rawProofUrl: string) {
+    const normalized = rawProofUrl.trim();
+    const filename = basename(normalized);
+    const candidates = normalized.startsWith('/uploads/')
+      ? [uploadsDir, privateUploadsDir]
+      : [privateUploadsDir, uploadsDir];
+
+    for (const directory of candidates) {
+      const absolutePath = join(directory, filename);
+
+      try {
+        await access(absolutePath);
+        return absolutePath;
+      } catch {
+        continue;
+      }
+    }
+
+    throw new NotFoundException('Payment proof file not found');
   }
 
   private async getOrderForPayment(

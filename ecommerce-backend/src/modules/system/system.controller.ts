@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
@@ -17,6 +18,8 @@ import { SystemService } from './system.service';
 import { CreateSystemStoreDto } from './dto/create-system-store.dto';
 import { UpdateSystemStoreDto } from './dto/update-system-store.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { clearAuthCookie, setAuthCookie } from '../auth/utils/auth-cookie.util';
 
 @ApiTags('system')
 @Controller('system')
@@ -27,13 +30,27 @@ export class SystemController {
   ) {}
 
   @Post('auth/login')
-  async login(@Body() body: LoginDto) {
+  async login(
+    @Body() body: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const user = await this.authService.validateSuperAdmin(
       body.email,
       body.password,
     );
 
-    return this.authService.login(user);
+    const session = await this.authService.login(user);
+    setAuthCookie(res, session.access_token);
+
+    return {
+      user: session.user,
+    };
+  }
+
+  @Post('auth/logout')
+  logout(@Res({ passthrough: true }) res: Response) {
+    clearAuthCookie(res);
+    return { success: true };
   }
 
   @ApiBearerAuth('jwt')

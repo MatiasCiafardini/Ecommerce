@@ -1,18 +1,20 @@
 import {
+  BadRequestException,
   Controller,
   Post,
   Body,
   Param,
   Get,
   Req,
+  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
-  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import type { Response } from 'express';
 
 import { ReturnsService } from './returns.service';
 import { CreateReturnDto } from './dto/create-return.dto';
@@ -23,7 +25,7 @@ import { ShipReturnDto } from './dto/ship-return.dto';
 
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { uploadsDir } from '../../common/uploads';
+import { privateUploadsDir } from '../../common/uploads';
 
 @Controller('returns')
 export class ReturnsController {
@@ -42,11 +44,23 @@ export class ReturnsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get(':id/proof')
+  async getProof(@Req() req, @Res() res: Response, @Param('id') id: string) {
+    const absolutePath = await this.returnsService.getReturnShipmentProofFile(
+      req.storeId,
+      Number(id),
+      req.user,
+    );
+
+    return res.sendFile(absolutePath);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post(':id/ship')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: uploadsDir,
+        destination: privateUploadsDir,
         filename: (_, file, callback) => {
           const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
           callback(null, `return-shipment-${uniqueSuffix}${extname(file.originalname)}`);

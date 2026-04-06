@@ -2,6 +2,7 @@ import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
+import { RateLimitMiddleware } from './core/middleware/rate-limit.middleware';
 import { StoreMiddleware } from './core/middleware/store.middleware';
 
 import { ProductsModule } from './modules/products/products.module';
@@ -73,6 +74,6 @@ import { PrismaModule } from './prisma/prisma.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(StoreMiddleware).forRoutes('*');
+    consumer.apply(RateLimitMiddleware, StoreMiddleware).forRoutes('*');
   }
 }

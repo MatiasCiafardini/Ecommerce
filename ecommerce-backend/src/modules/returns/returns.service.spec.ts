@@ -6,6 +6,7 @@ describe('ReturnsService', () => {
   let prisma: {
     return: {
       findFirst: jest.Mock;
+      findMany: jest.Mock;
       update: jest.Mock;
     };
     $transaction: jest.Mock;
@@ -13,11 +14,15 @@ describe('ReturnsService', () => {
   let mercadopago: {
     refundPayment: jest.Mock;
   };
+  let adminNotificationMailService: {
+    sendAdminNotification: jest.Mock;
+  };
 
   beforeEach(() => {
     prisma = {
       return: {
         findFirst: jest.fn(),
+        findMany: jest.fn(),
         update: jest.fn(),
       },
       $transaction: jest.fn(),
@@ -27,7 +32,15 @@ describe('ReturnsService', () => {
       refundPayment: jest.fn(),
     };
 
-    service = new ReturnsService(prisma as never, mercadopago as never);
+    adminNotificationMailService = {
+      sendAdminNotification: jest.fn(),
+    };
+
+    service = new ReturnsService(
+      prisma as never,
+      mercadopago as never,
+      adminNotificationMailService as never,
+    );
   });
 
   it('marks a received return without refunding and restores stock only once', async () => {
@@ -333,5 +346,95 @@ describe('ReturnsService', () => {
     ).rejects.toThrow(new BadRequestException('Return shipping was already registered'));
 
     expect(prisma.return.update).not.toHaveBeenCalled();
+  });
+
+  it('stores return shipment proofs outside the public uploads path', async () => {
+    prisma.return.findFirst.mockResolvedValue({
+      id: 26,
+      status: 'approved',
+      shippedAt: null,
+      receivedAt: null,
+      resolvedAt: null,
+      customerShipmentProofUrl: null,
+      items: [],
+      refund: null,
+      order: {
+        id: 45,
+        status: 'paid',
+        createdAt: new Date(),
+      },
+    });
+    prisma.return.update.mockResolvedValue({
+      id: 26,
+      customerShipmentProofUrl: '/private-uploads/return-proof.pdf',
+    });
+
+    const result = await service.shipReturn(
+      2,
+      10,
+      26,
+      {
+        trackingNumber: 'ABC123',
+      },
+      {
+        filename: 'return-proof.pdf',
+        originalname: 'return-proof.pdf',
+      },
+    );
+
+    expect(prisma.return.update).toHaveBeenCalledWith({
+      where: { id: 26 },
+      data: {
+        customerShipmentCarrier: null,
+        customerShipmentTracking: 'ABC123',
+        customerShipmentProofUrl: '/private-uploads/return-proof.pdf',
+        shippedAt: expect.any(Date),
+      },
+      include: {
+        items: true,
+        refund: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    expect(result).toEqual({
+      id: 26,
+      customerShipmentProofUrl: '/returns/26/proof',
+    });
+  });
+
+  it('maps stored shipment proofs to the protected return proof endpoint', async () => {
+    prisma.return.findMany = jest.fn().mockResolvedValue([
+      {
+        id: 31,
+        customerShipmentProofUrl: '/private-uploads/return-proof.pdf',
+        items: [],
+        refund: null,
+        order: {
+          id: 50,
+          status: 'paid',
+          createdAt: new Date(),
+        },
+      },
+    ]);
+
+    await expect(service.findMine(4, 22)).resolves.toEqual([
+      {
+        id: 31,
+        customerShipmentProofUrl: '/returns/31/proof',
+        items: [],
+        refund: null,
+        order: {
+          id: 50,
+          status: 'paid',
+          createdAt: expect.any(Date),
+        },
+      },
+    ]);
   });
 });

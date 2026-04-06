@@ -61,7 +61,6 @@ type StoreFormState = {
   mercadoPagoWebhookSecret: string;
 };
 
-const tokenStorageKey = "ecommerce-admin.token";
 const localDeployCommand = `git add .\ngit commit -m "mensaje del cambio"\ngit push origin main`;
 const vpsDeployCommand = `ssh mati@187.127.13.225\nbash /var/www/ecommerce/deploy.sh`;
 const initialLoginState: LoginState = { email: "", password: "" };
@@ -216,7 +215,6 @@ function StoreFields({
 
 export default function Page() {
   const apiUrl = getApiUrl();
-  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
@@ -243,79 +241,78 @@ export default function Page() {
   }
 
   async function request<T>(path: string, init?: RequestInit) {
-    const response = await fetch(`${apiUrl}${path}`, init);
+    const response = await fetch(`${apiUrl}${path}`, {
+      ...init,
+      credentials: "include",
+    });
     const payload = await readJson(response);
     if (!response.ok) throw new Error(readError(payload, "No se pudo completar la solicitud."));
     return payload as T;
   }
 
-  async function loadStores(activeToken: string) {
+  async function loadStores() {
     return request<Store[]>("/system/stores", {
-      headers: { Authorization: `Bearer ${activeToken}` },
       cache: "no-store",
     });
   }
 
-  async function loadStore(activeToken: string, id: number) {
+  async function loadStore(id: number) {
     return request<Store>(`/system/stores/${id}`, {
-      headers: { Authorization: `Bearer ${activeToken}` },
       cache: "no-store",
     });
   }
 
-  async function bootstrap(activeToken: string) {
+  async function bootstrap() {
     const profile = await request<AuthUser>("/system/auth/me", {
-      headers: { Authorization: `Bearer ${activeToken}` },
       cache: "no-store",
     });
-    const nextStores = await loadStores(activeToken);
+    const nextStores = await loadStores();
     setUser(profile);
     setStores(nextStores);
     const firstId = nextStores[0]?.id ?? null;
     setSelectedStoreId(firstId);
     if (firstId) {
-      const detail = await loadStore(activeToken, firstId);
+      const detail = await loadStore(firstId);
       setSelectedStore(detail);
       setEditState(storeToForm(detail));
     }
   }
 
-  async function refresh(activeToken: string, preferredId?: number | null) {
-    const nextStores = await loadStores(activeToken);
+  async function refresh(preferredId?: number | null) {
+    const nextStores = await loadStores();
     setStores(nextStores);
     const nextId = preferredId && nextStores.some((store) => store.id === preferredId) ? preferredId : nextStores[0]?.id ?? null;
     setSelectedStoreId(nextId);
     if (nextId) {
-      const detail = await loadStore(activeToken, nextId);
+      const detail = await loadStore(nextId);
       setSelectedStore(detail);
       setEditState(storeToForm(detail));
     }
   }
 
   useEffect(() => {
-    const savedToken = typeof window !== "undefined" ? window.localStorage.getItem(tokenStorageKey) : null;
-    if (!savedToken) {
-      setLoadingSession(false);
-      return;
-    }
-    setToken(savedToken);
-    bootstrap(savedToken).catch((error) => {
-      window.localStorage.removeItem(tokenStorageKey);
-      setToken(null);
+    bootstrap().catch((error) => {
+      setUser(null);
+      setStores([]);
+      setSelectedStore(null);
+      setSelectedStoreId(null);
+      if (error instanceof Error && /401|403/.test(error.message)) {
+        return;
+      }
       setErrorMessage(error instanceof Error ? error.message : "La sesion no es valida.");
     }).finally(() => setLoadingSession(false));
   }, []);
 
   useEffect(() => {
-    if (!token || !selectedStoreId) return;
+    if (!user || !selectedStoreId) return;
     setLoadingStore(true);
-    loadStore(token, selectedStoreId).then((store) => {
+    loadStore(selectedStoreId).then((store) => {
       setSelectedStore(store);
       setEditState(storeToForm(store));
     }).catch((error) => {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo cargar la tienda.");
     }).finally(() => setLoadingStore(false));
-  }, [selectedStoreId, token]);
+  }, [selectedStoreId, user]);
 
   const stats = useMemo(() => ([
     { label: "Tiendas activas", value: stores.length, detail: "Portfolio actual" },
@@ -330,14 +327,12 @@ export default function Page() {
     setSuccessMessage(null);
     setSavingLogin(true);
     try {
-      const payload = await request<{ access_token: string }>("/system/auth/login", {
+      await request<{ user: AuthUser }>("/system/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(loginState),
       });
-      window.localStorage.setItem(tokenStorageKey, payload.access_token);
-      setToken(payload.access_token);
-      await bootstrap(payload.access_token);
+      await bootstrap();
       setSuccessMessage("Sesion iniciada. El panel maestro ya esta operativo.");
       setLoginState(initialLoginState);
     } catch (error) {
@@ -349,19 +344,19 @@ export default function Page() {
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token) return;
+    if (!user) return;
     setErrorMessage(null);
     setSuccessMessage(null);
     setSavingCreate(true);
     try {
       const created = await request<Store>("/system/stores", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(createState),
       });
       setCreateState(emptyStoreForm);
       setTab("stores");
-      await refresh(token, created.id);
+      await refresh(created.id);
       setSuccessMessage(`La tienda ${created.name} ya quedo creada con owner y configuracion inicial.`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo crear la tienda.");
@@ -372,17 +367,17 @@ export default function Page() {
 
   async function onSaveStore(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token || !selectedStoreId) return;
+    if (!user || !selectedStoreId) return;
     setErrorMessage(null);
     setSuccessMessage(null);
     setSavingEdit(true);
     try {
       await request<Store>(`/system/stores/${selectedStoreId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editState),
       });
-      await refresh(token, selectedStoreId);
+      await refresh(selectedStoreId);
       setSuccessMessage("La tienda se actualizo correctamente.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar la tienda.");
@@ -392,8 +387,9 @@ export default function Page() {
   }
 
   function logout() {
-    window.localStorage.removeItem(tokenStorageKey);
-    setToken(null);
+    void request("/system/auth/logout", {
+      method: "POST",
+    }).catch(() => null);
     setUser(null);
     setStores([]);
     setSelectedStore(null);

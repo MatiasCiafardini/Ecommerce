@@ -4,6 +4,8 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { access } from 'fs/promises';
+import { join } from 'path';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateReturnDto } from './dto/create-return.dto';
@@ -13,8 +15,10 @@ import { ReceiveReturnDto } from './dto/receive-return.dto';
 import { ShipReturnDto } from './dto/ship-return.dto';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { AdminNotificationMailService } from '../notifications/admin-notification-mail.service';
+import { privateUploadsDir, uploadsDir } from '../../common/uploads';
 
 type UploadedReturnProof = { filename: string; originalname: string };
+const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN']);
 
 @Injectable()
 export class ReturnsService {
@@ -119,7 +123,7 @@ export class ReturnsService {
       buttonLabel: 'Abrir devoluciones',
     });
 
-    return createdReturn;
+    return this.withProtectedShipmentProof(createdReturn);
   }
 
   async approveReturn(storeId: number, returnId: number, dto: ApproveReturnDto) {
@@ -158,7 +162,7 @@ export class ReturnsService {
       throw new BadRequestException('Return already processed');
     }
 
-    return this.prisma.return.update({
+    const updatedReturn = await this.prisma.return.update({
       where: { id: returnId },
       data: dto.approve
         ? {
@@ -183,6 +187,8 @@ export class ReturnsService {
         },
       },
     });
+
+    return this.withProtectedShipmentProof(updatedReturn);
   }
 
   async shipReturn(
@@ -233,13 +239,13 @@ export class ReturnsService {
       );
     }
 
-    return this.prisma.return.update({
+    const updatedReturn = await this.prisma.return.update({
       where: { id: returnId },
       data: {
         customerShipmentCarrier: dto.carrier?.trim() || null,
         customerShipmentTracking: dto.trackingNumber?.trim() || null,
         customerShipmentProofUrl: file?.filename
-          ? `/uploads/${file.filename}`
+          ? `/private-uploads/${file.filename}`
           : returnRequest.customerShipmentProofUrl,
         shippedAt: new Date(),
       },
@@ -255,6 +261,8 @@ export class ReturnsService {
         },
       },
     });
+
+    return this.withProtectedShipmentProof(updatedReturn);
   }
 
   async receiveReturn(storeId: number, returnId: number, dto: ReceiveReturnDto) {
@@ -426,10 +434,45 @@ export class ReturnsService {
 
       return {
         success: true,
-        return: updatedReturn,
+        return: this.withProtectedShipmentProof(updatedReturn),
         refund,
       };
     });
+  }
+
+  async getReturnShipmentProofFile(
+    storeId: number,
+    returnId: number,
+    requester: { sub: number; role?: string | null },
+  ) {
+    const returnRequest = await this.prisma.return.findFirst({
+      where: {
+        id: returnId,
+        storeId,
+      },
+      select: {
+        id: true,
+        customerShipmentProofUrl: true,
+        order: {
+          select: {
+            customerId: true,
+          },
+        },
+      },
+    });
+
+    if (!returnRequest?.customerShipmentProofUrl) {
+      throw new NotFoundException('Return proof not found');
+    }
+
+    const requesterRole = requester.role ?? 'CUSTOMER';
+    const isAdmin = ADMIN_ROLES.has(requesterRole);
+
+    if (!isAdmin && returnRequest.order.customerId !== requester.sub) {
+      throw new ForbiddenException('You cannot access this return proof');
+    }
+
+    return this.resolveProofAbsolutePath(returnRequest.customerShipmentProofUrl);
   }
 
   private calculateSuggestedRefundAmount(
@@ -517,7 +560,7 @@ export class ReturnsService {
   }
 
   async findAll(storeId: number) {
-    return this.prisma.return.findMany({
+    const returns = await this.prisma.return.findMany({
       where: { storeId },
       include: {
         items: true,
@@ -527,10 +570,12 @@ export class ReturnsService {
         createdAt: 'desc',
       },
     });
+
+    return returns.map((entry) => this.withProtectedShipmentProof(entry));
   }
 
   async findMine(storeId: number, customerId: number) {
-    return this.prisma.return.findMany({
+    const returns = await this.prisma.return.findMany({
       where: {
         storeId,
         order: {
@@ -552,5 +597,43 @@ export class ReturnsService {
         createdAt: 'desc',
       },
     });
+
+    return returns.map((entry) => this.withProtectedShipmentProof(entry));
+  }
+
+  private withProtectedShipmentProof<T extends Record<string, any>>(entry: T): T {
+    if (!entry.customerShipmentProofUrl) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      customerShipmentProofUrl: `/returns/${entry.id}/proof`,
+    };
+  }
+
+  private async resolveProofAbsolutePath(proofUrl: string) {
+    const normalizedProofUrl = proofUrl.replace(/^\/+/, '');
+    const filename = normalizedProofUrl.split('/').pop();
+
+    if (!filename) {
+      throw new NotFoundException('Return proof file is missing');
+    }
+
+    const preferredPath = join(privateUploadsDir, filename);
+
+    try {
+      await access(preferredPath);
+      return preferredPath;
+    } catch {
+      const legacyPath = join(uploadsDir, filename);
+
+      try {
+        await access(legacyPath);
+        return legacyPath;
+      } catch {
+        throw new NotFoundException('Return proof file is missing');
+      }
+    }
   }
 }

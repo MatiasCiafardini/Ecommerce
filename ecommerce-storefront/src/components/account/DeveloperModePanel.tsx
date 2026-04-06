@@ -42,6 +42,10 @@ type AdminMercadoPagoConfig = {
   publicKey: string;
   accessToken: string;
   webhookSecret: string;
+  accessTokenConfigured: boolean;
+  webhookSecretConfigured: boolean;
+  accessTokenPreview?: string | null;
+  webhookSecretPreview?: string | null;
 };
 
 type MercadoPagoTestResult = {
@@ -620,6 +624,10 @@ export default function DeveloperModePanel({
     publicKey: "",
     accessToken: "",
     webhookSecret: "",
+    accessTokenConfigured: false,
+    webhookSecretConfigured: false,
+    accessTokenPreview: null,
+    webhookSecretPreview: null,
   });
   const [mercadoPagoTestResult, setMercadoPagoTestResult] = useState<MercadoPagoTestResult | null>(null);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
@@ -663,14 +671,28 @@ export default function DeveloperModePanel({
         );
         setMercadoPagoConfig({
           publicKey: String(integrationsResponse?.mercadopago?.publicKey ?? ""),
-          accessToken: String(integrationsResponse?.mercadopago?.accessToken ?? ""),
-          webhookSecret: String(integrationsResponse?.mercadopago?.webhookSecret ?? ""),
+          accessToken: "",
+          webhookSecret: "",
+          accessTokenConfigured: Boolean(integrationsResponse?.mercadopago?.accessTokenConfigured),
+          webhookSecretConfigured: Boolean(integrationsResponse?.mercadopago?.webhookSecretConfigured),
+          accessTokenPreview: typeof integrationsResponse?.mercadopago?.accessTokenPreview === "string"
+            ? integrationsResponse.mercadopago.accessTokenPreview
+            : null,
+          webhookSecretPreview: typeof integrationsResponse?.mercadopago?.webhookSecretPreview === "string"
+            ? integrationsResponse.mercadopago.webhookSecretPreview
+            : null,
         });
         setSavedMercadoPagoSnapshot(
           JSON.stringify({
             publicKey: String(integrationsResponse?.mercadopago?.publicKey ?? ""),
-            accessToken: String(integrationsResponse?.mercadopago?.accessToken ?? ""),
-            webhookSecret: String(integrationsResponse?.mercadopago?.webhookSecret ?? ""),
+            accessTokenConfigured: Boolean(integrationsResponse?.mercadopago?.accessTokenConfigured),
+            webhookSecretConfigured: Boolean(integrationsResponse?.mercadopago?.webhookSecretConfigured),
+            accessTokenPreview: typeof integrationsResponse?.mercadopago?.accessTokenPreview === "string"
+              ? integrationsResponse.mercadopago.accessTokenPreview
+              : null,
+            webhookSecretPreview: typeof integrationsResponse?.mercadopago?.webhookSecretPreview === "string"
+              ? integrationsResponse.mercadopago.webhookSecretPreview
+              : null,
           }),
         );
         setMercadoPagoTestResult(null);
@@ -1173,21 +1195,51 @@ export default function DeveloperModePanel({
         setSuccess("");
         setMercadoPagoTestResult(null);
 
+        const payload: {
+          publicKey: string;
+          accessToken?: string;
+          webhookSecret?: string;
+        } = {
+          publicKey: mercadoPagoConfig.publicKey,
+        };
+
+        if (mercadoPagoConfig.accessToken.trim()) {
+          payload.accessToken = mercadoPagoConfig.accessToken.trim();
+        }
+
+        if (mercadoPagoConfig.webhookSecret.trim()) {
+          payload.webhookSecret = mercadoPagoConfig.webhookSecret.trim();
+        }
+
         const response = await api("/store/admin/integrations/mercadopago", {
           method: "PUT",
-          body: JSON.stringify(mercadoPagoConfig),
+          body: JSON.stringify(payload),
         });
 
         setMercadoPagoConfig({
           publicKey: String(response?.mercadopago?.publicKey ?? ""),
-          accessToken: String(response?.mercadopago?.accessToken ?? ""),
-          webhookSecret: String(response?.mercadopago?.webhookSecret ?? ""),
+          accessToken: "",
+          webhookSecret: "",
+          accessTokenConfigured: Boolean(response?.mercadopago?.accessTokenConfigured),
+          webhookSecretConfigured: Boolean(response?.mercadopago?.webhookSecretConfigured),
+          accessTokenPreview: typeof response?.mercadopago?.accessTokenPreview === "string"
+            ? response.mercadopago.accessTokenPreview
+            : null,
+          webhookSecretPreview: typeof response?.mercadopago?.webhookSecretPreview === "string"
+            ? response.mercadopago.webhookSecretPreview
+            : null,
         });
         setSavedMercadoPagoSnapshot(
           JSON.stringify({
             publicKey: String(response?.mercadopago?.publicKey ?? ""),
-            accessToken: String(response?.mercadopago?.accessToken ?? ""),
-            webhookSecret: String(response?.mercadopago?.webhookSecret ?? ""),
+            accessTokenConfigured: Boolean(response?.mercadopago?.accessTokenConfigured),
+            webhookSecretConfigured: Boolean(response?.mercadopago?.webhookSecretConfigured),
+            accessTokenPreview: typeof response?.mercadopago?.accessTokenPreview === "string"
+              ? response.mercadopago.accessTokenPreview
+              : null,
+            webhookSecretPreview: typeof response?.mercadopago?.webhookSecretPreview === "string"
+              ? response.mercadopago.webhookSecretPreview
+              : null,
           }),
         );
         setSuccess("La configuracion de Mercado Pago se guardo correctamente.");
@@ -1512,6 +1564,11 @@ export default function DeveloperModePanel({
                         autoComplete="new-password"
                         style={inputStyle}
                       />
+                      {mercadoPagoConfig.accessTokenConfigured && !mercadoPagoConfig.accessToken ? (
+                        <p style={hintStyle}>
+                          Token ya configurado en backend{mercadoPagoConfig.accessTokenPreview ? ` (${mercadoPagoConfig.accessTokenPreview})` : ""}. Cargá uno nuevo solo si querés rotarlo.
+                        </p>
+                      ) : null}
                     </div>
 
                     <div style={{ display: "grid", gap: 8 }}>
@@ -1530,6 +1587,11 @@ export default function DeveloperModePanel({
                         autoComplete="new-password"
                         style={inputStyle}
                       />
+                      {mercadoPagoConfig.webhookSecretConfigured && !mercadoPagoConfig.webhookSecret ? (
+                        <p style={hintStyle}>
+                          Secret ya configurado{mercadoPagoConfig.webhookSecretPreview ? ` (${mercadoPagoConfig.webhookSecretPreview})` : ""}. Escribí uno nuevo solo si querés reemplazarlo.
+                        </p>
+                      ) : null}
                     </div>
 
                     <div style={integrationInfoCardStyle}>
@@ -1539,13 +1601,13 @@ export default function DeveloperModePanel({
                           <span>Public key</span>
                           <strong>{mercadoPagoConfig.publicKey ? "Cargada" : "Pendiente"}</strong>
                         </div>
-                        <div style={integrationCheckStyle(Boolean(mercadoPagoConfig.accessToken))}>
+                        <div style={integrationCheckStyle(Boolean(mercadoPagoConfig.accessToken || mercadoPagoConfig.accessTokenConfigured))}>
                           <span>Access token</span>
-                          <strong>{mercadoPagoConfig.accessToken ? "Cargado" : "Pendiente"}</strong>
+                          <strong>{mercadoPagoConfig.accessToken || mercadoPagoConfig.accessTokenConfigured ? "Cargado" : "Pendiente"}</strong>
                         </div>
-                        <div style={integrationCheckStyle(Boolean(mercadoPagoConfig.webhookSecret))}>
+                        <div style={integrationCheckStyle(Boolean(mercadoPagoConfig.webhookSecret || mercadoPagoConfig.webhookSecretConfigured))}>
                           <span>Webhook secret</span>
-                          <strong>{mercadoPagoConfig.webhookSecret ? "Cargado" : "Pendiente"}</strong>
+                          <strong>{mercadoPagoConfig.webhookSecret || mercadoPagoConfig.webhookSecretConfigured ? "Cargado" : "Pendiente"}</strong>
                         </div>
                       </div>
                     </div>

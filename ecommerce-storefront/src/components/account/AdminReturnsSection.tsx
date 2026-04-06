@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api } from "@/lib/api";
-import { resolveAssetUrl } from "@/lib/asset-url";
+import { api, apiBlob } from "@/lib/api";
 import {
   money,
   orderCustomerName,
@@ -83,6 +82,18 @@ export default function AdminReturnsSection() {
   );
   const requestedCancellations = cancellations.filter((item) => item.status === "requested");
   const processedCancellations = cancellations.filter((item) => item.status !== "requested");
+
+  const openReturnProof = async (proofUrl: string) => {
+    try {
+      setError("");
+      const blob = await apiBlob(proofUrl);
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (proofError) {
+      setError(getErrorMessage(proofError, "No se pudo abrir el comprobante."));
+    }
+  };
 
   const processReturn = async (returnId: number, approve: boolean) => {
     try {
@@ -358,14 +369,21 @@ export default function AdminReturnsSection() {
                         </div>
                       ) : null}
                       {entry.customerShipmentProofUrl ? (
-                        <a
-                          href={resolveAssetUrl(entry.customerShipmentProofUrl) ?? entry.customerShipmentProofUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{ color: "var(--account-text-strong)", textDecoration: "underline" }}
+                        <button
+                          type="button"
+                          onClick={() => void openReturnProof(entry.customerShipmentProofUrl!)}
+                          style={{
+                            width: "fit-content",
+                            color: "var(--account-text-strong)",
+                            textDecoration: "underline",
+                            background: "transparent",
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                          }}
                         >
                           Ver comprobante de envío
-                        </a>
+                        </button>
                       ) : null}
 
                       <div style={itemListStyle}>

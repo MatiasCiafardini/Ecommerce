@@ -5,13 +5,34 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { existsSync, mkdirSync } from 'fs';
 import express from 'express';
 import { runtimeConfig } from './config/runtime-config';
-import { uploadsDir, uploadsPublicPath } from './common/uploads';
+import {
+  privateUploadsDir,
+  uploadsDir,
+  uploadsPublicPath,
+} from './common/uploads';
+
+function resolveCorsOrigin(origin: string | undefined, allowedOrigins: string[]) {
+  if (!origin) {
+    return true;
+  }
+
+  if (allowedOrigins.length === 0) {
+    return origin;
+  }
+
+  return allowedOrigins.includes(origin) ? origin : false;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const expressApp = app.getHttpAdapter().getInstance();
 
-  if (!existsSync(uploadsDir)) {
-    mkdirSync(uploadsDir, { recursive: true });
+  expressApp.disable('x-powered-by');
+
+  for (const directory of [uploadsDir, privateUploadsDir]) {
+    if (!existsSync(directory)) {
+      mkdirSync(directory, { recursive: true });
+    }
   }
 
   app.setGlobalPrefix(runtimeConfig.apiPrefix);
@@ -25,8 +46,24 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      const resolvedOrigin = resolveCorsOrigin(origin, runtimeConfig.corsOrigins);
+
+      if (!resolvedOrigin) {
+        callback(new Error('Origin not allowed by CORS'));
+        return;
+      }
+
+      callback(null, resolvedOrigin);
+    },
     credentials: true,
+  });
+
+  app.use((_, res, next) => {
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    next();
   });
 
   app.useGlobalPipes(
@@ -37,42 +74,46 @@ async function bootstrap() {
     }),
   );
 
-  const config = new DocumentBuilder()
-    .setTitle('Ecommerce API')
-    .setDescription('Headless SaaS Ecommerce Backend')
-    .setVersion('1.0')
-    .addApiKey(
+  if (runtimeConfig.docsEnabled) {
+    const config = new DocumentBuilder()
+      .setTitle('Ecommerce API')
+      .setDescription('Headless SaaS Ecommerce Backend')
+      .setVersion('1.0')
+      .addApiKey(
+        {
+          type: 'apiKey',
+          name: 'x-store-id',
+          in: 'header',
+        },
+        'x-store-id',
+      )
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+        'jwt',
+      )
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+
+    document.security = [
       {
-        type: 'apiKey',
-        name: 'x-store-id',
-        in: 'header',
+        'x-store-id': [],
       },
-      'x-store-id',
-    )
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-      },
-      'jwt',
-    )
-    .build();
+    ];
 
-  const document = SwaggerModule.createDocument(app, config);
-
-  document.security = [
-    {
-      'x-store-id': [],
-    },
-  ];
-
-  SwaggerModule.setup(runtimeConfig.docsPath, app, document);
+    SwaggerModule.setup(runtimeConfig.docsPath, app, document);
+  }
 
   await app.listen(runtimeConfig.port);
 
   console.log(`Server running on ${runtimeConfig.appUrl}`);
-  console.log(`Swagger docs on ${runtimeConfig.appUrl}/${runtimeConfig.docsPath}`);
+  if (runtimeConfig.docsEnabled) {
+    console.log(`Swagger docs on ${runtimeConfig.appUrl}/${runtimeConfig.docsPath}`);
+  }
 }
 
 bootstrap();

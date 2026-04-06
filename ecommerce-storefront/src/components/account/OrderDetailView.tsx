@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, apiBlob } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import {
   canCustomerCancelOrder,
@@ -99,6 +99,20 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
   const reloadOrder = async () => {
     const data = await api(`/customers/me/orders/${orderId}`);
     setOrder(data);
+  };
+
+  const openPaymentProof = async (proofUrl: string) => {
+    try {
+      setActionError("");
+      const blob = await apiBlob(proofUrl);
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "No se pudo abrir el comprobante.",
+      );
+    }
   };
 
   const handleCancelOrder = async () => {
@@ -981,10 +995,9 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                       </span>
                     ) : null}
                     {payment.proofUrl ? (
-                      <a
-                        href={payment.proofUrl}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => void openPaymentProof(payment.proofUrl!)}
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -994,12 +1007,12 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                           border: "1px solid var(--border-soft)",
                           background: "transparent",
                           color: "var(--text-strong)",
-                          textDecoration: "none",
                           padding: "10px 14px",
+                          cursor: "pointer",
                         }}
                       >
                         Ver comprobante
-                      </a>
+                      </button>
                     ) : null}
                   </div>
                 ))

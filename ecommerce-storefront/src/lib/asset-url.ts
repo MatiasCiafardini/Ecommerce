@@ -23,7 +23,11 @@ export function resolveAssetUrl(url?: string | null) {
     return url;
   }
 
-  if (url.startsWith("/uploads/")) {
+  if (
+    url.startsWith("/uploads/") ||
+    url.startsWith("/payments/") ||
+    url.startsWith("/returns/")
+  ) {
     const origin = getApiOrigin();
     return origin ? `${origin}${url}` : url;
   }

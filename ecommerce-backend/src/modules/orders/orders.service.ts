@@ -1403,16 +1403,30 @@ export class OrdersService {
       cancellationRequest?: unknown | null;
     };
 
-    return {
+    return this.withProtectedPaymentProofs({
       ...rest,
       cancellationRequests: cancellationRequest ? [cancellationRequest] : [],
-    };
+    } as T & { cancellationRequests: unknown[] });
   }
 
   private withCancellationRequestsList<
     T extends { cancellationRequest?: unknown | null }
   >(orders: T[]) {
     return orders.map((order) => this.withCancellationRequests(order));
+  }
+
+  private withProtectedPaymentProofs<T extends Record<string, any>>(order: T): T {
+    if (!Array.isArray(order.payments)) {
+      return order;
+    }
+
+    return {
+      ...order,
+      payments: order.payments.map((payment) => ({
+        ...payment,
+        proofUrl: payment.proofUrl ? `/payments/${payment.id}/proof` : null,
+      })),
+    } as T;
   }
 
   private cancellationRequestInclude() {

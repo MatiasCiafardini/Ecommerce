@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { NotFoundException } from '@nestjs/common';
 
 import { CreateWebhookDto } from '../../dto/create-webhook.dto';
 import { UpdateWebhookDto } from '../../dto/update-webhook.dto';
@@ -47,7 +48,7 @@ export class WebhooksService {
     });
   }
   async findOne(storeId: number, id: string) {
-    return this.prisma.webhook.findFirst({
+    const webhook = await this.prisma.webhook.findFirst({
       where: {
         id,
         storeId,
@@ -56,8 +57,16 @@ export class WebhooksService {
         deliveries: true,
       },
     });
+
+    if (!webhook) {
+      throw new NotFoundException('Webhook not found');
+    }
+
+    return webhook;
   }
   async update(storeId: number, id: string, dto: UpdateWebhookDto) {
+    await this.findOne(storeId, id);
+
     return this.prisma.webhook.update({
       where: { id },
       data: dto,
@@ -65,6 +74,8 @@ export class WebhooksService {
   }
 
   async remove(storeId: number, id: string) {
+    await this.findOne(storeId, id);
+
     return this.prisma.webhook.delete({
       where: { id },
     });

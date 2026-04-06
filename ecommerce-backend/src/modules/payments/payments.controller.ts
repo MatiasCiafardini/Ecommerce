@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Param,
   Post,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -13,13 +15,14 @@ import { ApiBearerAuth, ApiConsumes, ApiSecurity, ApiTags } from '@nestjs/swagge
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import type { Response } from 'express';
 
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ReviewPaymentDto } from './dto/review-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
-import { uploadsDir } from '../../common/uploads';
+import { privateUploadsDir } from '../../common/uploads';
 
 const allowedTransferProofExtensions = new Set([
   '.pdf',
@@ -61,7 +64,7 @@ export class PaymentsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: uploadsDir,
+        destination: privateUploadsDir,
         filename: (_, file, callback) => {
           const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
           callback(null, `transfer-${uniqueSuffix}${extname(file.originalname)}`);
@@ -104,6 +107,27 @@ export class PaymentsController {
       file,
       req.user,
     );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('payments/:paymentId/proof')
+  async getPaymentProof(
+    @Req() req,
+    @Param('paymentId') paymentId: string,
+    @Res() res: Response,
+  ) {
+    const proof = await this.paymentsService.getPaymentProofFile(
+      req.storeId,
+      Number(paymentId),
+      req.user,
+    );
+
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(proof.originalName)}"`,
+    );
+
+    return res.sendFile(proof.absolutePath);
   }
 
   @UseGuards(AdminAuthGuard)

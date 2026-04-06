@@ -6,6 +6,37 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class MercadoPagoProvider {
   constructor(private readonly prisma: PrismaService) {}
 
+  private maskSecret(value?: string | null) {
+    const trimmed = value?.trim() ?? '';
+
+    if (!trimmed) {
+      return null;
+    }
+
+    if (trimmed.length <= 8) {
+      return `${trimmed.slice(0, 2)}***${trimmed.slice(-2)}`;
+    }
+
+    return `${trimmed.slice(0, 4)}***${trimmed.slice(-4)}`;
+  }
+
+  private async getStoredConfig(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        mercadoPagoPublicKey: true,
+        mercadoPagoAccessToken: true,
+        mercadoPagoWebhookSecret: true,
+      },
+    });
+
+    return {
+      publicKey: store?.mercadoPagoPublicKey?.trim() || '',
+      accessToken: store?.mercadoPagoAccessToken?.trim() || '',
+      webhookSecret: store?.mercadoPagoWebhookSecret?.trim() || '',
+    };
+  }
+
   private async getAccessToken(storeId: number) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
@@ -40,19 +71,14 @@ export class MercadoPagoProvider {
   }
 
   async getAdminConfig(storeId: number) {
-    const store = await this.prisma.store.findUnique({
-      where: { id: storeId },
-      select: {
-        mercadoPagoPublicKey: true,
-        mercadoPagoAccessToken: true,
-        mercadoPagoWebhookSecret: true,
-      },
-    });
+    const config = await this.getStoredConfig(storeId);
 
     return {
-      publicKey: store?.mercadoPagoPublicKey?.trim() || '',
-      accessToken: store?.mercadoPagoAccessToken?.trim() || '',
-      webhookSecret: store?.mercadoPagoWebhookSecret?.trim() || '',
+      publicKey: config.publicKey,
+      accessTokenConfigured: Boolean(config.accessToken),
+      webhookSecretConfigured: Boolean(config.webhookSecret),
+      accessTokenPreview: this.maskSecret(config.accessToken),
+      webhookSecretPreview: this.maskSecret(config.webhookSecret),
     };
   }
 
@@ -64,29 +90,34 @@ export class MercadoPagoProvider {
       webhookSecret?: string | null;
     },
   ) {
-    const updated = await this.prisma.store.update({
+    const data: {
+      mercadoPagoPublicKey?: string | null;
+      mercadoPagoAccessToken?: string | null;
+      mercadoPagoWebhookSecret?: string | null;
+    } = {};
+
+    if (input.publicKey !== undefined) {
+      data.mercadoPagoPublicKey = input.publicKey?.trim() || null;
+    }
+
+    if (input.accessToken !== undefined) {
+      data.mercadoPagoAccessToken = input.accessToken?.trim() || null;
+    }
+
+    if (input.webhookSecret !== undefined) {
+      data.mercadoPagoWebhookSecret = input.webhookSecret?.trim() || null;
+    }
+
+    await this.prisma.store.update({
       where: { id: storeId },
-      data: {
-        mercadoPagoPublicKey: input.publicKey?.trim() || null,
-        mercadoPagoAccessToken: input.accessToken?.trim() || null,
-        mercadoPagoWebhookSecret: input.webhookSecret?.trim() || null,
-      },
-      select: {
-        mercadoPagoPublicKey: true,
-        mercadoPagoAccessToken: true,
-        mercadoPagoWebhookSecret: true,
-      },
+      data,
     });
 
-    return {
-      publicKey: updated.mercadoPagoPublicKey?.trim() || '',
-      accessToken: updated.mercadoPagoAccessToken?.trim() || '',
-      webhookSecret: updated.mercadoPagoWebhookSecret?.trim() || '',
-    };
+    return this.getAdminConfig(storeId);
   }
 
   async testConfiguration(storeId: number) {
-    const config = await this.getAdminConfig(storeId);
+    const config = await this.getStoredConfig(storeId);
     const checks = {
       publicKey: Boolean(config.publicKey),
       accessToken: Boolean(config.accessToken),

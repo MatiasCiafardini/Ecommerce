@@ -6,7 +6,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "build": "nest build",
-    "test": "jest --runInBand src/modules/payments/payments.service.spec.ts src/modules/returns/returns.service.spec.ts",
+    "test": "jest --runInBand src/modules/payments/payments.service.spec.ts src/modules/payments/providers/mercadopago.provider.spec.ts src/modules/returns/returns.service.spec.ts src/modules/webhooks/services/webhooks/webhooks.service.spec.ts",
     "test:watch": "npm run test -- --watch",
     "test:ecommerce": "node scripts/test-ecommerce.js",
     "test:race": "node scripts/test-inventory-race.js",

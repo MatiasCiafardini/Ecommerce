@@ -133,16 +133,20 @@ export class AuthService {
 
   async login(user: any) {
     const safeUser = this.toAuthEntity(user);
-    const payload = {
-      sub: safeUser.id,
-      storeId: safeUser.storeId,
-      role: safeUser.role,
-    };
+    const accessToken = this.signAccessToken(safeUser);
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: accessToken,
       user: safeUser,
     };
+  }
+
+  signAccessToken(user: Pick<AuthEntity, 'id' | 'storeId' | 'role'>) {
+    return this.jwtService.sign({
+      sub: user.id,
+      storeId: user.storeId,
+      role: user.role,
+    });
   }
 
   async validateCustomer(email: string, password: string, storeId: number) {

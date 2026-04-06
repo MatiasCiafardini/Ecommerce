@@ -1,11 +1,22 @@
-import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateCurrentAuthDto } from './dto/update-current-auth.dto';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { clearAuthCookie, setAuthCookie } from './utils/auth-cookie.util';
 
 @ApiTags('auth')
 @ApiSecurity('x-store-id')
@@ -14,18 +25,12 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('login')
-  async login(@Body() loginDto: LoginDto, @Req() req: Request) {
-    const storeIdHeader = req.headers['x-store-id'];
-
-    if (!storeIdHeader) {
-      throw new Error('x-store-id header is required');
-    }
-
-    const storeId = Number(storeIdHeader);
-
-    if (isNaN(storeId)) {
-      throw new Error('x-store-id must be a number');
-    }
+  async login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const storeId = this.readStoreId(req);
 
     const user = await this.authService.validateUser(
       loginDto.email,
@@ -33,22 +38,16 @@ export class AuthController {
       storeId,
     );
 
-    return this.authService.login(user);
+    return this.finishLogin(res, user);
   }
 
   @Post('session-login')
-  async loginSession(@Body() body: LoginDto, @Req() req: Request) {
-    const storeIdHeader = req.headers['x-store-id'];
-
-    if (!storeIdHeader) {
-      throw new Error('x-store-id header is required');
-    }
-
-    const storeId = Number(storeIdHeader);
-
-    if (isNaN(storeId)) {
-      throw new Error('x-store-id must be a number');
-    }
+  async loginSession(
+    @Body() body: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const storeId = this.readStoreId(req);
 
     const authEntity = await this.authService.validateSession(
       body.email,
@@ -56,22 +55,12 @@ export class AuthController {
       storeId,
     );
 
-    return this.authService.login(authEntity);
+    return this.finishLogin(res, authEntity);
   }
 
   @Post('customer/register')
   async registerCustomer(@Body() body: RegisterDto, @Req() req: Request) {
-    const storeIdHeader = req.headers['x-store-id'];
-
-    if (!storeIdHeader) {
-      throw new Error('x-store-id header is required');
-    }
-
-    const storeId = Number(storeIdHeader);
-
-    if (isNaN(storeId)) {
-      throw new Error('x-store-id must be a number');
-    }
+    const storeId = this.readStoreId(req);
 
     return this.authService.registerCustomer(
       body.email,
@@ -83,14 +72,12 @@ export class AuthController {
     );
   }
   @Post('customer/login')
-  async loginCustomer(@Body() body: LoginDto, @Req() req: Request) {
-    const storeIdHeader = req.headers['x-store-id'];
-
-    if (!storeIdHeader) {
-      throw new Error('x-store-id header is required');
-    }
-
-    const storeId = Number(storeIdHeader);
+  async loginCustomer(
+    @Body() body: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const storeId = this.readStoreId(req);
 
     const customer = await this.authService.validateCustomer(
       body.email,
@@ -98,7 +85,13 @@ export class AuthController {
       storeId,
     );
 
-    return this.authService.login(customer);
+    return this.finishLogin(res, customer);
+  }
+
+  @Post('logout')
+  logout(@Res({ passthrough: true }) res: Response) {
+    clearAuthCookie(res);
+    return { success: true };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -116,5 +109,31 @@ export class AuthController {
       req.storeId,
       dto,
     );
+  }
+
+  private readStoreId(req: Request) {
+    const storeIdHeader = req.headers['x-store-id'];
+    const rawValue = Array.isArray(storeIdHeader) ? storeIdHeader[0] : storeIdHeader;
+
+    if (!rawValue) {
+      throw new BadRequestException('x-store-id header is required');
+    }
+
+    const storeId = Number(rawValue);
+
+    if (!Number.isInteger(storeId) || storeId <= 0) {
+      throw new BadRequestException('x-store-id must be a positive integer');
+    }
+
+    return storeId;
+  }
+
+  private async finishLogin(res: Response, authEntity: any) {
+    const payload = await this.authService.login(authEntity);
+    setAuthCookie(res, payload.access_token);
+
+    return {
+      user: payload.user,
+    };
   }
 }

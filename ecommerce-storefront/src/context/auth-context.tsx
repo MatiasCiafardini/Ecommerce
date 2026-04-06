@@ -57,25 +57,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [authUiLockRouteKey, pathname]);
 
   useEffect(() => {
-    const token = getScopedStorageItem("token");
     const storedUser = getScopedStorageItem("user");
-
-    if (!token || !storedUser) {
-      setLoading(false);
-      return;
-    }
 
     const hydrateSession = async () => {
       try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+        }
 
         // Refresh the session from the API so the account shown in UI matches the JWT.
         const freshUser = await api("/auth/me");
         setScopedStorageItem("user", JSON.stringify(freshUser));
         setUser(freshUser);
       } catch {
-        removeScopedStorageItem("token");
         removeScopedStorageItem("user");
         setUser(null);
       } finally {
@@ -83,15 +78,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
+    if (!storedUser) {
+      void hydrateSession();
+      return;
+    }
+
     try {
       JSON.parse(storedUser);
-      void hydrateSession();
     } catch {
-      removeScopedStorageItem("token");
       removeScopedStorageItem("user");
-      setUser(null);
-      setLoading(false);
     }
+
+    void hydrateSession();
   }, []);
 
   const login = async (data: { email: string; password: string }) => {
@@ -100,7 +98,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       body: JSON.stringify(data),
     });
 
-    setScopedStorageItem("token", res.access_token);
     setScopedStorageItem("user", JSON.stringify(res.user));
 
     setUser(res.user);
@@ -108,7 +105,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
-    removeScopedStorageItem("token");
+    void api("/auth/logout", {
+      method: "POST",
+    }).catch(() => null);
     removeScopedStorageItem("user");
     setUser(null);
   };

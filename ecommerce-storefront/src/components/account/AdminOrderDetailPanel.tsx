@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { api } from "@/lib/api";
+import { api, apiBlob } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import AdminOrderShipmentPanel from "./AdminOrderShipmentPanel";
 import {
@@ -96,6 +96,18 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       onOrderUpdated?.(refreshed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo revisar el pago.");
+    }
+  };
+
+  const openPaymentProof = async (proofUrl: string) => {
+    try {
+      setError("");
+      const blob = await apiBlob(proofUrl);
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo abrir el comprobante.");
     }
   };
 
@@ -565,14 +577,13 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                       <strong>{money(payment.amount)}</strong>
                       {payment.reference ? <span style={metaStyle}>Ref: {payment.reference}</span> : null}
                       {payment.proofUrl ? (
-                        <a
-                          href={payment.proofUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => void openPaymentProof(payment.proofUrl!)}
                           style={primaryLinkStyle}
                         >
                           Ver comprobante
-                        </a>
+                        </button>
                       ) : null}
                       {payment.notes ? <span style={metaStyle}>{payment.notes}</span> : null}
                       {payment.provider === "bank_transfer" && payment.status === "pending" ? (
