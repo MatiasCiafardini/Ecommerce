@@ -24,12 +24,14 @@ function normalizeHost(rawHost?: string | string[] | null) {
 function isWebhookPath(path: string) {
   return (
     path.startsWith('/api/payments/webhook') ||
-    path.startsWith('/api/integrations/enviopack/webhook')
+    path.startsWith('/payments/webhook') ||
+    path.startsWith('/api/integrations/enviopack/webhook') ||
+    path.startsWith('/integrations/enviopack/webhook')
   );
 }
 
 function isSystemPath(path: string) {
-  return path.startsWith('/api/system');
+  return path.startsWith('/api/system') || path.startsWith('/system');
 }
 
 @Injectable()
@@ -39,9 +41,15 @@ export class StoreMiddleware implements NestMiddleware {
   constructor(private readonly prisma: PrismaService) {}
 
   async use(req: any, res: any, next: () => void) {
-    const path = String(req.path || req.originalUrl || '');
+    const path = String(req.path || '');
+    const originalUrl = String(req.originalUrl || '');
 
-    if (isWebhookPath(path) || isSystemPath(path)) {
+    if (
+      isWebhookPath(path) ||
+      isWebhookPath(originalUrl) ||
+      isSystemPath(path) ||
+      isSystemPath(originalUrl)
+    ) {
       return next();
     }
 
