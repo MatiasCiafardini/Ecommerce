@@ -6,28 +6,18 @@ import {
   MinLength,
 } from 'class-validator';
 
-export class CreateSystemStoreDto {
+export class UpdateSystemStoreDto {
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(80)
-  name: string;
-
-  @IsString()
-  @MinLength(3)
-  @MaxLength(120)
-  domain: string;
-
-  @IsEmail()
-  ownerEmail: string;
-
-  @IsString()
-  @MinLength(8)
-  ownerPassword: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(80)
-  ownerName?: string;
+  @MinLength(3)
+  @MaxLength(120)
+  domain?: string;
 
   @IsOptional()
   @IsString()
@@ -50,8 +40,7 @@ export class CreateSystemStoreDto {
   logoUrl?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(140)
+  @IsEmail()
   supportEmail?: string;
 
   @IsOptional()
@@ -103,4 +92,18 @@ export class CreateSystemStoreDto {
   @IsString()
   @MaxLength(220)
   mercadoPagoWebhookSecret?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  ownerName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  ownerEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  ownerPassword?: string;
 }

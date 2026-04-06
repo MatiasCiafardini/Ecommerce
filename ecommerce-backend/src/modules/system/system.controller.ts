@@ -1,10 +1,21 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { LoginDto } from '../auth/dto/login.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminAuthGuard } from '../auth/guards/super-admin-auth.guard';
 import { SystemService } from './system.service';
 import { CreateSystemStoreDto } from './dto/create-system-store.dto';
+import { UpdateSystemStoreDto } from './dto/update-system-store.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('system')
@@ -45,8 +56,25 @@ export class SystemController {
 
   @ApiBearerAuth('jwt')
   @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Get('stores/:id')
+  getStore(@Param('id', ParseIntPipe) id: number) {
+    return this.systemService.getStore(id);
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
   @Post('stores')
   createStore(@Body() dto: CreateSystemStoreDto) {
     return this.systemService.createStore(dto);
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Patch('stores/:id')
+  updateStore(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSystemStoreDto,
+  ) {
+    return this.systemService.updateStore(id, dto);
   }
 }

@@ -1,73 +1,98 @@
 "use client";
 
-import type { CSSProperties, FormEvent } from "react";
-import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getApiUrl } from "@/lib/config";
 
-type AuthUser = {
-  id: number;
-  email: string;
-  role: string;
-  name?: string | null;
-};
-
-type StoreSummary = {
+type AuthUser = { id: number; email: string; role: string; name?: string | null };
+type HomeBlock = { type: string; props?: Record<string, unknown> };
+type Store = {
   id: number;
   name: string;
   domain: string;
   createdAt: string;
-  owner: {
-    id: number;
-    email: string;
-    name?: string | null;
-    role: string;
-    createdAt: string;
-  } | null;
+  theme: string;
+  owner: { id: number; email: string; name?: string | null; role: string } | null;
   adminCount: number;
+  branding: { logoUrl: string | null; tagline: string | null; description: string | null };
+  contact: { supportEmail: string | null; supportPhone: string | null };
+  integrations: {
+    mercadopago: {
+      publicKeyConfigured: boolean;
+      accessTokenConfigured: boolean;
+      webhookSecretConfigured: boolean;
+    };
+  };
+  provisioning: {
+    panelReady: boolean;
+    brandingReady: boolean;
+    paymentsReady: boolean;
+    storefrontReady: boolean;
+    domainAutomationPending: boolean;
+  };
+  storefrontConfig: {
+    theme?: string;
+    themePalette?: Record<string, string>;
+    pages?: { home?: HomeBlock[] };
+  };
 };
 
-type LoginState = {
-  email: string;
-  password: string;
-};
-
+type LoginState = { email: string; password: string };
 type StoreFormState = {
   name: string;
   domain: string;
   ownerEmail: string;
   ownerPassword: string;
   ownerName: string;
+  theme: string;
+  tagline: string;
+  description: string;
+  logoUrl: string;
+  supportEmail: string;
+  supportPhone: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  accentColor: string;
+  accentStrongColor: string;
+  backgroundColor: string;
+  panelColor: string;
+  mercadoPagoPublicKey: string;
+  mercadoPagoAccessToken: string;
+  mercadoPagoWebhookSecret: string;
 };
 
 const tokenStorageKey = "ecommerce-admin.token";
-
-const initialLoginState: LoginState = {
-  email: "",
-  password: "",
-};
-
-const initialStoreFormState: StoreFormState = {
+const initialLoginState: LoginState = { email: "", password: "" };
+const emptyStoreForm: StoreFormState = {
   name: "",
   domain: "",
   ownerEmail: "",
   ownerPassword: "",
   ownerName: "",
+  theme: "minimal",
+  tagline: "",
+  description: "",
+  logoUrl: "",
+  supportEmail: "",
+  supportPhone: "",
+  heroTitle: "",
+  heroSubtitle: "",
+  accentColor: "#53b7c7",
+  accentStrongColor: "#2f90a5",
+  backgroundColor: "#06131a",
+  panelColor: "#0d1f29",
+  mercadoPagoPublicKey: "",
+  mercadoPagoAccessToken: "",
+  mercadoPagoWebhookSecret: "",
 };
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-async function readJsonSafely(response: Response) {
+async function readJson(response: Response) {
   const text = await response.text();
-
-  if (!text) {
-    return null;
-  }
-
+  if (!text) return null;
   try {
     return JSON.parse(text);
   } catch {
@@ -75,197 +100,283 @@ async function readJsonSafely(response: Response) {
   }
 }
 
-function normalizeErrorMessage(payload: unknown, fallback: string) {
-  if (!payload) {
-    return fallback;
-  }
-
-  if (typeof payload === "string") {
-    return payload;
-  }
-
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "message" in payload
-  ) {
+function readError(payload: unknown, fallback: string) {
+  if (typeof payload === "string" && payload.trim()) return payload;
+  if (payload && typeof payload === "object" && "message" in payload) {
     const message = (payload as { message?: string | string[] }).message;
-
-    if (Array.isArray(message)) {
-      return message.join(", ");
-    }
-
-    if (typeof message === "string" && message.trim()) {
-      return message;
-    }
+    if (Array.isArray(message)) return message.join(", ");
+    if (typeof message === "string" && message.trim()) return message;
   }
-
   return fallback;
 }
 
-export default function AdminHomePage() {
+function heroField(store: Store | null, key: "title" | "subtitle") {
+  const hero = store?.storefrontConfig.pages?.home?.find((block) => block.type === "hero");
+  const value = hero?.props?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function storeToForm(store: Store | null): StoreFormState {
+  if (!store) return emptyStoreForm;
+  const palette = store.storefrontConfig.themePalette ?? {};
+  return {
+    name: store.name,
+    domain: store.domain,
+    ownerEmail: store.owner?.email ?? "",
+    ownerPassword: "",
+    ownerName: store.owner?.name ?? "",
+    theme: store.theme ?? "minimal",
+    tagline: store.branding.tagline ?? "",
+    description: store.branding.description ?? "",
+    logoUrl: store.branding.logoUrl ?? "",
+    supportEmail: store.contact.supportEmail ?? "",
+    supportPhone: store.contact.supportPhone ?? "",
+    heroTitle: heroField(store, "title"),
+    heroSubtitle: heroField(store, "subtitle"),
+    accentColor: palette.accent ?? "#53b7c7",
+    accentStrongColor: palette.accentStrong ?? "#2f90a5",
+    backgroundColor: palette.background ?? "#06131a",
+    panelColor: palette.pagePanelBg ?? "#0d1f29",
+    mercadoPagoPublicKey: "",
+    mercadoPagoAccessToken: "",
+    mercadoPagoWebhookSecret: "",
+  };
+}
+
+function StoreFields({
+  value,
+  onChange,
+  saving,
+  submitLabel,
+  compact,
+}: {
+  value: StoreFormState;
+  onChange: (patch: Partial<StoreFormState>) => void;
+  saving: boolean;
+  submitLabel: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`form-grid${compact ? " compact" : ""}`}>
+      {[
+        ["Nombre comercial", "name"],
+        ["Dominio principal", "domain"],
+        ["Owner email", "ownerEmail"],
+        ["Owner nombre", "ownerName"],
+        ["Theme", "theme"],
+        ["Tagline", "tagline"],
+        ["Logo URL", "logoUrl"],
+        ["Soporte email", "supportEmail"],
+        ["Soporte telefono", "supportPhone"],
+        ["Hero title", "heroTitle"],
+        ["Hero subtitle", "heroSubtitle"],
+        ["Accent", "accentColor"],
+        ["Accent strong", "accentStrongColor"],
+        ["Background", "backgroundColor"],
+        ["Panel bg", "panelColor"],
+        ["MP public key", "mercadoPagoPublicKey"],
+        ["MP access token", "mercadoPagoAccessToken"],
+        ["MP webhook secret", "mercadoPagoWebhookSecret"],
+      ].map(([label, key]) => (
+        <label key={key} className={`field${key === "tagline" || key === "logoUrl" || key === "heroSubtitle" || key === "mercadoPagoWebhookSecret" ? " span-2" : ""}`}>
+          <span>{label}</span>
+          <input
+            value={value[key as keyof StoreFormState] as string}
+            onChange={(event) => onChange({ [key]: event.target.value } as Partial<StoreFormState>)}
+            type={key.toLowerCase().includes("email") ? "email" : "text"}
+          />
+        </label>
+      ))}
+
+      <label className="field span-2">
+        <span>{compact ? "Password owner nueva" : "Password owner"}</span>
+        <input
+          type="password"
+          value={value.ownerPassword}
+          onChange={(event) => onChange({ ownerPassword: event.target.value })}
+          placeholder={compact ? "Opcional" : "Minimo 8 caracteres"}
+        />
+      </label>
+      <label className="field span-2">
+        <span>Descripcion</span>
+        <textarea
+          rows={4}
+          value={value.description}
+          onChange={(event) => onChange({ description: event.target.value })}
+        />
+      </label>
+      <button className="primary-button span-2" disabled={saving}>
+        {saving ? "Guardando..." : submitLabel}
+      </button>
+    </div>
+  );
+}
+
+export default function Page() {
   const apiUrl = getApiUrl();
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [stores, setStores] = useState<StoreSummary[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
+  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [loginState, setLoginState] = useState(initialLoginState);
-  const [storeFormState, setStoreFormState] = useState(initialStoreFormState);
-  const [isLoadingSession, setIsLoadingSession] = useState(true);
-  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
-  const [isSubmittingStore, setIsSubmittingStore] = useState(false);
+  const [createState, setCreateState] = useState(emptyStoreForm);
+  const [editState, setEditState] = useState(emptyStoreForm);
+  const [tab, setTab] = useState<"overview" | "stores" | "create">("overview");
+  const [loadingSession, setLoadingSession] = useState(true);
+  const [loadingStore, setLoadingStore] = useState(false);
+  const [savingCreate, setSavingCreate] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [savingLogin, setSavingLogin] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  async function fetchStores(activeToken: string) {
-    const response = await fetch(`${apiUrl}/system/stores`, {
-      headers: {
-        Authorization: `Bearer ${activeToken}`,
-      },
-      cache: "no-store",
-    });
-
-    const payload = await readJsonSafely(response);
-
-    if (!response.ok) {
-      throw new Error(
-        normalizeErrorMessage(payload, "No se pudieron cargar las tiendas."),
-      );
-    }
-
-    return (payload as StoreSummary[]) ?? [];
+  async function request<T>(path: string, init?: RequestInit) {
+    const response = await fetch(`${apiUrl}${path}`, init);
+    const payload = await readJson(response);
+    if (!response.ok) throw new Error(readError(payload, "No se pudo completar la solicitud."));
+    return payload as T;
   }
 
-  async function bootstrapSession(activeToken: string) {
-    const response = await fetch(`${apiUrl}/system/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${activeToken}`,
-      },
+  async function loadStores(activeToken: string) {
+    return request<Store[]>("/system/stores", {
+      headers: { Authorization: `Bearer ${activeToken}` },
       cache: "no-store",
     });
+  }
 
-    const payload = await readJsonSafely(response);
+  async function loadStore(activeToken: string, id: number) {
+    return request<Store>(`/system/stores/${id}`, {
+      headers: { Authorization: `Bearer ${activeToken}` },
+      cache: "no-store",
+    });
+  }
 
-    if (!response.ok) {
-      throw new Error(
-        normalizeErrorMessage(payload, "La sesion del panel no es valida."),
-      );
-    }
-
-    const [profile, nextStores] = await Promise.all([
-      Promise.resolve(payload as AuthUser),
-      fetchStores(activeToken),
-    ]);
-
+  async function bootstrap(activeToken: string) {
+    const profile = await request<AuthUser>("/system/auth/me", {
+      headers: { Authorization: `Bearer ${activeToken}` },
+      cache: "no-store",
+    });
+    const nextStores = await loadStores(activeToken);
     setUser(profile);
     setStores(nextStores);
+    const firstId = nextStores[0]?.id ?? null;
+    setSelectedStoreId(firstId);
+    if (firstId) {
+      const detail = await loadStore(activeToken, firstId);
+      setSelectedStore(detail);
+      setEditState(storeToForm(detail));
+    }
+  }
+
+  async function refresh(activeToken: string, preferredId?: number | null) {
+    const nextStores = await loadStores(activeToken);
+    setStores(nextStores);
+    const nextId = preferredId && nextStores.some((store) => store.id === preferredId) ? preferredId : nextStores[0]?.id ?? null;
+    setSelectedStoreId(nextId);
+    if (nextId) {
+      const detail = await loadStore(activeToken, nextId);
+      setSelectedStore(detail);
+      setEditState(storeToForm(detail));
+    }
   }
 
   useEffect(() => {
-    const savedToken =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem(tokenStorageKey)
-        : null;
-
+    const savedToken = typeof window !== "undefined" ? window.localStorage.getItem(tokenStorageKey) : null;
     if (!savedToken) {
-      setIsLoadingSession(false);
+      setLoadingSession(false);
       return;
     }
-
     setToken(savedToken);
-    bootstrapSession(savedToken)
-      .catch((error) => {
-        window.localStorage.removeItem(tokenStorageKey);
-        setToken(null);
-        setUser(null);
-        setStores([]);
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "La sesion guardada ya no es valida.",
-        );
-      })
-      .finally(() => {
-        setIsLoadingSession(false);
-      });
+    bootstrap(savedToken).catch((error) => {
+      window.localStorage.removeItem(tokenStorageKey);
+      setToken(null);
+      setErrorMessage(error instanceof Error ? error.message : "La sesion no es valida.");
+    }).finally(() => setLoadingSession(false));
   }, []);
 
-  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (!token || !selectedStoreId) return;
+    setLoadingStore(true);
+    loadStore(token, selectedStoreId).then((store) => {
+      setSelectedStore(store);
+      setEditState(storeToForm(store));
+    }).catch((error) => {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo cargar la tienda.");
+    }).finally(() => setLoadingStore(false));
+  }, [selectedStoreId, token]);
+
+  const stats = useMemo(() => ([
+    { label: "Tiendas activas", value: stores.length, detail: "Portfolio actual" },
+    { label: "Branding listo", value: stores.filter((store) => store.provisioning.brandingReady).length, detail: "Logo y mensaje base" },
+    { label: "Pagos listos", value: stores.filter((store) => store.provisioning.paymentsReady).length, detail: "Mercado Pago cargado" },
+    { label: "Infra manual", value: stores.filter((store) => store.provisioning.domainAutomationPending).length, detail: "DNS y Nginx aun afuera" },
+  ]), [stores]);
+
+  async function onLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
-    setIsSubmittingLogin(true);
-
+    setSavingLogin(true);
     try {
-      const response = await fetch(`${apiUrl}/system/auth/login`, {
+      const payload = await request<{ access_token: string }>("/system/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(loginState),
       });
-
-      const payload = await readJsonSafely(response);
-
-      if (!response.ok) {
-        throw new Error(
-          normalizeErrorMessage(payload, "No se pudo iniciar sesion."),
-        );
-      }
-
-      const accessToken = (payload as { access_token: string }).access_token;
-      window.localStorage.setItem(tokenStorageKey, accessToken);
-      setToken(accessToken);
-      await bootstrapSession(accessToken);
-      setSuccessMessage("Sesion iniciada. Ya podes gestionar todas las tiendas.");
+      window.localStorage.setItem(tokenStorageKey, payload.access_token);
+      setToken(payload.access_token);
+      await bootstrap(payload.access_token);
+      setSuccessMessage("Sesion iniciada. El panel maestro ya esta operativo.");
       setLoginState(initialLoginState);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "No se pudo iniciar sesion.",
-      );
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo iniciar sesion.");
     } finally {
-      setIsSubmittingLogin(false);
+      setSavingLogin(false);
     }
   }
 
-  async function handleCreateStore(event: FormEvent<HTMLFormElement>) {
+  async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!token) {
-      setErrorMessage("Necesitas iniciar sesion como super admin.");
-      return;
-    }
-
+    if (!token) return;
     setErrorMessage(null);
     setSuccessMessage(null);
-    setIsSubmittingStore(true);
-
+    setSavingCreate(true);
     try {
-      const response = await fetch(`${apiUrl}/system/stores`, {
+      const created = await request<Store>("/system/stores", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(storeFormState),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(createState),
       });
-
-      const payload = await readJsonSafely(response);
-
-      if (!response.ok) {
-        throw new Error(
-          normalizeErrorMessage(payload, "No se pudo crear la tienda."),
-        );
-      }
-
-      setStoreFormState(initialStoreFormState);
-      setStores(await fetchStores(token));
-      setSuccessMessage("La tienda se creo correctamente.");
+      setCreateState(emptyStoreForm);
+      setTab("stores");
+      await refresh(token, created.id);
+      setSuccessMessage(`La tienda ${created.name} ya quedo creada con owner y configuracion inicial.`);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "No se pudo crear la tienda.",
-      );
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo crear la tienda.");
     } finally {
-      setIsSubmittingStore(false);
+      setSavingCreate(false);
+    }
+  }
+
+  async function onSaveStore(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !selectedStoreId) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setSavingEdit(true);
+    try {
+      await request<Store>(`/system/stores/${selectedStoreId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(editState),
+      });
+      await refresh(token, selectedStoreId);
+      setSuccessMessage("La tienda se actualizo correctamente.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar la tienda.");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -274,420 +385,126 @@ export default function AdminHomePage() {
     setToken(null);
     setUser(null);
     setStores([]);
+    setSelectedStore(null);
+    setSelectedStoreId(null);
     setSuccessMessage("Sesion cerrada.");
   }
 
-  if (isLoadingSession) {
-    return (
-      <main style={shellStyle}>
-        <section style={heroCardStyle}>
-          <p style={eyebrowStyle}>EstudiosMC Control Room</p>
-          <h1 style={headlineStyle}>Cargando el panel maestro...</h1>
-        </section>
-      </main>
-    );
-  }
+  if (loadingSession) return <main className="admin-shell"><section className="hero-panel"><p className="eyebrow">EstudiosMC Control Room</p><h1>Cargando el centro de operaciones...</h1></section></main>;
 
   return (
-    <main style={shellStyle}>
-      <section style={heroCardStyle}>
-        <div style={heroTopRowStyle}>
+    <main className="admin-shell">
+      <section className="hero-panel">
+        <div className="hero-head">
           <div>
-            <p style={eyebrowStyle}>EstudiosMC Control Room</p>
-            <h1 style={headlineStyle}>Panel maestro del ecosistema</h1>
-            <p style={copyStyle}>
-              Esta primera fase deja resuelto el acceso de super admin y la
-              gestion centralizada de tiendas. Desde aca podes crear nuevas
-              tiendas y auditar el estado general sin pasar por un storefront.
-            </p>
+            <p className="eyebrow">EstudiosMC Control Room</p>
+            <h1>Panel maestro del ecosistema</h1>
+            <p className="hero-copy">Tema minimal oscuro, alta de tiendas, branding, owner, integraciones y dominio principal desde un solo panel. La automatizacion completa de DNS y Nginx sigue siendo una fase siguiente.</p>
           </div>
-          {user ? (
-            <div style={sessionBadgeStyle}>
-              <span style={{ fontWeight: 700 }}>{user.name || user.email}</span>
-              <span>{user.role}</span>
-              <button onClick={logout} style={secondaryButtonStyle}>
-                Cerrar sesion
-              </button>
-            </div>
-          ) : null}
+          {user ? <div className="session-box"><strong>{user.name || user.email}</strong><span>{user.role}</span><button className="ghost-button" onClick={logout}>Cerrar sesion</button></div> : null}
         </div>
-
-        {errorMessage ? <p style={errorBannerStyle}>{errorMessage}</p> : null}
-        {successMessage ? (
-          <p style={successBannerStyle}>{successMessage}</p>
-        ) : null}
+        {errorMessage ? <p className="banner error">{errorMessage}</p> : null}
+        {successMessage ? <p className="banner success">{successMessage}</p> : null}
       </section>
 
-      <section style={gridStyle}>
-        {!user ? (
-          <article style={panelStyle}>
-            <p style={sectionLabelStyle}>Acceso</p>
-            <h2 style={sectionTitleStyle}>Ingresar como super admin</h2>
-            <form onSubmit={handleLogin} style={formStyle}>
-              <label style={fieldStyle}>
-                <span>Email</span>
-                <input
-                  required
-                  type="email"
-                  value={loginState.email}
-                  onChange={(event) =>
-                    setLoginState((current) => ({
-                      ...current,
-                      email: event.target.value,
-                    }))
-                  }
-                  style={inputStyle}
-                />
-              </label>
-              <label style={fieldStyle}>
-                <span>Password</span>
-                <input
-                  required
-                  type="password"
-                  value={loginState.password}
-                  onChange={(event) =>
-                    setLoginState((current) => ({
-                      ...current,
-                      password: event.target.value,
-                    }))
-                  }
-                  style={inputStyle}
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={isSubmittingLogin}
-                style={primaryButtonStyle}
-              >
-                {isSubmittingLogin ? "Ingresando..." : "Entrar al panel"}
+      {!user ? (
+        <section className="panel single-panel">
+          <p className="section-kicker">Acceso</p>
+          <h2>Ingresar como super admin</h2>
+          <form className="stack-form" onSubmit={onLogin}>
+            <label className="field"><span>Email</span><input type="email" value={loginState.email} onChange={(event) => setLoginState((current) => ({ ...current, email: event.target.value }))} required /></label>
+            <label className="field"><span>Password</span><input type="password" value={loginState.password} onChange={(event) => setLoginState((current) => ({ ...current, password: event.target.value }))} required /></label>
+            <button className="primary-button" disabled={savingLogin}>{savingLogin ? "Ingresando..." : "Entrar al panel"}</button>
+          </form>
+        </section>
+      ) : (
+        <section className="workspace">
+          <aside className="sidebar">
+            {["overview", "stores", "create"].map((item) => (
+              <button key={item} className={`nav-button${tab === item ? " active" : ""}`} onClick={() => setTab(item as "overview" | "stores" | "create")}>
+                <span>{item === "overview" ? "Overview" : item === "stores" ? "Tiendas" : "Nueva tienda"}</span>
+                <small>{item === "overview" ? "Estado general" : item === "stores" ? "Editar y auditar" : "Lanzamiento guiado"}</small>
               </button>
-            </form>
-          </article>
-        ) : (
-          <>
-            <article style={panelStyle}>
-              <p style={sectionLabelStyle}>Tiendas</p>
-              <div style={panelHeaderStyle}>
-                <h2 style={sectionTitleStyle}>Sistema operativo</h2>
-                <span style={pillStyle}>{stores.length} activas</span>
-              </div>
-              <div style={storesListStyle}>
-                {stores.map((store) => (
-                  <article key={store.id} style={storeCardStyle}>
-                    <div style={storeCardTopStyle}>
-                      <div>
-                        <h3 style={storeNameStyle}>{store.name}</h3>
-                        <p style={domainStyle}>{store.domain}</p>
-                      </div>
-                      <span style={storeIdStyle}>#{store.id}</span>
-                    </div>
-                    <p style={metaStyle}>
-                      Alta: {formatDate(store.createdAt)}
-                    </p>
-                    <p style={metaStyle}>
-                      Owner:{" "}
-                      {store.owner
-                        ? `${store.owner.name || store.owner.email} (${store.owner.email})`
-                        : "Sin owner"}
-                    </p>
-                    <p style={metaStyle}>
-                      Admins registrados: {store.adminCount}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </article>
+            ))}
+          </aside>
 
-            <article style={panelStyle}>
-              <p style={sectionLabelStyle}>Alta nueva</p>
-              <h2 style={sectionTitleStyle}>Crear tienda</h2>
-              <form onSubmit={handleCreateStore} style={formStyle}>
-                <label style={fieldStyle}>
-                  <span>Nombre comercial</span>
-                  <input
-                    required
-                    value={storeFormState.name}
-                    onChange={(event) =>
-                      setStoreFormState((current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
-                    style={inputStyle}
-                  />
-                </label>
-                <label style={fieldStyle}>
-                  <span>Dominio principal</span>
-                  <input
-                    required
-                    placeholder="nueva-tienda.com"
-                    value={storeFormState.domain}
-                    onChange={(event) =>
-                      setStoreFormState((current) => ({
-                        ...current,
-                        domain: event.target.value,
-                      }))
-                    }
-                    style={inputStyle}
-                  />
-                </label>
-                <label style={fieldStyle}>
-                  <span>Email del owner</span>
-                  <input
-                    required
-                    type="email"
-                    value={storeFormState.ownerEmail}
-                    onChange={(event) =>
-                      setStoreFormState((current) => ({
-                        ...current,
-                        ownerEmail: event.target.value,
-                      }))
-                    }
-                    style={inputStyle}
-                  />
-                </label>
-                <label style={fieldStyle}>
-                  <span>Password inicial</span>
-                  <input
-                    required
-                    minLength={8}
-                    type="password"
-                    value={storeFormState.ownerPassword}
-                    onChange={(event) =>
-                      setStoreFormState((current) => ({
-                        ...current,
-                        ownerPassword: event.target.value,
-                      }))
-                    }
-                    style={inputStyle}
-                  />
-                </label>
-                <label style={fieldStyle}>
-                  <span>Nombre del owner</span>
-                  <input
-                    value={storeFormState.ownerName}
-                    onChange={(event) =>
-                      setStoreFormState((current) => ({
-                        ...current,
-                        ownerName: event.target.value,
-                      }))
-                    }
-                    style={inputStyle}
-                  />
-                </label>
-                <button
-                  type="submit"
-                  disabled={isSubmittingStore}
-                  style={primaryButtonStyle}
-                >
-                  {isSubmittingStore ? "Creando..." : "Crear tienda"}
-                </button>
-              </form>
-            </article>
-          </>
-        )}
-      </section>
+          <div className="content">
+            <section className="stats-grid">
+              {stats.map((stat) => <article key={stat.label} className="stat-card"><span>{stat.label}</span><strong>{stat.value}</strong><small>{stat.detail}</small></article>)}
+            </section>
+
+            {tab === "overview" ? (
+              <section className="content-grid">
+                <article className="panel">
+                  <p className="section-kicker">Checklist</p>
+                  <h2>Lo que ya resuelve este panel</h2>
+                  <div className="check-grid">
+                    <div className="check-card"><strong>Alta de tienda</strong><span>Store, owner y base visual inicial.</span></div>
+                    <div className="check-card"><strong>Branding</strong><span>Logo, tagline, descripcion y hero.</span></div>
+                    <div className="check-card"><strong>Integraciones</strong><span>Credenciales por tienda para Mercado Pago.</span></div>
+                    <div className="check-card"><strong>Operacion</strong><span>Edicion continua desde una sola consola.</span></div>
+                  </div>
+                </article>
+                <article className="panel">
+                  <p className="section-kicker">Recientes</p>
+                  <h2>Tiendas activas</h2>
+                  <div className="store-list">
+                    {stores.slice(0, 5).map((store) => <button key={store.id} className="store-row" onClick={() => { setTab("stores"); setSelectedStoreId(store.id); }}><div><strong>{store.name}</strong><span>{store.domain}</span></div><small>{formatDate(store.createdAt)}</small></button>)}
+                  </div>
+                </article>
+              </section>
+            ) : null}
+
+            {tab === "stores" ? (
+              <section className="stores-grid">
+                <article className="panel">
+                  <div className="panel-top"><div><p className="section-kicker">Portfolio</p><h2>Tiendas</h2></div><span className="pill">{stores.length} activas</span></div>
+                  <div className="store-list">
+                    {stores.map((store) => <button key={store.id} className={`store-row${selectedStoreId === store.id ? " selected" : ""}`} onClick={() => setSelectedStoreId(store.id)}><div><strong>{store.name}</strong><span>{store.domain}</span></div><small>#{store.id}</small></button>)}
+                  </div>
+                </article>
+                <article className="panel">
+                  <div className="panel-top">
+                    <div><p className="section-kicker">Editor</p><h2>{selectedStore?.name ?? "Selecciona una tienda"}</h2></div>
+                    {selectedStore ? <span className="pill">{selectedStore.domain}</span> : null}
+                  </div>
+                  {selectedStore ? (
+                    <>
+                      <div className="status-row">
+                        <span className={selectedStore.provisioning.brandingReady ? "status ok" : "status warn"}>Branding</span>
+                        <span className={selectedStore.provisioning.paymentsReady ? "status ok" : "status warn"}>Pagos</span>
+                        <span className="status neutral">Dominio externo manual</span>
+                      </div>
+                      {loadingStore ? <p className="muted">Cargando configuracion...</p> : <form className="stack-form" onSubmit={onSaveStore}><StoreFields value={editState} onChange={(patch) => setEditState((current) => ({ ...current, ...patch }))} saving={savingEdit} submitLabel="Guardar cambios" compact /></form>}
+                    </>
+                  ) : <p className="muted">Elegi una tienda para editar branding, owner, dominio e integraciones.</p>}
+                </article>
+              </section>
+            ) : null}
+
+            {tab === "create" ? (
+              <section className="content-grid">
+                <article className="panel">
+                  <p className="section-kicker">Lanzamiento</p>
+                  <h2>Crear tienda desde cero</h2>
+                  <form className="stack-form" onSubmit={onCreate}>
+                    <StoreFields value={createState} onChange={(patch) => setCreateState((current) => ({ ...current, ...patch }))} saving={savingCreate} submitLabel="Crear tienda" />
+                  </form>
+                </article>
+                <article className="panel">
+                  <p className="section-kicker">Alcance actual</p>
+                  <h2>Sin tocar VPS, en lo posible</h2>
+                  <div className="check-grid vertical">
+                    <div className="check-card"><strong>Automatico hoy</strong><span>Tienda, owner, branding base, hero y pagos por tienda.</span></div>
+                    <div className="check-card"><strong>Parcial</strong><span>Dominio principal guardado y listo para enlazar.</span></div>
+                    <div className="check-card"><strong>Pendiente</strong><span>DNS, SSL y Nginx siguen fuera del panel por ahora.</span></div>
+                  </div>
+                </article>
+              </section>
+            ) : null}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
-
-const shellStyle: CSSProperties = {
-  minHeight: "100vh",
-  padding: "40px 24px 64px",
-  display: "grid",
-  gap: 24,
-};
-
-const heroCardStyle: CSSProperties = {
-  background: "var(--panel)",
-  border: "1px solid var(--line)",
-  borderRadius: 28,
-  boxShadow: "var(--shadow)",
-  padding: 32,
-};
-
-const heroTopRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 24,
-  alignItems: "flex-start",
-  flexWrap: "wrap",
-};
-
-const eyebrowStyle: CSSProperties = {
-  margin: 0,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: "var(--accent)",
-  fontSize: 12,
-};
-
-const headlineStyle: CSSProperties = {
-  margin: "12px 0 8px",
-  fontSize: "clamp(2rem, 4vw, 3.6rem)",
-  lineHeight: 1,
-};
-
-const copyStyle: CSSProperties = {
-  margin: 0,
-  maxWidth: 740,
-  color: "var(--muted)",
-  lineHeight: 1.6,
-};
-
-const sessionBadgeStyle: CSSProperties = {
-  minWidth: 220,
-  display: "grid",
-  gap: 10,
-  background: "var(--panel-strong)",
-  border: "1px solid var(--line)",
-  borderRadius: 20,
-  padding: 16,
-};
-
-const gridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 24,
-};
-
-const panelStyle: CSSProperties = {
-  background: "var(--panel)",
-  border: "1px solid var(--line)",
-  borderRadius: 24,
-  padding: 24,
-  boxShadow: "var(--shadow)",
-};
-
-const sectionLabelStyle: CSSProperties = {
-  margin: 0,
-  color: "var(--accent)",
-  fontSize: 13,
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-};
-
-const sectionTitleStyle: CSSProperties = {
-  margin: "10px 0 20px",
-  fontSize: 28,
-};
-
-const panelHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  flexWrap: "wrap",
-};
-
-const pillStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "8px 12px",
-  borderRadius: 999,
-  background: "#d9f3ee",
-  color: "var(--accent-strong)",
-  fontSize: 13,
-  fontWeight: 700,
-};
-
-const formStyle: CSSProperties = {
-  display: "grid",
-  gap: 16,
-};
-
-const fieldStyle: CSSProperties = {
-  display: "grid",
-  gap: 8,
-  color: "var(--muted)",
-  fontSize: 14,
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  borderRadius: 14,
-  border: "1px solid var(--line)",
-  padding: "14px 16px",
-  background: "#fff",
-  color: "var(--text)",
-};
-
-const primaryButtonStyle: CSSProperties = {
-  border: 0,
-  borderRadius: 16,
-  padding: "14px 18px",
-  background: "var(--accent)",
-  color: "#f6fffd",
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const secondaryButtonStyle: CSSProperties = {
-  borderRadius: 14,
-  border: "1px solid var(--line)",
-  padding: "10px 14px",
-  background: "#fff",
-  cursor: "pointer",
-};
-
-const errorBannerStyle: CSSProperties = {
-  marginTop: 20,
-  marginBottom: 0,
-  borderRadius: 16,
-  background: "#fee4e2",
-  color: "var(--danger)",
-  padding: "14px 16px",
-};
-
-const successBannerStyle: CSSProperties = {
-  marginTop: 20,
-  marginBottom: 0,
-  borderRadius: 16,
-  background: "#dbf7f0",
-  color: "var(--accent-strong)",
-  padding: "14px 16px",
-};
-
-const storesListStyle: CSSProperties = {
-  display: "grid",
-  gap: 16,
-};
-
-const storeCardStyle: CSSProperties = {
-  border: "1px solid var(--line)",
-  borderRadius: 20,
-  padding: 18,
-  background: "#fff",
-};
-
-const storeCardTopStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 12,
-};
-
-const storeNameStyle: CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-};
-
-const domainStyle: CSSProperties = {
-  margin: "6px 0 0",
-  color: "var(--muted)",
-};
-
-const storeIdStyle: CSSProperties = {
-  fontSize: 13,
-  color: "var(--muted)",
-  border: "1px solid var(--line)",
-  borderRadius: 999,
-  padding: "6px 10px",
-};
-
-const metaStyle: CSSProperties = {
-  margin: "12px 0 0",
-  color: "var(--muted)",
-  lineHeight: 1.5,
-};

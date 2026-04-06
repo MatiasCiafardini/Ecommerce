@@ -1235,7 +1235,7 @@ const targetPanelStyle: React.CSSProperties = {
   padding: 20,
   borderRadius: 24,
   border: "1px solid var(--account-item-border)",
-  background: "color-mix(in srgb, white 88%, var(--theme-colors-paper-muted) 12%)",
+  background: "var(--account-item-bg-active)",
 };
 const metaBadgeStyle: React.CSSProperties = {
   padding: "10px 14px",
@@ -1250,7 +1250,7 @@ const emptyTargetStyle: React.CSSProperties = {
   borderRadius: 18,
   border: "1px dashed var(--account-item-border-active)",
   color: "var(--account-text-soft)",
-  background: "color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%)",
+  background: "var(--account-item-bg-active)",
 };
 const selectionGridStyle: React.CSSProperties = {
   display: "grid",
@@ -1310,7 +1310,7 @@ const summaryItemStyle: React.CSSProperties = {
   gap: 8,
   padding: 14,
   borderRadius: 18,
-  background: "color-mix(in srgb, white 82%, var(--theme-colors-paper-muted) 18%)",
+  background: "var(--account-item-bg-active)",
   border: "1px solid var(--account-item-border)",
 };
 const footerStyle: React.CSSProperties = { display: "flex", justifyContent: "flex-end" };
