@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { AddProductOptionValueDto } from './dto/add-product-option-value.dto';
@@ -11,6 +13,8 @@ import { RenameProductOptionValueDto } from './dto/rename-product-option-value.d
 
 @Injectable()
 export class ProductOptionsService {
+  private readonly logger = new Logger(ProductOptionsService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async findAllOptions(storeId: number) {
@@ -76,12 +80,21 @@ export class ProductOptionsService {
       throw new BadRequestException('Product option already exists');
     }
 
-    return this.prisma.productOption.create({
-      data: {
+    try {
+      return await this.prisma.productOption.create({
+        data: {
+          storeId,
+          name: normalizedName,
+        },
+      });
+    } catch (error) {
+      this.handleKnownPrismaError(error, {
+        action: 'createOption',
         storeId,
-        name: normalizedName,
-      },
-    });
+        optionId: undefined,
+      });
+      throw error;
+    }
   }
 
   async updateOption(
@@ -124,14 +137,23 @@ export class ProductOptionsService {
       throw new BadRequestException('Product option already exists');
     }
 
-    return this.prisma.productOption.update({
-      where: {
-        id: optionId,
-      },
-      data: {
-        name: normalizedName,
-      },
-    });
+    try {
+      return await this.prisma.productOption.update({
+        where: {
+          id: optionId,
+        },
+        data: {
+          name: normalizedName,
+        },
+      });
+    } catch (error) {
+      this.handleKnownPrismaError(error, {
+        action: 'updateOption',
+        storeId,
+        optionId,
+      });
+      throw error;
+    }
   }
 
   async deleteOption(storeId: number, optionId: number, force = false) {
@@ -233,23 +255,32 @@ export class ProductOptionsService {
       throw new BadRequestException('Product option value already exists');
     }
 
-    return this.prisma.productOptionValue.create({
-      data: {
-        productId,
-        productOptionId: dto.productOptionId,
-        value: normalizedValue,
-      },
-      include: {
-        productOption: true,
-        product: {
-          select: {
-            id: true,
-            title: true,
-            slug: true,
+    try {
+      return await this.prisma.productOptionValue.create({
+        data: {
+          productId,
+          productOptionId: dto.productOptionId,
+          value: normalizedValue,
+        },
+        include: {
+          productOption: true,
+          product: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {
+      this.handleKnownPrismaError(error, {
+        action: 'addValueToProduct',
+        storeId,
+        optionId: dto.productOptionId,
+      });
+      throw error;
+    }
   }
 
   async findValuesByProduct(storeId: number, productId: number) {
@@ -505,5 +536,33 @@ export class ProductOptionsService {
       removedValues: deleted.count,
       affectedProducts: productsCount,
     };
+  }
+
+  private handleKnownPrismaError(
+    error: unknown,
+    context: {
+      action: string;
+      storeId: number;
+      optionId?: number;
+    },
+  ) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new BadRequestException('Product option already exists');
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2003'
+    ) {
+      this.logger.warn(
+        `Foreign key constraint while ${context.action} for storeId=${context.storeId}${context.optionId ? ` optionId=${context.optionId}` : ''}`,
+      );
+      throw new BadRequestException(
+        'Invalid store or product option reference for this tenant',
+      );
+    }
   }
 }

@@ -1,5 +1,9 @@
 export type HostStoreMap = Record<string, number>;
 
+const STORE_ID_ALIASES: Record<number, number> = {
+  3: 3003,
+};
+
 const DEV_HOST_STORE_MAP: HostStoreMap = {
   localhost: 1,
   "127.0.0.1": 1,
@@ -15,8 +19,15 @@ const DEV_HOST_STORE_MAP: HostStoreMap = {
   "127.0.0.1:3005": 3005,
 };
 
-function isDevelopmentLikeEnvironment() {
-  return process.env.NODE_ENV !== "production";
+const PRODUCTION_HOST_STORE_MAP: HostStoreMap = {
+  "estudiosmc.cloud": 1,
+  "www.estudiosmc.cloud": 1,
+  "trojani.com.ar": 3003,
+  "www.trojani.com.ar": 3003,
+};
+
+function normalizeStoreId(storeId: number) {
+  return STORE_ID_ALIASES[storeId] ?? storeId;
 }
 
 function normalizeHostValue(value?: string | null) {
@@ -37,7 +48,10 @@ function normalizeHostValue(value?: string | null) {
 }
 
 function getDefaultHostStoreMap(): HostStoreMap {
-  return isDevelopmentLikeEnvironment() ? { ...DEV_HOST_STORE_MAP } : {};
+  return {
+    ...PRODUCTION_HOST_STORE_MAP,
+    ...(process.env.NODE_ENV !== "production" ? DEV_HOST_STORE_MAP : {}),
+  };
 }
 
 function getConfiguredHosts(hostStoreMap: HostStoreMap) {
@@ -111,7 +125,7 @@ export function parseHostStoreMap(raw = process.env.NEXT_PUBLIC_STORE_HOST_MAP):
       continue;
     }
 
-    parsedMap[host] = storeId;
+    parsedMap[host] = normalizeStoreId(storeId);
   }
 
   if (Object.keys(parsedMap).length === 0) {

@@ -30,6 +30,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { CustomerAddressesModule } from './modules/customers/customer-addresses/customer-addresses.module';
 import { BullModule } from '@nestjs/bullmq';
 import { runtimeConfig } from './config/runtime-config';
+import { PrismaModule } from './prisma/prisma.module';
 
 
 @Module({
@@ -65,6 +66,7 @@ import { runtimeConfig } from './config/runtime-config';
     WebhooksModule,
     CustomerAddressesModule,
     ProductOptionsModule,
+    PrismaModule,
   ],
 })
 export class AppModule implements NestModule {
