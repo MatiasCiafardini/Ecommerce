@@ -29,9 +29,20 @@ import { uploadsDir } from '../../common/uploads';
 export class StorefrontController {
   constructor(private storefrontService: StorefrontService) {}
 
+  private getResolvedStoreHost(req: any) {
+    return (
+      req.headers['x-store-host'] ||
+      req.headers['x-forwarded-host'] ||
+      req.headers.host
+    );
+  }
+
   @Get('config')
   getConfig(@Req() req) {
-    return this.storefrontService.getStoreConfig(req.storeId, req.headers.host);
+    return this.storefrontService.getStoreConfig(
+      req.storeId,
+      this.getResolvedStoreHost(req),
+    );
   }
 
   @Get('payment-config')
