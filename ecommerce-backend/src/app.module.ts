@@ -25,6 +25,7 @@ import { ReturnsModule } from './modules/returns/returns.module';
 import { EventBusModule } from './modules/event-bus/event-bus.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { ProductOptionsModule } from './modules/product-options/product-options.module';
+import { SystemModule } from './modules/system/system.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 import { CustomerAddressesModule } from './modules/customers/customer-addresses/customer-addresses.module';
@@ -66,6 +67,7 @@ import { PrismaModule } from './prisma/prisma.module';
     WebhooksModule,
     CustomerAddressesModule,
     ProductOptionsModule,
+    SystemModule,
     PrismaModule,
   ],
 })

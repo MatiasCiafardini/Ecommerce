@@ -28,6 +28,10 @@ function isWebhookPath(path: string) {
   );
 }
 
+function isSystemPath(path: string) {
+  return path.startsWith('/api/system');
+}
+
 @Injectable()
 export class StoreMiddleware implements NestMiddleware {
   private readonly logger = new Logger(StoreMiddleware.name);
@@ -37,7 +41,7 @@ export class StoreMiddleware implements NestMiddleware {
   async use(req: any, res: any, next: () => void) {
     const path = String(req.path || req.originalUrl || '');
 
-    if (isWebhookPath(path)) {
+    if (isWebhookPath(path) || isSystemPath(path)) {
       return next();
     }
 

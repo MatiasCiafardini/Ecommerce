@@ -1,4 +1,5 @@
 .local-runtime/
+node_modules/
 .next/
 .next-store1/
 .next-store2/

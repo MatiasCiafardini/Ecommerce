@@ -48,6 +48,27 @@ export class AuthService {
     return user;
   }
 
+  async validateSuperAdmin(email: string, password: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email,
+        role: 'SUPER_ADMIN' as any,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const passwordValid = await bcrypt.compare(password, user.password);
+
+    if (!passwordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return user;
+  }
+
   async registerCustomer(
     email: string,
     password: string,
@@ -146,6 +167,20 @@ export class AuthService {
   }
 
   async getCurrentAuthEntity(id: number, role: string, storeId: number) {
+    if (role === 'SUPER_ADMIN') {
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id,
+        },
+      });
+
+      if (!user || user.role !== ('SUPER_ADMIN' as any)) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      return this.toAuthEntity(user);
+    }
+
     const isCustomer = !role || role === 'CUSTOMER';
 
     if (isCustomer) {
@@ -183,6 +218,38 @@ export class AuthService {
     storeId: number,
     data: UpdateCurrentAuthDto,
   ) {
+    if (role === 'SUPER_ADMIN') {
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id,
+        },
+      });
+
+      if (!user || user.role !== ('SUPER_ADMIN' as any)) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+
+      const userData: {
+        name?: string | null;
+        password?: string;
+      } = {};
+
+      if (data.name !== undefined) {
+        userData.name = data.name;
+      }
+
+      if (data.password) {
+        userData.password = await bcrypt.hash(data.password, 10);
+      }
+
+      const updatedUser = await this.prisma.user.update({
+        where: { id },
+        data: userData,
+      });
+
+      return this.toAuthEntity(updatedUser);
+    }
+
     const isCustomer = !role || role === 'CUSTOMER';
 
     if (isCustomer) {

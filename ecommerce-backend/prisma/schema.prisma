@@ -723,6 +723,7 @@ enum ReturnStatus {
 }
 
 enum Role {
+  SUPER_ADMIN
   OWNER
   ADMIN
   STAFF

@@ -5,15 +5,13 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'STAFF']);
-
 @Injectable()
-export class AdminAuthGuard extends JwtAuthGuard {
+export class SuperAdminAuthGuard extends JwtAuthGuard {
   handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
     const authUser = super.handleRequest(err, user, info, context);
 
-    if (!ADMIN_ROLES.has(authUser?.role)) {
-      throw new ForbiddenException('Admin access required');
+    if (authUser?.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Super admin access required');
     }
 
     return authUser;

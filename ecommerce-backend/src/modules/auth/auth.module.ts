@@ -15,5 +15,6 @@ import { getJwtSecret } from './utils/jwt-secret.util';
   ],
   controllers: [AuthController],
   providers: [AuthService, PrismaService, JwtStrategy],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}
