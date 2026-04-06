@@ -29,6 +29,7 @@ export async function apiFetch<T>(
   const response = await fetch(`${apiUrl}${path}`, {
     headers: {
       "x-store-id": String(storeId),
+      "x-store-host": host,
       ...options?.headers,
     },
     cache: options?.cache ?? "no-store",

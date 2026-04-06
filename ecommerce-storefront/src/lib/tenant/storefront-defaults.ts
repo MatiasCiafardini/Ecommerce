@@ -19,14 +19,10 @@ const safeEmptyStorefrontConfig: StorefrontTenantConfig = {
 const storefrontDefaultThemeIds = {
   minimal: 1,
   fashion: 2,
-  trojani: 3003,
+  trojani: 3,
   libreria: 4,
   mimaria: 3005,
 } as const;
-
-const storefrontDefaultAliases: Record<number, number> = {
-  3: 3003,
-};
 
 export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
   1: {
@@ -185,7 +181,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
       ],
     },
   },
-  3003: {
+  3: {
     theme: "trojani",
     pages: {
       home: [
@@ -561,7 +557,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
 };
 
 export function getDefaultStorefrontConfig(storeId: number) {
-  return storefrontDefaults[storeId] ?? storefrontDefaults[storefrontDefaultAliases[storeId]];
+  return storefrontDefaults[storeId];
 }
 
 export function getStorefrontConfigByTheme(theme?: string | null) {

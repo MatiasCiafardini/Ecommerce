@@ -137,7 +137,7 @@ export default function CheckoutReview({
   const shippingCost = roundCurrency(discountPreview?.freeShipping ? 0 : baseShippingCost);
   const total = roundCurrency(Math.max(subtotal - discountAmount + shippingCost, 0));
   const isBankTransfer = paymentMethod === "bank_transfer";
-  const useDarkCompletionPopup = user?.storeId === 1 || user?.storeId === 3003;
+  const useDarkCompletionPopup = user?.storeId === 1 || user?.storeId === 3;
   const paymentDisplayLabel =
     paymentLabel ??
     (paymentMethod === "mercadopago"

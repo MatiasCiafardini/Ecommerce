@@ -1,34 +1,31 @@
 import {
-  Injectable,
-  NestMiddleware,
   BadRequestException,
+  Injectable,
   Logger,
+  NestMiddleware,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-const STORE_ID_ALIASES: Record<number, number> = {
-  3: 3003,
-};
-
-const KNOWN_STORE_HOSTS: Record<string, number> = {
-  'estudiosmc.cloud': 1,
-  'www.estudiosmc.cloud': 1,
-  'trojani.com.ar': 3003,
-  'www.trojani.com.ar': 3003,
-};
-
-function normalizeStoreId(rawStoreId: number) {
-  return STORE_ID_ALIASES[rawStoreId] ?? rawStoreId;
-}
-
-function normalizeHost(rawHost?: string | null) {
-  const host = rawHost?.split(',')[0]?.trim().toLowerCase() ?? '';
+function normalizeHost(rawHost?: string | string[] | null) {
+  const firstValue = Array.isArray(rawHost) ? rawHost[0] : rawHost;
+  const host = firstValue?.split(',')[0]?.trim().toLowerCase() ?? '';
 
   if (!host) {
     return '';
   }
 
-  return host.replace(/\.$/, '');
+  const withoutProtocol = host.replace(/^[a-z]+:\/\//i, '');
+  const withoutPath = withoutProtocol.split('/')[0]?.trim() ?? '';
+
+  return withoutPath.replace(/\.$/, '');
+}
+
+function isWebhookPath(path: string) {
+  return (
+    path.startsWith('/api/payments/webhook') ||
+    path.startsWith('/api/integrations/enviopack/webhook')
+  );
 }
 
 @Injectable()
@@ -39,66 +36,116 @@ export class StoreMiddleware implements NestMiddleware {
 
   async use(req: any, res: any, next: () => void) {
     const path = String(req.path || req.originalUrl || '');
-    const bypassPaths = [
-      '/api/payments/webhook',
-      '/api/integrations/enviopack/webhook',
-    ];
 
-    if (bypassPaths.some((candidate) => path.startsWith(candidate))) {
+    if (isWebhookPath(path)) {
       return next();
     }
 
-    const storeIdHeader = req.headers['x-store-id'];
-
-    if (storeIdHeader) {
-      const parsedStoreId = Number(storeIdHeader);
-
-      if (Number.isNaN(parsedStoreId)) {
-        throw new BadRequestException('x-store-id must be a number');
-      }
-
-      req.storeId = normalizeStoreId(parsedStoreId);
-
-      return next();
-    }
-
+    const headerStoreId = this.parseStoreIdHeader(req.headers['x-store-id']);
+    const explicitStoreHost = normalizeHost(req.headers['x-store-host']);
     const forwardedHost = normalizeHost(req.headers['x-forwarded-host']);
-    const host = normalizeHost(forwardedHost || req.headers.host);
+    const requestHost = normalizeHost(explicitStoreHost || forwardedHost || req.headers.host);
 
-    if (!host) {
-      throw new BadRequestException('x-store-id header is required');
+    const [storeFromHeader, storeFromHost] = await Promise.all([
+      headerStoreId ? this.findStoreById(headerStoreId) : Promise.resolve(null),
+      requestHost ? this.findStoreByHost(requestHost) : Promise.resolve(null),
+    ]);
+
+    if (headerStoreId && !storeFromHeader) {
+      throw new NotFoundException(`Store with id ${headerStoreId} was not found`);
     }
 
-    const knownStoreId = KNOWN_STORE_HOSTS[host];
-
-    if (knownStoreId) {
-      req.storeId = normalizeStoreId(knownStoreId);
-      req.headers['x-store-id'] = String(req.storeId);
-      this.logger.log(`Resolved storeId ${req.storeId} from known host "${host}"`);
-      return next();
+    if (explicitStoreHost && !storeFromHost) {
+      throw new NotFoundException(
+        `Store is not configured for host "${explicitStoreHost}"`,
+      );
     }
 
-    const store = await this.prisma.store.findFirst({
+    if (requestHost && !storeFromHost && !headerStoreId) {
+      throw new NotFoundException(
+        `Store is not configured for host "${requestHost}"`,
+      );
+    }
+
+    if (
+      headerStoreId &&
+      storeFromHeader &&
+      storeFromHost &&
+      storeFromHeader.id !== storeFromHost.id
+    ) {
+      throw new BadRequestException(
+        `x-store-id ${headerStoreId} does not match host "${requestHost}"`,
+      );
+    }
+
+    const resolvedStore = storeFromHeader ?? storeFromHost;
+
+    if (!resolvedStore) {
+      throw new BadRequestException(
+        'x-store-id header is required when the host is not mapped to a store',
+      );
+    }
+
+    req.storeId = resolvedStore.id;
+    req.store = resolvedStore;
+    req.headers['x-store-id'] = String(resolvedStore.id);
+
+    if (requestHost) {
+      req.headers['x-store-host'] = requestHost;
+    }
+
+    if (!headerStoreId && requestHost) {
+      this.logger.log(
+        `Resolved tenant storeId=${resolvedStore.id} from host "${requestHost}"`,
+      );
+    }
+
+    next();
+  }
+
+  private parseStoreIdHeader(rawStoreId?: string | string[]) {
+    const firstValue = Array.isArray(rawStoreId) ? rawStoreId[0] : rawStoreId;
+
+    if (firstValue === undefined || firstValue === null || firstValue === '') {
+      return null;
+    }
+
+    const parsedStoreId = Number(firstValue);
+
+    if (!Number.isInteger(parsedStoreId) || parsedStoreId <= 0) {
+      throw new BadRequestException('x-store-id must be a positive integer');
+    }
+
+    return parsedStoreId;
+  }
+
+  private findStoreById(storeId: number) {
+    return this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        id: true,
+        domain: true,
+        name: true,
+      },
+    } as any);
+  }
+
+  private findStoreByHost(host: string) {
+    const normalizedHost = normalizeHost(host);
+    const hostWithoutPort = normalizedHost.replace(/:\d+$/, '');
+
+    return this.prisma.store.findFirst({
       where: {
-        OR: [
-          { domain: host },
-          { domain: host.replace(/:\d+$/, '') },
-        ],
+        OR:
+          hostWithoutPort !== normalizedHost
+            ? [{ domain: normalizedHost }, { domain: hostWithoutPort }]
+            : [{ domain: normalizedHost }],
       },
       select: {
         id: true,
         domain: true,
+        name: true,
       },
-    });
-
-    if (!store) {
-      throw new BadRequestException('x-store-id header is required');
-    }
-
-    req.storeId = normalizeStoreId(store.id);
-    req.headers['x-store-id'] = String(req.storeId);
-    this.logger.log(`Resolved storeId ${req.storeId} from host "${host}"`);
-
-    next();
+    } as any);
   }
 }

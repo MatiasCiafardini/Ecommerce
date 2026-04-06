@@ -1,9 +1,5 @@
 export type HostStoreMap = Record<string, number>;
 
-const STORE_ID_ALIASES: Record<number, number> = {
-  3: 3003,
-};
-
 const DEV_HOST_STORE_MAP: HostStoreMap = {
   localhost: 1,
   "127.0.0.1": 1,
@@ -11,26 +7,15 @@ const DEV_HOST_STORE_MAP: HostStoreMap = {
   "127.0.0.1:3001": 1,
   "localhost:3002": 2,
   "127.0.0.1:3002": 2,
-  "localhost:3003": 3003,
-  "127.0.0.1:3003": 3003,
+  "localhost:3003": 3,
+  "127.0.0.1:3003": 3,
   "localhost:3004": 4,
   "127.0.0.1:3004": 4,
   "localhost:3005": 3005,
   "127.0.0.1:3005": 3005,
 };
 
-const PRODUCTION_HOST_STORE_MAP: HostStoreMap = {
-  "estudiosmc.cloud": 1,
-  "www.estudiosmc.cloud": 1,
-  "trojani.com.ar": 3003,
-  "www.trojani.com.ar": 3003,
-};
-
-function normalizeStoreId(storeId: number) {
-  return STORE_ID_ALIASES[storeId] ?? storeId;
-}
-
-function normalizeHostValue(value?: string | null) {
+export function normalizeHostValue(value?: string | null) {
   if (!value) {
     return "";
   }
@@ -48,10 +33,7 @@ function normalizeHostValue(value?: string | null) {
 }
 
 function getDefaultHostStoreMap(): HostStoreMap {
-  return {
-    ...PRODUCTION_HOST_STORE_MAP,
-    ...(process.env.NODE_ENV !== "production" ? DEV_HOST_STORE_MAP : {}),
-  };
+  return process.env.NODE_ENV !== "production" ? { ...DEV_HOST_STORE_MAP } : {};
 }
 
 function getConfiguredHosts(hostStoreMap: HostStoreMap) {
@@ -74,14 +56,16 @@ function resolveLocalFallbackStoreId(host: string, hostStoreMap: HostStoreMap) {
     return explicitLocalhostFallback;
   }
 
-  const derivedStoreId =
+  return (
     hostStoreMap[`${host}:3001`] ??
-    hostStoreMap[host === "localhost" ? "127.0.0.1:3001" : "localhost:3001"];
-
-  return derivedStoreId;
+    hostStoreMap[host === "localhost" ? "127.0.0.1:3001" : "localhost:3001"]
+  );
 }
 
-function buildUnknownHostMessage(host: string | null | undefined, hostStoreMap: HostStoreMap) {
+function buildUnknownHostMessage(
+  host: string | null | undefined,
+  hostStoreMap: HostStoreMap,
+) {
   const normalizedHost = normalizeHostValue(host);
   const configuredHosts = getConfiguredHosts(hostStoreMap);
 
@@ -92,7 +76,9 @@ function buildUnknownHostMessage(host: string | null | undefined, hostStoreMap: 
   return `Could not resolve store for host "${normalizedHost}". Configure NEXT_PUBLIC_STORE_HOST_MAP with this host. Known hosts: ${configuredHosts}`;
 }
 
-export function parseHostStoreMap(raw = process.env.NEXT_PUBLIC_STORE_HOST_MAP): HostStoreMap {
+export function parseHostStoreMap(
+  raw = process.env.NEXT_PUBLIC_STORE_HOST_MAP,
+): HostStoreMap {
   const fallbackMap = getDefaultHostStoreMap();
   const normalizedRaw = raw?.trim() ?? "";
 
@@ -125,7 +111,7 @@ export function parseHostStoreMap(raw = process.env.NEXT_PUBLIC_STORE_HOST_MAP):
       continue;
     }
 
-    parsedMap[host] = normalizeStoreId(storeId);
+    parsedMap[host] = storeId;
   }
 
   if (Object.keys(parsedMap).length === 0) {
@@ -172,10 +158,20 @@ export function resolveStoreIdFromHost(host?: string | null) {
   throw new Error(buildUnknownHostMessage(host, hostStoreMap));
 }
 
-export function getClientStoreId() {
+export function getClientStoreContext() {
   if (typeof window === "undefined") {
-    throw new Error("getClientStoreId can only be used in the browser");
+    throw new Error("getClientStoreContext can only be used in the browser");
   }
 
-  return resolveStoreIdFromHost(window.location.host);
+  const host = normalizeHostValue(window.location.host);
+  const storeId = resolveStoreIdFromHost(host);
+
+  return {
+    host,
+    storeId,
+  };
+}
+
+export function getClientStoreId() {
+  return getClientStoreContext().storeId;
 }

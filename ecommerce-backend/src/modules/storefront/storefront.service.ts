@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateOrderDto } from '../orders/dto/create-order.dto';
@@ -112,7 +116,13 @@ export class StorefrontService {
         } as any);
 
     if (!store) {
-      throw new Error('Store not found');
+      if (storeId) {
+        throw new NotFoundException(`Store with id ${storeId} was not found`);
+      }
+
+      throw new NotFoundException(
+        `Store is not configured for domain "${normalizedDomain || '(missing)'}"`,
+      );
     }
 
     const storefrontConfig = this.normalizeStorefrontConfig(

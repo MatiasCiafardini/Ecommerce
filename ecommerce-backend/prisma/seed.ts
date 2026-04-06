@@ -23,6 +23,12 @@ const DEVELOPMENT_STORES = [
     adminEmail: 'admin-store2@demo.com',
   },
   {
+    id: 3,
+    name: 'Trojani',
+    domain: 'localhost:3003',
+    adminEmail: 'trojani@trojani.com',
+  },
+  {
     id: 4,
     name: 'Demo Store 4',
     domain: 'localhost:3004',
@@ -580,6 +586,27 @@ async function resetCatalogData(storeId: number) {
 async function ensureDevelopmentStores() {
   const stores: DevelopmentStoreRecord[] = [];
 
+  const legacyTrojaniStore = await prisma.store.findUnique({
+    where: { id: 3003 },
+    select: {
+      id: true,
+    },
+  });
+
+  const canonicalTrojaniStore = await prisma.store.findUnique({
+    where: { id: 3 },
+    select: {
+      id: true,
+    },
+  });
+
+  if (legacyTrojaniStore && !canonicalTrojaniStore) {
+    await prisma.store.update({
+      where: { id: 3003 },
+      data: { id: 3, domain: 'localhost:3003', name: 'Trojani' },
+    } as any);
+  }
+
   for (const definition of DEVELOPMENT_STORES) {
     const existing = await prisma.store.findUnique({
       where: {
@@ -648,7 +675,7 @@ async function ensureAdmin(storeId: number, email: string) {
 }
 
 function getCatalogSeedConfig(storeId: number) {
-  if (storeId === 2 || storeId === 3003 || storeId === 3005) {
+  if (storeId === 2 || storeId === 3 || storeId === 3005) {
     return {
       definitions: BOUTIQUE_CATEGORY_DEFINITIONS,
       collections: BOUTIQUE_COLLECTIONS,
