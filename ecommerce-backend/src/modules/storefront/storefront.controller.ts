@@ -92,6 +92,18 @@ export class StorefrontController {
   }
 
   @UseGuards(AdminAuthGuard)
+  @Put('admin/integrations/bank-transfer')
+  updateAdminBankTransferIntegration(
+    @Req() req,
+    @Body()
+    body: {
+      discountPercentage?: number | null;
+    },
+  ) {
+    return this.storefrontService.updateAdminBankTransferConfig(req.storeId, body);
+  }
+
+  @UseGuards(AdminAuthGuard)
   @Post('admin/assets/upload')
   @UseInterceptors(
     FileInterceptor('file', {

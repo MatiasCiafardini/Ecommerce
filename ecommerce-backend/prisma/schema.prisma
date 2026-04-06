@@ -14,6 +14,8 @@ model Store {
   mercadoPagoAccessToken      String?
   mercadoPagoPublicKey        String?
   mercadoPagoWebhookSecret    String?
+  bankTransferDiscountPercentage Float                      @default(0)
+  manualSalesEnabled          Boolean                       @default(false)
   storefrontConfig            Json?
   createdAt                   DateTime                      @default(now())
   cancellationRequests        CancellationRequest[]

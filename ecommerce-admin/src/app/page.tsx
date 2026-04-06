@@ -22,6 +22,12 @@ type Store = {
       accessTokenConfigured: boolean;
       webhookSecretConfigured: boolean;
     };
+    bankTransfer: {
+      discountPercentage: number;
+    };
+  };
+  features: {
+    manualSalesEnabled: boolean;
   };
   provisioning: {
     panelReady: boolean;
@@ -59,6 +65,8 @@ type StoreFormState = {
   mercadoPagoPublicKey: string;
   mercadoPagoAccessToken: string;
   mercadoPagoWebhookSecret: string;
+  manualSalesEnabled: boolean;
+  bankTransferDiscountPercentage: string;
 };
 
 const localDeployCommand = `git add .\ngit commit -m "mensaje del cambio"\ngit push origin main`;
@@ -85,6 +93,8 @@ const emptyStoreForm: StoreFormState = {
   mercadoPagoPublicKey: "",
   mercadoPagoAccessToken: "",
   mercadoPagoWebhookSecret: "",
+  manualSalesEnabled: false,
+  bankTransferDiscountPercentage: "0",
 };
 
 function formatDate(value: string) {
@@ -141,6 +151,17 @@ function storeToForm(store: Store | null): StoreFormState {
     mercadoPagoPublicKey: "",
     mercadoPagoAccessToken: "",
     mercadoPagoWebhookSecret: "",
+    manualSalesEnabled: Boolean(store.features.manualSalesEnabled),
+    bankTransferDiscountPercentage: String(
+      Number(store.integrations.bankTransfer?.discountPercentage ?? 0),
+    ),
+  };
+}
+
+function serializeStoreForm(value: StoreFormState) {
+  return {
+    ...value,
+    bankTransferDiscountPercentage: Number(value.bankTransferDiscountPercentage || 0),
   };
 }
 
@@ -178,6 +199,7 @@ function StoreFields({
         ["MP public key", "mercadoPagoPublicKey"],
         ["MP access token", "mercadoPagoAccessToken"],
         ["MP webhook secret", "mercadoPagoWebhookSecret"],
+        ["Desc. transferencia %", "bankTransferDiscountPercentage"],
       ].map(([label, key]) => (
         <label key={key} className={`field${key === "tagline" || key === "logoUrl" || key === "heroSubtitle" || key === "mercadoPagoWebhookSecret" ? " span-2" : ""}`}>
           <span>{label}</span>
@@ -189,6 +211,17 @@ function StoreFields({
         </label>
       ))}
 
+      <label className="field span-2">
+        <span>Venta manual</span>
+        <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input
+            type="checkbox"
+            checked={value.manualSalesEnabled}
+            onChange={(event) => onChange({ manualSalesEnabled: event.target.checked })}
+          />
+          <span>{value.manualSalesEnabled ? "Habilitada" : "Deshabilitada"}</span>
+        </label>
+      </label>
       <label className="field span-2">
         <span>{compact ? "Password owner nueva" : "Password owner"}</span>
         <input
@@ -318,7 +351,7 @@ export default function Page() {
     { label: "Tiendas activas", value: stores.length, detail: "Portfolio actual" },
     { label: "Branding listo", value: stores.filter((store) => store.provisioning.brandingReady).length, detail: "Logo y mensaje base" },
     { label: "Pagos listos", value: stores.filter((store) => store.provisioning.paymentsReady).length, detail: "Mercado Pago cargado" },
-    { label: "Infra manual", value: stores.filter((store) => store.provisioning.domainAutomationPending).length, detail: "DNS y Nginx aun afuera" },
+    { label: "Venta manual", value: stores.filter((store) => store.features.manualSalesEnabled).length, detail: "Tiendas con venta manual activa" },
   ]), [stores]);
 
   async function onLogin(event: FormEvent<HTMLFormElement>) {
@@ -352,7 +385,7 @@ export default function Page() {
       const created = await request<Store>("/system/stores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createState),
+        body: JSON.stringify(serializeStoreForm(createState)),
       });
       setCreateState(emptyStoreForm);
       setTab("stores");
@@ -375,7 +408,7 @@ export default function Page() {
       await request<Store>(`/system/stores/${selectedStoreId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editState),
+        body: JSON.stringify(serializeStoreForm(editState)),
       });
       await refresh(selectedStoreId);
       setSuccessMessage("La tienda se actualizo correctamente.");

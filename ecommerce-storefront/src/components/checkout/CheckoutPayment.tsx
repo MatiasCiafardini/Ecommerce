@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 
 type ShippingOption = {
@@ -82,6 +83,31 @@ export default function CheckoutPayment({
   const [selectedShipping, setSelectedShipping] = useState<ShippingOption | null>(
     shippingOptions[0] ?? null,
   );
+  const [bankTransferDiscountPercentage, setBankTransferDiscountPercentage] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    void api("/store/payment-config")
+      .then((config) => {
+        if (!active) {
+          return;
+        }
+
+        setBankTransferDiscountPercentage(
+          Number(config?.bankTransfer?.discountPercentage ?? 0),
+        );
+      })
+      .catch(() => {
+        if (active) {
+          setBankTransferDiscountPercentage(0);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <section
@@ -222,6 +248,8 @@ export default function CheckoutPayment({
         <div style={{ display: "grid", gap: 12 }}>
           {paymentOptions.map((method) => {
             const active = selectedMethod?.id === method.id;
+            const hasTransferDiscount =
+              method.id === "bank_transfer" && bankTransferDiscountPercentage > 0;
 
             return (
               <button
@@ -267,6 +295,9 @@ export default function CheckoutPayment({
                   }}
                 >
                   {method.description}
+                  {hasTransferDiscount
+                    ? ` Esta tienda aplica ${bankTransferDiscountPercentage}% de descuento pagando por transferencia.`
+                    : ""}
                 </span>
               </button>
             );
@@ -284,17 +315,19 @@ export default function CheckoutPayment({
           }}
         >
           <strong style={{ color: "var(--checkout-text-strong)" }}>Que pasa despues</strong>
-          <p
-            style={{
-              margin: 0,
-              color: "var(--checkout-text-muted)",
-              lineHeight: 1.7,
-            }}
-          >
-            {selectedMethod?.id === "bank_transfer"
-              ? "En la revision final vas a subir el comprobante para que el comercio valide la transferencia."
+            <p
+              style={{
+                margin: 0,
+                color: "var(--checkout-text-muted)",
+                lineHeight: 1.7,
+              }}
+            >
+              {selectedMethod?.id === "bank_transfer"
+              ? bankTransferDiscountPercentage > 0
+                ? `En la revision final vas a subir el comprobante y se aplicara un ${bankTransferDiscountPercentage}% de descuento a la transferencia.`
+                : "En la revision final vas a subir el comprobante para que el comercio valide la transferencia."
               : "Al confirmar, el pedido se registra con Mercado Pago como medio de cobro online."}
-          </p>
+            </p>
         </div>
 
         <button

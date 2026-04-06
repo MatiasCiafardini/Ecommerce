@@ -105,6 +105,7 @@ export class StorefrontService {
           select: {
             id: true,
             storefrontConfig: true,
+            bankTransferDiscountPercentage: true,
           },
         } as any)
       : await this.prisma.store.findUnique({
@@ -112,6 +113,7 @@ export class StorefrontService {
           select: {
             id: true,
             storefrontConfig: true,
+            bankTransferDiscountPercentage: true,
           },
         } as any);
 
@@ -135,13 +137,30 @@ export class StorefrontService {
       storefrontConfig,
       paymentProviders: {
         mercadopago: await this.mercadoPagoProvider.getPublicConfig(store.id),
+        bankTransfer: {
+          enabled: true,
+          discountPercentage: Number(
+            (store as any).bankTransferDiscountPercentage ?? 0,
+          ),
+        },
       },
     };
   }
 
   async getPaymentConfig(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        bankTransferDiscountPercentage: true,
+      },
+    });
+
     return {
       mercadopago: await this.mercadoPagoProvider.getPublicConfig(storeId),
+      bankTransfer: {
+        enabled: true,
+        discountPercentage: Number(store?.bankTransferDiscountPercentage ?? 0),
+      },
     };
   }
 
@@ -176,8 +195,18 @@ export class StorefrontService {
   }
 
   async getAdminIntegrationsConfig(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        bankTransferDiscountPercentage: true,
+      },
+    });
+
     return {
       mercadopago: await this.mercadoPagoProvider.getAdminConfig(storeId),
+      bankTransfer: {
+        discountPercentage: Number(store?.bankTransferDiscountPercentage ?? 0),
+      },
     };
   }
 
@@ -196,6 +225,33 @@ export class StorefrontService {
 
   async testAdminMercadoPagoConfig(storeId: number) {
     return this.mercadoPagoProvider.testConfiguration(storeId);
+  }
+
+  async updateAdminBankTransferConfig(
+    storeId: number,
+    input: {
+      discountPercentage?: number | null;
+    },
+  ) {
+    const discountPercentage = Math.max(
+      0,
+      Math.min(Number(input.discountPercentage ?? 0) || 0, 100),
+    );
+
+    await this.prisma.store.update({
+      where: { id: storeId },
+      data: {
+        bankTransferDiscountPercentage: Number(
+          discountPercentage.toFixed(2),
+        ),
+      },
+    });
+
+    return {
+      bankTransfer: {
+        discountPercentage: Number(discountPercentage.toFixed(2)),
+      },
+    };
   }
 
   private normalizeStoreDomain(domain?: string) {

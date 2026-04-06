@@ -76,6 +76,19 @@ function buildUnknownHostMessage(
   return `Could not resolve store for host "${normalizedHost}". Configure NEXT_PUBLIC_STORE_HOST_MAP with this host. Known hosts: ${configuredHosts}`;
 }
 
+function buildHostCandidates(normalizedHost: string) {
+  const hostWithoutPort = normalizedHost.replace(/:\d+$/, "");
+  const candidates = new Set<string>([normalizedHost, hostWithoutPort]);
+
+  if (hostWithoutPort.startsWith("www.")) {
+    candidates.add(hostWithoutPort.slice(4));
+  } else if (hostWithoutPort) {
+    candidates.add(`www.${hostWithoutPort}`);
+  }
+
+  return [...candidates].filter(Boolean);
+}
+
 export function parseHostStoreMap(
   raw = process.env.NEXT_PUBLIC_STORE_HOST_MAP,
 ): HostStoreMap {
@@ -147,12 +160,12 @@ export function resolveStoreIdFromHost(host?: string | null) {
     return localFallback;
   }
 
-  const hostWithoutPort = normalizedHost.replace(/:\d+$/, "");
-  const fallbackMatch =
-    hostWithoutPort !== normalizedHost ? hostStoreMap[hostWithoutPort] : undefined;
+  for (const candidateHost of buildHostCandidates(normalizedHost)) {
+    const candidateMatch = hostStoreMap[candidateHost];
 
-  if (fallbackMatch) {
-    return fallbackMatch;
+    if (candidateMatch) {
+      return candidateMatch;
+    }
   }
 
   throw new Error(buildUnknownHostMessage(host, hostStoreMap));

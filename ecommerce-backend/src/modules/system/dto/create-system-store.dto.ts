@@ -1,9 +1,13 @@
 import {
+  IsBoolean,
   IsEmail,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
+  Max,
   MinLength,
+  Min,
 } from 'class-validator';
 
 export class CreateSystemStoreDto {
@@ -103,4 +107,14 @@ export class CreateSystemStoreDto {
   @IsString()
   @MaxLength(220)
   mercadoPagoWebhookSecret?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  manualSalesEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  bankTransferDiscountPercentage?: number;
 }

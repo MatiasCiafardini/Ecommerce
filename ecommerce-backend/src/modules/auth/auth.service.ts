@@ -30,6 +30,17 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  private async getStoreFeatureState(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        manualSalesEnabled: true,
+      },
+    });
+
+    return resolveStoreFeatures(store ?? undefined);
+  }
+
   async validateUser(email: string, password: string, storeId: number) {
     const user = await this.prisma.user.findFirst({
       where: { email, storeId },
@@ -109,7 +120,7 @@ export class AuthService {
       },
     });
 
-    return this.toAuthEntity(customer);
+    return this.toAuthEntity(customer, await this.getStoreFeatureState(store.id));
   }
 
   async validateSession(email: string, password: string, storeId: number) {
@@ -132,7 +143,10 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const safeUser = this.toAuthEntity(user);
+    const safeUser = this.toAuthEntity(
+      user,
+      await this.getStoreFeatureState(user.storeId),
+    );
     const accessToken = this.signAccessToken(safeUser);
 
     return {
@@ -199,7 +213,10 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      return this.toAuthEntity(customer);
+      return this.toAuthEntity(
+        customer,
+        await this.getStoreFeatureState(customer.storeId),
+      );
     }
 
     const user = await this.prisma.user.findFirst({
@@ -213,7 +230,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.toAuthEntity(user);
+    return this.toAuthEntity(
+      user,
+      await this.getStoreFeatureState(user.storeId),
+    );
   }
 
   async updateCurrentAuthEntity(
@@ -287,7 +307,10 @@ export class AuthService {
         data: customerData,
       });
 
-      return this.toAuthEntity(updatedCustomer);
+      return this.toAuthEntity(
+        updatedCustomer,
+        await this.getStoreFeatureState(updatedCustomer.storeId),
+      );
     }
 
     const user = await this.prisma.user.findFirst({
@@ -319,10 +342,16 @@ export class AuthService {
       data: userData,
     });
 
-    return this.toAuthEntity(updatedUser);
+    return this.toAuthEntity(
+      updatedUser,
+      await this.getStoreFeatureState(updatedUser.storeId),
+    );
   }
 
-  private toAuthEntity(user: any): AuthEntity {
+  private toAuthEntity(
+    user: any,
+    storeFeatures = resolveStoreFeatures(undefined),
+  ): AuthEntity {
     return {
       id: user.id,
       email: user.email,
@@ -332,7 +361,7 @@ export class AuthService {
       lastName: user.lastName ?? null,
       phone: user.phone ?? null,
       name: user.name ?? null,
-      storeFeatures: resolveStoreFeatures(user.storeId),
+      storeFeatures,
     };
   }
 }

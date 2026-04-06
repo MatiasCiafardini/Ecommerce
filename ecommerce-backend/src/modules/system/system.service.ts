@@ -248,6 +248,10 @@ export class SystemService {
           mercadoPagoWebhookSecret: sanitizeOptionalString(
             dto.mercadoPagoWebhookSecret,
           ),
+          manualSalesEnabled: dto.manualSalesEnabled ?? false,
+          bankTransferDiscountPercentage: this.normalizeBankTransferDiscount(
+            dto.bankTransferDiscountPercentage,
+          ),
           storefrontConfig: this.buildStorefrontConfig(dto) as Prisma.InputJsonValue,
         },
         include: {
@@ -397,6 +401,16 @@ export class SystemService {
             ? {
                 mercadoPagoWebhookSecret: sanitizeOptionalString(
                   dto.mercadoPagoWebhookSecret,
+                ),
+              }
+            : {}),
+          ...(dto.manualSalesEnabled !== undefined
+            ? { manualSalesEnabled: dto.manualSalesEnabled }
+            : {}),
+          ...(dto.bankTransferDiscountPercentage !== undefined
+            ? {
+                bankTransferDiscountPercentage: this.normalizeBankTransferDiscount(
+                  dto.bankTransferDiscountPercentage,
                 ),
               }
             : {}),
@@ -654,6 +668,12 @@ export class SystemService {
           accessTokenConfigured: Boolean(store.mercadoPagoAccessToken),
           webhookSecretConfigured: Boolean(store.mercadoPagoWebhookSecret),
         },
+        bankTransfer: {
+          discountPercentage: Number(store.bankTransferDiscountPercentage ?? 0),
+        },
+      },
+      features: {
+        manualSalesEnabled: Boolean(store.manualSalesEnabled),
       },
       provisioning: {
         panelReady: Boolean(owner && store.domain),
@@ -666,5 +686,15 @@ export class SystemService {
       },
       storefrontConfig,
     };
+  }
+
+  private normalizeBankTransferDiscount(value?: number | null) {
+    const numericValue = Number(value ?? 0);
+
+    if (!Number.isFinite(numericValue)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(Number(numericValue.toFixed(2)), 100));
   }
 }

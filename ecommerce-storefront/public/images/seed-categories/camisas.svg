@@ -2,13 +2,13 @@
   <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" fill="none">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#121212" />
-        <stop offset="55%" stop-color="#8e6d54" />
-        <stop offset="100%" stop-color="#d9c7b2" />
+        <stop offset="0%" stop-color="#161313" />
+        <stop offset="55%" stop-color="#70534a" />
+        <stop offset="100%" stop-color="#caa696" />
       </linearGradient>
     </defs>
     <rect width="1600" height="900" rx="42" fill="url(#bg)" />
-    <g opacity="0.14" stroke="#8e6d54" stroke-width="2">
+    <g opacity="0.14" stroke="#70534a" stroke-width="2">
       <path d="M0 170h1600" />
       <path d="M0 340h1600" />
       <path d="M0 510h1600" />
@@ -21,11 +21,11 @@
     </g>
     <circle cx="1290" cy="188" r="154" fill="#ffffff" opacity="0.22" />
     <rect x="74" y="74" width="1452" height="752" rx="36" fill="rgba(255,255,255,0.34)" stroke="rgba(255,255,255,0.5)" />
-    <text x="132" y="168" fill="#8e6d54" font-size="28" font-family="Arial, sans-serif" letter-spacing="7">STORE 2 CATEGORY</text>
-    <rect x="132" y="218" width="458" height="438" rx="42" fill="#f2eee8" fill-opacity="0.9" stroke="#8e6d54" stroke-width="4" />
-    <rect x="448" y="182" width="290" height="506" rx="48" fill="#8e6d54" fill-opacity="0.24" />
-    <rect x="540" y="270" width="170" height="320" rx="32" fill="#d9c7b2" fill-opacity="0.48" />
-    <text x="790" y="408" fill="#8e6d54" font-size="84" font-weight="700" font-family="Arial, sans-serif">CAMISAS</text>
-    <text x="790" y="486" fill="#8e6d54" font-size="30" font-family="Arial, sans-serif">Visual completa para cards anchas</text>
-    <text x="790" y="560" fill="#8e6d54" font-size="24" font-family="Arial, sans-serif" opacity="0.8">District Motion</text>
+    <text x="132" y="168" fill="#70534a" font-size="28" font-family="Arial, sans-serif" letter-spacing="7">STORE 2 CATEGORY</text>
+    <rect x="132" y="218" width="458" height="438" rx="42" fill="#f5ece3" fill-opacity="0.9" stroke="#70534a" stroke-width="4" />
+    <rect x="448" y="182" width="290" height="506" rx="48" fill="#70534a" fill-opacity="0.24" />
+    <rect x="540" y="270" width="170" height="320" rx="32" fill="#caa696" fill-opacity="0.48" />
+    <text x="790" y="408" fill="#70534a" font-size="84" font-weight="700" font-family="Arial, sans-serif">CAMISAS</text>
+    <text x="790" y="486" fill="#70534a" font-size="30" font-family="Arial, sans-serif">Visual completa para cards anchas</text>
+    <text x="790" y="560" fill="#70534a" font-size="24" font-family="Arial, sans-serif" opacity="0.8">Marfil Studio</text>
   </svg>

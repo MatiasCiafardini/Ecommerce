@@ -100,6 +100,11 @@ export class CheckoutDto {
   @IsString()
   couponCode?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

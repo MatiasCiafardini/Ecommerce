@@ -37,6 +37,7 @@ export class CheckoutService {
       shippingQuoteId,
       shippingCost,
       couponCode,
+      paymentMethod,
       idempotencyKey,
       shippingAddress,
       shippingSelection,
@@ -133,12 +134,13 @@ export class CheckoutService {
     const resolvedDiscount = await this.discountsService.previewDiscount(storeId, {
       subtotal: discountedSubtotal,
       code: couponCode,
+      paymentMethod,
     });
 
     if (resolvedDiscount) {
       discountAmount = roundCurrency(discountAmount + resolvedDiscount.amount);
-      discountId = resolvedDiscount.discountId;
-      discountCode = resolvedDiscount.code;
+      discountId = resolvedDiscount.discountId ?? null;
+      discountCode = resolvedDiscount.code ?? null;
       freeShipping = resolvedDiscount.freeShipping;
     }
 

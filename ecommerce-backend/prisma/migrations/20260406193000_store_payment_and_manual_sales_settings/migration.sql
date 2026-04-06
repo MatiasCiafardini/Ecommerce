@@ -1,0 +1,3 @@
+ALTER TABLE "Store"
+ADD COLUMN "bankTransferDiscountPercentage" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN "manualSalesEnabled" BOOLEAN NOT NULL DEFAULT false;

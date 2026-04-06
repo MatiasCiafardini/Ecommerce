@@ -42,6 +42,7 @@ type AdminMercadoPagoConfig = {
   publicKey: string;
   accessToken: string;
   webhookSecret: string;
+  bankTransferDiscountPercentage: string;
   accessTokenConfigured: boolean;
   webhookSecretConfigured: boolean;
   accessTokenPreview?: string | null;
@@ -624,6 +625,7 @@ export default function DeveloperModePanel({
     publicKey: "",
     accessToken: "",
     webhookSecret: "",
+    bankTransferDiscountPercentage: "0",
     accessTokenConfigured: false,
     webhookSecretConfigured: false,
     accessTokenPreview: null,
@@ -673,6 +675,9 @@ export default function DeveloperModePanel({
           publicKey: String(integrationsResponse?.mercadopago?.publicKey ?? ""),
           accessToken: "",
           webhookSecret: "",
+          bankTransferDiscountPercentage: String(
+            Number(integrationsResponse?.bankTransfer?.discountPercentage ?? 0),
+          ),
           accessTokenConfigured: Boolean(integrationsResponse?.mercadopago?.accessTokenConfigured),
           webhookSecretConfigured: Boolean(integrationsResponse?.mercadopago?.webhookSecretConfigured),
           accessTokenPreview: typeof integrationsResponse?.mercadopago?.accessTokenPreview === "string"
@@ -685,6 +690,9 @@ export default function DeveloperModePanel({
         setSavedMercadoPagoSnapshot(
           JSON.stringify({
             publicKey: String(integrationsResponse?.mercadopago?.publicKey ?? ""),
+            bankTransferDiscountPercentage: String(
+              Number(integrationsResponse?.bankTransfer?.discountPercentage ?? 0),
+            ),
             accessTokenConfigured: Boolean(integrationsResponse?.mercadopago?.accessTokenConfigured),
             webhookSecretConfigured: Boolean(integrationsResponse?.mercadopago?.webhookSecretConfigured),
             accessTokenPreview: typeof integrationsResponse?.mercadopago?.accessTokenPreview === "string"
@@ -1216,10 +1224,20 @@ export default function DeveloperModePanel({
           body: JSON.stringify(payload),
         });
 
+        const bankTransferResponse = await api("/store/admin/integrations/bank-transfer", {
+          method: "PUT",
+          body: JSON.stringify({
+            discountPercentage: Number(mercadoPagoConfig.bankTransferDiscountPercentage || 0),
+          }),
+        });
+
         setMercadoPagoConfig({
           publicKey: String(response?.mercadopago?.publicKey ?? ""),
           accessToken: "",
           webhookSecret: "",
+          bankTransferDiscountPercentage: String(
+            Number(bankTransferResponse?.bankTransfer?.discountPercentage ?? 0),
+          ),
           accessTokenConfigured: Boolean(response?.mercadopago?.accessTokenConfigured),
           webhookSecretConfigured: Boolean(response?.mercadopago?.webhookSecretConfigured),
           accessTokenPreview: typeof response?.mercadopago?.accessTokenPreview === "string"
@@ -1232,6 +1250,9 @@ export default function DeveloperModePanel({
         setSavedMercadoPagoSnapshot(
           JSON.stringify({
             publicKey: String(response?.mercadopago?.publicKey ?? ""),
+            bankTransferDiscountPercentage: String(
+              Number(bankTransferResponse?.bankTransfer?.discountPercentage ?? 0),
+            ),
             accessTokenConfigured: Boolean(response?.mercadopago?.accessTokenConfigured),
             webhookSecretConfigured: Boolean(response?.mercadopago?.webhookSecretConfigured),
             accessTokenPreview: typeof response?.mercadopago?.accessTokenPreview === "string"
@@ -1242,7 +1263,7 @@ export default function DeveloperModePanel({
               : null,
           }),
         );
-        setSuccess("La configuracion de Mercado Pago se guardo correctamente.");
+        setSuccess("Las configuraciones de pago se guardaron correctamente.");
       } catch (err) {
         setError(err instanceof Error ? err.message : "No se pudo guardar la integracion.");
       } finally {
@@ -1594,6 +1615,28 @@ export default function DeveloperModePanel({
                       ) : null}
                     </div>
 
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <label style={labelStyle}>Descuento por transferencia (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        value={mercadoPagoConfig.bankTransferDiscountPercentage}
+                        onChange={(event) => {
+                          setMercadoPagoConfig((current) => ({
+                            ...current,
+                            bankTransferDiscountPercentage: event.target.value,
+                          }));
+                        }}
+                        placeholder="0"
+                        style={inputStyle}
+                      />
+                      <p style={hintStyle}>
+                        Si la tienda quiere incentivar transferencia bancaria, cargá acá el porcentaje. Ejemplo: 10.
+                      </p>
+                    </div>
+
                     <div style={integrationInfoCardStyle}>
                       <strong style={{ fontSize: 15 }}>Chequeos rapidos</strong>
                       <div style={{ display: "grid", gap: 8 }}>
@@ -1608,6 +1651,14 @@ export default function DeveloperModePanel({
                         <div style={integrationCheckStyle(Boolean(mercadoPagoConfig.webhookSecret || mercadoPagoConfig.webhookSecretConfigured))}>
                           <span>Webhook secret</span>
                           <strong>{mercadoPagoConfig.webhookSecret || mercadoPagoConfig.webhookSecretConfigured ? "Cargado" : "Pendiente"}</strong>
+                        </div>
+                        <div style={integrationCheckStyle(Number(mercadoPagoConfig.bankTransferDiscountPercentage || 0) > 0)}>
+                          <span>Descuento transferencia</span>
+                          <strong>
+                            {Number(mercadoPagoConfig.bankTransferDiscountPercentage || 0) > 0
+                              ? `${Number(mercadoPagoConfig.bankTransferDiscountPercentage)}%`
+                              : "Sin descuento"}
+                          </strong>
                         </div>
                       </div>
                     </div>

@@ -245,6 +245,7 @@ const SIZE_MAP: Record<string, string[]> = {
   jacket: ['M', 'L', 'XL'],
   pants: ['38', '40', '42', '44'],
   dress: ['S', 'M', 'L'],
+  skirt: ['S', 'M', 'L'],
   cargo: ['38', '40', '42', '44'],
   jogger: ['S', 'M', 'L', 'XL'],
   shirt: ['S', 'M', 'L', 'XL'],

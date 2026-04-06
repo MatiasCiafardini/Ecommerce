@@ -297,6 +297,7 @@ export class DiscountsService {
   async previewDiscount(storeId: number, dto: PreviewDiscountDto) {
     const subtotal = roundCurrency(dto.subtotal ?? 0);
     const normalizedCode = dto.code?.trim().toUpperCase();
+    const normalizedPaymentMethod = dto.paymentMethod?.trim().toLowerCase() ?? '';
 
     let couponDiscount:
       | {
@@ -317,10 +318,63 @@ export class DiscountsService {
       subtotal,
     });
 
+    const baseDiscount = this.resolvePreferredDiscount(
+      couponDiscount,
+      automaticDiscount,
+    );
+    const bankTransferDiscount = await this.resolveBankTransferDiscount(
+      storeId,
+      subtotal,
+      normalizedPaymentMethod,
+    );
+
+    if (!baseDiscount && !bankTransferDiscount) {
+      return null;
+    }
+
+    const baseAmount = roundCurrency(baseDiscount?.amount ?? 0);
+    const paymentMethodDiscountAmount = roundCurrency(
+      bankTransferDiscount?.amount ?? 0,
+    );
+
+    return {
+      source:
+        baseDiscount?.source ??
+        (bankTransferDiscount ? 'payment_method' : 'automatic'),
+      discountId: baseDiscount?.discountId ?? null,
+      couponId: baseDiscount?.couponId ?? undefined,
+      code: baseDiscount?.code ?? null,
+      amount: roundCurrency(baseAmount + paymentMethodDiscountAmount),
+      baseAmount,
+      paymentMethodDiscountAmount,
+      paymentMethodDiscountPercentage:
+        bankTransferDiscount?.percentage ?? 0,
+      freeShipping: Boolean(baseDiscount?.freeShipping),
+    };
+  }
+
+  private resolvePreferredDiscount(
+    couponDiscount:
+      | {
+          couponId: number;
+          discountId: number;
+          code: string;
+          amount: number;
+          freeShipping: boolean;
+        }
+      | null,
+    automaticDiscount:
+      | {
+          discountId: number;
+          discountAmount: number;
+          freeShipping: boolean;
+        }
+      | null,
+  ) {
     if (couponDiscount && automaticDiscount) {
       if (couponDiscount.amount >= automaticDiscount.discountAmount) {
         return {
-          source: 'coupon',
+          source: 'coupon' as const,
           discountId: couponDiscount.discountId,
           couponId: couponDiscount.couponId,
           code: couponDiscount.code,
@@ -330,7 +384,7 @@ export class DiscountsService {
       }
 
       return {
-        source: 'automatic',
+        source: 'automatic' as const,
         discountId: automaticDiscount.discountId,
         code: null,
         amount: automaticDiscount.discountAmount,
@@ -340,7 +394,7 @@ export class DiscountsService {
 
     if (couponDiscount) {
       return {
-        source: 'coupon',
+        source: 'coupon' as const,
         discountId: couponDiscount.discountId,
         couponId: couponDiscount.couponId,
         code: couponDiscount.code,
@@ -351,7 +405,7 @@ export class DiscountsService {
 
     if (automaticDiscount) {
       return {
-        source: 'automatic',
+        source: 'automatic' as const,
         discountId: automaticDiscount.discountId,
         code: null,
         amount: automaticDiscount.discountAmount,
@@ -360,6 +414,37 @@ export class DiscountsService {
     }
 
     return null;
+  }
+
+  private async resolveBankTransferDiscount(
+    storeId: number,
+    subtotal: number,
+    paymentMethod: string,
+  ) {
+    if (paymentMethod !== 'bank_transfer' || subtotal <= 0) {
+      return null;
+    }
+
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        bankTransferDiscountPercentage: true,
+      },
+    });
+
+    const percentage = Math.max(
+      0,
+      Math.min(Number(store?.bankTransferDiscountPercentage ?? 0), 100),
+    );
+
+    if (percentage <= 0) {
+      return null;
+    }
+
+    return {
+      percentage,
+      amount: roundCurrency(subtotal * (percentage / 100)),
+    };
   }
 
   private calculateDiscountAmount(discount: Discount, subtotal: number) {

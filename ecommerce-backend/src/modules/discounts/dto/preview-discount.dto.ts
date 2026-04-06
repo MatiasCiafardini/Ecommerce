@@ -10,4 +10,8 @@ export class PreviewDiscountDto {
   @IsOptional()
   @IsString()
   code?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 }

@@ -14,7 +14,6 @@ import { ShipmentService } from '../fulfillment/services/shipment.service';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { RequestCancellationDto } from './dto/request-cancellation.dto';
 import { ReviewCancellationRequestDto } from './dto/review-cancellation-request.dto';
-import { isManualSalesEnabledForStore } from '../../common/store-features';
 import { AdminNotificationMailService } from '../notifications/admin-notification-mail.service';
 
 type OrderItemData = {
@@ -163,11 +162,7 @@ export class OrdersService {
   }
 
   async createManualSale(data: CreateManualSaleDto, storeId: number) {
-    if (!isManualSalesEnabledForStore(storeId)) {
-      throw new ForbiddenException(
-        'Manual sales module is disabled for this store',
-      );
-    }
+    await this.ensureManualSalesEnabled(storeId);
 
     const customerId = data.customerId
       ? await this.ensureCustomer(storeId, data.customerId)
@@ -326,11 +321,7 @@ export class OrdersService {
     data: UpdateManualSaleDto,
     storeId: number,
   ) {
-    if (!isManualSalesEnabledForStore(storeId)) {
-      throw new ForbiddenException(
-        'Manual sales module is disabled for this store',
-      );
-    }
+    await this.ensureManualSalesEnabled(storeId);
 
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
@@ -541,6 +532,21 @@ export class OrdersService {
 
       return this.withCancellationRequests(updated);
     });
+  }
+
+  private async ensureManualSalesEnabled(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        manualSalesEnabled: true,
+      },
+    } as any);
+
+    if (!store?.manualSalesEnabled) {
+      throw new ForbiddenException(
+        'Manual sales module is disabled for this store',
+      );
+    }
   }
 
   async updateStatus(orderId: number, status: OrderStatus, storeId: number) {

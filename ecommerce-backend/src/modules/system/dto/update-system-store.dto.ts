@@ -1,8 +1,12 @@
 import {
+  IsBoolean,
   IsEmail,
+  IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -106,4 +110,14 @@ export class UpdateSystemStoreDto {
   @IsString()
   @MinLength(8)
   ownerPassword?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  manualSalesEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  bankTransferDiscountPercentage?: number;
 }

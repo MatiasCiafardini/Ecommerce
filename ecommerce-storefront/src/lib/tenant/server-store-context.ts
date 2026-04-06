@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { resolveStoreIdFromHost } from "@/lib/tenant/store-context";
+import { parseHostStoreMap, resolveStoreIdFromHost } from "@/lib/tenant/store-context";
 
 function pickRequestHost(requestHeaders: Headers) {
   const forwardedHost = requestHeaders.get("x-forwarded-host");
@@ -11,10 +11,24 @@ function pickRequestHost(requestHeaders: Headers) {
 export async function getServerStoreContext() {
   const requestHeaders = await headers();
   const host = pickRequestHost(requestHeaders);
-  const storeId = resolveStoreIdFromHost(host);
+  const rawForwardedHost = requestHeaders.get("x-forwarded-host");
+  const rawHost = requestHeaders.get("host");
 
-  return {
-    host,
-    storeId,
-  };
+  try {
+    const storeId = resolveStoreIdFromHost(host);
+
+    return {
+      host,
+      storeId,
+    };
+  } catch (error) {
+    console.error("[tenant] Failed to resolve store from request host", {
+      host,
+      rawForwardedHost,
+      rawHost,
+      configuredHosts: Object.keys(parseHostStoreMap()).sort(),
+    });
+
+    throw error;
+  }
 }

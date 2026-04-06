@@ -89,11 +89,23 @@ type CheckoutErrorState = {
 
 type DiscountPreview = {
   source: "coupon" | "automatic";
-  discountId: number;
+  discountId: number | null;
   couponId?: number;
   code: string | null;
   amount: number;
+  baseAmount?: number;
   freeShipping: boolean;
+  paymentMethodDiscountAmount?: number;
+  paymentMethodDiscountPercentage?: number;
+} | {
+  source: "payment_method";
+  discountId: null;
+  code: null;
+  amount: number;
+  baseAmount?: number;
+  freeShipping: false;
+  paymentMethodDiscountAmount?: number;
+  paymentMethodDiscountPercentage?: number;
 } | null;
 
 export default function CheckoutReview({
@@ -132,7 +144,9 @@ export default function CheckoutReview({
   const DESKTOP_REVIEW_FALLBACK_MIN_HEIGHT = 580;
 
   const subtotal = roundCurrency(cart.reduce((acc, item) => acc + item.price * item.quantity, 0));
-  const discountAmount = roundCurrency(discountPreview?.amount ?? 0);
+  const baseDiscountAmount = roundCurrency(discountPreview?.baseAmount ?? discountPreview?.amount ?? 0);
+  const paymentMethodDiscountAmount = roundCurrency(discountPreview?.paymentMethodDiscountAmount ?? 0);
+  const discountAmount = roundCurrency(baseDiscountAmount + paymentMethodDiscountAmount);
   const baseShippingCost = roundCurrency(shippingOption?.price ?? 0);
   const shippingCost = roundCurrency(discountPreview?.freeShipping ? 0 : baseShippingCost);
   const total = roundCurrency(Math.max(subtotal - discountAmount + shippingCost, 0));
@@ -185,6 +199,7 @@ export default function CheckoutReview({
         body: JSON.stringify({
           subtotal,
           code: code?.trim() || undefined,
+          paymentMethod: paymentMethod ?? undefined,
         }),
       });
 
@@ -215,7 +230,7 @@ export default function CheckoutReview({
         try {
           const fallbackResponse = await api("/discounts/preview", {
             method: "POST",
-            body: JSON.stringify({ subtotal }),
+            body: JSON.stringify({ subtotal, paymentMethod: paymentMethod ?? undefined }),
           });
 
           setDiscountPreview(fallbackResponse);
@@ -242,7 +257,7 @@ export default function CheckoutReview({
     } finally {
       setDiscountLoading(false);
     }
-  }, [subtotal]);
+  }, [paymentMethod, subtotal]);
 
   useEffect(() => {
     void previewDiscount();
@@ -292,6 +307,7 @@ export default function CheckoutReview({
         },
         couponCode:
           discountPreview?.source === "coupon" ? discountPreview.code ?? undefined : undefined,
+        paymentMethod: paymentMethod ?? undefined,
         idempotencyKey: crypto.randomUUID(),
       }),
     });
@@ -706,14 +722,25 @@ export default function CheckoutReview({
                 <span style={{ color: "var(--checkout-text-muted)" }}>Subtotal</span>
                 <strong>{money(subtotal)}</strong>
               </div>
-              {discountPreview ? (
+              {baseDiscountAmount > 0 ? (
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
                   <span style={{ color: "var(--checkout-text-muted)" }}>
-                    {discountPreview.source === "coupon"
+                    {discountPreview?.source === "coupon"
                       ? `Descuento (${discountPreview.code})`
                       : "Descuento automatico"}
                   </span>
-                  <strong>-{money(discountAmount)}</strong>
+                  <strong>-{money(baseDiscountAmount)}</strong>
+                </div>
+              ) : null}
+              {paymentMethodDiscountAmount > 0 ? (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                  <span style={{ color: "var(--checkout-text-muted)" }}>
+                    Descuento por transferencia
+                    {discountPreview?.paymentMethodDiscountPercentage
+                      ? ` (${discountPreview.paymentMethodDiscountPercentage}%)`
+                      : ""}
+                  </span>
+                  <strong>-{money(paymentMethodDiscountAmount)}</strong>
                 </div>
               ) : null}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
