@@ -2,34 +2,50 @@ import type { Response } from 'express';
 import { runtimeConfig } from '../../../config/runtime-config';
 
 const supportedSameSite = new Set(['lax', 'strict', 'none']);
+const apiBasePath = `/${runtimeConfig.apiPrefix.replace(/^\/+|\/+$/g, '')}`;
+const systemApiPath = `${apiBasePath}/system`;
 
 function normalizeSameSite() {
   const value = runtimeConfig.authCookieSameSite.toLowerCase();
   return supportedSameSite.has(value) ? value : 'lax';
 }
 
-export function getAuthCookieName() {
+type AuthCookieKind = 'store' | 'system';
+
+function getCookiePath(kind: AuthCookieKind) {
+  return kind === 'system' ? systemApiPath : apiBasePath;
+}
+
+export function getAuthCookieName(kind: AuthCookieKind = 'store') {
+  if (kind === 'system') {
+    return runtimeConfig.systemAuthCookieName;
+  }
+
   return runtimeConfig.authCookieName;
 }
 
-export function setAuthCookie(response: Response, token: string) {
-  response.cookie(getAuthCookieName(), token, {
+export function setAuthCookie(
+  response: Response,
+  token: string,
+  kind: AuthCookieKind = 'store',
+) {
+  response.cookie(getAuthCookieName(kind), token, {
     httpOnly: true,
     secure: runtimeConfig.authCookieSecure,
     sameSite: normalizeSameSite() as 'lax' | 'strict' | 'none',
     domain: runtimeConfig.authCookieDomain,
-    path: '/',
+    path: getCookiePath(kind),
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 }
 
-export function clearAuthCookie(response: Response) {
-  response.clearCookie(getAuthCookieName(), {
+export function clearAuthCookie(response: Response, kind: AuthCookieKind = 'store') {
+  response.clearCookie(getAuthCookieName(kind), {
     httpOnly: true,
     secure: runtimeConfig.authCookieSecure,
     sameSite: normalizeSameSite() as 'lax' | 'strict' | 'none',
     domain: runtimeConfig.authCookieDomain,
-    path: '/',
+    path: getCookiePath(kind),
   });
 }
 
@@ -50,4 +66,11 @@ export function extractCookieValue(rawCookieHeader: string | undefined, name: st
   }
 
   return null;
+}
+
+export function extractAuthCookieValue(
+  rawCookieHeader: string | undefined,
+  kind: AuthCookieKind = 'store',
+) {
+  return extractCookieValue(rawCookieHeader, getAuthCookieName(kind));
 }

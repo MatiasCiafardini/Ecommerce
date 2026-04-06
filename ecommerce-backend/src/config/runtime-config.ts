@@ -55,6 +55,10 @@ export const runtimeConfig = {
     join(process.cwd(), 'private-uploads'),
   )!,
   authCookieName: readString('AUTH_COOKIE_NAME', 'ecommerce_session')!,
+  systemAuthCookieName: readString(
+    'SYSTEM_AUTH_COOKIE_NAME',
+    'ecommerce_system_session',
+  )!,
   authCookieDomain: readString('AUTH_COOKIE_DOMAIN'),
   authCookieSecure: readBoolean('AUTH_COOKIE_SECURE', false),
   authCookieSameSite: readString('AUTH_COOKIE_SAME_SITE', 'lax')!,

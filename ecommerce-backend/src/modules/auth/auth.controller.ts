@@ -90,7 +90,7 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    clearAuthCookie(res);
+    clearAuthCookie(res, 'store');
     return { success: true };
   }
 
@@ -130,7 +130,7 @@ export class AuthController {
 
   private async finishLogin(res: Response, authEntity: any) {
     const payload = await this.authService.login(authEntity);
-    setAuthCookie(res, payload.access_token);
+    setAuthCookie(res, payload.access_token, 'store');
 
     return {
       user: payload.user,

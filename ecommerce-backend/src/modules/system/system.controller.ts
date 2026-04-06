@@ -40,7 +40,7 @@ export class SystemController {
     );
 
     const session = await this.authService.login(user);
-    setAuthCookie(res, session.access_token);
+    setAuthCookie(res, session.access_token, 'system');
 
     return {
       user: session.user,
@@ -49,7 +49,7 @@ export class SystemController {
 
   @Post('auth/logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    clearAuthCookie(res);
+    clearAuthCookie(res, 'system');
     return { success: true };
   }
 
