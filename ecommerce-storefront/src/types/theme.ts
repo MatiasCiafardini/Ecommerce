@@ -1,4 +1,5 @@
 import type { ThemeBlockDefinition } from "@/types/block";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
 export const themePaletteColorKeys = [
   "background",
@@ -67,8 +68,8 @@ export const themePaletteSurfaceCssVarMap: Record<ThemePaletteSurfaceKey, string
 export type Theme = {
   name: string;
   className: string;
-  Header?: React.ComponentType;
-  Footer?: React.ComponentType;
+  Header?: React.ComponentType<{ themeLayout?: StorefrontThemeLayout }>;
+  Footer?: React.ComponentType<{ themeLayout?: StorefrontThemeLayout }>;
   tokens?: Record<string, unknown>;
   blocks?: Record<string, ThemeBlockDefinition | undefined>;
 };

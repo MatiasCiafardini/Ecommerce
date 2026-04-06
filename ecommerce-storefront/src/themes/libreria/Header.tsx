@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
 const navLinkStyle = {
   color: "var(--theme-colors-text-strong)",
@@ -15,7 +17,7 @@ const navLinkStyle = {
   position: "relative",
 } as const;
 
-export default function Header() {
+export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
   const { user, logout, authUiLocked } = useAuth();
   const { cart } = useCart();
   const router = useRouter();
@@ -56,12 +58,8 @@ export default function Header() {
     };
   }, [menuOpen]);
 
-  const primaryLinks = [
-    { href: "/", label: "Inicio" },
-    { href: "/product", label: "Catalogo" },
-    { href: "/product", label: "Escolar" },
-    { href: "/product", label: "Fiestas" },
-  ];
+  const layoutConfig = mergeThemeLayout("libreria", themeLayout);
+  const primaryLinks = layoutConfig.header?.primaryLinks ?? [];
 
   const handleLogout = () => {
     setMenuOpen(false);
@@ -77,9 +75,9 @@ export default function Header() {
         zIndex: 30,
         backdropFilter: isMobile ? "none" : "blur(18px)",
         background: isMobile
-          ? "linear-gradient(180deg, rgba(255,252,254,0.98) 0%, rgba(255,241,246,0.98) 100%)"
-          : "linear-gradient(180deg, rgba(255,252,254,0.92) 0%, rgba(255,241,246,0.88) 100%)",
-        borderBottom: "1px solid rgba(109,67,85,0.08)",
+          ? "color-mix(in srgb, var(--page-panel-strong-bg) 98%, var(--page-shell-bg))"
+          : "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-strong-bg) 92%, transparent) 0%, color-mix(in srgb, var(--page-panel-bg) 88%, transparent) 100%)",
+        borderBottom: "1px solid var(--theme-colors-border)",
       }}
     >
       <div
@@ -125,7 +123,7 @@ export default function Header() {
               textTransform: "uppercase",
             }}
           >
-            Libreria Papelera
+            {layoutConfig.header?.brandLabel || "Libreria Papelera"}
           </Link>
         ) : null}
 

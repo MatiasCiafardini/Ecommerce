@@ -48,6 +48,26 @@ type NormalizedStorefrontConfig = {
       string
     >
   >;
+  themeLayout?: {
+    header?: {
+      brandLabel?: string;
+      primaryLinks?: Array<{
+        label: string;
+        href: string;
+      }>;
+    };
+    footer?: {
+      brandTitle?: string;
+      brandSubtitle?: string;
+      columns?: Array<{
+        title: string;
+        links: Array<{
+          label: string;
+          href: string;
+        }>;
+      }>;
+    };
+  };
   pages: {
     home: Array<{
       type: string;
@@ -586,10 +606,100 @@ export class StorefrontService {
         ? (source.pages as Record<string, unknown>)
         : {};
     const rawHome = Array.isArray(rawPages.home) ? rawPages.home : [];
+    const rawThemeLayout =
+      source.themeLayout && typeof source.themeLayout === 'object'
+        ? (source.themeLayout as Record<string, unknown>)
+        : {};
+    const rawHeader =
+      rawThemeLayout.header && typeof rawThemeLayout.header === 'object'
+        ? (rawThemeLayout.header as Record<string, unknown>)
+        : {};
+    const rawFooter =
+      rawThemeLayout.footer && typeof rawThemeLayout.footer === 'object'
+        ? (rawThemeLayout.footer as Record<string, unknown>)
+        : {};
+    const rawHeaderLinks = Array.isArray(rawHeader.primaryLinks)
+      ? rawHeader.primaryLinks
+      : [];
+    const rawFooterColumns = Array.isArray(rawFooter.columns)
+      ? rawFooter.columns
+      : [];
+    const header = {
+      ...(typeof rawHeader.brandLabel === 'string' && rawHeader.brandLabel.trim()
+        ? { brandLabel: rawHeader.brandLabel.trim() }
+        : {}),
+      primaryLinks: rawHeaderLinks
+        .filter(
+          (link): link is Record<string, unknown> =>
+            !!link && typeof link === 'object',
+        )
+        .map((link) => ({
+          label:
+            typeof link.label === 'string' && link.label.trim()
+              ? link.label.trim()
+              : '',
+          href:
+            typeof link.href === 'string' && link.href.trim()
+              ? link.href.trim()
+              : '',
+        }))
+        .filter((link) => link.label && link.href),
+    };
+    const footer = {
+      ...(typeof rawFooter.brandTitle === 'string' && rawFooter.brandTitle.trim()
+        ? { brandTitle: rawFooter.brandTitle.trim() }
+        : {}),
+      ...(typeof rawFooter.brandSubtitle === 'string' &&
+      rawFooter.brandSubtitle.trim()
+        ? { brandSubtitle: rawFooter.brandSubtitle.trim() }
+        : {}),
+      columns: rawFooterColumns
+        .filter(
+          (column): column is Record<string, unknown> =>
+            !!column && typeof column === 'object',
+        )
+        .map((column) => ({
+          title:
+            typeof column.title === 'string' && column.title.trim()
+              ? column.title.trim()
+              : '',
+          links: Array.isArray(column.links)
+            ? column.links
+                .filter(
+                  (link): link is Record<string, unknown> =>
+                    !!link && typeof link === 'object',
+                )
+                .map((link) => ({
+                  label:
+                    typeof link.label === 'string' && link.label.trim()
+                      ? link.label.trim()
+                      : '',
+                  href:
+                    typeof link.href === 'string' && link.href.trim()
+                      ? link.href.trim()
+                      : '',
+                }))
+                .filter((link) => link.label && link.href)
+            : [],
+        }))
+        .filter((column) => column.title || column.links.length > 0),
+    };
 
     return {
       ...(theme ? { theme } : {}),
       ...(Object.keys(themePalette).length > 0 ? { themePalette } : {}),
+      ...(header.brandLabel || header.primaryLinks.length > 0 || footer.brandTitle || footer.brandSubtitle || footer.columns.length > 0
+        ? {
+            themeLayout: {
+              ...(header.brandLabel || header.primaryLinks.length > 0
+                ? { header }
+                : {}),
+              ...(footer.brandTitle || footer.brandSubtitle || footer.columns.length > 0
+                ? { footer }
+                : {}),
+            },
+          }
+        : {}),
       pages: {
         home: rawHome
           .filter(

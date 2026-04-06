@@ -9,8 +9,10 @@ import { themes } from "@/config/theme-registry";
 import { buildThemeStyle } from "@/lib/theme/theme-palette-style";
 import { getClientStoreId } from "@/lib/tenant/store-context";
 import { getDefaultStorefrontConfig } from "@/lib/tenant/storefront-defaults";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
 import type { User } from "@/context/auth-context";
 import type { Block } from "@/types/block";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 import {
   themePaletteColorKeys,
   type ThemePalette,
@@ -33,6 +35,7 @@ type Product = {
 type StorefrontConfig = {
   theme?: string;
   themePalette?: ThemePalette;
+  themeLayout?: StorefrontThemeLayout;
   pages: {
     home: Block[];
   };
@@ -492,6 +495,10 @@ function mergeStorefrontConfig(user: User, remoteConfig?: StorefrontConfig | nul
   return {
     theme: remoteConfig?.theme || fallback?.theme,
     themePalette: remoteConfig?.themePalette ?? fallback?.themePalette,
+    themeLayout: mergeThemeLayout(
+      remoteConfig?.theme || fallback?.theme,
+      remoteConfig?.themeLayout,
+    ),
     pages: {
       home:
         Array.isArray(remoteConfig?.pages?.home) && remoteConfig.pages.home.length > 0
@@ -762,6 +769,10 @@ export default function DeveloperModePanel({
       })),
     [showAdvancedThemeOptions],
   );
+  const currentThemeLayout = useMemo(
+    () => mergeThemeLayout(config?.theme, config?.themeLayout),
+    [config?.theme, config?.themeLayout],
+  );
 
   useEffect(() => {
     const sectionElement = panelRef.current;
@@ -947,6 +958,163 @@ export default function DeveloperModePanel({
     });
     setSuccess("");
     setError("");
+  };
+
+  const updateThemeLayout = (
+    updater: (layout: StorefrontThemeLayout) => StorefrontThemeLayout,
+  ) => {
+    setConfig((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        themeLayout: updater(mergeThemeLayout(current.theme, current.themeLayout)),
+      };
+    });
+    setSuccess("");
+    setError("");
+  };
+
+  const updateHeaderBrandLabel = (value: string) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      header: { ...layout.header, brandLabel: value },
+    }));
+  };
+
+  const updateHeaderLink = (
+    index: number,
+    field: "label" | "href",
+    value: string,
+  ) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      header: {
+        ...layout.header,
+        primaryLinks: (layout.header?.primaryLinks ?? []).map((link, linkIndex) =>
+          linkIndex === index ? { ...link, [field]: value } : link,
+        ),
+      },
+    }));
+  };
+
+  const addHeaderLink = () => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      header: {
+        ...layout.header,
+        primaryLinks: [...(layout.header?.primaryLinks ?? []), { label: "", href: "" }],
+      },
+    }));
+  };
+
+  const removeHeaderLink = (index: number) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      header: {
+        ...layout.header,
+        primaryLinks: (layout.header?.primaryLinks ?? []).filter((_, linkIndex) => linkIndex !== index),
+      },
+    }));
+  };
+
+  const updateFooterField = (
+    field: "brandTitle" | "brandSubtitle",
+    value: string,
+  ) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      footer: { ...layout.footer, [field]: value },
+    }));
+  };
+
+  const updateFooterColumnTitle = (columnIndex: number, value: string) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      footer: {
+        ...layout.footer,
+        columns: (layout.footer?.columns ?? []).map((column, index) =>
+          index === columnIndex ? { ...column, title: value } : column,
+        ),
+      },
+    }));
+  };
+
+  const updateFooterLink = (
+    columnIndex: number,
+    linkIndex: number,
+    field: "label" | "href",
+    value: string,
+  ) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      footer: {
+        ...layout.footer,
+        columns: (layout.footer?.columns ?? []).map((column, index) =>
+          index === columnIndex
+            ? {
+                ...column,
+                links: column.links.map((link, innerIndex) =>
+                  innerIndex === linkIndex ? { ...link, [field]: value } : link,
+                ),
+              }
+            : column,
+        ),
+      },
+    }));
+  };
+
+  const addFooterColumn = () => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      footer: {
+        ...layout.footer,
+        columns: [...(layout.footer?.columns ?? []), { title: "", links: [{ label: "", href: "" }] }],
+      },
+    }));
+  };
+
+  const removeFooterColumn = (columnIndex: number) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      footer: {
+        ...layout.footer,
+        columns: (layout.footer?.columns ?? []).filter((_, index) => index !== columnIndex),
+      },
+    }));
+  };
+
+  const addFooterLink = (columnIndex: number) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      footer: {
+        ...layout.footer,
+        columns: (layout.footer?.columns ?? []).map((column, index) =>
+          index === columnIndex
+            ? { ...column, links: [...column.links, { label: "", href: "" }] }
+            : column,
+        ),
+      },
+    }));
+  };
+
+  const removeFooterLink = (columnIndex: number, linkIndex: number) => {
+    updateThemeLayout((layout) => ({
+      ...layout,
+      footer: {
+        ...layout.footer,
+        columns: (layout.footer?.columns ?? []).map((column, index) =>
+          index === columnIndex
+            ? {
+                ...column,
+                links: column.links.filter((_, innerIndex) => innerIndex !== linkIndex),
+              }
+            : column,
+        ),
+      },
+    }));
   };
 
   const toggleProduct = (productId: number) => {
@@ -1186,6 +1354,7 @@ export default function DeveloperModePanel({
     setConfig({
       theme: fallback.theme,
       themePalette: fallback.themePalette,
+      themeLayout: mergeThemeLayout(fallback.theme, fallback.themeLayout),
       pages: {
         home: fallback.pages.home,
       },
@@ -1844,6 +2013,168 @@ export default function DeveloperModePanel({
                       </section>
                     ))}
                   </div>
+
+                  <div style={themePaletteCardStyle}>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <p style={eyebrowStyle}>Header y footer</p>
+                      <h4 style={{ margin: 0, fontSize: 22 }}>Navegacion editable</h4>
+                      <p style={copyStyle}>
+                        Desde aca puedes cambiar textos y destinos de los links del header y footer sin tocar codigo.
+                      </p>
+                    </div>
+
+                    <div style={{ display: "grid", gap: 16 }}>
+                      <div style={themeNavSectionStyle}>
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <strong style={{ fontSize: 15 }}>Header</strong>
+                          <input
+                            type="text"
+                            value={currentThemeLayout.header?.brandLabel ?? ""}
+                            onChange={(event) => updateHeaderBrandLabel(event.target.value)}
+                            placeholder="Marca del header"
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div style={{ display: "grid", gap: 10 }}>
+                          {(currentThemeLayout.header?.primaryLinks ?? []).map((link, index) => (
+                            <div key={`header-link-${index}`} style={themeNavRowStyle}>
+                              <input
+                                type="text"
+                                value={link.label}
+                                onChange={(event) =>
+                                  updateHeaderLink(index, "label", event.target.value)
+                                }
+                                placeholder="Texto"
+                                style={inputStyle}
+                              />
+                              <input
+                                type="text"
+                                value={link.href}
+                                onChange={(event) =>
+                                  updateHeaderLink(index, "href", event.target.value)
+                                }
+                                placeholder="/ruta o URL"
+                                style={inputStyle}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeHeaderLink(index)}
+                                style={miniGhostDangerButtonStyle}
+                              >
+                                Quitar
+                              </button>
+                            </div>
+                          ))}
+                          <button type="button" onClick={addHeaderLink} style={secondaryButtonStyle}>
+                            Agregar link al header
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={themeNavSectionStyle}>
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <strong style={{ fontSize: 15 }}>Footer</strong>
+                          <input
+                            type="text"
+                            value={currentThemeLayout.footer?.brandTitle ?? ""}
+                            onChange={(event) => updateFooterField("brandTitle", event.target.value)}
+                            placeholder="Titulo del footer"
+                            style={inputStyle}
+                          />
+                          <textarea
+                            value={currentThemeLayout.footer?.brandSubtitle ?? ""}
+                            onChange={(event) => updateFooterField("brandSubtitle", event.target.value)}
+                            placeholder="Descripcion breve del footer"
+                            rows={3}
+                            style={textareaStyle}
+                          />
+                        </div>
+
+                        <div style={{ display: "grid", gap: 14 }}>
+                          {(currentThemeLayout.footer?.columns ?? []).map((column, columnIndex) => (
+                            <div key={`footer-column-${columnIndex}`} style={themeFooterColumnStyle}>
+                              <div style={themeNavRowStyle}>
+                                <input
+                                  type="text"
+                                  value={column.title}
+                                  onChange={(event) =>
+                                    updateFooterColumnTitle(columnIndex, event.target.value)
+                                  }
+                                  placeholder="Titulo de columna"
+                                  style={inputStyle}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeFooterColumn(columnIndex)}
+                                  style={miniGhostDangerButtonStyle}
+                                >
+                                  Quitar columna
+                                </button>
+                              </div>
+
+                              <div style={{ display: "grid", gap: 10 }}>
+                                {column.links.map((link, linkIndex) => (
+                                  <div
+                                    key={`footer-column-${columnIndex}-link-${linkIndex}`}
+                                    style={themeNavRowStyle}
+                                  >
+                                    <input
+                                      type="text"
+                                      value={link.label}
+                                      onChange={(event) =>
+                                        updateFooterLink(
+                                          columnIndex,
+                                          linkIndex,
+                                          "label",
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="Texto"
+                                      style={inputStyle}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={link.href}
+                                      onChange={(event) =>
+                                        updateFooterLink(
+                                          columnIndex,
+                                          linkIndex,
+                                          "href",
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="/ruta o URL"
+                                      style={inputStyle}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeFooterLink(columnIndex, linkIndex)}
+                                      style={miniGhostDangerButtonStyle}
+                                    >
+                                      Quitar
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => addFooterLink(columnIndex)}
+                                style={secondaryButtonStyle}
+                              >
+                                Agregar link a la columna
+                              </button>
+                            </div>
+                          ))}
+
+                          <button type="button" onClick={addFooterColumn} style={secondaryButtonStyle}>
+                            Agregar columna al footer
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : !activeBlock ? (
                 <div style={{ display: "grid", gap: 10 }}>
@@ -2430,6 +2761,16 @@ const secondaryButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const miniGhostDangerButtonStyle: React.CSSProperties = {
+  padding: "10px 12px",
+  background: "transparent",
+  color: "var(--admin-danger-color)",
+  border: "1px solid var(--admin-danger-border)",
+  borderRadius: 999,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
 const dangerButtonStyle: React.CSSProperties = {
   padding: "8px 12px",
   background: "var(--admin-danger-bg)",
@@ -2458,6 +2799,31 @@ const errorStyle: React.CSSProperties = {
 const successStyle: React.CSSProperties = {
   margin: 0,
   color: "var(--admin-tone-success-color)",
+};
+
+const themeNavSectionStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  padding: 18,
+  borderRadius: 22,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+
+const themeNavRowStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.4fr) auto",
+  alignItems: "center",
+};
+
+const themeFooterColumnStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  padding: 16,
+  borderRadius: 18,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--page-panel-bg)",
 };
 
 const productPickerStyle: React.CSSProperties = {

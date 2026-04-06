@@ -1,16 +1,10 @@
 ﻿import type { Block } from "@/types/block";
-import type { ThemePalette } from "@/types/theme";
-
-export type StorefrontTenantConfig = {
-  theme: string;
-  themePalette?: ThemePalette;
-  pages: {
-    home: Block[];
-  };
-};
+import { getDefaultThemeLayout } from "@/lib/tenant/theme-layout-defaults";
+import type { StorefrontTenantConfig } from "@/types/storefront-config";
 
 const safeEmptyStorefrontConfig: StorefrontTenantConfig = {
   theme: "minimal",
+  themeLayout: getDefaultThemeLayout("minimal"),
   pages: {
     home: [],
   },

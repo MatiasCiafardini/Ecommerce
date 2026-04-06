@@ -3,14 +3,17 @@
 import { themes } from "@/config/theme-registry";
 import { buildThemeStyle } from "@/lib/theme/theme-palette-style";
 import type { ThemePalette } from "@/types/theme";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
 export default function ThemeProvider({
   themeName,
   themePalette,
+  themeLayout,
   children,
 }: {
   themeName: string;
   themePalette?: ThemePalette;
+  themeLayout?: StorefrontThemeLayout;
   children: React.ReactNode;
 }) {
   const theme = themes[themeName as keyof typeof themes];
@@ -23,11 +26,11 @@ export default function ThemeProvider({
 
   return (
     <div className={theme.className} style={themeStyle}>
-      {Header && <Header />}
+      {Header && <Header themeLayout={themeLayout} />}
 
       <main>{children}</main>
 
-      {Footer && <Footer />}
+      {Footer && <Footer themeLayout={themeLayout} />}
     </div>
   );
 }

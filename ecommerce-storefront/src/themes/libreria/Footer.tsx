@@ -1,14 +1,18 @@
 import Link from "next/link";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
-export default function Footer() {
+export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
+  const layoutConfig = mergeThemeLayout("libreria", themeLayout);
+  const columns = layoutConfig.footer?.columns ?? [];
   return (
     <footer
       className="theme-footer-shell"
       style={{
         background:
-          "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,241,246,1) 100%)",
+          "linear-gradient(180deg, var(--page-panel-strong-bg) 0%, var(--page-shell-bg) 100%)",
         color: "var(--theme-colors-text-strong)",
-        borderTop: "1px solid rgba(109,67,85,0.08)",
+        borderTop: "1px solid var(--theme-colors-border)",
       }}
     >
       <div
@@ -41,7 +45,7 @@ export default function Footer() {
               letterSpacing: "-0.05em",
             }}
           >
-            Libreria Papelera
+            {layoutConfig.footer?.brandTitle || "Libreria Papelera"}
           </h3>
           <p
             style={{
@@ -51,42 +55,13 @@ export default function Footer() {
               maxWidth: 360,
             }}
           >
-            Libros, utiles escolares, golosinas y cotillon pensados para resolver
-            compras rapidas, fechas especiales y vuelta al cole.
+            {layoutConfig.footer?.brandSubtitle ||
+              "Libros, utiles escolares, golosinas y cotillon pensados para resolver compras rapidas, fechas especiales y vuelta al cole."}
           </p>
         </div>
-
-        <FooterColumn
-          title="Explorar"
-          links={[
-            { href: "/product", label: "Catalogo" },
-            { href: "/product", label: "Escolar" },
-            { href: "/product", label: "Fiestas" },
-          ]}
-        />
-        <FooterColumn
-          title="Compra"
-          links={[
-            { href: "/cart", label: "Carrito" },
-            { href: "/checkout", label: "Checkout" },
-            { href: "/account", label: "Mi cuenta" },
-          ]}
-        />
-        <div>
-          <h4 style={{ marginBottom: 12, color: "var(--theme-colors-text-strong)" }}>
-            Atencion
-          </h4>
-          <p
-            style={{
-              color: "color-mix(in srgb, var(--theme-colors-text-strong) 74%, transparent)",
-              lineHeight: 1.8,
-              margin: 0,
-            }}
-          >
-            Reserva online, retiro coordinado y espacio listo para sumar banners,
-            fondos de temporada e imagenes de campana propias.
-          </p>
-        </div>
+        {columns.map((column) => (
+          <FooterColumn key={column.title} title={column.title} links={column.links} />
+        ))}
       </div>
     </footer>
   );

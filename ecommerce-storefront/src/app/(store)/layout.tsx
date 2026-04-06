@@ -10,7 +10,11 @@ export default async function StoreLayout({
   const config = await getTenantConfig();
 
   return (
-    <ThemeProvider themeName={config.theme} themePalette={config.themePalette}>
+    <ThemeProvider
+      themeName={config.theme}
+      themePalette={config.themePalette}
+      themeLayout={config.themeLayout}
+    >
       <StoreShell>{children}</StoreShell>
     </ThemeProvider>
   );

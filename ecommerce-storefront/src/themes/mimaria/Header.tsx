@@ -7,16 +7,10 @@ import { useEffect, useState } from "react";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
-const navLinks = [
-  { href: "/", label: "Inicio" },
-  { href: "/product", label: "Coleccion" },
-  { href: "/category/blusas", label: "Blusas" },
-  { href: "/category/vestidos", label: "Vestidos" },
-  { href: "/category/tapados", label: "Tapados" },
-];
-
-export default function Header() {
+export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
   const { user, logout, authUiLocked } = useAuth();
   const { cart } = useCart();
   const router = useRouter();
@@ -29,6 +23,8 @@ export default function Header() {
 
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const layoutConfig = mergeThemeLayout("mimaria", themeLayout);
+  const navLinks = layoutConfig.header?.primaryLinks ?? [];
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 980px)");
@@ -71,12 +67,12 @@ export default function Header() {
         zIndex: 30,
         backdropFilter: "blur(18px)",
         background:
-          "linear-gradient(180deg, rgba(198,186,176,0.94) 0%, rgba(188,176,166,0.92) 100%)",
-        borderBottom: "1px solid rgba(133,116,103,0.18)",
-        ["--header-action-border" as string]: "rgba(160, 141, 124, 0.18)",
-        ["--header-action-border-active" as string]: "rgba(160, 141, 124, 0.24)",
-        ["--header-action-bg" as string]: "#f1ebe4",
-        ["--header-action-bg-active" as string]: "#ece4db",
+          "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-strong-bg) 94%, transparent) 0%, color-mix(in srgb, var(--page-panel-bg) 92%, transparent) 100%)",
+        borderBottom: "1px solid var(--theme-colors-border)",
+        ["--header-action-border" as string]: "var(--theme-colors-border)",
+        ["--header-action-border-active" as string]: "var(--theme-colors-border-strong)",
+        ["--header-action-bg" as string]: "var(--page-panel-bg)",
+        ["--header-action-bg-active" as string]: "var(--page-panel-strong-bg)",
         ["--header-action-color" as string]: "var(--theme-colors-text-strong)",
       }}
     >
@@ -123,7 +119,7 @@ export default function Header() {
               textTransform: "none",
             }}
           >
-            Mi Maria Indumentaria
+            {layoutConfig.header?.brandLabel || "Mi Maria Indumentaria"}
           </Link>
         ) : null}
 

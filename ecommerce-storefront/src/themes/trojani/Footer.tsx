@@ -1,14 +1,18 @@
 import Link from "next/link";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
-export default function Footer() {
+export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
+  const layoutConfig = mergeThemeLayout("trojani", themeLayout);
+  const columns = layoutConfig.footer?.columns ?? [];
   return (
     <footer
       className="theme-footer-shell"
       style={{
         background:
-          "linear-gradient(180deg, rgba(32,32,32,1) 0%, rgba(12,12,12,1) 100%)",
-        color: "white",
-        borderTop: "1px solid rgba(255,255,255,0.08)",
+          "linear-gradient(180deg, var(--page-panel-strong-bg) 0%, var(--page-shell-bg) 100%)",
+        color: "var(--theme-colors-text-strong)",
+        borderTop: "1px solid var(--theme-colors-border)",
       }}
     >
       <div
@@ -31,51 +35,25 @@ export default function Footer() {
               letterSpacing: "0.12em",
             }}
           >
-            Asphalt
+            {layoutConfig.footer?.brandTitle || "Trojani"}
           </h3>
-          <p style={{ color: "rgba(255,255,255,0.72)", lineHeight: 1.7 }}>
-            Streetwear con siluetas amplias, basicos limpios y drops pensados para
-            la ciudad.
+          <p style={{ color: "var(--theme-colors-text-muted)", lineHeight: 1.7 }}>
+            {layoutConfig.footer?.brandSubtitle ||
+              "Streetwear con siluetas amplias, basicos limpios y drops pensados para la ciudad."}
           </p>
         </div>
-
-        <div className="theme-footer-column">
-          <h4 style={{ marginBottom: 12 }}>Explorar</h4>
-          <div style={{ display: "grid", gap: 8 }}>
-            <Link href="/product" style={{ color: "rgba(255,255,255,0.82)", textDecoration: "none" }}>
-              Catalogo
-            </Link>
-            <Link href="/category/remeras" style={{ color: "rgba(255,255,255,0.82)", textDecoration: "none" }}>
-              Remeras
-            </Link>
-            <Link href="/category/buzos" style={{ color: "rgba(255,255,255,0.82)", textDecoration: "none" }}>
-              Buzos
-            </Link>
+        {columns.map((column) => (
+          <div key={column.title} className="theme-footer-column">
+            <h4 style={{ marginBottom: 12 }}>{column.title}</h4>
+            <div style={{ display: "grid", gap: 8 }}>
+              {column.links.map((link) => (
+                <Link key={`${column.title}-${link.href}-${link.label}`} href={link.href} style={{ color: "color-mix(in srgb, var(--theme-colors-text-strong) 82%, transparent)", textDecoration: "none" }}>
+                  {link.label}
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
-
-        <div className="theme-footer-column">
-          <h4 style={{ marginBottom: 12 }}>Cuenta</h4>
-          <div style={{ display: "grid", gap: 8 }}>
-            <Link href="/account" style={{ color: "rgba(255,255,255,0.82)", textDecoration: "none" }}>
-              Mi cuenta
-            </Link>
-            <Link href="/cart" style={{ color: "rgba(255,255,255,0.82)", textDecoration: "none" }}>
-              Carrito
-            </Link>
-            <Link href="/checkout" style={{ color: "rgba(255,255,255,0.82)", textDecoration: "none" }}>
-              Checkout
-            </Link>
-          </div>
-        </div>
-
-        <div className="theme-footer-column">
-          <h4 style={{ marginBottom: 12 }}>Info</h4>
-          <p style={{ color: "rgba(255,255,255,0.72)", lineHeight: 1.7 }}>
-            Envios a todo el pais. Cambios dentro de los 30 dias. Soporte por DM y
-            mail.
-          </p>
-        </div>
+        ))}
       </div>
     </footer>
   );

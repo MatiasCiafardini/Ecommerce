@@ -6,15 +6,17 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
 const navLinkStyle = {
-  color: "rgba(255,255,255,0.84)",
+  color: "color-mix(in srgb, var(--theme-colors-text-strong) 84%, transparent)",
   textDecoration: "none",
   padding: "10px 0",
   position: "relative",
 } as const;
 
-export default function Header() {
+export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
   const { user, logout, authUiLocked } = useAuth();
   const { cart } = useCart();
   const router = useRouter();
@@ -55,12 +57,9 @@ export default function Header() {
     };
   }, [menuOpen]);
 
-  const primaryLinks = [
-    { href: "/", label: "Inicio" },
-    { href: "/product", label: "Drop" },
-    { href: "/category/remeras", label: "Remeras" },
-    { href: "/category/buzos", label: "Buzos" },
-  ];
+  const layoutConfig = mergeThemeLayout("minimal", themeLayout);
+  const primaryLinks = layoutConfig.header?.primaryLinks ?? [];
+  const brandLabel = layoutConfig.header?.brandLabel || "Asphalt";
 
   const handleLogout = () => {
     setMenuOpen(false);
@@ -77,9 +76,9 @@ export default function Header() {
         backdropFilter: isMobile ? "none" : "blur(18px)",
         background:
           isMobile
-            ? "linear-gradient(180deg, rgba(18,18,18,0.98) 0%, rgba(18,18,18,0.98) 100%)"
-            : "linear-gradient(180deg, rgba(24,24,24,0.94) 0%, rgba(32,32,32,0.82) 100%)",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
+            ? "color-mix(in srgb, var(--page-panel-strong-bg) 98%, var(--theme-colors-background))"
+            : "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-strong-bg) 94%, transparent) 0%, color-mix(in srgb, var(--page-panel-bg) 82%, transparent) 100%)",
+        borderBottom: "1px solid var(--theme-colors-border)",
       }}
     >
       <div
@@ -95,14 +94,14 @@ export default function Header() {
           className="theme-brand"
           onClick={() => setMenuOpen(false)}
           style={{
-            color: "white",
+            color: "var(--theme-colors-text-strong)",
             textDecoration: "none",
             fontWeight: 800,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
           }}
         >
-          Asphalt
+          {brandLabel}
         </Link>
 
         {!isMobile ? (
@@ -147,11 +146,11 @@ export default function Header() {
             ) : user ? (
               <>
                 {manualSalesEnabled ? (
-                  <Link href="/manual-sales" style={{ ...navLinkStyle, color: "white" }}>
+                  <Link href="/manual-sales" style={{ ...navLinkStyle, color: "var(--theme-colors-text-strong)" }}>
                     Venta manual
                   </Link>
                 ) : null}
-                <Link href="/account" style={{ ...navLinkStyle, color: "white" }}>
+                <Link href="/account" style={{ ...navLinkStyle, color: "var(--theme-colors-text-strong)" }}>
                   Cuenta
                 </Link>
                 <button
@@ -163,7 +162,7 @@ export default function Header() {
                 </button>
               </>
             ) : (
-              <Link href="/login" style={{ ...navLinkStyle, color: "white" }}>
+              <Link href="/login" style={{ ...navLinkStyle, color: "var(--theme-colors-text-strong)" }}>
                 Ingresar
               </Link>
             )

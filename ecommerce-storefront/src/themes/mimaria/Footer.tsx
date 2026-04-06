@@ -1,15 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
-export default function Footer() {
+export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
+  const layoutConfig = mergeThemeLayout("mimaria", themeLayout);
+  const columns = layoutConfig.footer?.columns ?? [];
   return (
     <footer
       className="theme-footer-shell"
       style={{
         background:
-          "linear-gradient(180deg, rgba(252,248,241,1) 0%, rgba(241,231,214,1) 100%)",
+          "linear-gradient(180deg, var(--page-panel-strong-bg) 0%, var(--page-shell-bg) 100%)",
         color: "var(--theme-colors-text-strong)",
-        borderTop: "1px solid rgba(183,146,98,0.16)",
+        borderTop: "1px solid var(--theme-colors-border)",
       }}
     >
       <div
@@ -60,53 +64,19 @@ export default function Footer() {
                 Boutique femenina
               </span>
               <h3 style={{ margin: 0, fontSize: 30, letterSpacing: "-0.04em" }}>
-                Mi Maria
+                {layoutConfig.footer?.brandTitle || "Mi Maria"}
               </h3>
             </div>
           </div>
 
           <p style={{ color: "var(--text-muted)", lineHeight: 1.8, margin: 0, maxWidth: 360 }}>
-            Prendas femeninas casuales y elegantes, pensadas para acompanarte con
-            delicadeza, comodidad y estilo todos los dias.
+            {layoutConfig.footer?.brandSubtitle ||
+              "Prendas femeninas casuales y elegantes, pensadas para acompanarte con delicadeza, comodidad y estilo todos los dias."}
           </p>
         </div>
-
-        <FooterColumn
-          title="Comprar"
-          links={[
-            { href: "/product", label: "Coleccion completa" },
-            { href: "/category/blusas", label: "Blusas" },
-            { href: "/category/vestidos", label: "Vestidos" },
-          ]}
-        />
-
-        <FooterColumn
-          title="Ayuda"
-          links={[
-            { href: "/cart", label: "Carrito" },
-            { href: "/checkout", label: "Checkout" },
-            { href: "/account", label: "Mi cuenta" },
-          ]}
-        />
-
-        <div className="theme-footer-column" style={{ display: "grid", gap: 10 }}>
-          <h4 style={{ margin: 0, color: "var(--theme-colors-text-strong)" }}>Contacto</h4>
-          <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.8 }}>
-            Atencion personalizada, envios a todo el pais y acompanamiento durante
-            toda tu compra.
-          </p>
-          <div style={{ display: "grid", gap: 8 }}>
-            <a href="https://instagram.com" style={footerLinkStyle}>
-              Instagram
-            </a>
-            <a href="https://wa.me" style={footerLinkStyle}>
-              WhatsApp
-            </a>
-            <a href="mailto:hola@mimaria.com" style={footerLinkStyle}>
-              hola@mimaria.com
-            </a>
-          </div>
-        </div>
+        {columns.map((column) => (
+          <FooterColumn key={column.title} title={column.title} links={column.links} />
+        ))}
       </div>
     </footer>
   );
@@ -124,7 +94,7 @@ function FooterColumn({
       <h4 style={{ margin: 0, color: "var(--theme-colors-text-strong)" }}>{title}</h4>
       <div style={{ display: "grid", gap: 8 }}>
         {links.map((link) => (
-          <Link key={link.href} href={link.href} style={footerLinkStyle}>
+          <Link key={`${title}-${link.href}-${link.label}`} href={link.href} style={footerLinkStyle}>
             {link.label}
           </Link>
         ))}

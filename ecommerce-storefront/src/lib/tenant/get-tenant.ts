@@ -1,12 +1,15 @@
 import { apiFetch } from "@/services/api-client";
 import { getServerStoreContext } from "@/lib/tenant/server-store-context";
 import { getSafeStorefrontConfig } from "@/lib/tenant/storefront-defaults";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
 import type { Block } from "@/types/block";
 import type { ThemePalette } from "@/types/theme";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
 type RemoteStorefrontConfig = {
   theme?: string;
   themePalette?: ThemePalette;
+  themeLayout?: StorefrontThemeLayout;
   pages?: {
     home?: Block[];
   };
@@ -37,6 +40,10 @@ function normalizeTenantConfig(args: {
     themePalette:
       args.remoteConfig?.storefrontConfig?.themePalette ??
       fallbackConfig.themePalette,
+    themeLayout: mergeThemeLayout(
+      resolvedTheme || fallbackConfig.theme,
+      args.remoteConfig?.storefrontConfig?.themeLayout,
+    ),
     pages: {
       home:
         remoteHome && remoteHome.length > 0

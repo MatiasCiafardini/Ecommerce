@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
+import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
+import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
 const navLinkStyle = {
   color: "var(--theme-colors-text-strong)",
@@ -14,7 +16,7 @@ const navLinkStyle = {
   position: "relative",
 } as const;
 
-export default function Header() {
+export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
   const { user, logout, authUiLocked } = useAuth();
   const { cart } = useCart();
   const router = useRouter();
@@ -55,12 +57,8 @@ export default function Header() {
     };
   }, [menuOpen]);
 
-  const primaryLinks = [
-    { href: "/", label: "Inicio" },
-    { href: "/product", label: "Coleccion" },
-    { href: "/category/remeras", label: "Esenciales" },
-    { href: "/category/buzos", label: "Abrigos" },
-  ];
+  const layoutConfig = mergeThemeLayout("fashion", themeLayout);
+  const primaryLinks = layoutConfig.header?.primaryLinks ?? [];
 
   const handleLogout = () => {
     setMenuOpen(false);
@@ -76,9 +74,9 @@ export default function Header() {
         zIndex: 30,
         backdropFilter: isMobile ? "none" : "blur(18px)",
         background: isMobile
-          ? "linear-gradient(180deg, rgba(251,245,239,0.98) 0%, rgba(247,237,227,0.98) 100%)"
-          : "linear-gradient(180deg, rgba(251,245,239,0.92) 0%, rgba(243,231,218,0.88) 100%)",
-        borderBottom: "1px solid rgba(63,37,29,0.08)",
+          ? "color-mix(in srgb, var(--page-panel-strong-bg) 98%, var(--page-shell-bg))"
+          : "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-strong-bg) 92%, transparent) 0%, color-mix(in srgb, var(--page-panel-bg) 88%, transparent) 100%)",
+        borderBottom: "1px solid var(--theme-colors-border)",
       }}
     >
       <div
@@ -101,7 +99,7 @@ export default function Header() {
             textTransform: "uppercase",
           }}
         >
-          Aurea
+          {layoutConfig.header?.brandLabel || "Aurea"}
         </Link>
 
         {!isMobile ? (
