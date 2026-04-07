@@ -243,6 +243,7 @@ model User {
 model Customer {
   id                  Int                   @id @default(autoincrement())
   email               String
+  googleId            String?
   storeId             Int
   createdAt           DateTime              @default(now())
   firstName           String?
@@ -258,6 +259,7 @@ model Customer {
   orders              Order[]
 
   @@unique([storeId, email])
+  @@unique([storeId, googleId])
   @@index([storeId])
 }
 

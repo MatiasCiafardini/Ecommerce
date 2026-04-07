@@ -14,6 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateCurrentAuthDto } from './dto/update-current-auth.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { clearAuthCookie, setAuthCookie } from './utils/auth-cookie.util';
@@ -83,6 +84,22 @@ export class AuthController {
       body.email,
       body.password,
       storeId,
+    );
+
+    return this.finishLogin(res, customer);
+  }
+
+  @Post('google')
+  async loginWithGoogle(
+    @Body() body: GoogleLoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const storeId = this.readStoreId(req);
+    const customer = await this.authService.loginWithGoogle(
+      body.credential,
+      storeId,
+      body.clientId,
     );
 
     return this.finishLogin(res, customer);

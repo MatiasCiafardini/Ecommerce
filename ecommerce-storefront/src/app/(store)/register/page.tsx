@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 
 const getErrorMessage = (error: unknown) => {
@@ -14,6 +16,7 @@ const getErrorMessage = (error: unknown) => {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { loginWithGoogle } = useAuth();
 
   const [form, setForm] = useState({
     firstName: "",
@@ -29,7 +32,7 @@ export default function RegisterPage() {
 
   const handleRegister = async () => {
     if (form.password !== form.confirmPassword) {
-      setError("Las contrasenas no coinciden.");
+      setError("Las contraseñas no coinciden.");
       return;
     }
 
@@ -104,11 +107,38 @@ export default function RegisterPage() {
             marginBottom: 24,
           }}
         >
-          Guarda tus direcciones, acelera el checkout y segui tus proximos pedidos
-          desde una cuenta mas completa.
+          Guarda tus direcciones, acelera el checkout y seguí tus próximos pedidos
+          desde una cuenta más completa.
         </p>
 
         <div style={{ display: "grid", gap: 14 }}>
+          <GoogleSignInButton
+            text="signup_with"
+            disabled={loading}
+            loginWithGoogle={loginWithGoogle}
+            onBusyChange={setLoading}
+            onError={setError}
+            onSuccess={() => {
+              router.push("/account?section=orders");
+            }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              color: "var(--text-muted)",
+              fontSize: 12,
+              textTransform: "uppercase",
+              letterSpacing: "0.16em",
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+            o crea tu cuenta con email
+            <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+          </div>
+
           <div className="layout-form-two">
             <input
               placeholder="Nombre"
@@ -143,7 +173,7 @@ export default function RegisterPage() {
 
           <input
             type="password"
-            placeholder="Contrasena"
+            placeholder="Contraseña"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             style={fieldStyle}
@@ -151,7 +181,7 @@ export default function RegisterPage() {
 
           <input
             type="password"
-            placeholder="Repetir contrasena"
+            placeholder="Repetir contraseña"
             value={form.confirmPassword}
             onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
             style={fieldStyle}

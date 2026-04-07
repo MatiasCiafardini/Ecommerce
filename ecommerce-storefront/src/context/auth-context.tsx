@@ -30,6 +30,7 @@ type AuthContextType = {
   loading: boolean;
   authUiLocked: boolean;
   login: (data: { email: string; password: string }) => Promise<User>;
+  loginWithGoogle: (data: { credential: string; clientId?: string }) => Promise<User>;
   logout: () => void;
   setUser: (user: User | null) => void;
   lockAuthUi: () => void;
@@ -104,6 +105,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return res.user;
   };
 
+  const loginWithGoogle = async (data: { credential: string; clientId?: string }) => {
+    const res = await api("/auth/google", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    setScopedStorageItem("user", JSON.stringify(res.user));
+    setUser(res.user);
+    return res.user;
+  };
+
   const logout = () => {
     void api("/auth/logout", {
       method: "POST",
@@ -127,6 +139,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loading,
         authUiLocked: authUiLockRouteKey !== null,
         login,
+        loginWithGoogle,
         logout,
         setUser,
         lockAuthUi,

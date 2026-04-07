@@ -6,8 +6,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { OAuth2Client, type TokenPayload } from 'google-auth-library';
 import { UpdateCurrentAuthDto } from './dto/update-current-auth.dto';
 import { resolveStoreFeatures } from '../../common/store-features';
+import { runtimeConfig } from '../../config/runtime-config';
 
 type AuthEntity = {
   id: number;
@@ -25,6 +27,8 @@ type AuthEntity = {
 
 @Injectable()
 export class AuthService {
+  private readonly googleClient = new OAuth2Client();
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -140,6 +144,72 @@ export class AuthService {
     }
 
     return this.validateCustomer(email, password, storeId);
+  }
+
+  async loginWithGoogle(
+    credential: string,
+    storeId: number,
+    clientId?: string,
+  ) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true },
+    });
+
+    if (!store) {
+      throw new BadRequestException('Store no encontrada');
+    }
+
+    const payload = await this.verifyGoogleCredential(credential, clientId);
+    const googleId = payload.sub;
+    const email = payload.email?.trim().toLowerCase();
+
+    if (!googleId || !email) {
+      throw new UnauthorizedException('Google account payload is incomplete');
+    }
+
+    if (payload.email_verified !== true) {
+      throw new UnauthorizedException('Google account email is not verified');
+    }
+
+    const existingByGoogleId = await this.prisma.customer.findFirst({
+      where: {
+        storeId,
+        googleId,
+      },
+    });
+
+    if (existingByGoogleId) {
+      return existingByGoogleId;
+    }
+
+    const existingByEmail = await this.prisma.customer.findFirst({
+      where: {
+        storeId,
+        email,
+      },
+    });
+
+    if (existingByEmail) {
+      return this.prisma.customer.update({
+        where: { id: existingByEmail.id },
+        data: {
+          googleId,
+          firstName: existingByEmail.firstName ?? this.pickFirstName(payload),
+          lastName: existingByEmail.lastName ?? this.pickLastName(payload),
+        },
+      });
+    }
+
+    return this.prisma.customer.create({
+      data: {
+        storeId,
+        email,
+        googleId,
+        firstName: this.pickFirstName(payload),
+        lastName: this.pickLastName(payload),
+      },
+    });
   }
 
   async login(user: any) {
@@ -363,5 +433,74 @@ export class AuthService {
       name: user.name ?? null,
       storeFeatures,
     };
+  }
+
+  private getGoogleAudiences() {
+    if (!runtimeConfig.googleClientIds.length) {
+      throw new BadRequestException('Google login is not configured');
+    }
+
+    return runtimeConfig.googleClientIds;
+  }
+
+  private async verifyGoogleCredential(
+    credential: string,
+    clientId?: string,
+  ) {
+    const audiences = this.getGoogleAudiences();
+
+    if (clientId && !audiences.includes(clientId)) {
+      throw new UnauthorizedException('Unexpected Google client ID');
+    }
+
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: credential,
+        audience: audiences,
+      });
+      const payload = ticket.getPayload();
+
+      if (!payload) {
+        throw new UnauthorizedException('Invalid Google ID token');
+      }
+
+      return payload;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new UnauthorizedException('Invalid Google ID token');
+    }
+  }
+
+  private pickFirstName(payload: TokenPayload) {
+    if (payload.given_name?.trim()) {
+      return payload.given_name.trim();
+    }
+
+    if (payload.name?.trim()) {
+      return payload.name.trim().split(/\s+/)[0] ?? null;
+    }
+
+    return null;
+  }
+
+  private pickLastName(payload: TokenPayload) {
+    if (payload.family_name?.trim()) {
+      return payload.family_name.trim();
+    }
+
+    if (!payload.name?.trim()) {
+      return null;
+    }
+
+    const parts = payload.name.trim().split(/\s+/);
+
+    if (parts.length <= 1) {
+      return null;
+    }
+
+    return parts.slice(1).join(' ');
   }
 }

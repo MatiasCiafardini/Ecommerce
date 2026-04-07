@@ -22,3 +22,7 @@ export function getApiUrl() {
 export function getPublicApiUrl() {
   return getApiUrl();
 }
+
+export function getGoogleClientId() {
+  return readEnvValue("NEXT_PUBLIC_GOOGLE_CLIENT_ID");
+}

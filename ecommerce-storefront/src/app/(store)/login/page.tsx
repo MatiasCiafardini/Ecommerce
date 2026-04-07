@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useAuth } from "@/context/auth-context";
 import { useRouter, useSearchParams } from "next/navigation";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { useAuth } from "@/context/auth-context";
 
 export default function LoginPage() {
   return (
@@ -13,7 +14,7 @@ export default function LoginPage() {
 }
 
 function LoginPageInner() {
-  const { login, lockAuthUi, unlockAuthUi } = useAuth();
+  const { login, loginWithGoogle, lockAuthUi, unlockAuthUi } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -27,6 +28,15 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const redirectAfterLogin = (role?: string) => {
+    const defaultRedirect =
+      role && role !== "CUSTOMER"
+        ? "/account?section=admin-overview"
+        : "/account?section=orders";
+
+    router.push(redirect === "/" ? defaultRedirect : redirect);
+  };
+
   const handleLogin = async () => {
     try {
       setLoading(true);
@@ -34,12 +44,7 @@ function LoginPageInner() {
       lockAuthUi();
 
       const user = await login(form);
-      const defaultRedirect =
-        user.role && user.role !== "CUSTOMER"
-          ? "/account?section=admin-overview"
-          : "/account?section=orders";
-
-      router.push(redirect === "/" ? defaultRedirect : redirect);
+      redirectAfterLogin(user.role);
     } catch {
       unlockAuthUi();
       setError("Email o contraseña incorrectos");
@@ -149,6 +154,45 @@ function LoginPageInner() {
           </h2>
 
           <div style={{ display: "grid", gap: 14 }}>
+            <GoogleSignInButton
+              text="continue_with"
+              disabled={loading}
+              loginWithGoogle={loginWithGoogle}
+              onBusyChange={(busy) => {
+                setLoading(busy);
+
+                if (busy) {
+                  lockAuthUi();
+                  return;
+                }
+
+                unlockAuthUi();
+              }}
+              onError={(message) => {
+                unlockAuthUi();
+                setError(message);
+              }}
+              onSuccess={(user) => {
+                redirectAfterLogin(user.role);
+              }}
+            />
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                color: "var(--text-muted)",
+                fontSize: 12,
+                textTransform: "uppercase",
+                letterSpacing: "0.16em",
+              }}
+            >
+              <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+              o con email
+              <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+            </div>
+
             <input
               placeholder="Email"
               value={form.email}

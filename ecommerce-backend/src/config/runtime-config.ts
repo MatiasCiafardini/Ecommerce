@@ -62,6 +62,10 @@ export const runtimeConfig = {
   authCookieDomain: readString('AUTH_COOKIE_DOMAIN'),
   authCookieSecure: readBoolean('AUTH_COOKIE_SECURE', false),
   authCookieSameSite: readString('AUTH_COOKIE_SAME_SITE', 'lax')!,
+  googleClientIds: readStringList(
+    'GOOGLE_CLIENT_IDS',
+    readString('GOOGLE_CLIENT_ID') ? [readString('GOOGLE_CLIENT_ID')!] : [],
+  ),
   rateLimitWindowMs: readNumber('RATE_LIMIT_WINDOW_MS', 60_000),
   authRateLimitMax: readNumber('AUTH_RATE_LIMIT_MAX', 10),
   webhookRateLimitMax: readNumber('WEBHOOK_RATE_LIMIT_MAX', 120),
