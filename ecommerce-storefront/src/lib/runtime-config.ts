@@ -24,5 +24,5 @@ export function getPublicApiUrl() {
 }
 
 export function getGoogleClientId() {
-  return readEnvValue("NEXT_PUBLIC_GOOGLE_CLIENT_ID");
+  return process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
 }
