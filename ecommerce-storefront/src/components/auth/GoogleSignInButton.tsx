@@ -108,6 +108,7 @@ export function GoogleSignInButton({
   const clientId = getGoogleClientId();
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!clientId || !buttonRef.current) {
@@ -121,6 +122,8 @@ export function GoogleSignInButton({
         if (!active || !buttonRef.current || !window.google?.accounts?.id) {
           return;
         }
+
+        setLoadError(null);
 
         const handleCredential = async (response: GoogleCredentialResponse) => {
           if (!response.credential) {
@@ -152,7 +155,10 @@ export function GoogleSignInButton({
         });
 
         buttonRef.current.innerHTML = "";
-        const buttonWidth = Math.min(buttonRef.current.offsetWidth || 360, 360);
+        const buttonWidth = Math.min(
+          buttonRef.current.parentElement?.clientWidth || 360,
+          360,
+        );
         window.google.accounts.id.renderButton(buttonRef.current, {
           type: "standard",
           theme: "outline",
@@ -171,6 +177,7 @@ export function GoogleSignInButton({
           error instanceof Error && error.message
             ? error.message
             : "No se pudo cargar Google Sign-In.";
+        setLoadError(message);
         onError?.(message);
       });
 
@@ -180,18 +187,54 @@ export function GoogleSignInButton({
   }, [clientId, loginWithGoogle, onBusyChange, onError, onSuccess, text]);
 
   if (!clientId) {
-    return null;
+    return (
+      <FallbackMessage message="Google Sign-In no está configurado en este frontend." />
+    );
+  }
+
+  if (loadError) {
+    return <FallbackMessage message={loadError} />;
   }
 
   return (
     <div
       aria-disabled={disabled}
       style={{
+        width: "100%",
         opacity: disabled ? 0.65 : 1,
         pointerEvents: disabled || !ready ? "none" : "auto",
       }}
     >
-      <div ref={buttonRef} />
+      <div
+        ref={buttonRef}
+        style={{
+          width: "100%",
+          minHeight: 44,
+          display: "flex",
+          justifyContent: "center",
+        }}
+      />
+    </div>
+  );
+}
+
+function FallbackMessage({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        width: "100%",
+        minHeight: 44,
+        border: "1px dashed var(--border-soft)",
+        borderRadius: 14,
+        display: "grid",
+        alignItems: "center",
+        padding: "10px 14px",
+        color: "var(--text-muted)",
+        fontSize: 13,
+        lineHeight: 1.4,
+      }}
+    >
+      {message}
     </div>
   );
 }
