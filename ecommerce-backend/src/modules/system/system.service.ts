@@ -992,6 +992,18 @@ export class SystemService {
     const escapedStart = this.escapeRegex(startMarker);
     const escapedEnd = this.escapeRegex(endMarker);
     const pattern = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}\\n?`, 'm');
+    const currentPlan = await this.getStoreProvisioningPlan(storeId);
+    const unmanagedServerNamePattern = new RegExp(
+      `server_name\\s+${this.escapeRegex(currentPlan.domain)}\\s+${this.escapeRegex(currentPlan.wwwDomain)};`,
+      'm',
+    );
+
+    if (!pattern.test(currentContent) && unmanagedServerNamePattern.test(currentContent)) {
+      throw new BadRequestException(
+        `Nginx already contains a block for "${currentPlan.domain}" outside CODEX markers. Wrap the existing block with ${startMarker} / ${endMarker} or remove it before using automated provisioning.`,
+      );
+    }
+
     const nextContent = pattern.test(currentContent)
       ? currentContent.replace(pattern, `${block}\n`)
       : `${currentContent.trimEnd()}\n\n${block}\n`;
