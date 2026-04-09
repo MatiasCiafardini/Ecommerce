@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import * as bcrypt from 'bcrypt';
+import { normalizeEmail } from '../../common/utils/email.util';
 
 const customerSelect = {
   id: true,
@@ -20,9 +21,11 @@ export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
   async create(storeId: number, data: CreateCustomerDto) {
+    const normalizedEmail = normalizeEmail(data.email);
     return this.prisma.customer.create({
       data: {
         ...data,
+        email: normalizedEmail,
         storeId,
       },
       select: customerSelect,
@@ -58,10 +61,11 @@ export class CustomersService {
   }
 
   async findByEmail(storeId: number, email: string) {
+    const normalizedEmail = normalizeEmail(email);
     return this.prisma.customer.findFirst({
       where: {
         storeId,
-        email,
+        email: normalizedEmail,
       },
       select: customerSelect,
     });
@@ -71,11 +75,14 @@ export class CustomersService {
     await this.findOneOrThrow(storeId, id);
 
     const updateData: Record<string, unknown> = {
-      email: data.email,
       firstName: data.firstName,
       lastName: data.lastName,
       phone: data.phone,
     };
+
+    if (data.email !== undefined) {
+      updateData.email = normalizeEmail(data.email);
+    }
 
     if (data.password) {
       updateData.password = await bcrypt.hash(data.password, 10);
@@ -98,11 +105,12 @@ export class CustomersService {
   }
 
   async upsertCustomer(storeId: number, data: CreateCustomerDto) {
+    const normalizedEmail = normalizeEmail(data.email);
     return this.prisma.customer.upsert({
       where: {
         storeId_email: {
           storeId,
-          email: data.email,
+          email: normalizedEmail,
         },
       },
       update: {
@@ -112,6 +120,7 @@ export class CustomersService {
       },
       create: {
         ...data,
+        email: normalizedEmail,
         storeId,
       },
       select: customerSelect,

@@ -66,6 +66,13 @@ export class SystemController {
 
   @ApiBearerAuth('jwt')
   @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Get('themes')
+  listThemes() {
+    return this.systemService.listThemes();
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
   @Get('stores')
   listStores() {
     return this.systemService.listStores();
@@ -76,6 +83,13 @@ export class SystemController {
   @Get('stores/:id')
   getStore(@Param('id', ParseIntPipe) id: number) {
     return this.systemService.getStore(id);
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Get('stores/:id/provisioning-plan')
+  getProvisioningPlan(@Param('id', ParseIntPipe) id: number) {
+    return this.systemService.getStoreProvisioningPlan(id);
   }
 
   @ApiBearerAuth('jwt')
@@ -93,5 +107,12 @@ export class SystemController {
     @Body() dto: UpdateSystemStoreDto,
   ) {
     return this.systemService.updateStore(id, dto);
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Post('stores/:id/provision-vps')
+  provisionVps(@Param('id', ParseIntPipe) id: number) {
+    return this.systemService.provisionStoreOnVps(id);
   }
 }

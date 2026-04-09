@@ -69,4 +69,23 @@ export const runtimeConfig = {
   rateLimitWindowMs: readNumber('RATE_LIMIT_WINDOW_MS', 60_000),
   authRateLimitMax: readNumber('AUTH_RATE_LIMIT_MAX', 10),
   webhookRateLimitMax: readNumber('WEBHOOK_RATE_LIMIT_MAX', 120),
+  systemVpsAutomationEnabled: readBoolean(
+    'SYSTEM_VPS_AUTOMATION_ENABLED',
+    false,
+  ),
+  systemVpsIp: readString('SYSTEM_VPS_IP'),
+  systemDeployScriptPath: readString('SYSTEM_DEPLOY_SCRIPT_PATH'),
+  systemStorefrontEnvPath: readString('SYSTEM_STOREFRONT_ENV_PATH'),
+  systemBackendEnvPath: readString('SYSTEM_BACKEND_ENV_PATH'),
+  systemNginxSitePath: readString('SYSTEM_NGINX_SITE_PATH'),
+  systemNginxProxyTarget: readString(
+    'SYSTEM_NGINX_PROXY_TARGET',
+    'http://127.0.0.1:3001',
+  )!,
+  systemPrivilegedCommandPrefix: readString(
+    'SYSTEM_PRIVILEGED_COMMAND_PREFIX',
+    '',
+  )!,
+  systemCertbotEnabled: readBoolean('SYSTEM_CERTBOT_ENABLED', false),
+  systemCertbotWebroot: readString('SYSTEM_CERTBOT_WEBROOT', '/var/www/html')!,
 };

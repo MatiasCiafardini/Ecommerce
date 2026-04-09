@@ -10,6 +10,7 @@ import { OAuth2Client, type TokenPayload } from 'google-auth-library';
 import { UpdateCurrentAuthDto } from './dto/update-current-auth.dto';
 import { resolveStoreFeatures } from '../../common/store-features';
 import { runtimeConfig } from '../../config/runtime-config';
+import { normalizeEmail } from '../../common/utils/email.util';
 
 type AuthEntity = {
   id: number;
@@ -46,8 +47,9 @@ export class AuthService {
   }
 
   async validateUser(email: string, password: string, storeId: number) {
+    const normalizedEmail = normalizeEmail(email);
     const user = await this.prisma.user.findFirst({
-      where: { email, storeId },
+      where: { email: normalizedEmail, storeId },
     });
 
     if (!user) {
@@ -64,9 +66,10 @@ export class AuthService {
   }
 
   async validateSuperAdmin(email: string, password: string) {
+    const normalizedEmail = normalizeEmail(email);
     const user = await this.prisma.user.findFirst({
       where: {
-        email,
+        email: normalizedEmail,
         role: 'SUPER_ADMIN' as any,
       },
     });
@@ -92,6 +95,7 @@ export class AuthService {
     lastName?: string,
     phone?: string,
   ) {
+    const normalizedEmail = normalizeEmail(email);
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
     });
@@ -102,7 +106,7 @@ export class AuthService {
 
     const existing = await this.prisma.customer.findFirst({
       where: {
-        email,
+        email: normalizedEmail,
         storeId: store.id,
       },
     });
@@ -115,7 +119,7 @@ export class AuthService {
 
     const customer = await this.prisma.customer.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         storeId: store.id,
         firstName,
@@ -128,9 +132,10 @@ export class AuthService {
   }
 
   async validateSession(email: string, password: string, storeId: number) {
+    const normalizedEmail = normalizeEmail(email);
     const adminUser = await this.prisma.user.findFirst({
       where: {
-        email,
+        email: normalizedEmail,
         storeId,
       },
     });
@@ -143,7 +148,7 @@ export class AuthService {
       }
     }
 
-    return this.validateCustomer(email, password, storeId);
+    return this.validateCustomer(normalizedEmail, password, storeId);
   }
 
   async loginWithGoogle(
@@ -162,7 +167,7 @@ export class AuthService {
 
     const payload = await this.verifyGoogleCredential(credential, clientId);
     const googleId = payload.sub;
-    const email = payload.email?.trim().toLowerCase();
+    const email = payload.email ? normalizeEmail(payload.email) : null;
 
     if (!googleId || !email) {
       throw new UnauthorizedException('Google account payload is incomplete');
@@ -234,9 +239,10 @@ export class AuthService {
   }
 
   async validateCustomer(email: string, password: string, storeId: number) {
+    const normalizedEmail = normalizeEmail(email);
     const customer = await this.prisma.customer.findFirst({
       where: {
-        email,
+        email: normalizedEmail,
         storeId,
       },
     });

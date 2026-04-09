@@ -293,6 +293,157 @@ h2 {
   gap: 14px;
 }
 
+.wizard-steps,
+.theme-choice-grid,
+.external-checklist,
+.review-grid,
+.provisioning-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.wizard-steps {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 24px 0;
+}
+
+.wizard-step,
+.theme-choice-card,
+.external-card,
+.review-card,
+.theme-spotlight {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.wizard-step {
+  padding: 16px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+}
+
+.wizard-step small,
+.review-card span,
+.theme-choice-copy span {
+  color: var(--muted);
+}
+
+.wizard-step.active {
+  border-color: rgba(83, 183, 199, 0.75);
+  background: linear-gradient(180deg, rgba(20, 52, 67, 0.98), rgba(10, 26, 35, 0.98));
+}
+
+.wizard-step.done {
+  box-shadow: inset 0 0 0 1px rgba(123, 224, 196, 0.22);
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.theme-choice-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.theme-choice-grid.wizard {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.theme-choice-card {
+  padding: 12px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+
+.theme-choice-card.active {
+  border-color: rgba(83, 183, 199, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(83, 183, 199, 0.3);
+}
+
+.theme-choice-preview,
+.theme-spotlight-preview {
+  min-height: 120px;
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  align-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.theme-choice-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.theme-choice-chip {
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.external-checklist {
+  grid-template-columns: 1fr;
+}
+
+.external-card {
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.review-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.review-card {
+  padding: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.review-card span {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.review-card strong {
+  font-size: 1.1rem;
+}
+
+.review-card small,
+.theme-spotlight-preview small {
+  color: var(--muted);
+}
+
+.review-card.span-2 {
+  grid-column: span 2;
+}
+
+.theme-spotlight {
+  margin-top: 18px;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.provisioning-panel {
+  margin-top: 18px;
+}
+
 .field {
   display: grid;
   gap: 8px;
@@ -379,7 +530,9 @@ h2 {
   .stores-grid,
   .content-grid,
   .stats-grid,
-  .command-grid {
+  .command-grid,
+  .wizard-steps,
+  .theme-choice-grid.wizard {
     grid-template-columns: 1fr;
   }
 }
@@ -390,11 +543,21 @@ h2 {
   }
 
   .form-grid,
-  .check-grid {
+  .check-grid,
+  .theme-choice-grid,
+  .review-grid {
     grid-template-columns: 1fr;
   }
 
   .field.span-2 {
     grid-column: span 1;
+  }
+
+  .review-card.span-2 {
+    grid-column: span 1;
+  }
+
+  .wizard-actions {
+    flex-direction: column;
   }
 }

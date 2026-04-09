@@ -1,11 +1,57 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { execFile } from 'child_process';
+import { access, readFile, writeFile } from 'fs/promises';
+import { dirname, isAbsolute } from 'path';
+import { promisify } from 'util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { runtimeConfig } from '../../config/runtime-config';
 import { CreateSystemStoreDto } from './dto/create-system-store.dto';
 import { UpdateSystemStoreDto } from './dto/update-system-store.dto';
 
 type StorefrontSection = Record<string, unknown>;
+type ThemeCatalogEntry = {
+  id: string;
+  label: string;
+  description: string;
+  tone: string;
+  surfaces: {
+    background: string;
+    panel: string;
+    accent: string;
+    text: string;
+  };
+};
+type StoreProvisioningPlan = {
+  automationEnabled: boolean;
+  storeId: number;
+  domain: string;
+  wwwDomain: string;
+  proxyTarget: string;
+  files: {
+    storefrontEnvPath: string | null;
+    backendEnvPath: string | null;
+    nginxSitePath: string | null;
+    deployScriptPath: string | null;
+  };
+  entries: {
+    hostMap: string[];
+    corsOrigins: string[];
+  };
+  nginx: {
+    httpOnlyBlock: string;
+    managedBlock: string;
+  };
+  commands: string[];
+  notes: string[];
+};
+type StoreProvisioningResult = {
+  ok: boolean;
+  executedAt: string;
+  steps: string[];
+  plan: StoreProvisioningPlan;
+};
 type StorefrontConfigShape = {
   theme?: string;
   branding?: {
@@ -51,6 +97,70 @@ const defaultPalette = {
   accountItemBgActive: '#173543',
   accountItemBorder: '#274453',
 } satisfies Record<string, string>;
+
+const availableThemes: ThemeCatalogEntry[] = [
+  {
+    id: 'minimal',
+    label: 'Minimal',
+    description: 'Base editorial sobria para marcas urbanas o multiproducto.',
+    tone: 'Versatil',
+    surfaces: {
+      background: '#06131a',
+      panel: '#0d1f29',
+      accent: '#53b7c7',
+      text: '#f7fbfc',
+    },
+  },
+  {
+    id: 'fashion',
+    label: 'Fashion',
+    description: 'Look boutique suave, ideal para indumentaria femenina y marcas delicadas.',
+    tone: 'Boutique',
+    surfaces: {
+      background: '#f5e8dc',
+      panel: '#fff8f2',
+      accent: '#b16f5f',
+      text: '#231815',
+    },
+  },
+  {
+    id: 'trojani',
+    label: 'Trojani',
+    description: 'Theme premium con impronta de marca fuerte y visual hero protagonista.',
+    tone: 'Marca fuerte',
+    surfaces: {
+      background: '#f1ebe2',
+      panel: '#fffdf9',
+      accent: '#8a5f37',
+      text: '#20150f',
+    },
+  },
+  {
+    id: 'libreria',
+    label: 'Libreria',
+    description: 'Estetica amable y colorida para librerias, regalos, artistica o escolar.',
+    tone: 'Colorido',
+    surfaces: {
+      background: '#fff3f7',
+      panel: '#ffffff',
+      accent: '#d46b95',
+      text: '#5f3346',
+    },
+  },
+  {
+    id: 'mimaria',
+    label: 'Mi Maria',
+    description: 'Tema calido y femenino para boutiques de indumentaria con tono elegante.',
+    tone: 'Calido',
+    surfaces: {
+      background: '#f4ede6',
+      panel: '#fffaf5',
+      accent: '#a87555',
+      text: '#38261b',
+    },
+  },
+];
+const execFileAsync = promisify(execFile);
 
 function normalizeDomain(value: string) {
   return value
@@ -148,6 +258,115 @@ function toStorefrontConfig(input: unknown): StorefrontConfigShape {
 @Injectable()
 export class SystemService {
   constructor(private readonly prisma: PrismaService) {}
+
+  listThemes() {
+    return availableThemes;
+  }
+
+  async getStoreProvisioningPlan(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        id: true,
+        domain: true,
+      },
+    });
+
+    if (!store) {
+      throw new NotFoundException(`Store with id ${storeId} was not found`);
+    }
+
+    return this.buildProvisioningPlan(store.id, store.domain);
+  }
+
+  async provisionStoreOnVps(storeId: number): Promise<StoreProvisioningResult> {
+    const plan = await this.getStoreProvisioningPlan(storeId);
+
+    if (!runtimeConfig.systemVpsAutomationEnabled) {
+      throw new BadRequestException(
+        'SYSTEM_VPS_AUTOMATION_ENABLED is disabled for this environment.',
+      );
+    }
+
+    await Promise.all([
+      this.ensureConfiguredPath(
+        runtimeConfig.systemStorefrontEnvPath,
+        'SYSTEM_STOREFRONT_ENV_PATH',
+      ),
+      this.ensureConfiguredPath(
+        runtimeConfig.systemBackendEnvPath,
+        'SYSTEM_BACKEND_ENV_PATH',
+      ),
+      this.ensureConfiguredPath(
+        runtimeConfig.systemDeployScriptPath,
+        'SYSTEM_DEPLOY_SCRIPT_PATH',
+      ),
+      this.ensureConfiguredPath(
+        runtimeConfig.systemNginxSitePath,
+        'SYSTEM_NGINX_SITE_PATH',
+      ),
+    ]);
+
+    const steps: string[] = [];
+
+    await this.upsertEnvListValue(
+      runtimeConfig.systemStorefrontEnvPath!,
+      'NEXT_PUBLIC_STORE_HOST_MAP',
+      plan.entries.hostMap,
+    );
+    steps.push(
+      `Storefront env actualizado con ${plan.entries.hostMap.join(', ')}`,
+    );
+
+    await this.upsertEnvListValue(
+      runtimeConfig.systemBackendEnvPath!,
+      'CORS_ORIGINS',
+      plan.entries.corsOrigins,
+    );
+    steps.push(
+      `Backend env actualizado con ${plan.entries.corsOrigins.join(', ')}`,
+    );
+
+    await this.ensureManagedNginxBlocks(
+      runtimeConfig.systemNginxSitePath!,
+      storeId,
+      plan.nginx.httpOnlyBlock,
+    );
+    await this.runShell('nginx -t', true);
+    await this.runShell('systemctl reload nginx', true);
+    steps.push('Nginx recargado con bloque HTTP inicial para validacion ACME');
+
+    if (runtimeConfig.systemCertbotEnabled) {
+      await this.runShell(
+        `certbot certonly --webroot -w "${runtimeConfig.systemCertbotWebroot}" -d "${plan.domain}" -d "${plan.wwwDomain}" --non-interactive --agree-tos --keep-until-expiring`,
+        true,
+      );
+      steps.push('Certbot ejecuto la emision/renovacion del certificado');
+    } else {
+      steps.push(
+        'Certbot omitido: SYSTEM_CERTBOT_ENABLED=false, se asume certificado existente o paso manual previo.',
+      );
+    }
+
+    await this.ensureManagedNginxBlocks(
+      runtimeConfig.systemNginxSitePath!,
+      storeId,
+      plan.nginx.managedBlock,
+    );
+    await this.runShell('nginx -t', true);
+    await this.runShell('systemctl reload nginx', true);
+    steps.push('Nginx recargado con bloque HTTPS productivo');
+
+    await this.runShell(`bash "${runtimeConfig.systemDeployScriptPath!}"`);
+    steps.push(`Deploy ejecutado con ${runtimeConfig.systemDeployScriptPath}`);
+
+    return {
+      ok: true,
+      executedAt: new Date().toISOString(),
+      steps,
+      plan,
+    };
+  }
 
   async listStores() {
     const stores = await this.prisma.store.findMany({
@@ -636,6 +855,213 @@ export class SystemService {
     };
   }
 
+  private buildProvisioningPlan(
+    storeId: number,
+    domain: string,
+  ): StoreProvisioningPlan {
+    const normalizedDomain = normalizeDomain(domain);
+    const wwwDomain = normalizedDomain.startsWith('www.')
+      ? normalizedDomain
+      : `www.${normalizedDomain}`;
+    const hostMapEntries = [
+      `${normalizedDomain}=${storeId}`,
+      `${wwwDomain}=${storeId}`,
+    ];
+    const corsOrigins = [
+      `https://${normalizedDomain}`,
+      `https://${wwwDomain}`,
+    ];
+
+    return {
+      automationEnabled: runtimeConfig.systemVpsAutomationEnabled,
+      storeId,
+      domain: normalizedDomain,
+      wwwDomain,
+      proxyTarget: runtimeConfig.systemNginxProxyTarget,
+      files: {
+        storefrontEnvPath: runtimeConfig.systemStorefrontEnvPath ?? null,
+        backendEnvPath: runtimeConfig.systemBackendEnvPath ?? null,
+        nginxSitePath: runtimeConfig.systemNginxSitePath ?? null,
+        deployScriptPath: runtimeConfig.systemDeployScriptPath ?? null,
+      },
+      entries: {
+        hostMap: hostMapEntries,
+        corsOrigins,
+      },
+      nginx: {
+        httpOnlyBlock: this.buildManagedNginxBlock({
+          storeId,
+          domain: normalizedDomain,
+          wwwDomain,
+          includeHttps: false,
+        }),
+        managedBlock: this.buildManagedNginxBlock({
+          storeId,
+          domain: normalizedDomain,
+          wwwDomain,
+          includeHttps: true,
+        }),
+      },
+      commands: [
+        `Actualizar NEXT_PUBLIC_STORE_HOST_MAP con ${hostMapEntries.join(', ')}`,
+        `Actualizar CORS_ORIGINS con ${corsOrigins.join(', ')}`,
+        `bash ${runtimeConfig.systemDeployScriptPath ?? '/var/www/ecommerce/deploy.sh'}`,
+      ],
+      notes: [
+        'Cloudflare DNS debe estar apuntando a la VPS antes de correr Certbot.',
+        'La automatizacion de VPS toca solo archivos y comandos predefinidos.',
+        'Si Certbot esta deshabilitado, el dominio debe tener certificado previo o ese paso sigue manual.',
+      ],
+    };
+  }
+
+  private buildManagedNginxBlock({
+    storeId,
+    domain,
+    wwwDomain,
+    includeHttps,
+  }: {
+    storeId: number;
+    domain: string;
+    wwwDomain: string;
+    includeHttps: boolean;
+  }) {
+    const markerStart = this.nginxMarkerStart(storeId);
+    const markerEnd = this.nginxMarkerEnd(storeId);
+    const httpBlock = `server {
+    listen 80;
+    server_name ${domain} ${wwwDomain};
+
+    location /.well-known/acme-challenge/ {
+        root ${runtimeConfig.systemCertbotWebroot};
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}`;
+
+    if (!includeHttps) {
+      return `${markerStart}\n${httpBlock}\n${markerEnd}`;
+    }
+
+    const httpsBlock = `server {
+    listen 443 ssl http2;
+    server_name ${domain} ${wwwDomain};
+
+    ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    location / {
+        proxy_pass ${runtimeConfig.systemNginxProxyTarget};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+}`;
+
+    return `${markerStart}\n${httpBlock}\n\n${httpsBlock}\n${markerEnd}`;
+  }
+
+  private nginxMarkerStart(storeId: number) {
+    return `# BEGIN CODEX STORE ${storeId}`;
+  }
+
+  private nginxMarkerEnd(storeId: number) {
+    return `# END CODEX STORE ${storeId}`;
+  }
+
+  private async ensureManagedNginxBlocks(
+    filePath: string,
+    storeId: number,
+    block: string,
+  ) {
+    const currentContent = await readFile(filePath, 'utf8');
+    const startMarker = this.nginxMarkerStart(storeId);
+    const endMarker = this.nginxMarkerEnd(storeId);
+    const escapedStart = this.escapeRegex(startMarker);
+    const escapedEnd = this.escapeRegex(endMarker);
+    const pattern = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}\\n?`, 'm');
+    const nextContent = pattern.test(currentContent)
+      ? currentContent.replace(pattern, `${block}\n`)
+      : `${currentContent.trimEnd()}\n\n${block}\n`;
+
+    await writeFile(filePath, nextContent, 'utf8');
+  }
+
+  private async upsertEnvListValue(
+    filePath: string,
+    key: string,
+    entries: string[],
+  ) {
+    const currentContent = await readFile(filePath, 'utf8');
+    const pattern = new RegExp(`^${this.escapeRegex(key)}=(.*)$`, 'm');
+    const match = currentContent.match(pattern);
+    const existingValues = this.parseEnvList(match?.[1]);
+    const mergedValues = [...new Set([...existingValues, ...entries])];
+    const line = `${key}="${mergedValues.join(',')}"`;
+    const nextContent = match
+      ? currentContent.replace(pattern, line)
+      : `${currentContent.trimEnd()}\n${line}\n`;
+
+    await writeFile(filePath, nextContent, 'utf8');
+  }
+
+  private parseEnvList(rawValue?: string | null) {
+    if (!rawValue) {
+      return [];
+    }
+
+    return rawValue
+      .trim()
+      .replace(/^['"]|['"]$/g, '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private escapeRegex(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  private async ensureConfiguredPath(value: string | undefined, envName: string) {
+    if (!value) {
+      throw new BadRequestException(`${envName} is not configured.`);
+    }
+
+    if (!isAbsolute(value)) {
+      throw new BadRequestException(`${envName} must be an absolute path.`);
+    }
+
+    await access(value);
+  }
+
+  private async runShell(command: string, privileged = false) {
+    const prefix =
+      privileged && runtimeConfig.systemPrivilegedCommandPrefix
+        ? `${runtimeConfig.systemPrivilegedCommandPrefix} `
+        : '';
+    const { stdout, stderr } = await execFileAsync(
+      'bash',
+      ['-lc', `${prefix}${command}`],
+      {
+        cwd: dirname(runtimeConfig.systemDeployScriptPath ?? process.cwd()),
+      },
+    );
+
+    return { stdout, stderr };
+  }
+
   private serializeStore(store: any) {
     const storefrontConfig = toStorefrontConfig(store.storefrontConfig);
     const branding = storefrontConfig.branding ?? {};
@@ -682,6 +1108,7 @@ export class SystemService {
           store.mercadoPagoPublicKey && store.mercadoPagoAccessToken,
         ),
         storefrontReady: Boolean(storefrontConfig.pages?.home?.length),
+        vpsAutomationReady: runtimeConfig.systemVpsAutomationEnabled,
         domainAutomationPending: true,
       },
       storefrontConfig,

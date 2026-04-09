@@ -6,6 +6,7 @@ import {
   PAPERERIA_CATEGORIES,
   PAPERERIA_PRODUCTS,
 } from './papereria-catalog';
+import { normalizeEmail } from '../src/common/utils/email.util';
 
 const prisma = new PrismaClient();
 
@@ -651,13 +652,14 @@ async function ensureDevelopmentStores() {
 }
 
 async function ensureAdmin(storeId: number, email: string) {
+  const normalizedEmail = normalizeEmail(email);
   const password = await bcrypt.hash('admin123', 10);
 
   await prisma.user.upsert({
     where: {
       storeId_email: {
         storeId,
-        email,
+        email: normalizedEmail,
       },
     },
     update: {
@@ -666,7 +668,7 @@ async function ensureAdmin(storeId: number, email: string) {
       password,
     },
     create: {
-      email,
+      email: normalizedEmail,
       password,
       name: 'Admin',
       role: Role.OWNER,

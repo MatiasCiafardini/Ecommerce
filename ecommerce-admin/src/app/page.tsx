@@ -6,6 +6,35 @@ import { getApiUrl } from "@/lib/config";
 
 type AuthUser = { id: number; email: string; role: string; name?: string | null };
 type HomeBlock = { type: string; props?: Record<string, unknown> };
+type ProvisioningPlan = {
+  automationEnabled: boolean;
+  storeId: number;
+  domain: string;
+  wwwDomain: string;
+  proxyTarget: string;
+  files: {
+    storefrontEnvPath: string | null;
+    backendEnvPath: string | null;
+    nginxSitePath: string | null;
+    deployScriptPath: string | null;
+  };
+  entries: {
+    hostMap: string[];
+    corsOrigins: string[];
+  };
+  nginx: {
+    httpOnlyBlock: string;
+    managedBlock: string;
+  };
+  commands: string[];
+  notes: string[];
+};
+type ProvisioningRunResult = {
+  ok: boolean;
+  executedAt: string;
+  steps: string[];
+  plan: ProvisioningPlan;
+};
 type Store = {
   id: number;
   name: string;
@@ -34,6 +63,7 @@ type Store = {
     brandingReady: boolean;
     paymentsReady: boolean;
     storefrontReady: boolean;
+    vpsAutomationReady?: boolean;
     domainAutomationPending: boolean;
   };
   storefrontConfig: {
@@ -44,6 +74,18 @@ type Store = {
 };
 
 type LoginState = { email: string; password: string };
+type ThemeOption = {
+  id: string;
+  label: string;
+  description: string;
+  tone: string;
+  surfaces: {
+    background: string;
+    panel: string;
+    accent: string;
+    text: string;
+  };
+};
 type StoreFormState = {
   name: string;
   domain: string;
@@ -72,6 +114,7 @@ type StoreFormState = {
 const localDeployCommand = `git add .\ngit commit -m "mensaje del cambio"\ngit push origin main`;
 const vpsDeployCommand = `ssh mati@187.127.13.225\nbash /var/www/ecommerce/deploy.sh`;
 const initialLoginState: LoginState = { email: "", password: "" };
+const vpsIpAddress = "187.127.13.225";
 const emptyStoreForm: StoreFormState = {
   name: "",
   domain: "",
@@ -96,6 +139,12 @@ const emptyStoreForm: StoreFormState = {
   manualSalesEnabled: false,
   bankTransferDiscountPercentage: "0",
 };
+const createSteps = [
+  { id: "identity", label: "Datos base", detail: "Nombre, dominio, owner y theme base" },
+  { id: "experience", label: "Experiencia", detail: "Branding inicial e integraciones base" },
+  { id: "external", label: "Tareas externas", detail: "DNS, Cloudflare y Hostinger" },
+  { id: "review", label: "Revision", detail: "Checklist final y creacion" },
+] as const;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -165,19 +214,97 @@ function serializeStoreForm(value: StoreFormState) {
   };
 }
 
+function createSlugCandidate(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function withWww(domain: string) {
+  const normalized = domain.trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.startsWith("www.") ? normalized : `www.${normalized}`;
+}
+
+function buildProvisioningChecklist(domain: string) {
+  const wwwDomain = withWww(domain);
+  return [
+    {
+      title: "Cloudflare DNS",
+      description: "Crear o editar los registros A para el dominio principal y www.",
+      commands: [
+        `A @ -> ${vpsIpAddress}`,
+        `A www -> ${vpsIpAddress}`,
+        `Proxy status: Proxied`,
+      ],
+    },
+    {
+      title: "Cloudflare SSL/TLS",
+      description: "Verificar que el modo quede en Full (strict) para evitar loops y errores de certificado.",
+      commands: [
+        "Cloudflare > SSL/TLS > Overview",
+        "Seleccionar Full (strict)",
+        "Nunca dejar Flexible",
+      ],
+    },
+    {
+      title: "Hostinger / registrador",
+      description: "Si el dominio se administra fuera de Cloudflare, confirmar nameservers o apuntar DNS hacia Cloudflare.",
+      commands: [
+        "Revisar nameservers del dominio",
+        "Confirmar que Cloudflare sea el DNS autoritativo",
+        "Esperar propagacion antes del deploy final",
+      ],
+    },
+    {
+      title: "Deploy VPS",
+      description: "Una vez confirmados DNS y SSL, ejecutar deploy para recompilar storefront y backend con el dominio nuevo.",
+      commands: [
+        "ssh mati@187.127.13.225",
+        "bash /var/www/ecommerce/deploy.sh",
+      ],
+    },
+    {
+      title: "Verificacion",
+      description: "Comprobar que storefront y backend reconozcan el dominio correcto.",
+      commands: [
+        `https://${domain}`,
+        `https://${wwwDomain}`,
+        `curl -s -H "x-store-host: ${domain}" http://127.0.0.1:3000/api/store/config`,
+      ],
+    },
+  ];
+}
+
 function StoreFields({
   value,
   onChange,
   saving,
   submitLabel,
   compact,
+  themes,
+  mode = "default",
+  showSubmitButton = true,
 }: {
   value: StoreFormState;
   onChange: (patch: Partial<StoreFormState>) => void;
   saving: boolean;
   submitLabel: string;
   compact?: boolean;
+  themes: ThemeOption[];
+  mode?: "default" | "wizard";
+  showSubmitButton?: boolean;
 }) {
+  const themeCards = themes.length > 0 ? themes : [{
+    id: "minimal",
+    label: "Minimal",
+    description: "Fallback local",
+    tone: "Base",
+    surfaces: { background: "#06131a", panel: "#0d1f29", accent: "#53b7c7", text: "#f7fbfc" },
+  }];
+
   return (
     <div className={`form-grid${compact ? " compact" : ""}`}>
       {[
@@ -185,7 +312,6 @@ function StoreFields({
         ["Dominio principal", "domain"],
         ["Owner email", "ownerEmail"],
         ["Owner nombre", "ownerName"],
-        ["Theme", "theme"],
         ["Tagline", "tagline"],
         ["Logo URL", "logoUrl"],
         ["Soporte email", "supportEmail"],
@@ -210,6 +336,43 @@ function StoreFields({
           />
         </label>
       ))}
+
+      <div className="field span-2">
+        <span>Theme base</span>
+        <div className={`theme-choice-grid${mode === "wizard" ? " wizard" : ""}`}>
+          {themeCards.map((theme) => {
+            const active = value.theme === theme.id;
+            return (
+              <button
+                key={theme.id}
+                type="button"
+                className={`theme-choice-card${active ? " active" : ""}`}
+                onClick={() => onChange({ theme: theme.id })}
+              >
+                <div
+                  className="theme-choice-preview"
+                  style={{
+                    background: `linear-gradient(135deg, ${theme.surfaces.background}, ${theme.surfaces.panel})`,
+                    color: theme.surfaces.text,
+                  }}
+                >
+                  <span
+                    className="theme-choice-chip"
+                    style={{ background: theme.surfaces.accent, color: "#08141b" }}
+                  >
+                    {theme.tone}
+                  </span>
+                  <strong>{theme.label}</strong>
+                </div>
+                <div className="theme-choice-copy">
+                  <strong>{theme.label}</strong>
+                  <span>{theme.description}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <label className="field span-2">
         <span>Venta manual</span>
@@ -239,9 +402,11 @@ function StoreFields({
           onChange={(event) => onChange({ description: event.target.value })}
         />
       </label>
-      <button className="primary-button span-2" disabled={saving}>
-        {saving ? "Guardando..." : submitLabel}
-      </button>
+      {showSubmitButton ? (
+        <button className="primary-button span-2" disabled={saving}>
+          {saving ? "Guardando..." : submitLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -256,11 +421,15 @@ export default function Page() {
   const [createState, setCreateState] = useState(emptyStoreForm);
   const [editState, setEditState] = useState(emptyStoreForm);
   const [tab, setTab] = useState<"overview" | "stores" | "create">("overview");
+  const [themes, setThemes] = useState<ThemeOption[]>([]);
+  const [createStepIndex, setCreateStepIndex] = useState(0);
   const [loadingSession, setLoadingSession] = useState(true);
   const [loadingStore, setLoadingStore] = useState(false);
   const [savingCreate, setSavingCreate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingLogin, setSavingLogin] = useState(false);
+  const [runningProvisioning, setRunningProvisioning] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<ProvisioningPlan | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -295,18 +464,34 @@ export default function Page() {
     });
   }
 
+  async function loadProvisioningPlan(id: number) {
+    return request<ProvisioningPlan>(`/system/stores/${id}/provisioning-plan`, {
+      cache: "no-store",
+    });
+  }
+
   async function bootstrap() {
     const profile = await request<AuthUser>("/system/auth/me", {
       cache: "no-store",
     });
-    const nextStores = await loadStores();
+    const [nextStores, nextThemes] = await Promise.all([
+      loadStores(),
+      request<ThemeOption[]>("/system/themes", {
+        cache: "no-store",
+      }),
+    ]);
     setUser(profile);
     setStores(nextStores);
+    setThemes(nextThemes);
     const firstId = nextStores[0]?.id ?? null;
     setSelectedStoreId(firstId);
     if (firstId) {
-      const detail = await loadStore(firstId);
+      const [detail, plan] = await Promise.all([
+        loadStore(firstId),
+        loadProvisioningPlan(firstId),
+      ]);
       setSelectedStore(detail);
+      setSelectedPlan(plan);
       setEditState(storeToForm(detail));
     }
   }
@@ -317,9 +502,15 @@ export default function Page() {
     const nextId = preferredId && nextStores.some((store) => store.id === preferredId) ? preferredId : nextStores[0]?.id ?? null;
     setSelectedStoreId(nextId);
     if (nextId) {
-      const detail = await loadStore(nextId);
+      const [detail, plan] = await Promise.all([
+        loadStore(nextId),
+        loadProvisioningPlan(nextId),
+      ]);
       setSelectedStore(detail);
+      setSelectedPlan(plan);
       setEditState(storeToForm(detail));
+    } else {
+      setSelectedPlan(null);
     }
   }
 
@@ -329,6 +520,7 @@ export default function Page() {
       setStores([]);
       setSelectedStore(null);
       setSelectedStoreId(null);
+      setSelectedPlan(null);
       if (error instanceof Error && /401|403/.test(error.message)) {
         return;
       }
@@ -337,10 +529,20 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
+    if (tab !== "create") return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  }, [tab]);
+
+  useEffect(() => {
     if (!user || !selectedStoreId) return;
     setLoadingStore(true);
-    loadStore(selectedStoreId).then((store) => {
+    Promise.all([
+      loadStore(selectedStoreId),
+      loadProvisioningPlan(selectedStoreId),
+    ]).then(([store, plan]) => {
       setSelectedStore(store);
+      setSelectedPlan(plan);
       setEditState(storeToForm(store));
     }).catch((error) => {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo cargar la tienda.");
@@ -388,6 +590,7 @@ export default function Page() {
         body: JSON.stringify(serializeStoreForm(createState)),
       });
       setCreateState(emptyStoreForm);
+      setCreateStepIndex(0);
       setTab("stores");
       await refresh(created.id);
       setSuccessMessage(`La tienda ${created.name} ya quedo creada con owner y configuracion inicial.`);
@@ -397,6 +600,23 @@ export default function Page() {
       setSavingCreate(false);
     }
   }
+
+  const selectedTheme =
+    themes.find((theme) => theme.id === createState.theme) ?? themes[0] ?? null;
+  const createChecklist = useMemo(
+    () => buildProvisioningChecklist(createState.domain || "tu-dominio.com"),
+    [createState.domain],
+  );
+  const createProgress = Math.round(((createStepIndex + 1) / createSteps.length) * 100);
+  const generatedStoreName =
+    createState.name.trim() || createSlugCandidate(createState.domain || "nueva-tienda").replace(/-/g, " ");
+  const generatedWwwDomain = withWww(createState.domain || "");
+  const createSummary = [
+    { label: "Store name", value: generatedStoreName || "Pendiente" },
+    { label: "Domain", value: createState.domain || "Pendiente" },
+    { label: "Owner", value: createState.ownerEmail || "Pendiente" },
+    { label: "Theme", value: selectedTheme?.label || createState.theme || "Pendiente" },
+  ];
 
   async function onSaveStore(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -419,6 +639,32 @@ export default function Page() {
     }
   }
 
+  async function onProvisionVps() {
+    if (!user || !selectedStoreId) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setRunningProvisioning(true);
+    try {
+      const result = await request<ProvisioningRunResult>(
+        `/system/stores/${selectedStoreId}/provision-vps`,
+        {
+          method: "POST",
+        },
+      );
+      setSelectedPlan(result.plan);
+      await refresh(selectedStoreId);
+      setSuccessMessage(
+        `Provisioning VPS ejecutado. ${result.steps[result.steps.length - 1] ?? "Deploy completado."}`,
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "No se pudo ejecutar el provisioning VPS.",
+      );
+    } finally {
+      setRunningProvisioning(false);
+    }
+  }
+
   function logout() {
     void request("/system/auth/logout", {
       method: "POST",
@@ -427,6 +673,7 @@ export default function Page() {
     setStores([]);
     setSelectedStore(null);
     setSelectedStoreId(null);
+    setSelectedPlan(null);
     setSuccessMessage("Sesion cerrada.");
   }
 
@@ -555,9 +802,87 @@ export default function Page() {
                       <div className="status-row">
                         <span className={selectedStore.provisioning.brandingReady ? "status ok" : "status warn"}>Branding</span>
                         <span className={selectedStore.provisioning.paymentsReady ? "status ok" : "status warn"}>Pagos</span>
-                        <span className="status neutral">Dominio externo manual</span>
+                        <span className={selectedStore.provisioning.vpsAutomationReady ? "status ok" : "status warn"}>
+                          VPS
+                        </span>
+                        <span className="status neutral">DNS externo manual</span>
                       </div>
-                      {loadingStore ? <p className="muted">Cargando configuracion...</p> : <form className="stack-form" onSubmit={onSaveStore}><StoreFields value={editState} onChange={(patch) => setEditState((current) => ({ ...current, ...patch }))} saving={savingEdit} submitLabel="Guardar cambios" compact /></form>}
+                      {loadingStore ? <p className="muted">Cargando configuracion...</p> : (
+                        <>
+                          <form className="stack-form" onSubmit={onSaveStore}><StoreFields value={editState} onChange={(patch) => setEditState((current) => ({ ...current, ...patch }))} saving={savingEdit} submitLabel="Guardar cambios" compact themes={themes} /></form>
+                          {selectedPlan ? (
+                            <div className="provisioning-panel">
+                              <div className="panel-top">
+                                <div>
+                                  <p className="section-kicker">Provisioning VPS</p>
+                                  <h2>Publicacion asistida</h2>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="primary-button"
+                                  disabled={!selectedPlan.automationEnabled || runningProvisioning}
+                                  onClick={() => void onProvisionVps()}
+                                >
+                                  {runningProvisioning
+                                    ? "Ejecutando..."
+                                    : selectedPlan.automationEnabled
+                                      ? "Ejecutar provisioning VPS"
+                                      : "Automatizacion deshabilitada"}
+                                </button>
+                              </div>
+
+                              <div className="review-grid">
+                                <div className="review-card">
+                                  <span>Domain</span>
+                                  <strong>{selectedPlan.domain}</strong>
+                                </div>
+                                <div className="review-card">
+                                  <span>Proxy target</span>
+                                  <strong>{selectedPlan.proxyTarget}</strong>
+                                </div>
+                                <div className="review-card span-2">
+                                  <span>Host map</span>
+                                  <strong>{selectedPlan.entries.hostMap.join(", ")}</strong>
+                                </div>
+                                <div className="review-card span-2">
+                                  <span>CORS</span>
+                                  <strong>{selectedPlan.entries.corsOrigins.join(", ")}</strong>
+                                </div>
+                              </div>
+
+                              <div className="command-grid">
+                                <div className="command-card">
+                                  <div className="command-head">
+                                    <div>
+                                      <strong>Nginx HTTP inicial</strong>
+                                      <span>Prepara ACME y redireccion</span>
+                                    </div>
+                                  </div>
+                                  <pre className="command-code">{selectedPlan.nginx.httpOnlyBlock}</pre>
+                                </div>
+                                <div className="command-card">
+                                  <div className="command-head">
+                                    <div>
+                                      <strong>Nginx HTTPS final</strong>
+                                      <span>Bloque productivo con proxy a storefront</span>
+                                    </div>
+                                  </div>
+                                  <pre className="command-code">{selectedPlan.nginx.managedBlock}</pre>
+                                </div>
+                              </div>
+
+                              <div className="check-grid vertical">
+                                {selectedPlan.notes.map((note) => (
+                                  <div key={note} className="check-card">
+                                    <strong>Importante</strong>
+                                    <span>{note}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </>
+                      )}
                     </>
                   ) : <p className="muted">Elegi una tienda para editar branding, owner, dominio e integraciones.</p>}
                 </article>
@@ -567,20 +892,186 @@ export default function Page() {
             {tab === "create" ? (
               <section className="content-grid">
                 <article className="panel">
-                  <p className="section-kicker">Lanzamiento</p>
-                  <h2>Crear tienda desde cero</h2>
-                  <form className="stack-form" onSubmit={onCreate}>
-                    <StoreFields value={createState} onChange={(patch) => setCreateState((current) => ({ ...current, ...patch }))} saving={savingCreate} submitLabel="Crear tienda" />
-                  </form>
+                  <div className="panel-top">
+                    <div>
+                      <p className="section-kicker">Provisioning</p>
+                      <h2>Crear tienda nueva</h2>
+                    </div>
+                    <span className="pill">{createProgress}% completo</span>
+                  </div>
+
+                  <div className="wizard-steps">
+                    {createSteps.map((step, index) => (
+                      <button
+                        key={step.id}
+                        type="button"
+                        className={`wizard-step${index === createStepIndex ? " active" : ""}${index < createStepIndex ? " done" : ""}`}
+                        onClick={() => setCreateStepIndex(index)}
+                      >
+                        <small>Paso {index + 1}</small>
+                        <strong>{step.label}</strong>
+                        <span>{step.detail}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {createStepIndex === 0 ? (
+                    <div className="stack-form">
+                      <p className="muted">
+                        El sistema crea store, owner y configuracion base automaticamente. Aca solo definis la identidad principal.
+                      </p>
+                      <div className="form-grid">
+                        {[
+                          ["Nombre comercial", "name"],
+                          ["Dominio principal", "domain"],
+                          ["Owner email", "ownerEmail"],
+                          ["Owner nombre", "ownerName"],
+                        ].map(([label, key]) => (
+                          <label key={key} className="field">
+                            <span>{label}</span>
+                            <input
+                              value={createState[key as keyof StoreFormState] as string}
+                              onChange={(event) =>
+                                setCreateState((current) => ({
+                                  ...current,
+                                  [key]: event.target.value,
+                                }))
+                              }
+                              type={key.toLowerCase().includes("email") ? "email" : "text"}
+                            />
+                          </label>
+                        ))}
+                        <label className="field span-2">
+                          <span>Password owner</span>
+                          <input
+                            type="password"
+                            value={createState.ownerPassword}
+                            onChange={(event) =>
+                              setCreateState((current) => ({
+                                ...current,
+                                ownerPassword: event.target.value,
+                              }))
+                            }
+                            placeholder="Minimo 8 caracteres"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {createStepIndex === 1 ? (
+                    <div className="stack-form">
+                      <p className="muted">
+                        Elegi el theme base ya cargado en la plataforma y definí el contenido inicial que la tienda recibe al crearse.
+                      </p>
+                      <StoreFields
+                        value={createState}
+                        onChange={(patch) => setCreateState((current) => ({ ...current, ...patch }))}
+                        saving={false}
+                        submitLabel="Continuar"
+                        themes={themes}
+                        mode="wizard"
+                        showSubmitButton={false}
+                      />
+                    </div>
+                  ) : null}
+
+                  {createStepIndex === 2 ? (
+                    <div className="stack-form">
+                      <p className="muted">
+                        Estas tareas no dependen del panel y siguen siendo obligatorias. La idea es que nunca más tengas que recordar el orden.
+                      </p>
+                      <div className="external-checklist">
+                        {createChecklist.map((item) => (
+                          <article key={item.title} className="external-card">
+                            <div>
+                              <p className="section-kicker">{item.title}</p>
+                              <strong>{item.description}</strong>
+                            </div>
+                            <pre className="command-code">{item.commands.join("\n")}</pre>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {createStepIndex === 3 ? (
+                    <form className="stack-form" onSubmit={onCreate}>
+                      <div className="review-grid">
+                        {createSummary.map((entry) => (
+                          <div key={entry.label} className="review-card">
+                            <span>{entry.label}</span>
+                            <strong>{entry.value}</strong>
+                          </div>
+                        ))}
+                        <div className="review-card span-2">
+                          <span>Publicacion esperada</span>
+                          <strong>{createState.domain ? `https://${createState.domain}` : "Pendiente de dominio"}</strong>
+                          <small>{generatedWwwDomain ? `www: https://${generatedWwwDomain}` : "www se completa cuando hay dominio principal."}</small>
+                        </div>
+                        <div className="review-card span-2">
+                          <span>Automatico desde panel</span>
+                          <strong>Store, owner, config base, theme, dominio logico y checklist de lanzamiento</strong>
+                        </div>
+                      </div>
+                      <button className="primary-button span-2" disabled={savingCreate}>
+                        {savingCreate ? "Creando tienda..." : "Crear tienda y generar plan de lanzamiento"}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  <div className="wizard-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={createStepIndex === 0}
+                      onClick={() => setCreateStepIndex((current) => Math.max(current - 1, 0))}
+                    >
+                      Volver
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={createStepIndex === createSteps.length - 1}
+                      onClick={() =>
+                        setCreateStepIndex((current) =>
+                          Math.min(current + 1, createSteps.length - 1),
+                        )
+                      }
+                    >
+                      Siguiente
+                    </button>
+                  </div>
                 </article>
                 <article className="panel">
-                  <p className="section-kicker">Alcance actual</p>
-                  <h2>Sin tocar VPS, en lo posible</h2>
+                  <p className="section-kicker">Resumen operativo</p>
+                  <h2>Lo que resuelve este wizard</h2>
                   <div className="check-grid vertical">
-                    <div className="check-card"><strong>Automatico hoy</strong><span>Tienda, owner, branding base, hero y pagos por tienda.</span></div>
-                    <div className="check-card"><strong>Parcial</strong><span>Dominio principal guardado y listo para enlazar.</span></div>
-                    <div className="check-card"><strong>Pendiente</strong><span>DNS, SSL y Nginx siguen fuera del panel por ahora.</span></div>
+                    <div className="check-card"><strong>Automatico</strong><span>Crea store, owner, theme base, hero, branding inicial y configuracion de panel.</span></div>
+                    <div className="check-card"><strong>Asistido</strong><span>Te deja un playbook fijo para DNS, Cloudflare y Hostinger sin tener que improvisar.</span></div>
+                    <div className="check-card"><strong>VPS</strong><span>La ficha de cada tienda ahora puede preparar envs, Nginx y deploy desde un flujo controlado del backend.</span></div>
                   </div>
+                  {selectedTheme ? (
+                    <div className="theme-spotlight">
+                      <p className="section-kicker">Theme elegido</p>
+                      <div
+                        className="theme-spotlight-preview"
+                        style={{
+                          background: `linear-gradient(145deg, ${selectedTheme.surfaces.background}, ${selectedTheme.surfaces.panel})`,
+                          color: selectedTheme.surfaces.text,
+                        }}
+                      >
+                        <span
+                          className="theme-choice-chip"
+                          style={{ background: selectedTheme.surfaces.accent, color: "#08141b" }}
+                        >
+                          {selectedTheme.tone}
+                        </span>
+                        <strong>{selectedTheme.label}</strong>
+                        <small>{selectedTheme.description}</small>
+                      </div>
+                    </div>
+                  ) : null}
                 </article>
               </section>
             ) : null}
