@@ -35,10 +35,10 @@ const DEVELOPMENT_STORES = [
     adminEmail: 'admin-store4@demo.com',
   },
   {
-    id: 3005,
+    id: 5,
     name: 'Mi Maria Indumentaria',
     domain: 'localhost:3005',
-    adminEmail: 'admin-mimaria@demo.com',
+    adminEmail: 'Matiasciafardini@gmail.com',
   },
 ] as const;
 
@@ -676,7 +676,7 @@ async function ensureAdmin(storeId: number, email: string) {
 }
 
 function getCatalogSeedConfig(storeId: number) {
-  if (storeId === 2 || storeId === 3 || storeId === 3005) {
+  if (storeId === 2 || storeId === 3 || storeId === 5) {
     return {
       definitions: BOUTIQUE_CATEGORY_DEFINITIONS,
       collections: BOUTIQUE_COLLECTIONS,
@@ -976,6 +976,10 @@ async function main() {
   for (const store of stores) {
     await ensureAdmin(store.id, store.adminEmail);
     await resetCatalogData(store.id);
+    if (store.id === 5) {
+      continue;
+    }
+
     if (store.id === 4) {
       await seedPapereriaCatalog(store.id);
     } else {
@@ -992,7 +996,9 @@ async function main() {
     'Resumen por store:',
     stores
       .map((store) =>
-        store.id === 4
+        store.id === 5
+          ? `${store.domain} -> catalogo vacio / listo para carga real`
+          : store.id === 4
           ? `${store.domain} -> ${PAPERERIA_CATEGORIES.length} categorias / ${PAPERERIA_PRODUCTS.length} productos`
           : `${store.domain} -> ${getCatalogSeedConfig(store.id).definitions.length} categorias / ${getCatalogSeedConfig(store.id).definitions.reduce(
               (sum, category) => sum + category.titles.length,

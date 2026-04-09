@@ -78,7 +78,7 @@ export default function CatalogView({
   storeOptions,
   storeId,
 }: CatalogViewProps) {
-  const isMiMaria = storeId === 3005;
+  const isMiMaria = storeId === 5;
   const priceValues = useMemo(
     () => products.map(getPrice).filter((price) => price > 0),
     [products],

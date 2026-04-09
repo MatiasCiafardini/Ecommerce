@@ -11,8 +11,8 @@ const DEV_HOST_STORE_MAP: HostStoreMap = {
   "127.0.0.1:3003": 3,
   "localhost:3004": 4,
   "127.0.0.1:3004": 4,
-  "localhost:3005": 3005,
-  "127.0.0.1:3005": 3005,
+  "localhost:3005": 5,
+  "127.0.0.1:3005": 5,
 };
 
 export function normalizeHostValue(value?: string | null) {

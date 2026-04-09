@@ -15,7 +15,7 @@ const storefrontDefaultThemeIds = {
   fashion: 2,
   trojani: 3,
   libreria: 4,
-  mimaria: 3005,
+  mimaria: 5,
 } as const;
 
 export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
@@ -372,7 +372,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
       ],
     },
   },
-  3005: {
+  5: {
     theme: "mimaria",
     pages: {
       home: [

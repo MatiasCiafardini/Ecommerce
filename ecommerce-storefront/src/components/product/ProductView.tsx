@@ -89,7 +89,7 @@ export default function ProductView({
   relatedProducts = [],
   storeId,
 }: Props) {
-  const isMiMaria = storeId === 3005;
+  const isMiMaria = storeId === 5;
   const { user } = useAuth();
   const { addToCart, cart } = useCart();
   const router = useRouter();

@@ -20,7 +20,7 @@ export default async function CategoryPage({ params }: Props) {
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-  const isMiMaria = config.storeId === 3005;
+  const isMiMaria = config.storeId === 5;
 
   return (
     <section
