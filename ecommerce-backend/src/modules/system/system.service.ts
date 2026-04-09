@@ -52,6 +52,12 @@ type StoreProvisioningResult = {
   steps: string[];
   plan: StoreProvisioningPlan;
 };
+type PlatformDeployResult = {
+  ok: boolean;
+  executedAt: string;
+  command: string;
+  outputPreview: string;
+};
 type StorefrontConfigShape = {
   theme?: string;
   branding?: {
@@ -257,6 +263,8 @@ function toStorefrontConfig(input: unknown): StorefrontConfigShape {
 
 @Injectable()
 export class SystemService {
+  private platformDeployRunning = false;
+
   constructor(private readonly prisma: PrismaService) {}
 
   listThemes() {
@@ -306,6 +314,12 @@ export class SystemService {
         'SYSTEM_NGINX_SITE_PATH',
       ),
     ]);
+
+    await this.assertProvisioningCanRun(
+      runtimeConfig.systemNginxSitePath!,
+      storeId,
+      plan,
+    );
 
     const steps: string[] = [];
 
@@ -366,6 +380,43 @@ export class SystemService {
       steps,
       plan,
     };
+  }
+
+  async deployPlatform(): Promise<PlatformDeployResult> {
+    if (this.platformDeployRunning) {
+      throw new BadRequestException(
+        'Ya hay un deploy de plataforma en ejecucion.',
+      );
+    }
+
+    await this.ensureConfiguredPath(
+      runtimeConfig.systemDeployScriptPath,
+      'SYSTEM_DEPLOY_SCRIPT_PATH',
+    );
+
+    this.platformDeployRunning = true;
+
+    try {
+      const result = await this.runShell(
+        `bash "${runtimeConfig.systemDeployScriptPath!}"`,
+      );
+      const outputPreview = [result.stdout, result.stderr]
+        .filter(Boolean)
+        .join('\n')
+        .trim()
+        .split('\n')
+        .slice(-40)
+        .join('\n');
+
+      return {
+        ok: true,
+        executedAt: new Date().toISOString(),
+        command: `bash "${runtimeConfig.systemDeployScriptPath!}"`,
+        outputPreview,
+      };
+    } finally {
+      this.platformDeployRunning = false;
+    }
   }
 
   async listStores() {
@@ -973,6 +1024,35 @@ export class SystemService {
     return `${markerStart}\n${httpBlock}\n\n${httpsBlock}\n${markerEnd}`;
   }
 
+  private async assertProvisioningCanRun(
+    filePath: string,
+    storeId: number,
+    plan: StoreProvisioningPlan,
+  ) {
+    const currentContent = await readFile(filePath, 'utf8');
+    const startMarker = this.nginxMarkerStart(storeId);
+    const endMarker = this.nginxMarkerEnd(storeId);
+    const escapedStart = this.escapeRegex(startMarker);
+    const escapedEnd = this.escapeRegex(endMarker);
+    const managedPattern = new RegExp(
+      `${escapedStart}[\\s\\S]*?${escapedEnd}\\n?`,
+      'm',
+    );
+    const unmanagedServerNamePattern = new RegExp(
+      `server_name\\s+${this.escapeRegex(plan.domain)}\\s+${this.escapeRegex(plan.wwwDomain)};`,
+      'm',
+    );
+
+    if (
+      !managedPattern.test(currentContent) &&
+      unmanagedServerNamePattern.test(currentContent)
+    ) {
+      throw new BadRequestException(
+        `El dominio "${plan.domain}" ya tiene una configuracion activa en Nginx fuera del flujo CODEX. Migrala primero o usalo solo para dominios nuevos.`,
+      );
+    }
+  }
+
   private nginxMarkerStart(storeId: number) {
     return `# BEGIN CODEX STORE ${storeId}`;
   }
@@ -992,18 +1072,6 @@ export class SystemService {
     const escapedStart = this.escapeRegex(startMarker);
     const escapedEnd = this.escapeRegex(endMarker);
     const pattern = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}\\n?`, 'm');
-    const currentPlan = await this.getStoreProvisioningPlan(storeId);
-    const unmanagedServerNamePattern = new RegExp(
-      `server_name\\s+${this.escapeRegex(currentPlan.domain)}\\s+${this.escapeRegex(currentPlan.wwwDomain)};`,
-      'm',
-    );
-
-    if (!pattern.test(currentContent) && unmanagedServerNamePattern.test(currentContent)) {
-      throw new BadRequestException(
-        `Nginx already contains a block for "${currentPlan.domain}" outside CODEX markers. Wrap the existing block with ${startMarker} / ${endMarker} or remove it before using automated provisioning.`,
-      );
-    }
-
     const nextContent = pattern.test(currentContent)
       ? currentContent.replace(pattern, `${block}\n`)
       : `${currentContent.trimEnd()}\n\n${block}\n`;

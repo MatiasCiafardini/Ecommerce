@@ -146,40 +146,75 @@ h2 {
   padding: 24px;
 }
 
-.workspace {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 24px;
+.top-nav,
+.section-tabs,
+.store-row-copy {
+  display: flex;
 }
 
-.sidebar {
-  display: grid;
+.top-nav {
   gap: 12px;
-  align-content: start;
+  flex-wrap: wrap;
 }
 
-.nav-button,
+.top-nav-button,
+.section-tab,
 .store-row {
   width: 100%;
   padding: 16px;
-  border-radius: 20px;
   color: var(--text);
   cursor: pointer;
   text-align: left;
+  border: 1px solid var(--line);
+}
+
+.top-nav-button {
+  flex: 1 1 220px;
+  border-radius: 22px;
+  background: var(--panel-strong);
+  display: grid;
+  gap: 4px;
+}
+
+.top-nav-button.active,
+.section-tab.active,
+.store-row.selected {
+  border-color: rgba(83, 183, 199, 0.7);
+  background: linear-gradient(180deg, rgba(20, 52, 67, 0.98), rgba(10, 26, 35, 0.98));
+}
+
+.section-tabs {
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.section-tab {
+  width: auto;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--panel-strong);
+}
+
+.store-row {
+  border-radius: 20px;
+  background: var(--panel-strong);
   display: flex;
   justify-content: space-between;
   gap: 12px;
 }
 
-.nav-button {
-  display: grid;
+.store-row-copy {
+  min-width: 0;
+  flex-direction: column;
   gap: 4px;
 }
 
-.nav-button.active,
-.store-row.selected {
-  border-color: rgba(83, 183, 199, 0.7);
-  background: linear-gradient(180deg, rgba(20, 52, 67, 0.98), rgba(10, 26, 35, 0.98));
+.store-row-copy strong,
+.store-row-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .content {
@@ -189,7 +224,8 @@ h2 {
 
 .stats-grid,
 .content-grid,
-.stores-grid,
+.store-shell,
+.create-shell,
 .check-grid {
   display: grid;
   gap: 16px;
@@ -203,8 +239,19 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.stores-grid {
+.store-shell {
   grid-template-columns: 360px minmax(0, 1fr);
+}
+
+.create-shell {
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.85fr);
+}
+
+.store-catalog,
+.store-detail,
+.create-main,
+.create-side {
+  min-width: 0;
 }
 
 .stat-card {
@@ -526,13 +573,13 @@ h2 {
 }
 
 @media (max-width: 1100px) {
-  .workspace,
-  .stores-grid,
   .content-grid,
   .stats-grid,
   .command-grid,
   .wizard-steps,
-  .theme-choice-grid.wizard {
+  .theme-choice-grid.wizard,
+  .store-shell,
+  .create-shell {
     grid-template-columns: 1fr;
   }
 }

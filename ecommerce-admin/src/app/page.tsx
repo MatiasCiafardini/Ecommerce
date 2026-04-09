@@ -35,6 +35,12 @@ type ProvisioningRunResult = {
   steps: string[];
   plan: ProvisioningPlan;
 };
+type PlatformDeployResult = {
+  ok: boolean;
+  executedAt: string;
+  command: string;
+  outputPreview: string;
+};
 type Store = {
   id: number;
   name: string;
@@ -413,6 +419,23 @@ function StoreFields({
 
 export default function Page() {
   const apiUrl = getApiUrl();
+  const navigationItems = [
+    {
+      id: "overview" as const,
+      label: "Overview",
+      detail: "Estado general",
+    },
+    {
+      id: "stores" as const,
+      label: "Tiendas",
+      detail: "Editor y publicacion",
+    },
+    {
+      id: "create" as const,
+      label: "Nueva tienda",
+      detail: "Lanzamiento guiado",
+    },
+  ];
   const [user, setUser] = useState<AuthUser | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
@@ -423,12 +446,16 @@ export default function Page() {
   const [tab, setTab] = useState<"overview" | "stores" | "create">("overview");
   const [themes, setThemes] = useState<ThemeOption[]>([]);
   const [createStepIndex, setCreateStepIndex] = useState(0);
+  const [storeSectionTab, setStoreSectionTab] = useState<
+    "identity" | "commerce" | "provisioning"
+  >("identity");
   const [loadingSession, setLoadingSession] = useState(true);
   const [loadingStore, setLoadingStore] = useState(false);
   const [savingCreate, setSavingCreate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingLogin, setSavingLogin] = useState(false);
   const [runningProvisioning, setRunningProvisioning] = useState(false);
+  const [runningPlatformDeploy, setRunningPlatformDeploy] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<ProvisioningPlan | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -533,6 +560,11 @@ export default function Page() {
     setErrorMessage(null);
     setSuccessMessage(null);
   }, [tab]);
+
+  useEffect(() => {
+    if (tab !== "stores") return;
+    setStoreSectionTab("identity");
+  }, [selectedStoreId, tab]);
 
   useEffect(() => {
     if (!user || !selectedStoreId) return;
@@ -665,6 +697,27 @@ export default function Page() {
     }
   }
 
+  async function onDeployPlatform() {
+    if (!user) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setRunningPlatformDeploy(true);
+    try {
+      const result = await request<PlatformDeployResult>("/system/platform/deploy", {
+        method: "POST",
+      });
+      setSuccessMessage(
+        `Deploy ejecutado a las ${new Date(result.executedAt).toLocaleTimeString("es-AR")}.`,
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "No se pudo ejecutar el deploy.",
+      );
+    } finally {
+      setRunningPlatformDeploy(false);
+    }
+  }
+
   function logout() {
     void request("/system/auth/logout", {
       method: "POST",
@@ -705,15 +758,19 @@ export default function Page() {
           </form>
         </section>
       ) : (
-        <section className="workspace">
-          <aside className="sidebar">
-            {["overview", "stores", "create"].map((item) => (
-              <button key={item} className={`nav-button${tab === item ? " active" : ""}`} onClick={() => setTab(item as "overview" | "stores" | "create")}>
-                <span>{item === "overview" ? "Overview" : item === "stores" ? "Tiendas" : "Nueva tienda"}</span>
-                <small>{item === "overview" ? "Estado general" : item === "stores" ? "Editar y auditar" : "Lanzamiento guiado"}</small>
+        <>
+          <nav className="top-nav">
+            {navigationItems.map((item) => (
+              <button
+                key={item.id}
+                className={`top-nav-button${tab === item.id ? " active" : ""}`}
+                onClick={() => setTab(item.id)}
+              >
+                <span>{item.label}</span>
+                <small>{item.detail}</small>
               </button>
             ))}
-          </aside>
+          </nav>
 
           <div className="content">
             <section className="stats-grid">
@@ -736,7 +793,7 @@ export default function Page() {
                   <p className="section-kicker">Recientes</p>
                   <h2>Tiendas activas</h2>
                   <div className="store-list">
-                    {stores.slice(0, 5).map((store) => <button key={store.id} className="store-row" onClick={() => { setTab("stores"); setSelectedStoreId(store.id); }}><div><strong>{store.name}</strong><span>{store.domain}</span></div><small>{formatDate(store.createdAt)}</small></button>)}
+                    {stores.slice(0, 5).map((store) => <button key={store.id} className="store-row" onClick={() => { setTab("stores"); setSelectedStoreId(store.id); }}><div className="store-row-copy"><strong>{store.name}</strong><span>{store.domain}</span></div><small>{formatDate(store.createdAt)}</small></button>)}
                   </div>
                 </article>
                 <article className="panel command-panel">
@@ -745,6 +802,14 @@ export default function Page() {
                       <p className="section-kicker">Comandos rápidos</p>
                       <h2>Flujo de deploy</h2>
                     </div>
+                    <button
+                      className="primary-button"
+                      type="button"
+                      disabled={runningPlatformDeploy}
+                      onClick={() => void onDeployPlatform()}
+                    >
+                      {runningPlatformDeploy ? "Ejecutando deploy..." : "Deploy plataforma"}
+                    </button>
                   </div>
                   <div className="command-grid">
                     <div className="command-card">
@@ -785,14 +850,14 @@ export default function Page() {
             ) : null}
 
             {tab === "stores" ? (
-              <section className="stores-grid">
-                <article className="panel">
+              <section className="store-shell">
+                <article className="panel store-catalog">
                   <div className="panel-top"><div><p className="section-kicker">Portfolio</p><h2>Tiendas</h2></div><span className="pill">{stores.length} activas</span></div>
                   <div className="store-list">
-                    {stores.map((store) => <button key={store.id} className={`store-row${selectedStoreId === store.id ? " selected" : ""}`} onClick={() => setSelectedStoreId(store.id)}><div><strong>{store.name}</strong><span>{store.domain}</span></div><small>#{store.id}</small></button>)}
+                    {stores.map((store) => <button key={store.id} className={`store-row${selectedStoreId === store.id ? " selected" : ""}`} onClick={() => setSelectedStoreId(store.id)}><div className="store-row-copy"><strong>{store.name}</strong><span>{store.domain}</span></div><small>#{store.id}</small></button>)}
                   </div>
                 </article>
-                <article className="panel">
+                <article className="panel store-detail">
                   <div className="panel-top">
                     <div><p className="section-kicker">Editor</p><h2>{selectedStore?.name ?? "Selecciona una tienda"}</h2></div>
                     {selectedStore ? <span className="pill">{selectedStore.domain}</span> : null}
@@ -807,82 +872,119 @@ export default function Page() {
                         </span>
                         <span className="status neutral">DNS externo manual</span>
                       </div>
-                      {loadingStore ? <p className="muted">Cargando configuracion...</p> : (
-                        <>
-                          <form className="stack-form" onSubmit={onSaveStore}><StoreFields value={editState} onChange={(patch) => setEditState((current) => ({ ...current, ...patch }))} saving={savingEdit} submitLabel="Guardar cambios" compact themes={themes} /></form>
-                          {selectedPlan ? (
-                            <div className="provisioning-panel">
-                              <div className="panel-top">
-                                <div>
-                                  <p className="section-kicker">Provisioning VPS</p>
-                                  <h2>Publicacion asistida</h2>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="primary-button"
-                                  disabled={!selectedPlan.automationEnabled || runningProvisioning}
-                                  onClick={() => void onProvisionVps()}
-                                >
-                                  {runningProvisioning
-                                    ? "Ejecutando..."
-                                    : selectedPlan.automationEnabled
-                                      ? "Ejecutar provisioning VPS"
-                                      : "Automatizacion deshabilitada"}
+                      <div className="section-tabs">
+                        <button type="button" className={`section-tab${storeSectionTab === "identity" ? " active" : ""}`} onClick={() => setStoreSectionTab("identity")}>Identidad</button>
+                        <button type="button" className={`section-tab${storeSectionTab === "commerce" ? " active" : ""}`} onClick={() => setStoreSectionTab("commerce")}>Comercio</button>
+                        <button type="button" className={`section-tab${storeSectionTab === "provisioning" ? " active" : ""}`} onClick={() => setStoreSectionTab("provisioning")}>Provisioning VPS</button>
+                      </div>
+                      {loadingStore ? <p className="muted">Cargando configuracion...</p> : null}
+                      {!loadingStore && storeSectionTab === "identity" ? <form className="stack-form" onSubmit={onSaveStore}><StoreFields value={editState} onChange={(patch) => setEditState((current) => ({ ...current, ...patch }))} saving={savingEdit} submitLabel="Guardar cambios" compact themes={themes} /></form> : null}
+                      {!loadingStore && storeSectionTab === "commerce" ? (
+                        <div className="stack-form">
+                          <div className="review-grid">
+                            <div className="review-card"><span>Storefront</span><strong>{selectedStore.provisioning.storefrontReady ? "Listo" : "Pendiente"}</strong></div>
+                            <div className="review-card"><span>Manual sales</span><strong>{selectedStore.features.manualSalesEnabled ? "Activa" : "Apagada"}</strong></div>
+                            <div className="review-card"><span>Mercado Pago</span><strong>{selectedStore.integrations.mercadopago.publicKeyConfigured ? "Configurado" : "Pendiente"}</strong></div>
+                            <div className="review-card"><span>Transferencia</span><strong>{selectedStore.integrations.bankTransfer.discountPercentage}%</strong></div>
+                          </div>
+                          <div className="command-grid">
+                            <div className="command-card">
+                              <div className="command-head">
+                                <div><strong>Deploy local</strong><span>Subir cambios de codigo</span></div>
+                                <button className="ghost-button" type="button" onClick={() => void copyCommandBlock(localDeployCommand, "Comando local")}>Copiar</button>
+                              </div>
+                              <pre className="command-code">{localDeployCommand}</pre>
+                            </div>
+                            <div className="command-card">
+                              <div className="command-head">
+                                <div><strong>Deploy VPS</strong><span>Recompila backend, storefront y admin</span></div>
+                                <button className="ghost-button" type="button" onClick={() => void copyCommandBlock(vpsDeployCommand, "Comando VPS")}>Copiar</button>
+                              </div>
+                              <pre className="command-code">{vpsDeployCommand}</pre>
+                            </div>
+                            <div className="command-card">
+                              <div className="command-head">
+                                <div><strong>Deploy desde panel</strong><span>Ejecuta deploy.sh en la VPS</span></div>
+                                <button className="primary-button" type="button" disabled={runningPlatformDeploy} onClick={() => void onDeployPlatform()}>
+                                  {runningPlatformDeploy ? "Ejecutando..." : "Deploy plataforma"}
                                 </button>
                               </div>
-
-                              <div className="review-grid">
-                                <div className="review-card">
-                                  <span>Domain</span>
-                                  <strong>{selectedPlan.domain}</strong>
-                                </div>
-                                <div className="review-card">
-                                  <span>Proxy target</span>
-                                  <strong>{selectedPlan.proxyTarget}</strong>
-                                </div>
-                                <div className="review-card span-2">
-                                  <span>Host map</span>
-                                  <strong>{selectedPlan.entries.hostMap.join(", ")}</strong>
-                                </div>
-                                <div className="review-card span-2">
-                                  <span>CORS</span>
-                                  <strong>{selectedPlan.entries.corsOrigins.join(", ")}</strong>
-                                </div>
-                              </div>
-
-                              <div className="command-grid">
-                                <div className="command-card">
-                                  <div className="command-head">
-                                    <div>
-                                      <strong>Nginx HTTP inicial</strong>
-                                      <span>Prepara ACME y redireccion</span>
-                                    </div>
-                                  </div>
-                                  <pre className="command-code">{selectedPlan.nginx.httpOnlyBlock}</pre>
-                                </div>
-                                <div className="command-card">
-                                  <div className="command-head">
-                                    <div>
-                                      <strong>Nginx HTTPS final</strong>
-                                      <span>Bloque productivo con proxy a storefront</span>
-                                    </div>
-                                  </div>
-                                  <pre className="command-code">{selectedPlan.nginx.managedBlock}</pre>
-                                </div>
-                              </div>
-
-                              <div className="check-grid vertical">
-                                {selectedPlan.notes.map((note) => (
-                                  <div key={note} className="check-card">
-                                    <strong>Importante</strong>
-                                    <span>{note}</span>
-                                  </div>
-                                ))}
-                              </div>
+                              <pre className="command-code">{`POST ${apiUrl}/system/platform/deploy`}</pre>
                             </div>
-                          ) : null}
-                        </>
-                      )}
+                          </div>
+                        </div>
+                      ) : null}
+                      {!loadingStore && storeSectionTab === "provisioning" && selectedPlan ? (
+                        <div className="provisioning-panel">
+                          <div className="panel-top">
+                            <div>
+                              <p className="section-kicker">Provisioning VPS</p>
+                              <h2>Publicacion asistida</h2>
+                            </div>
+                            <button
+                              type="button"
+                              className="primary-button"
+                              disabled={!selectedPlan.automationEnabled || runningProvisioning}
+                              onClick={() => void onProvisionVps()}
+                            >
+                              {runningProvisioning
+                                ? "Ejecutando..."
+                                : selectedPlan.automationEnabled
+                                  ? "Ejecutar provisioning VPS"
+                                  : "Automatizacion deshabilitada"}
+                            </button>
+                          </div>
+
+                          <div className="review-grid">
+                            <div className="review-card">
+                              <span>Domain</span>
+                              <strong>{selectedPlan.domain}</strong>
+                            </div>
+                            <div className="review-card">
+                              <span>Proxy target</span>
+                              <strong>{selectedPlan.proxyTarget}</strong>
+                            </div>
+                            <div className="review-card span-2">
+                              <span>Host map</span>
+                              <strong>{selectedPlan.entries.hostMap.join(", ")}</strong>
+                            </div>
+                            <div className="review-card span-2">
+                              <span>CORS</span>
+                              <strong>{selectedPlan.entries.corsOrigins.join(", ")}</strong>
+                            </div>
+                          </div>
+
+                          <div className="command-grid">
+                            <div className="command-card">
+                              <div className="command-head">
+                                <div>
+                                  <strong>Nginx HTTP inicial</strong>
+                                  <span>Prepara ACME y redireccion</span>
+                                </div>
+                              </div>
+                              <pre className="command-code">{selectedPlan.nginx.httpOnlyBlock}</pre>
+                            </div>
+                            <div className="command-card">
+                              <div className="command-head">
+                                <div>
+                                  <strong>Nginx HTTPS final</strong>
+                                  <span>Bloque productivo con proxy a storefront</span>
+                                </div>
+                              </div>
+                              <pre className="command-code">{selectedPlan.nginx.managedBlock}</pre>
+                            </div>
+                          </div>
+
+                          <div className="check-grid vertical">
+                            {selectedPlan.notes.map((note) => (
+                              <div key={note} className="check-card">
+                                <strong>Importante</strong>
+                                <span>{note}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </>
                   ) : <p className="muted">Elegi una tienda para editar branding, owner, dominio e integraciones.</p>}
                 </article>
@@ -890,8 +992,8 @@ export default function Page() {
             ) : null}
 
             {tab === "create" ? (
-              <section className="content-grid">
-                <article className="panel">
+              <section className="create-shell">
+                <article className="panel create-main">
                   <div className="panel-top">
                     <div>
                       <p className="section-kicker">Provisioning</p>
@@ -1043,7 +1145,7 @@ export default function Page() {
                     </button>
                   </div>
                 </article>
-                <article className="panel">
+                <article className="panel create-side">
                   <p className="section-kicker">Resumen operativo</p>
                   <h2>Lo que resuelve este wizard</h2>
                   <div className="check-grid vertical">
@@ -1076,7 +1178,7 @@ export default function Page() {
               </section>
             ) : null}
           </div>
-        </section>
+        </>
       )}
     </main>
   );

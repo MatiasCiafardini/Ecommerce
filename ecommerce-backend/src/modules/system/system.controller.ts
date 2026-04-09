@@ -73,6 +73,13 @@ export class SystemController {
 
   @ApiBearerAuth('jwt')
   @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Post('platform/deploy')
+  deployPlatform() {
+    return this.systemService.deployPlatform();
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
   @Get('stores')
   listStores() {
     return this.systemService.listStores();
