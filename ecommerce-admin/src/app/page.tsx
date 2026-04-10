@@ -41,6 +41,14 @@ type PlatformDeployResult = {
   command: string;
   outputPreview: string;
 };
+type StoreUser = {
+  id: number;
+  email: string;
+  name?: string | null;
+  role: "OWNER" | "ADMIN" | "STAFF";
+  createdAt: string;
+  isOwner: boolean;
+};
 type Store = {
   id: number;
   name: string;
@@ -116,6 +124,12 @@ type StoreFormState = {
   manualSalesEnabled: boolean;
   bankTransferDiscountPercentage: string;
 };
+type StoreUserFormState = {
+  email: string;
+  name: string;
+  password: string;
+  role: "ADMIN" | "STAFF";
+};
 
 const localDeployCommand = `git add .\ngit commit -m "mensaje del cambio"\ngit push origin main`;
 const vpsDeployCommand = `ssh mati@187.127.13.225\nbash /var/www/ecommerce/deploy.sh`;
@@ -144,6 +158,12 @@ const emptyStoreForm: StoreFormState = {
   mercadoPagoWebhookSecret: "",
   manualSalesEnabled: false,
   bankTransferDiscountPercentage: "0",
+};
+const emptyStoreUserForm: StoreUserFormState = {
+  email: "",
+  name: "",
+  password: "",
+  role: "ADMIN",
 };
 const createSteps = [
   { id: "identity", label: "Datos base", detail: "Nombre, dominio, owner y theme base" },
@@ -217,6 +237,24 @@ function serializeStoreForm(value: StoreFormState) {
   return {
     ...value,
     bankTransferDiscountPercentage: Number(value.bankTransferDiscountPercentage || 0),
+  };
+}
+
+function userToForm(user: StoreUser): StoreUserFormState {
+  return {
+    email: user.email,
+    name: user.name ?? "",
+    password: "",
+    role: user.role === "STAFF" ? "STAFF" : "ADMIN",
+  };
+}
+
+function serializeStoreUserForm(value: StoreUserFormState) {
+  return {
+    email: value.email.trim(),
+    name: value.name.trim(),
+    password: value.password,
+    role: value.role,
   };
 }
 
@@ -447,12 +485,19 @@ export default function Page() {
   const [themes, setThemes] = useState<ThemeOption[]>([]);
   const [createStepIndex, setCreateStepIndex] = useState(0);
   const [storeSectionTab, setStoreSectionTab] = useState<
-    "identity" | "commerce" | "provisioning"
+    "identity" | "commerce" | "users" | "provisioning"
   >("identity");
+  const [storeUsers, setStoreUsers] = useState<StoreUser[]>([]);
+  const [createUserState, setCreateUserState] = useState(emptyStoreUserForm);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editUserState, setEditUserState] = useState(emptyStoreUserForm);
   const [loadingSession, setLoadingSession] = useState(true);
   const [loadingStore, setLoadingStore] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [savingCreate, setSavingCreate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
   const [savingLogin, setSavingLogin] = useState(false);
   const [runningProvisioning, setRunningProvisioning] = useState(false);
   const [runningPlatformDeploy, setRunningPlatformDeploy] = useState(false);
@@ -497,6 +542,12 @@ export default function Page() {
     });
   }
 
+  async function loadStoreUsers(id: number) {
+    return request<StoreUser[]>(`/system/stores/${id}/users`, {
+      cache: "no-store",
+    });
+  }
+
   async function bootstrap() {
     const profile = await request<AuthUser>("/system/auth/me", {
       cache: "no-store",
@@ -520,6 +571,10 @@ export default function Page() {
       setSelectedStore(detail);
       setSelectedPlan(plan);
       setEditState(storeToForm(detail));
+      setStoreUsers([]);
+      setCreateUserState(emptyStoreUserForm);
+      setEditingUserId(null);
+      setEditUserState(emptyStoreUserForm);
     }
   }
 
@@ -536,8 +591,16 @@ export default function Page() {
       setSelectedStore(detail);
       setSelectedPlan(plan);
       setEditState(storeToForm(detail));
+      setStoreUsers([]);
+      setCreateUserState(emptyStoreUserForm);
+      setEditingUserId(null);
+      setEditUserState(emptyStoreUserForm);
     } else {
       setSelectedPlan(null);
+      setStoreUsers([]);
+      setCreateUserState(emptyStoreUserForm);
+      setEditingUserId(null);
+      setEditUserState(emptyStoreUserForm);
     }
   }
 
@@ -548,6 +611,7 @@ export default function Page() {
       setSelectedStore(null);
       setSelectedStoreId(null);
       setSelectedPlan(null);
+      setStoreUsers([]);
       if (error instanceof Error && /401|403/.test(error.message)) {
         return;
       }
@@ -565,6 +629,28 @@ export default function Page() {
     if (tab !== "stores") return;
     setStoreSectionTab("identity");
   }, [selectedStoreId, tab]);
+
+  useEffect(() => {
+    if (storeSectionTab !== "users" || !user || !selectedStoreId) return;
+    setLoadingUsers(true);
+    loadStoreUsers(selectedStoreId)
+      .then((users) => {
+        setStoreUsers(users);
+        if (editingUserId) {
+          const currentEditingUser = users.find((candidate) => candidate.id === editingUserId);
+          if (currentEditingUser) {
+            setEditUserState(userToForm(currentEditingUser));
+          } else {
+            setEditingUserId(null);
+            setEditUserState(emptyStoreUserForm);
+          }
+        }
+      })
+      .catch((error) => {
+        setErrorMessage(error instanceof Error ? error.message : "No se pudieron cargar los usuarios.");
+      })
+      .finally(() => setLoadingUsers(false));
+  }, [editingUserId, selectedStoreId, storeSectionTab, user]);
 
   useEffect(() => {
     if (!user || !selectedStoreId) return;
@@ -587,6 +673,31 @@ export default function Page() {
     { label: "Pagos listos", value: stores.filter((store) => store.provisioning.paymentsReady).length, detail: "Mercado Pago cargado" },
     { label: "Venta manual", value: stores.filter((store) => store.features.manualSalesEnabled).length, detail: "Tiendas con venta manual activa" },
   ]), [stores]);
+
+  async function refreshUsers(storeId: number, keepEditingUserId?: number | null) {
+    const users = await loadStoreUsers(storeId);
+    setStoreUsers(users);
+    if (keepEditingUserId) {
+      const currentEditingUser = users.find((candidate) => candidate.id === keepEditingUserId);
+      if (currentEditingUser) {
+        setEditingUserId(currentEditingUser.id);
+        setEditUserState(userToForm(currentEditingUser));
+        return;
+      }
+    }
+    setEditingUserId(null);
+    setEditUserState(emptyStoreUserForm);
+  }
+
+  function startEditingUser(userToEdit: StoreUser) {
+    setEditingUserId(userToEdit.id);
+    setEditUserState(userToForm(userToEdit));
+  }
+
+  function cancelEditingUser() {
+    setEditingUserId(null);
+    setEditUserState(emptyStoreUserForm);
+  }
 
   async function onLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -671,6 +782,73 @@ export default function Page() {
     }
   }
 
+  async function onCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || !selectedStoreId) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setSavingUser(true);
+    try {
+      await request<StoreUser>(`/system/stores/${selectedStoreId}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(serializeStoreUserForm(createUserState)),
+      });
+      setCreateUserState(emptyStoreUserForm);
+      await Promise.all([refresh(selectedStoreId), refreshUsers(selectedStoreId)]);
+      setSuccessMessage("Usuario agregado correctamente a la tienda.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo agregar el usuario.");
+    } finally {
+      setSavingUser(false);
+    }
+  }
+
+  async function onUpdateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || !selectedStoreId || !editingUserId) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setSavingUser(true);
+    try {
+      const payload = serializeStoreUserForm(editUserState);
+      await request<StoreUser>(`/system/stores/${selectedStoreId}/users/${editingUserId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: payload.email,
+          name: payload.name,
+          password: payload.password || undefined,
+          role: payload.role,
+        }),
+      });
+      await Promise.all([refresh(selectedStoreId), refreshUsers(selectedStoreId, editingUserId)]);
+      setSuccessMessage("Usuario actualizado correctamente.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar el usuario.");
+    } finally {
+      setSavingUser(false);
+    }
+  }
+
+  async function onDeleteUser(userToDelete: StoreUser) {
+    if (!user || !selectedStoreId || userToDelete.isOwner) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setDeletingUserId(userToDelete.id);
+    try {
+      await request<{ ok: boolean }>(`/system/stores/${selectedStoreId}/users/${userToDelete.id}`, {
+        method: "DELETE",
+      });
+      await Promise.all([refresh(selectedStoreId), refreshUsers(selectedStoreId)]);
+      setSuccessMessage(`Usuario ${userToDelete.email} eliminado.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo eliminar el usuario.");
+    } finally {
+      setDeletingUserId(null);
+    }
+  }
+
   async function onProvisionVps() {
     if (!user || !selectedStoreId) return;
     setErrorMessage(null);
@@ -727,6 +905,10 @@ export default function Page() {
     setSelectedStore(null);
     setSelectedStoreId(null);
     setSelectedPlan(null);
+    setStoreUsers([]);
+    setCreateUserState(emptyStoreUserForm);
+    setEditingUserId(null);
+    setEditUserState(emptyStoreUserForm);
     setSuccessMessage("Sesion cerrada.");
   }
 
@@ -875,6 +1057,7 @@ export default function Page() {
                       <div className="section-tabs">
                         <button type="button" className={`section-tab${storeSectionTab === "identity" ? " active" : ""}`} onClick={() => setStoreSectionTab("identity")}>Identidad</button>
                         <button type="button" className={`section-tab${storeSectionTab === "commerce" ? " active" : ""}`} onClick={() => setStoreSectionTab("commerce")}>Comercio</button>
+                        <button type="button" className={`section-tab${storeSectionTab === "users" ? " active" : ""}`} onClick={() => setStoreSectionTab("users")}>Usuarios</button>
                         <button type="button" className={`section-tab${storeSectionTab === "provisioning" ? " active" : ""}`} onClick={() => setStoreSectionTab("provisioning")}>Provisioning VPS</button>
                       </div>
                       {loadingStore ? <p className="muted">Cargando configuracion...</p> : null}
@@ -910,6 +1093,176 @@ export default function Page() {
                                 </button>
                               </div>
                               <pre className="command-code">{`POST ${apiUrl}/system/platform/deploy`}</pre>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                      {!loadingStore && storeSectionTab === "users" ? (
+                        <div className="users-panel">
+                          <div className="review-grid">
+                            <div className="review-card">
+                              <span>Usuarios activos</span>
+                              <strong>{storeUsers.length}</strong>
+                            </div>
+                            <div className="review-card">
+                              <span>Owner protegido</span>
+                              <strong>{selectedStore.owner?.email ?? "Sin owner"}</strong>
+                              <small>El owner se puede editar, pero no eliminar.</small>
+                            </div>
+                          </div>
+
+                          <div className="user-management-grid">
+                            <form className="user-form-card" onSubmit={onCreateUser}>
+                              <div>
+                                <p className="section-kicker">Alta</p>
+                                <h2>Agregar usuario</h2>
+                              </div>
+                              <div className="form-grid">
+                                <label className="field">
+                                  <span>Nombre</span>
+                                  <input
+                                    value={createUserState.name}
+                                    onChange={(event) => setCreateUserState((current) => ({ ...current, name: event.target.value }))}
+                                    type="text"
+                                  />
+                                </label>
+                                <label className="field">
+                                  <span>Email</span>
+                                  <input
+                                    value={createUserState.email}
+                                    onChange={(event) => setCreateUserState((current) => ({ ...current, email: event.target.value }))}
+                                    type="email"
+                                    required
+                                  />
+                                </label>
+                                <label className="field">
+                                  <span>Rol</span>
+                                  <select
+                                    value={createUserState.role}
+                                    onChange={(event) => setCreateUserState((current) => ({ ...current, role: event.target.value as "ADMIN" | "STAFF" }))}
+                                  >
+                                    <option value="ADMIN">ADMIN</option>
+                                    <option value="STAFF">STAFF</option>
+                                  </select>
+                                </label>
+                                <label className="field">
+                                  <span>Password</span>
+                                  <input
+                                    value={createUserState.password}
+                                    onChange={(event) => setCreateUserState((current) => ({ ...current, password: event.target.value }))}
+                                    type="password"
+                                    minLength={8}
+                                    required
+                                  />
+                                </label>
+                              </div>
+                              <button className="primary-button" disabled={savingUser}>
+                                {savingUser ? "Guardando..." : "Agregar usuario"}
+                              </button>
+                            </form>
+
+                            <div className="user-form-card">
+                              <div className="panel-top">
+                                <div>
+                                  <p className="section-kicker">Equipo</p>
+                                  <h2>Usuarios de la tienda</h2>
+                                </div>
+                                <span className="pill">{storeUsers.length} usuarios</span>
+                              </div>
+
+                              {loadingUsers ? <p className="muted">Cargando usuarios...</p> : null}
+
+                              {!loadingUsers ? (
+                                <div className="user-list">
+                                  {storeUsers.map((storeUser) => (
+                                    <article key={storeUser.id} className="user-row-card">
+                                      <div className="user-row-head">
+                                        <div>
+                                          <strong>{storeUser.name || "Sin nombre"}</strong>
+                                          <span>{storeUser.email}</span>
+                                        </div>
+                                        <div className="user-badges">
+                                          <span className={`status ${storeUser.isOwner ? "ok" : "neutral"}`}>{storeUser.role}</span>
+                                          <span className="pill">Alta {formatDate(storeUser.createdAt)}</span>
+                                        </div>
+                                      </div>
+
+                                      {editingUserId === storeUser.id ? (
+                                        <form className="stack-form" onSubmit={onUpdateUser}>
+                                          <div className="form-grid">
+                                            <label className="field">
+                                              <span>Nombre</span>
+                                              <input
+                                                value={editUserState.name}
+                                                onChange={(event) => setEditUserState((current) => ({ ...current, name: event.target.value }))}
+                                                type="text"
+                                              />
+                                            </label>
+                                            <label className="field">
+                                              <span>Email</span>
+                                              <input
+                                                value={editUserState.email}
+                                                onChange={(event) => setEditUserState((current) => ({ ...current, email: event.target.value }))}
+                                                type="email"
+                                                required
+                                              />
+                                            </label>
+                                            {!storeUser.isOwner ? (
+                                              <label className="field">
+                                                <span>Rol</span>
+                                                <select
+                                                  value={editUserState.role}
+                                                  onChange={(event) => setEditUserState((current) => ({ ...current, role: event.target.value as "ADMIN" | "STAFF" }))}
+                                                >
+                                                  <option value="ADMIN">ADMIN</option>
+                                                  <option value="STAFF">STAFF</option>
+                                                </select>
+                                              </label>
+                                            ) : null}
+                                            <label className="field">
+                                              <span>{storeUser.isOwner ? "Nueva password owner" : "Nueva password"}</span>
+                                              <input
+                                                value={editUserState.password}
+                                                onChange={(event) => setEditUserState((current) => ({ ...current, password: event.target.value }))}
+                                                type="password"
+                                                minLength={8}
+                                                placeholder="Opcional"
+                                              />
+                                            </label>
+                                          </div>
+                                          <div className="user-row-actions">
+                                            <button className="primary-button" disabled={savingUser}>
+                                              {savingUser ? "Guardando..." : "Guardar cambios"}
+                                            </button>
+                                            <button className="ghost-button" type="button" onClick={cancelEditingUser}>
+                                              Cancelar
+                                            </button>
+                                          </div>
+                                        </form>
+                                      ) : (
+                                        <div className="user-row-actions">
+                                          <button className="ghost-button" type="button" onClick={() => startEditingUser(storeUser)}>
+                                            Editar
+                                          </button>
+                                          <button
+                                            className="ghost-button danger-button"
+                                            type="button"
+                                            disabled={storeUser.isOwner || deletingUserId === storeUser.id}
+                                            onClick={() => void onDeleteUser(storeUser)}
+                                          >
+                                            {storeUser.isOwner
+                                              ? "Owner protegido"
+                                              : deletingUserId === storeUser.id
+                                                ? "Eliminando..."
+                                                : "Eliminar"}
+                                          </button>
+                                        </div>
+                                      )}
+                                    </article>
+                                  ))}
+                                  {storeUsers.length === 0 ? <p className="muted">Esta tienda todavia no tiene usuarios cargados.</p> : null}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </div>

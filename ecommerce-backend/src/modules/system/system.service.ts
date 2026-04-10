@@ -9,6 +9,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { runtimeConfig } from '../../config/runtime-config';
 import { CreateSystemStoreDto } from './dto/create-system-store.dto';
 import { UpdateSystemStoreDto } from './dto/update-system-store.dto';
+import { CreateSystemStoreUserDto } from './dto/create-system-store-user.dto';
+import { UpdateSystemStoreUserDto } from './dto/update-system-store-user.dto';
 
 type StorefrontSection = Record<string, unknown>;
 type ThemeCatalogEntry = {
@@ -167,6 +169,15 @@ const availableThemes: ThemeCatalogEntry[] = [
   },
 ];
 const execFileAsync = promisify(execFile);
+const managedSystemUserRoles = new Set<Role>([Role.OWNER, Role.ADMIN, Role.STAFF]);
+const creatableSystemUserRoles = new Set<Role>([Role.ADMIN, Role.STAFF]);
+const systemStoreUserSelect = {
+  id: true,
+  email: true,
+  name: true,
+  role: true,
+  createdAt: true,
+} satisfies Prisma.UserSelect;
 
 function normalizeDomain(value: string) {
   return value
@@ -477,6 +488,178 @@ export class SystemService {
     }
 
     return this.serializeStore(store);
+  }
+
+  async listStoreUsers(storeId: number) {
+    await this.ensureStoreExists(storeId);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        storeId,
+        role: {
+          in: Array.from(managedSystemUserRoles),
+        },
+      },
+      select: systemStoreUserSelect,
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    return this.sortStoreUsers(users).map((user) => this.serializeStoreUser(user));
+  }
+
+  async createStoreUser(storeId: number, dto: CreateSystemStoreUserDto) {
+    await this.ensureStoreExists(storeId);
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const nextRole = dto.role as Role;
+
+    if (!creatableSystemUserRoles.has(nextRole)) {
+      throw new BadRequestException(
+        'Solo se pueden crear usuarios con rol ADMIN o STAFF desde este panel.',
+      );
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        email: normalizedEmail,
+      },
+      select: {
+        id: true,
+        storeId: true,
+      },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException(
+        `A user with email "${normalizedEmail}" already exists`,
+      );
+    }
+
+    const createdUser = await this.prisma.user.create({
+      data: {
+        email: normalizedEmail,
+        password: await bcrypt.hash(dto.password, 10),
+        name: sanitizeOptionalString(dto.name),
+        role: nextRole,
+        storeId,
+      },
+      select: systemStoreUserSelect,
+    });
+
+    return this.serializeStoreUser(createdUser);
+  }
+
+  async updateStoreUser(
+    storeId: number,
+    userId: number,
+    dto: UpdateSystemStoreUserDto,
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        storeId,
+        role: {
+          in: Array.from(managedSystemUserRoles),
+        },
+      },
+      select: systemStoreUserSelect,
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `User with id ${userId} was not found for store ${storeId}`,
+      );
+    }
+
+    if (user.role === Role.OWNER && dto.role) {
+      throw new BadRequestException(
+        'El rol OWNER se administra desde la ficha principal de la tienda.',
+      );
+    }
+
+    const normalizedEmail = dto.email?.trim().toLowerCase();
+
+    if (normalizedEmail && normalizedEmail !== user.email) {
+      const emailConflict = await this.prisma.user.findFirst({
+        where: {
+          email: normalizedEmail,
+          NOT: {
+            id: userId,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (emailConflict) {
+        throw new BadRequestException(
+          `A user with email "${normalizedEmail}" already exists`,
+        );
+      }
+    }
+
+    if (dto.role && !creatableSystemUserRoles.has(dto.role as Role)) {
+      throw new BadRequestException(
+        'Solo se pueden asignar roles ADMIN o STAFF desde este panel.',
+      );
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        ...(normalizedEmail ? { email: normalizedEmail } : {}),
+        ...(dto.name !== undefined
+          ? { name: sanitizeOptionalString(dto.name) }
+          : {}),
+        ...(dto.password
+          ? { password: await bcrypt.hash(dto.password, 10) }
+          : {}),
+        ...(dto.role ? { role: dto.role as Role } : {}),
+      },
+      select: systemStoreUserSelect,
+    });
+
+    return this.serializeStoreUser(updatedUser);
+  }
+
+  async deleteStoreUser(storeId: number, userId: number) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        storeId,
+        role: {
+          in: Array.from(managedSystemUserRoles),
+        },
+      },
+      select: systemStoreUserSelect,
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `User with id ${userId} was not found for store ${storeId}`,
+      );
+    }
+
+    if (user.role === Role.OWNER) {
+      throw new BadRequestException(
+        'El owner no se puede eliminar desde el panel de usuarios.',
+      );
+    }
+
+    await this.prisma.user.delete({
+      where: {
+        id: userId,
+      },
+    });
+
+    return {
+      ok: true,
+      deletedUserId: userId,
+    };
   }
 
   async createStore(dto: CreateSystemStoreDto) {
@@ -1193,6 +1376,57 @@ export class SystemService {
       },
       storefrontConfig,
     };
+  }
+
+  private serializeStoreUser(user: {
+    id: number;
+    email: string;
+    name: string | null;
+    role: Role;
+    createdAt: Date;
+  }) {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name ?? null,
+      role: user.role,
+      createdAt: user.createdAt,
+      isOwner: user.role === Role.OWNER,
+    };
+  }
+
+  private sortStoreUsers<
+    T extends {
+      role: Role;
+      createdAt: Date;
+    },
+  >(users: T[]) {
+    const roleOrder: Record<Role, number> = {
+      SUPER_ADMIN: 99,
+      OWNER: 0,
+      ADMIN: 1,
+      STAFF: 2,
+    };
+
+    return [...users].sort((left, right) => {
+      const roleDiff = roleOrder[left.role] - roleOrder[right.role];
+      if (roleDiff !== 0) {
+        return roleDiff;
+      }
+
+      return left.createdAt.getTime() - right.createdAt.getTime();
+    });
+  }
+
+  private async ensureStoreExists(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true },
+    });
+
+    if (!store) {
+      throw new NotFoundException(`Store with id ${storeId} was not found`);
+    }
   }
 
   private normalizeBankTransferDiscount(value?: number | null) {

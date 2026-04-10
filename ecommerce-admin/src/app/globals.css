@@ -37,7 +37,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -112,7 +113,8 @@ h2 {
 .store-row,
 .nav-button,
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   background: var(--panel-strong);
   border: 1px solid var(--line);
 }
@@ -281,7 +283,10 @@ h2 {
 }
 
 .store-list,
-.stack-form {
+.stack-form,
+.user-list,
+.user-form-card,
+.users-panel {
   display: grid;
   gap: 14px;
 }
@@ -503,7 +508,8 @@ h2 {
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   border-radius: 16px;
   color: var(--text);
@@ -512,6 +518,62 @@ h2 {
 
 .field textarea {
   resize: vertical;
+}
+
+.users-panel,
+.user-management-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.user-management-grid {
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.user-form-card,
+.user-row-card {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+}
+
+.user-row-card {
+  display: grid;
+  gap: 14px;
+}
+
+.user-row-head,
+.user-row-actions,
+.user-badges {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.user-row-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.user-row-head span,
+.user-form-card p,
+.user-form-card .muted {
+  color: var(--muted);
+}
+
+.user-badges {
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.user-row-actions {
+  align-items: center;
+}
+
+.danger-button {
+  border-color: rgba(255, 141, 141, 0.32);
+  color: var(--danger);
 }
 
 .primary-button,
@@ -579,7 +641,8 @@ h2 {
   .wizard-steps,
   .theme-choice-grid.wizard,
   .store-shell,
-  .create-shell {
+  .create-shell,
+  .user-management-grid {
     grid-template-columns: 1fr;
   }
 }

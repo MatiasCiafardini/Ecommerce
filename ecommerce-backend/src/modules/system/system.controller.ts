@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -17,6 +18,8 @@ import { SuperAdminAuthGuard } from '../auth/guards/super-admin-auth.guard';
 import { SystemService } from './system.service';
 import { CreateSystemStoreDto } from './dto/create-system-store.dto';
 import { UpdateSystemStoreDto } from './dto/update-system-store.dto';
+import { CreateSystemStoreUserDto } from './dto/create-system-store-user.dto';
+import { UpdateSystemStoreUserDto } from './dto/update-system-store-user.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { clearAuthCookie, setAuthCookie } from '../auth/utils/auth-cookie.util';
@@ -114,6 +117,44 @@ export class SystemController {
     @Body() dto: UpdateSystemStoreDto,
   ) {
     return this.systemService.updateStore(id, dto);
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Get('stores/:id/users')
+  listStoreUsers(@Param('id', ParseIntPipe) id: number) {
+    return this.systemService.listStoreUsers(id);
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Post('stores/:id/users')
+  createStoreUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateSystemStoreUserDto,
+  ) {
+    return this.systemService.createStoreUser(id, dto);
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Patch('stores/:storeId/users/:userId')
+  updateStoreUser(
+    @Param('storeId', ParseIntPipe) storeId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body() dto: UpdateSystemStoreUserDto,
+  ) {
+    return this.systemService.updateStoreUser(storeId, userId, dto);
+  }
+
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, SuperAdminAuthGuard)
+  @Delete('stores/:storeId/users/:userId')
+  deleteStoreUser(
+    @Param('storeId', ParseIntPipe) storeId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.systemService.deleteStoreUser(storeId, userId);
   }
 
   @ApiBearerAuth('jwt')
