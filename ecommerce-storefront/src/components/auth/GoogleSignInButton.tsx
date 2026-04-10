@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { User } from "@/context/auth-context";
 import { getGoogleClientId } from "@/lib/runtime-config";
 
@@ -109,6 +109,18 @@ export function GoogleSignInButton({
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const emitSuccess = useEffectEvent(async (user: User) => {
+    await onSuccess(user);
+  });
+  const emitError = useEffectEvent((message: string) => {
+    onError?.(message);
+  });
+  const emitBusyChange = useEffectEvent((busy: boolean) => {
+    onBusyChange?.(busy);
+  });
+  const performGoogleLogin = useEffectEvent(
+    async (data: { credential: string; clientId?: string }) => loginWithGoogle(data),
+  );
 
   useEffect(() => {
     if (!clientId || !buttonRef.current) {
@@ -127,25 +139,25 @@ export function GoogleSignInButton({
 
         const handleCredential = async (response: GoogleCredentialResponse) => {
           if (!response.credential) {
-            onError?.("Google no devolvio una credencial valida.");
+            emitError("Google no devolvio una credencial valida.");
             return;
           }
 
           try {
-            onBusyChange?.(true);
-            const user = await loginWithGoogle({
+            emitBusyChange(true);
+            const user = await performGoogleLogin({
               credential: response.credential,
               clientId,
             });
-            await onSuccess(user);
+            await emitSuccess(user);
           } catch (error) {
             const message =
               error instanceof Error && error.message
                 ? error.message
                 : "No se pudo iniciar con Google.";
-            onError?.(message);
+            emitError(message);
           } finally {
-            onBusyChange?.(false);
+            emitBusyChange(false);
           }
         };
 
@@ -178,13 +190,13 @@ export function GoogleSignInButton({
             ? error.message
             : "No se pudo cargar Google Sign-In.";
         setLoadError(message);
-        onError?.(message);
+        emitError(message);
       });
 
     return () => {
       active = false;
     };
-  }, [clientId, loginWithGoogle, onBusyChange, onError, onSuccess, text]);
+  }, [clientId, text]);
 
   if (!clientId) {
     return (
