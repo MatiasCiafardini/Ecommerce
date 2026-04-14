@@ -2,7 +2,15 @@ import { apiFetch } from "./api-client";
 import { StoreProductOption } from "@/types/store";
 
 export async function getStoreProductOptions(): Promise<StoreProductOption[]> {
-  const options = await apiFetch<StoreProductOption[]>("/store/options");
+  let options: StoreProductOption[] | null = null;
+
+  try {
+    options = await apiFetch<StoreProductOption[]>("/store/options");
+  } catch (error) {
+    console.error("[products] Failed to load storefront options", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   if (!Array.isArray(options)) {
     return [];
@@ -12,9 +20,18 @@ export async function getStoreProductOptions(): Promise<StoreProductOption[]> {
 }
 
 export async function getProductOptions(slug: string) {
-  const options = await apiFetch<StoreProductOption[]>(
-    `/store/products/${slug}/options`,
-  );
+  let options: StoreProductOption[] | null = null;
+
+  try {
+    options = await apiFetch<StoreProductOption[]>(
+      `/store/products/${slug}/options`,
+    );
+  } catch (error) {
+    console.error("[products] Failed to load product options", {
+      slug,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   if (!Array.isArray(options)) {
     return [];

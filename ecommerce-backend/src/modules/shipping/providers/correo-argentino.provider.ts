@@ -234,7 +234,16 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     const cacheKey = `${config.apiBaseUrl}|${config.apiUsername}|${config.apiPassword}`;
     const cached = this.tokenCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
-    const response = await axios.post(this.url(config.apiBaseUrl, '/token'), undefined, { auth: { username: config.apiUsername, password: config.apiPassword } }).catch((error) => this.fail(error, 'Error authenticating against Correo Argentino MiCorreo'));
+    const response = await axios.post(
+      this.url(config.apiBaseUrl, '/token'),
+      undefined,
+      {
+        auth: { username: config.apiUsername, password: config.apiPassword },
+        // axios v1.x sends Content-Type: application/json by default for POST even with undefined body.
+        // /token uses Basic Auth with no body — must send application/x-www-form-urlencoded to avoid 415.
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      },
+    ).catch((error) => this.fail(error, 'Error authenticating against Correo Argentino MiCorreo (/token)'));
     const token = this.text(response.data?.token);
     if (!token) throw new ServiceUnavailableException('Correo Argentino MiCorreo token response did not include a token');
     this.tokenCache.set(cacheKey, { token, expiresAt: this.expiration(response.data?.expires) });
@@ -350,5 +359,26 @@ export class CorreoArgentinoProvider implements ShippingProvider {
   private cut(value: string, length: number) { return value ? value.slice(0, length) : ''; }
   private text(value: unknown) { return typeof value === 'string' && value.trim() ? value.trim() : ''; }
   private isDuplicateImportError(error: unknown) { return axios.isAxiosError(error) && String(error.response?.data?.message || error.response?.data?.error || error.response?.data?.code || error.message || '').toLowerCase().includes('ya fue importada'); }
-  private fail(error: unknown, fallback: string): never { if (error instanceof BadRequestException || error instanceof ServiceUnavailableException || error instanceof NotImplementedException) throw error; if (axios.isAxiosError(error)) throw new InternalServerErrorException(error.response?.data?.message || error.response?.data?.error || error.response?.data?.code || error.message || fallback); if (error instanceof Error) throw new InternalServerErrorException(error.message || fallback); throw new InternalServerErrorException(fallback); }
+  private fail(error: unknown, fallback: string): never {
+    if (error instanceof BadRequestException || error instanceof ServiceUnavailableException || error instanceof NotImplementedException) throw error;
+    if (axios.isAxiosError(error)) {
+      const httpStatus = error.response?.status;
+      const responseData = error.response?.data;
+      const apiMessage =
+        (typeof responseData === 'object' && responseData !== null
+          ? responseData?.message || responseData?.error || responseData?.code
+          : typeof responseData === 'string'
+          ? responseData
+          : null) || error.message;
+      const message = `${fallback} — HTTP ${httpStatus ?? 'unknown'}: ${apiMessage}`;
+      throw new InternalServerErrorException({
+        message,
+        correoStatus: httpStatus ?? null,
+        correoResponse: responseData ?? null,
+        requestContext: fallback,
+      });
+    }
+    if (error instanceof Error) throw new InternalServerErrorException(error.message || fallback);
+    throw new InternalServerErrorException(fallback);
+  }
 }

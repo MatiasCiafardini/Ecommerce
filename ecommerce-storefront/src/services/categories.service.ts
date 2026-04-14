@@ -2,7 +2,15 @@ import { apiFetch } from "./api-client";
 import { StoreCategory } from "@/types/store";
 
 export async function getCategories(): Promise<StoreCategory[]> {
-  const categories = await apiFetch<StoreCategory[]>("/store/categories");
+  let categories: StoreCategory[] | null = null;
+
+  try {
+    categories = await apiFetch<StoreCategory[]>("/store/categories");
+  } catch (error) {
+    console.error("[categories] Failed to load storefront categories", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   if (!Array.isArray(categories)) {
     return [];

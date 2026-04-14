@@ -26,18 +26,28 @@ export async function apiFetch<T>(
   }
 
   const { host, storeId } = await getServerStoreContext();
-  const response = await fetch(`${apiUrl}${path}`, {
-    headers: {
-      "x-store-id": String(storeId),
-      "x-store-host": host,
-      ...options?.headers,
-    },
-    cache: options?.cache ?? "no-store",
-    next:
-      typeof options?.revalidate === "number"
-        ? { revalidate: options.revalidate }
-        : undefined,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${apiUrl}${path}`, {
+      headers: {
+        "x-store-id": String(storeId),
+        "x-store-host": host,
+        ...options?.headers,
+      },
+      cache: options?.cache ?? "no-store",
+      next:
+        typeof options?.revalidate === "number"
+          ? { revalidate: options.revalidate }
+          : undefined,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    throw new Error(
+      `API network request failed for ${path} (host="${host}", storeId=${storeId}, apiUrl="${apiUrl}"). ${message}`,
+    );
+  }
 
   if (!response.ok) {
     const responseBody = (await readResponseBody(response)).slice(0, 1000) || "<empty>";

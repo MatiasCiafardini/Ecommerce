@@ -56,15 +56,27 @@ function normalizeTenantConfig(args: {
 export async function getTenantConfig() {
   const { storeId } = await getServerStoreContext();
 
-  const remoteConfig = await apiFetch<{
-    theme?: string | null;
-    storefrontConfig?: RemoteStorefrontConfig | null;
-  }>("/store/config", {
-    cache: "no-store",
-  });
+  try {
+    const remoteConfig = await apiFetch<{
+      theme?: string | null;
+      storefrontConfig?: RemoteStorefrontConfig | null;
+    }>("/store/config", {
+      cache: "no-store",
+    });
 
-  return normalizeTenantConfig({
-    storeId,
-    remoteConfig,
-  });
+    return normalizeTenantConfig({
+      storeId,
+      remoteConfig,
+    });
+  } catch (error) {
+    console.error("[tenant] Failed to load remote storefront config", {
+      storeId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return normalizeTenantConfig({
+      storeId,
+      remoteConfig: null,
+    });
+  }
 }
