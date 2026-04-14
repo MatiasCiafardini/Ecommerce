@@ -305,16 +305,24 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     const cacheKey = `${config.apiBaseUrl}|${config.apiUsername}|${config.apiPassword}`;
     const cached = this.tokenCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
-    const response = await axios.post(
-      this.url(config.apiBaseUrl, '/token'),
-      undefined,
-      {
+    const tokenUrl = this.url(config.apiBaseUrl, '/token');
+    console.log(`[CorreoArgentino] POST ${tokenUrl} — user: ${config.apiUsername?.slice(0, 4)}*** body: '' Content-Type: application/x-www-form-urlencoded`);
+    const response = await axios
+      .post(tokenUrl, '', {
         auth: { username: config.apiUsername, password: config.apiPassword },
-        // axios v1.x sends Content-Type: application/json by default for POST even with undefined body.
-        // /token uses Basic Auth with no body — must send application/x-www-form-urlencoded to avoid 415.
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      },
-    ).catch((error) => this.fail(error, 'Error authenticating against Correo Argentino MiCorreo (/token)'));
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        validateStatus: (status) => status >= 200 && status < 300,
+      })
+      .catch((error) => {
+        const status = axios.isAxiosError(error) ? error.response?.status : null;
+        const body = axios.isAxiosError(error) ? JSON.stringify(error.response?.data) : null;
+        console.error(`[CorreoArgentino] /token failed — HTTP ${status ?? 'no-response'} body: ${body ?? error?.message}`);
+        return this.fail(error, 'Error authenticating against Correo Argentino MiCorreo (/token)');
+      });
+    console.log(`[CorreoArgentino] /token response — HTTP ${response.status} hasToken: ${Boolean(response.data?.token)}`);
     const token = this.text(response.data?.token);
     if (!token) throw new ServiceUnavailableException('Correo Argentino MiCorreo token response did not include a token');
     this.tokenCache.set(cacheKey, { token, expiresAt: this.expiration(response.data?.expires) });
