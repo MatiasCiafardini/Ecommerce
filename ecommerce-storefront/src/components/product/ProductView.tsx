@@ -358,7 +358,7 @@ export default function ProductView({
                   sizes="(max-width: 900px) 100vw, 56vw"
                   style={{
                     width: "100%",
-                    aspectRatio: "4 / 5",
+                    height: "100%",
                     display: "block",
                     ...getProductImageTransform(productImages[selectedImageIndex] ?? productImages[0]),
                     background: "#ffffff",
@@ -368,7 +368,7 @@ export default function ProductView({
                 <div
                   style={{
                     width: "100%",
-                    aspectRatio: "4 / 5",
+                    height: "100%",
                     display: "grid",
                     placeItems: "center",
                     background: "var(--product-media-fallback)",
@@ -1281,11 +1281,10 @@ const adminEditButtonStyle: React.CSSProperties = {
 const galleryFrameStyle: React.CSSProperties = {
   position: "relative",
   width: "100%",
-  aspectRatio: "4 / 5",
-  minHeight: "clamp(420px, 62vw, 760px)",
+  aspectRatio: "1 / 1",
   borderRadius: 28,
   overflow: "hidden",
-  border: "1px solid var(--border-soft)",
+  border: "1px solid color-mix(in srgb, var(--text-strong) 14%, transparent)",
   background: "#ffffff",
   boxShadow: "inset 0 -80px 120px rgba(0,0,0,0.04)",
 };

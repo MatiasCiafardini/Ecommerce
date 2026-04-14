@@ -312,6 +312,22 @@ export class AuthService {
     );
   }
 
+  async getOptionalAuthEntity(
+    id: number | undefined,
+    role: string | undefined,
+    storeId: number | undefined,
+  ) {
+    if (!id || !storeId) {
+      return null;
+    }
+
+    try {
+      return await this.getCurrentAuthEntity(id, role ?? 'CUSTOMER', storeId);
+    } catch {
+      return null;
+    }
+  }
+
   async updateCurrentAuthEntity(
     id: number,
     role: string,

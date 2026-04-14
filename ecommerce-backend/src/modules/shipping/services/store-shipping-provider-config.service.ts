@@ -334,6 +334,32 @@ export class StoreShippingProviderConfigService {
     });
   }
 
+  async getAgencies(
+    storeId: number,
+    id: string,
+    input: {
+      provinceCode?: string | null;
+      state?: string | null;
+      postalCode?: string | null;
+      city?: string | null;
+      service?: string | null;
+    },
+  ) {
+    await this.findOne(storeId, id);
+
+    const resolvedProvider = await this.resolveProviderForStore(storeId, {
+      providerConfigId: id,
+    });
+
+    if (!resolvedProvider.provider.getAgencies) {
+      throw new BadRequestException(
+        `Provider ${resolvedProvider.provider.providerCode} does not support branch lookup`,
+      );
+    }
+
+    return resolvedProvider.provider.getAgencies(input, resolvedProvider.context);
+  }
+
   private mapConfig(
     config: ProviderConfigRecord,
   ): ResolvedShippingProviderConfig {

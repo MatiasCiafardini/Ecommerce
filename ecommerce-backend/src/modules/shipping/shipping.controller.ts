@@ -3,6 +3,7 @@ import { Request } from 'express';
 
 import { ShippingService } from './shipping.service';
 import { GetShippingOptionsDto } from './dto/get-shipping-options.dto';
+import { GetShippingAgenciesDto } from './dto/get-shipping-agencies.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)
@@ -26,5 +27,13 @@ export class ShippingController {
         country: dto.country,
       },
     );
+  }
+
+  @Post('agencies')
+  async getAgencies(
+    @Req() req: Request & { storeId: number },
+    @Body() dto: GetShippingAgenciesDto,
+  ) {
+    return this.shippingService.getAgencies(req.storeId, (req as any).user.sub, dto);
   }
 }

@@ -17,13 +17,22 @@ import { UpdateCurrentAuthDto } from './dto/update-current-auth.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { clearAuthCookie, setAuthCookie } from './utils/auth-cookie.util';
+import {
+  clearAuthCookie,
+  extractAuthCookieValue,
+  setAuthCookie,
+} from './utils/auth-cookie.util';
+import { JwtService } from '@nestjs/jwt';
+import { getJwtSecret } from './utils/jwt-secret.util';
 
 @ApiTags('auth')
 @ApiSecurity('x-store-id')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @Post('login')
   async login(
@@ -109,6 +118,38 @@ export class AuthController {
   logout(@Res({ passthrough: true }) res: Response) {
     clearAuthCookie(res, 'store');
     return { success: true };
+  }
+
+  @Get('session')
+  async getSession(@Req() req: Request) {
+    const storeId = this.readStoreId(req);
+    const token = extractAuthCookieValue(req.headers.cookie, 'store');
+
+    if (!token) {
+      return null;
+    }
+
+    try {
+      const payload = this.jwtService.verify(token, {
+        secret: getJwtSecret(),
+      }) as {
+        sub?: number;
+        role?: string;
+        storeId?: number;
+      };
+
+      if (!payload?.sub || !payload.storeId || payload.storeId !== storeId) {
+        return null;
+      }
+
+      return this.authService.getOptionalAuthEntity(
+        payload.sub,
+        payload.role,
+        payload.storeId,
+      );
+    } catch {
+      return null;
+    }
   }
 
   @UseGuards(JwtAuthGuard)

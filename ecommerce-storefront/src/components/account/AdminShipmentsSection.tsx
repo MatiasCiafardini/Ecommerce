@@ -175,6 +175,22 @@ export default function AdminShipmentsSection() {
       ) : (
         <div style={layoutStyle}>
           <div style={{ display: "grid", gap: 20, alignSelf: "start" }}>
+            <section style={infoCardStyle}>
+              <div style={{ display: "grid", gap: 8 }}>
+                <p style={eyebrowStyle}>Correo Argentino</p>
+                <h3 style={title3Style}>Cuenta global de plataforma</h3>
+                <p style={copyStyle}>
+                  Las credenciales de Correo Argentino se administran a nivel plataforma y
+                  no por tienda. En cada tienda solo se configuran origen, remitente,
+                  modalidades habilitadas y reglas operativas.
+                </p>
+                <p style={metaStyle}>
+                  Si necesitás cambiar usuario, password, customerId o ambiente, eso se
+                  resuelve en la configuracion global del backend y no desde este panel.
+                </p>
+              </div>
+            </section>
+
             <AdminShippingMethodsCard
               shippingMethods={shippingMethods}
               onUpdated={loadData}
@@ -376,6 +392,7 @@ const textareaStyle: React.CSSProperties = { ...fieldStyle, resize: "vertical", 
 const primaryButtonStyle: React.CSSProperties = { padding: "14px 18px", background: "var(--accent-strong)", color: "var(--accent-contrast)", border: "none", borderRadius: 999, cursor: "pointer", fontWeight: 700 };
 const stateStyle: React.CSSProperties = { borderRadius: 20, border: "1px solid var(--checkout-border-strong)", background: "var(--page-panel-strong-bg)", padding: 18, color: "var(--account-text-muted)" };
 const hintCardStyle: React.CSSProperties = { borderRadius: 16, border: "1px solid var(--checkout-border)", background: "var(--page-panel-strong-bg)", padding: 14, color: "var(--account-text-muted)", lineHeight: 1.6 };
+const infoCardStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid color-mix(in srgb, var(--checkout-border-strong) 78%, transparent)", background: "color-mix(in srgb, var(--page-panel-strong-bg) 92%, transparent)", padding: 20 };
 const shipmentListItemStyle = (active: boolean): React.CSSProperties => ({
   borderRadius: 18,
   border: active ? "1px solid var(--checkout-border-strong)" : "1px solid var(--checkout-border)",

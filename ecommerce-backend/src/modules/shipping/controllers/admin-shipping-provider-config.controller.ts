@@ -15,6 +15,7 @@ import { StoreShippingProviderConfigService } from '../services/store-shipping-p
 import { UpdateStoreShippingProviderStatusDto } from '../dto/update-store-shipping-provider-status.dto';
 import { UpsertStoreShippingProviderConfigDto } from '../dto/upsert-store-shipping-provider-config.dto';
 import { UpdateStoreShippingProviderConfigDto } from '../dto/update-store-shipping-provider-config.dto';
+import { GetShippingAgenciesDto } from '../dto/get-shipping-agencies.dto';
 
 @UseGuards(AdminAuthGuard)
 @Controller('admin/shipping/providers')
@@ -84,6 +85,21 @@ export class AdminShippingProviderConfigController {
       req.storeId,
       id,
     );
+  }
+
+  @Post(':id/agencies')
+  getAgencies(
+    @Req() req: { storeId: number },
+    @Param('id') id: string,
+    @Body() dto: GetShippingAgenciesDto,
+  ) {
+    return this.storeShippingProviderConfigService.getAgencies(req.storeId, id, {
+      provinceCode: dto.provinceCode,
+      state: dto.state,
+      postalCode: dto.postalCode,
+      city: dto.city,
+      service: dto.service,
+    });
   }
 
   private mapDto(

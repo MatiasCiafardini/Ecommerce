@@ -106,4 +106,59 @@ export class ShippingService {
       rates,
     });
   }
+
+  async getAgencies(
+    storeId: number,
+    customerId: number,
+    input: {
+      provider?: string;
+      provinceCode?: string;
+      state?: string;
+      postalCode?: string;
+      city?: string;
+      service?: string;
+    },
+  ) {
+    await this.ensureCustomer(storeId, customerId);
+
+    const resolvedProvider =
+      await this.providerConfigService.resolveProviderForStore(storeId, {
+        providerCode: input.provider,
+      });
+
+    if (!resolvedProvider.provider.getAgencies) {
+      throw new BadRequestException(
+        `Shipping provider ${resolvedProvider.provider.providerCode} does not support branch lookup`,
+      );
+    }
+
+    return resolvedProvider.provider.getAgencies(
+      {
+        provinceCode: input.provinceCode,
+        state: input.state,
+        postalCode: input.postalCode,
+        city: input.city,
+        service: input.service,
+      },
+      resolvedProvider.context,
+    );
+  }
+
+  private async ensureCustomer(storeId: number, customerId: number) {
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        storeId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!customer) {
+      throw new ForbiddenException('Customer does not belong to this store');
+    }
+
+    return customer;
+  }
 }

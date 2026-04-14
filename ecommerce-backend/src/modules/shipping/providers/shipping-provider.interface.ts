@@ -26,6 +26,28 @@ export type ShippingRateRequest = {
   country?: string;
 };
 
+export type ShippingAgencyLookupRequest = {
+  provinceCode?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  service?: string | null;
+};
+
+export type ShippingAgency = {
+  code: string;
+  name: string;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  packageReception?: boolean;
+  pickupAvailability?: boolean;
+  raw?: Record<string, unknown> | null;
+};
+
 export type ResolvedShippingProviderConfig = {
   id?: string | null;
   storeId?: number;
@@ -129,6 +151,10 @@ export interface ShippingProvider {
     data: ShippingRateRequest,
     context?: ShippingProviderContext,
   ): Promise<ShippingRate[]>;
+  getAgencies?(
+    data: ShippingAgencyLookupRequest,
+    context?: ShippingProviderContext,
+  ): Promise<ShippingAgency[]>;
   createShipment?(
     data: ShipmentProvisionRequest,
     context?: ShippingProviderContext,

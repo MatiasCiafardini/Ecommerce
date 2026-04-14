@@ -38,11 +38,15 @@ export class TrackingSyncService {
               providerConfigId: (shipment as any).providerConfigId,
             },
           );
+        const providerMetadata =
+          (resolvedProvider.config?.metadata as Record<string, unknown> | null) ??
+          null;
 
         const autoTrackingEnabled =
           resolvedProvider.provider.providerCode === 'mock' ||
-          ((resolvedProvider.config?.metadata as Record<string, unknown> | null)
-            ?.autoTrackingEnabled === true);
+          providerMetadata?.autoTrackingEnabled === true ||
+          (providerMetadata?.autoTrackingEnabled !== false &&
+            resolvedProvider.provider.providerCode !== 'manual');
 
         const providerEvents = autoTrackingEnabled && resolvedProvider.provider.getTracking
           ? await resolvedProvider.provider.getTracking({

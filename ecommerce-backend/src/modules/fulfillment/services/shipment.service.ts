@@ -267,6 +267,63 @@ export class ShipmentService {
       throw new NotFoundException('Shipment not found');
     }
 
+    if (shipment.labelUrl) {
+      return `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Rotulo envio ${shipment.orderId}</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #0f0f10;
+      color: #f5f1ea;
+      font-family: Arial, sans-serif;
+      padding: 24px;
+    }
+    .card {
+      width: min(960px, 100%);
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #171718;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 28px;
+    }
+    p {
+      margin: 0 0 16px;
+      line-height: 1.7;
+      color: rgba(245,241,234,0.74);
+    }
+    a {
+      color: #f5f1ea;
+    }
+    iframe {
+      width: 100%;
+      min-height: 72vh;
+      border: 0;
+      border-radius: 18px;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Rotulo del envio #${shipment.orderId}</h1>
+    <p>Se encontro un rotulo provisto por el carrier. Si no carga embebido, podes abrirlo directamente en una nueva pestana.</p>
+    <p><a href="${this.escapeHtml(shipment.labelUrl)}" target="_blank" rel="noreferrer">Abrir rotulo del carrier</a></p>
+    <iframe src="${this.escapeHtml(shipment.labelUrl)}" title="Rotulo del carrier"></iframe>
+  </div>
+</body>
+</html>`;
+    }
+
     const senderConfig =
       await this.providerConfigService.resolveProviderForStore(storeId, {
         providerCode: 'manual',

@@ -67,10 +67,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUser(parsedUser);
         }
 
-        // Refresh the session from the API so the account shown in UI matches the JWT.
-        const freshUser = await api("/auth/me");
-        setScopedStorageItem("user", JSON.stringify(freshUser));
-        setUser(freshUser);
+        // Resolve the current session without surfacing an auth error for anonymous visitors.
+        const freshUser = await api("/auth/session");
+
+        if (freshUser) {
+          setScopedStorageItem("user", JSON.stringify(freshUser));
+          setUser(freshUser);
+          return;
+        }
+
+        removeScopedStorageItem("user");
+        setUser(null);
       } catch {
         removeScopedStorageItem("user");
         setUser(null);
