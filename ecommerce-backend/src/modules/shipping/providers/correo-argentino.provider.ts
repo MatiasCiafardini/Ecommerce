@@ -306,14 +306,27 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     const cached = this.tokenCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
     const tokenUrl = this.url(config.apiBaseUrl, '/token');
-    console.log(`[CorreoArgentino] POST ${tokenUrl} — user: ${config.apiUsername?.slice(0, 4)}*** body: '' Content-Type: application/x-www-form-urlencoded`);
+    const basicCredential = Buffer.from(`${config.apiUsername}:${config.apiPassword}`).toString('base64');
+    console.log(`[CorreoArgentino] POST ${tokenUrl} — user: ${config.apiUsername?.slice(0, 4)}*** Authorization: Basic manual, no Content-Type, no body`);
     const response = await axios
-      .post(tokenUrl, '', {
-        auth: { username: config.apiUsername, password: config.apiPassword },
+      .request({
+        method: 'POST',
+        url: tokenUrl,
+        // Replicate curl -u behavior: manual Basic Auth header, no body, no Content-Type
+        data: null,
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Basic ${basicCredential}`,
           Accept: 'application/json',
+          'Content-Length': '0',
         },
+        // Strip any Content-Type axios might inject through defaults or transformRequest
+        transformRequest: [
+          (_data, headers) => {
+            delete headers['Content-Type'];
+            delete headers['content-type'];
+            return undefined;
+          },
+        ],
         validateStatus: (status) => status >= 200 && status < 300,
       })
       .catch((error) => {
