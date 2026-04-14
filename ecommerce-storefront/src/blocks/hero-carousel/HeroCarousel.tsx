@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { resolveAssetUrl } from "@/lib/asset-url";
 
 type HeroCarouselSlide = {
@@ -40,6 +40,12 @@ const defaultSlides: HeroCarouselSlide[] = [
   },
 ];
 
+const carouselTransition = "transform 920ms cubic-bezier(0.16, 1, 0.3, 1)";
+
+function hasTextContent(value?: string) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export default function HeroCarousel({
   slides = defaultSlides,
   buttonText,
@@ -47,7 +53,41 @@ export default function HeroCarousel({
   showContentCard = true,
 }: Props) {
   const safeSlides = slides.length > 0 ? slides : defaultSlides;
+  const trackRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [virtualIndex, setVirtualIndex] = useState(safeSlides.length > 1 ? 1 : 0);
+  const [isTransitionEnabled, setIsTransitionEnabled] = useState(true);
+
+  const renderedSlides = useMemo(() => {
+    if (safeSlides.length <= 1) {
+      return safeSlides;
+    }
+
+    const firstSlide = safeSlides[0];
+    const lastSlide = safeSlides[safeSlides.length - 1];
+
+    return [lastSlide, ...safeSlides, firstSlide];
+  }, [safeSlides]);
+
+  const goToSlide = (nextIndex: number) => {
+    if (safeSlides.length === 0) {
+      setActiveIndex(0);
+      return;
+    }
+
+    const normalizedIndex =
+      ((nextIndex % safeSlides.length) + safeSlides.length) % safeSlides.length;
+    setActiveIndex(normalizedIndex);
+    setIsTransitionEnabled(true);
+    setVirtualIndex(normalizedIndex + 1);
+  };
+
+  const goToPreviousSlide = () => goToSlide(activeIndex - 1);
+  const goToNextSlide = () => goToSlide(activeIndex + 1);
+
+  const handleAutoplayAdvance = useEffectEvent(() => {
+    goToSlide(activeIndex + 1);
+  });
 
   useEffect(() => {
     if (safeSlides.length <= 1) {
@@ -55,21 +95,64 @@ export default function HeroCarousel({
     }
 
     const interval = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % safeSlides.length);
+      handleAutoplayAdvance();
     }, 4200);
 
     return () => window.clearInterval(interval);
   }, [safeSlides.length]);
 
-  const activeSlide = safeSlides[activeIndex];
-  const activeSlideImage = resolveAssetUrl(activeSlide.image) ?? activeSlide.image;
+  useEffect(() => {
+    if (safeSlides.length <= 1) {
+      return;
+    }
+
+    const track = trackRef.current;
+    if (!track) {
+      return;
+    }
+
+    const handleTransitionEnd = (event: TransitionEvent) => {
+      if (event.propertyName !== "transform") {
+        return;
+      }
+
+      if (virtualIndex === 0) {
+        setIsTransitionEnabled(false);
+        setVirtualIndex(safeSlides.length);
+        return;
+      }
+
+      if (virtualIndex === renderedSlides.length - 1) {
+        setIsTransitionEnabled(false);
+        setVirtualIndex(1);
+      }
+    };
+
+    track.addEventListener("transitionend", handleTransitionEnd);
+    return () => track.removeEventListener("transitionend", handleTransitionEnd);
+  }, [renderedSlides.length, safeSlides.length, virtualIndex]);
+
+  useEffect(() => {
+    if (isTransitionEnabled) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        setIsTransitionEnabled(true);
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isTransitionEnabled]);
+
+  const slideBasis = `${100 / renderedSlides.length}%`;
 
   return (
     <section
       className="theme-block-section theme-block-section--hero-carousel"
-      style={{
-        padding: 0,
-      }}
+      data-hero-carousel-variant={showContentCard ? "card" : "editorial"}
+      style={{ padding: 0 }}
     >
       <div
         className="theme-hero-carousel"
@@ -81,273 +164,402 @@ export default function HeroCarousel({
         }}
       >
         <div
-          key={activeSlideImage}
-          aria-hidden="true"
+          ref={trackRef}
           style={{
-            position: "absolute",
-            inset: 0,
-            overflow: "hidden",
-          }}
-        >
-          {/* Decorative hero media renders more reliably as a plain image for local and uploaded assets. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={activeSlideImage}
-            alt=""
-            loading="eager"
-            draggable={false}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              objectPosition: "center",
-              userSelect: "none",
-              pointerEvents: "none",
-            }}
-          />
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(180deg, color-mix(in srgb, var(--paper) 8%, transparent) 0%, color-mix(in srgb, var(--background) 12%, transparent) 100%)",
-          }}
-        />
-
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
+            display: "flex",
+            width: `${renderedSlides.length * 100}%`,
             minHeight: "clamp(460px, 62vh, 600px)",
-            maxWidth: "var(--store-wide-max)",
-            margin: "0 auto",
-            padding: "48px 20px 84px",
-            display: "grid",
-            alignItems: "end",
+            transform: `translate3d(-${virtualIndex * (100 / renderedSlides.length)}%, 0, 0)`,
+            transition: isTransitionEnabled ? carouselTransition : "none",
+            willChange: "transform",
+            backfaceVisibility: "hidden",
           }}
         >
-          {showContentCard ? (
-            <div
-              style={{
-                maxWidth: 560,
-                display: "grid",
-                gap: 16,
-                padding: "28px",
-                minHeight: "clamp(360px, 42vw, 520px)",
-                borderRadius: "var(--theme-radius-panel)",
-                background: "color-mix(in srgb, var(--page-panel-bg) 82%, transparent)",
-                border: "1px solid var(--border-soft)",
-                backdropFilter: "blur(14px)",
-                alignContent: "space-between",
-                justifyItems: activeSlide.align === "center" ? "center" : "start",
-                textAlign: activeSlide.align === "center" ? "center" : "left",
-              }}
-            >
-              <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
-                {activeSlide.eyebrow ? (
-                  <span
-                    style={{
-                      textTransform: "uppercase",
-                      letterSpacing: "0.18em",
-                      fontSize: 12,
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {activeSlide.eyebrow}
-                  </span>
-                ) : null}
+          {renderedSlides.map((slide, index) => {
+            const slideImage = resolveAssetUrl(slide.image) ?? slide.image;
+            const isCenter = slide.align === "center";
+            const hasSlideContent =
+              hasTextContent(slide.eyebrow) ||
+              hasTextContent(slide.title) ||
+              hasTextContent(slide.subtitle);
+            const isCloneFirst = safeSlides.length > 1 && index === renderedSlides.length - 1;
+            const isCloneLast = safeSlides.length > 1 && index === 0;
+            const logicalIndex = isCloneLast
+              ? safeSlides.length - 1
+              : isCloneFirst
+                ? 0
+                : Math.max(0, index - 1);
 
-                <h1
-                  style={{
-                    margin: 0,
-                    fontSize: "clamp(2.2rem, 6vw, 4.6rem)",
-                    lineHeight: 0.96,
-                    letterSpacing: "-0.05em",
-                    color: "var(--text-strong)",
-                  }}
-                >
-                  {activeSlide.title}
-                </h1>
-
-                {activeSlide.subtitle ? (
-                  <p
-                    style={{
-                      margin: 0,
-                      maxWidth: 46 * 16,
-                      color: "var(--text-muted)",
-                      lineHeight: 1.7,
-                      fontSize: "1rem",
-                    }}
-                  >
-                    {activeSlide.subtitle}
-                  </p>
-                ) : null}
-              </div>
-
-              {buttonText ? (
-                <Link
-                  href={buttonLink}
-                  className="theme-button"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "fit-content",
-                    minHeight: 48,
-                    padding: "0 22px",
-                    borderRadius: 999,
-                    border: "1px solid var(--accent-strong)",
-                    background: "var(--accent-strong)",
-                    color: "var(--accent-contrast)",
-                    textDecoration: "none",
-                    fontWeight: 700,
-                  }}
-                >
-                  {buttonText}
-                </Link>
-              ) : null}
-            </div>
-          ) : (
-            <div
-              style={{
-                maxWidth: 620,
-                display: "grid",
-                gap: 18,
-                justifyItems: activeSlide.align === "center" ? "center" : "start",
-                textAlign: activeSlide.align === "center" ? "center" : "left",
-                alignContent: "end",
-              }}
-            >
-              {activeSlide.eyebrow ? (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    width: "fit-content",
-                    padding: "10px 14px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.22)",
-                    background: "rgba(255,255,255,0.12)",
-                    backdropFilter: "blur(10px)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.18em",
-                    fontSize: 12,
-                    color: "#fffaf3",
-                  }}
-                >
-                  {activeSlide.eyebrow}
-                </span>
-              ) : null}
-
-              <h1
+            return (
+              <div
+                key={`${slide.title}-${index}`}
+                aria-hidden={logicalIndex !== activeIndex}
                 style={{
-                  margin: 0,
-                  fontSize: "clamp(2.8rem, 7vw, 5.8rem)",
-                  lineHeight: 0.92,
-                  letterSpacing: "-0.05em",
-                  color: "#fffaf3",
-                  textShadow: "0 10px 30px rgba(62, 42, 24, 0.22)",
+                  position: "relative",
+                  flex: `0 0 ${slideBasis}`,
+                  minWidth: slideBasis,
+                  minHeight: "clamp(460px, 62vh, 600px)",
+                  overflow: "hidden",
                 }}
               >
-                {activeSlide.title}
-              </h1>
-
-              {activeSlide.subtitle ? (
-                <p
+                <div
                   style={{
-                    margin: 0,
-                    maxWidth: 46 * 16,
-                    color: "rgba(255,250,243,0.92)",
-                    lineHeight: 1.8,
-                    fontSize: "clamp(1rem, 1.5vw, 1.08rem)",
-                    textShadow: "0 8px 24px rgba(62, 42, 24, 0.16)",
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: 0,
                   }}
                 >
-                  {activeSlide.subtitle}
-                </p>
-              ) : null}
+                  {/* Decorative hero media renders more reliably as a plain image for local and uploaded assets. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    className="theme-hero-carousel-image"
+                    src={slideImage}
+                    alt=""
+                    loading={index === 0 ? "eager" : "lazy"}
+                    draggable={false}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      objectPosition: "var(--hero-carousel-image-position, center)",
+                      userSelect: "none",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
 
-              {buttonText ? (
-                <Link
-                  href={buttonLink}
-                  className="theme-button"
+                <div
+                  className="theme-hero-carousel-overlay"
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "fit-content",
-                    minHeight: 48,
-                    padding: "0 22px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,250,243,0.86)",
-                    background: "rgba(255,250,243,0.9)",
-                    color: "var(--text-strong)",
-                    textDecoration: "none",
-                    fontWeight: 700,
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: 1,
+                    background:
+                      "var(--hero-carousel-overlay, linear-gradient(180deg, color-mix(in srgb, var(--paper) 8%, transparent) 0%, color-mix(in srgb, var(--background) 12%, transparent) 100%))",
                   }}
-                >
-                  {buttonText}
-                </Link>
-              ) : null}
-            </div>
-          )}
+                />
+
+                <div
+                  className="theme-hero-carousel-content"
+                  style={{
+                    position: "relative",
+                    zIndex: 2,
+                    minHeight: "clamp(460px, 62vh, 600px)",
+                    padding: "var(--hero-carousel-content-padding, 48px 20px 84px)",
+                    display: "grid",
+                    alignItems: "end",
+                  }}
+                  >
+                    <div
+                      style={{
+                        width: "100%",
+                        maxWidth: "var(--store-wide-max)",
+                      margin: "0 auto",
+                        display: "grid",
+                        alignItems: "end",
+                      }}
+                    >
+                      {hasSlideContent ? (
+                        showContentCard ? (
+                          <div
+                            className="theme-hero-carousel-copy theme-hero-carousel-copy--card"
+                            style={{
+                              maxWidth: "var(--hero-carousel-copy-max-width, 560px)",
+                              display: "grid",
+                              gap: "var(--hero-carousel-copy-gap, 16px)",
+                              padding: "var(--hero-carousel-copy-padding, 28px)",
+                              minHeight: "clamp(360px, 42vw, 520px)",
+                              borderRadius: "var(--theme-radius-panel)",
+                              background:
+                                "color-mix(in srgb, var(--page-panel-bg) 82%, transparent)",
+                              border: "1px solid var(--border-soft)",
+                              backdropFilter: "blur(14px)",
+                              alignContent: "space-between",
+                              justifyItems: isCenter ? "center" : "start",
+                              textAlign: isCenter ? "center" : "left",
+                            }}
+                          >
+                            <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+                              {slide.eyebrow ? (
+                                <span
+                                  className="theme-hero-carousel-eyebrow"
+                                  style={{
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.18em",
+                                    fontSize: 12,
+                                    color: "var(--text-muted)",
+                                  }}
+                                >
+                                  {slide.eyebrow}
+                                </span>
+                              ) : null}
+
+                              {hasTextContent(slide.title) ? (
+                                <h1
+                                  className="theme-hero-carousel-title"
+                                  style={{
+                                    margin: 0,
+                                    fontSize: "clamp(2.2rem, 6vw, 4.6rem)",
+                                    lineHeight: 0.96,
+                                    letterSpacing: "-0.05em",
+                                    color: "var(--text-strong)",
+                                  }}
+                                >
+                                  {slide.title}
+                                </h1>
+                              ) : null}
+
+                              {slide.subtitle ? (
+                                <p
+                                  className="theme-hero-carousel-subtitle"
+                                  style={{
+                                    margin: 0,
+                                    maxWidth: "var(--hero-carousel-subtitle-max-width, 46rem)",
+                                    color: "var(--text-muted)",
+                                    lineHeight: 1.7,
+                                    fontSize: "1rem",
+                                  }}
+                                >
+                                  {slide.subtitle}
+                                </p>
+                              ) : null}
+                            </div>
+
+                            {buttonText ? (
+                              <Link
+                                href={buttonLink}
+                                className="theme-button"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  width: "fit-content",
+                                  minHeight: 48,
+                                  padding: "0 22px",
+                                  borderRadius: 999,
+                                  border: "1px solid var(--accent-strong)",
+                                  background: "var(--accent-strong)",
+                                  color: "var(--accent-contrast)",
+                                  textDecoration: "none",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {buttonText}
+                              </Link>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div
+                            className="theme-hero-carousel-copy theme-hero-carousel-copy--editorial"
+                            style={{
+                              maxWidth: "var(--hero-carousel-copy-max-width, 620px)",
+                              display: "grid",
+                              gap: "var(--hero-carousel-copy-gap, 18px)",
+                              justifyItems: isCenter ? "center" : "start",
+                              textAlign: isCenter ? "center" : "left",
+                              alignContent: "end",
+                            }}
+                          >
+                            {slide.eyebrow ? (
+                              <span
+                                className="theme-hero-carousel-eyebrow"
+                                style={{
+                                  display: "inline-flex",
+                                  width: "fit-content",
+                                  padding: "10px 14px",
+                                  borderRadius: 999,
+                                  border: "1px solid rgba(255,255,255,0.22)",
+                                  background: "rgba(255,255,255,0.12)",
+                                  backdropFilter: "blur(10px)",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.18em",
+                                  fontSize: 12,
+                                  color: "#fffaf3",
+                                }}
+                              >
+                                {slide.eyebrow}
+                              </span>
+                            ) : null}
+
+                            {hasTextContent(slide.title) ? (
+                              <h1
+                                className="theme-hero-carousel-title"
+                                style={{
+                                  margin: 0,
+                                  fontSize: "clamp(2.8rem, 7vw, 5.8rem)",
+                                  lineHeight: 0.92,
+                                  letterSpacing: "-0.05em",
+                                  color: "#fffaf3",
+                                  textShadow: "0 10px 30px rgba(62, 42, 24, 0.22)",
+                                }}
+                              >
+                                {slide.title}
+                              </h1>
+                            ) : null}
+
+                            {slide.subtitle ? (
+                              <p
+                                className="theme-hero-carousel-subtitle"
+                                style={{
+                                  margin: 0,
+                                  maxWidth: "var(--hero-carousel-subtitle-max-width, 46rem)",
+                                  color: "rgba(255,250,243,0.92)",
+                                  lineHeight: 1.8,
+                                  fontSize: "clamp(1rem, 1.5vw, 1.08rem)",
+                                  textShadow: "0 8px 24px rgba(62, 42, 24, 0.16)",
+                                }}
+                              >
+                                {slide.subtitle}
+                              </p>
+                            ) : null}
+
+                            {buttonText ? (
+                              <Link
+                                href={buttonLink}
+                                className="theme-button"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  width: "fit-content",
+                                  minHeight: 48,
+                                  padding: "0 22px",
+                                  borderRadius: 999,
+                                  border: "1px solid rgba(255,250,243,0.86)",
+                                  background: "rgba(255,250,243,0.9)",
+                                  color: "var(--text-strong)",
+                                  textDecoration: "none",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {buttonText}
+                              </Link>
+                            ) : null}
+                          </div>
+                        )
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+            );
+          })}
         </div>
 
         {safeSlides.length > 1 ? (
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              bottom: 22,
-              transform: "translateX(-50%)",
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "10px 14px",
-              borderRadius: 999,
-              background: "color-mix(in srgb, var(--page-panel-bg) 82%, transparent)",
-              border: "1px solid var(--border-soft)",
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            {safeSlides.map((slide, index) => (
-              <button
-                key={`${slide.title}-${index}`}
-                type="button"
-                aria-label={`Ver banner ${index + 1}`}
-                aria-pressed={index === activeIndex}
-                onClick={() => setActiveIndex(index)}
-                style={{
-                  width: 18,
-                  height: 18,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 999,
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                  background: "transparent",
-                }}
-              >
-                <span
-                  aria-hidden="true"
+          <>
+            <button
+              type="button"
+              aria-label="Banner anterior"
+              onClick={goToPreviousSlide}
+              className="theme-button"
+              style={{
+                position: "absolute",
+                left: 18,
+                top: "50%",
+                transform: "translateY(-50%)",
+                zIndex: 3,
+                width: 48,
+                height: 48,
+                display: "grid",
+                placeItems: "center",
+                borderRadius: 999,
+                border: "1px solid var(--border-soft)",
+                background: "color-mix(in srgb, var(--page-panel-bg) 84%, transparent)",
+                color: "var(--text-strong)",
+                backdropFilter: "blur(10px)",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
+                {"<"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              aria-label="Banner siguiente"
+              onClick={goToNextSlide}
+              className="theme-button"
+              style={{
+                position: "absolute",
+                right: 18,
+                top: "50%",
+                transform: "translateY(-50%)",
+                zIndex: 3,
+                width: 48,
+                height: 48,
+                display: "grid",
+                placeItems: "center",
+                borderRadius: 999,
+                border: "1px solid var(--border-soft)",
+                background: "color-mix(in srgb, var(--page-panel-bg) 84%, transparent)",
+                color: "var(--text-strong)",
+                backdropFilter: "blur(10px)",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
+                {">"}
+              </span>
+            </button>
+
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: 22,
+                transform: "translateX(-50%)",
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "10px 14px",
+                borderRadius: 999,
+                background: "color-mix(in srgb, var(--page-panel-bg) 82%, transparent)",
+                border: "1px solid var(--border-soft)",
+                backdropFilter: "blur(10px)",
+                zIndex: 3,
+              }}
+            >
+              {safeSlides.map((slide, index) => (
+                <button
+                  key={`${slide.title}-${index}`}
+                  type="button"
+                  aria-label={`Ver banner ${index + 1}`}
+                  aria-pressed={index === activeIndex}
+                  onClick={() => goToSlide(index)}
                   style={{
-                    width: 10,
-                    height: 10,
+                    width: 18,
+                    height: 18,
+                    display: "grid",
+                    placeItems: "center",
                     borderRadius: 999,
-                    background:
-                      index === activeIndex
-                        ? "var(--text-strong)"
-                        : "color-mix(in srgb, var(--text-strong) 38%, transparent)",
-                    transform: index === activeIndex ? "scale(1.05)" : "scale(1)",
-                    transition: "transform 180ms ease, background-color 180ms ease",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    background: "transparent",
                   }}
-                />
-              </button>
-            ))}
-          </div>
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 999,
+                      background:
+                        index === activeIndex
+                          ? "var(--text-strong)"
+                          : "color-mix(in srgb, var(--text-strong) 38%, transparent)",
+                      transform: index === activeIndex ? "scale(1.05)" : "scale(1)",
+                      transition: "transform 180ms ease, background-color 180ms ease",
+                    }}
+                  />
+                </button>
+              ))}
+            </div>
+          </>
         ) : null}
       </div>
     </section>

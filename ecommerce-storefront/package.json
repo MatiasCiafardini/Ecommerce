@@ -9,6 +9,7 @@
     "dev:store3": "set \"NEXT_DEV_DIST_DIR=.next-store3\" && next dev --webpack --port 3003",
     "dev:store4": "set \"NEXT_DEV_DIST_DIR=.next-store4\" && next dev --webpack --port 3004",
     "dev:store5": "set \"NEXT_DEV_DIST_DIR=.next-store5\" && next dev --webpack --port 3005",
+    "dev:store6": "set \"NEXT_DEV_DIST_DIR=.next-store6\" && next dev --webpack --port 3006",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

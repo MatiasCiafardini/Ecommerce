@@ -42,7 +42,7 @@ export default function ProductCard({ product }: Props) {
         height: "var(--product-card-height)",
         minHeight: "var(--product-card-height)",
         border: "1px solid var(--border-soft)",
-        borderRadius: "var(--theme-radius-card)",
+        borderRadius: 0,
         overflow: "hidden",
       }}
     >
@@ -70,7 +70,7 @@ export default function ProductCard({ product }: Props) {
               left: 14,
               zIndex: 2,
               padding: "8px 12px",
-              borderRadius: "var(--theme-radius-pill)",
+              borderRadius: 0,
               background:
                 "color-mix(in srgb, var(--paper, #fffdf9) 84%, var(--accent, #8f7868) 16%)",
               border: "1px solid color-mix(in srgb, var(--border-soft, rgba(0,0,0,0.12)) 68%, var(--accent, #8f7868) 32%)",

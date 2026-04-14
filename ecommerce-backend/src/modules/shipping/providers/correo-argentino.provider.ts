@@ -33,34 +33,46 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     const token = await this.getAccessToken(config);
     const customerId = await this.getCustomerId(config, token);
     const types = this.getQuotedDeliveryTypes(config);
+    const postalCodeOrigin = this.getOriginPostalCode(config);
+
     const responses = await Promise.all(
-      types.map((deliveredType) =>
-        axios.post(
-          this.url(config.apiBaseUrl, '/rates'),
-          {
-            customerId,
-            postalCodeOrigin: this.getOriginPostalCode(config),
-            postalCodeDestination: data.postalCode,
-            deliveredType,
-            dimensions: this.buildQuoteDimensions(data, config),
-          },
-          {
+      types.map((deliveredType) => {
+        const dimensions = this.buildQuoteDimensions(data, config);
+        const payload = { customerId, postalCodeOrigin, postalCodeDestination: data.postalCode, deliveredType, dimensions };
+        console.log(`[CorreoArgentino] POST /rates deliveredType=${deliveredType} origin=${postalCodeOrigin} dest=${data.postalCode} weight=${dimensions.weight}g h=${dimensions.height} w=${dimensions.width} l=${dimensions.length}`);
+        return axios
+          .post(this.url(config.apiBaseUrl, '/rates'), payload, {
             ...this.auth(token),
             // MiCorreo returns 202 Accepted for successful rate queries — treat all 2xx as success
             validateStatus: (status: number) => status >= 200 && status < 300,
-          },
-        ),
-      ),
+          })
+          .then((res) => {
+            const count = Array.isArray(res.data?.rates) ? res.data.rates.length : 0;
+            console.log(`[CorreoArgentino] /rates HTTP ${res.status} deliveredType=${deliveredType} — ${count} rate(s)`);
+            return res;
+          });
+      }),
     ).catch((error) => this.fail(error, 'Error fetching shipping rates from Correo Argentino MiCorreo (/rates)'));
+
+    // Pricing config: markup and free-shipping threshold
+    const pricing = config.metadata.pricing && typeof config.metadata.pricing === 'object'
+      ? (config.metadata.pricing as Record<string, unknown>)
+      : {};
+    const markupType = this.text(pricing.markupType) || 'percentage';
+    const markupValue = Number(pricing.markupValue ?? 0);
+    const freeShippingThreshold = Number(pricing.freeShippingThreshold ?? 0);
+    const isFreeShipping = freeShippingThreshold > 0 && data.value >= freeShippingThreshold;
 
     const seen = new Set<string>();
     return responses.flatMap((response: any, index: number) =>
       (Array.isArray(response.data?.rates) ? response.data.rates : []).flatMap((rate: any) => {
         const deliveryType = this.deliveryType(rate.deliveredType || rate.deliveryType || types[index]);
+        const rawPrice = Number(rate.price ?? 0);
+        const price = isFreeShipping ? 0 : this.applyMarkup(rawPrice, markupType, markupValue);
         const mapped: ShippingRate = {
           provider: this.providerCode,
           method: `${this.text(rate.productName) || 'Correo Argentino'} - ${deliveryType === 'S' ? 'Sucursal' : 'Domicilio'}`,
-          price: Number(rate.price ?? 0),
+          price,
           estimatedDays: this.days(rate.deliveryTimeMin, rate.deliveryTimeMax),
           carrierId: this.providerCode,
           carrierName: 'Correo Argentino',
@@ -68,7 +80,7 @@ export class CorreoArgentinoProvider implements ShippingProvider {
           modalityCode: deliveryType,
           dispatchType: deliveryType,
           branchId: deliveryType === 'S' ? this.text(config.defaultAgency) || null : null,
-          metadata: { deliveryType, requiresBranchSelection: deliveryType === 'S' && !this.text(config.defaultAgency) },
+          metadata: { deliveryType, requiresBranchSelection: deliveryType === 'S' && !this.text(config.defaultAgency), rawPrice, markup: markupValue > 0 ? { type: markupType, value: markupValue } : null, freeShipping: isFreeShipping },
         };
         const key = [mapped.method, mapped.serviceCode, mapped.modalityCode, mapped.branchId].join('|');
         if (seen.has(key)) return [];
@@ -461,6 +473,12 @@ export class CorreoArgentinoProvider implements ShippingProvider {
   private digits(value?: string | null) { return (value || '').replace(/\D+/g, ''); }
   private cut(value: string, length: number) { return value ? value.slice(0, length) : ''; }
   private text(value: unknown) { return typeof value === 'string' && value.trim() ? value.trim() : ''; }
+  private applyMarkup(price: number, type: string, value: number) {
+    if (!value || value <= 0) return Math.round(price);
+    if (type === 'fixed') return Math.round(price + value);
+    // percentage (default)
+    return Math.round(price * (1 + value / 100));
+  }
   private isDuplicateImportError(error: unknown) { return axios.isAxiosError(error) && String(error.response?.data?.message || error.response?.data?.error || error.response?.data?.code || error.message || '').toLowerCase().includes('ya fue importada'); }
   private fail(error: unknown, fallback: string): never {
     if (error instanceof BadRequestException || error instanceof ServiceUnavailableException || error instanceof NotImplementedException) throw error;

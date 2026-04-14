@@ -15,6 +15,20 @@ type RemoteStorefrontConfig = {
   };
 };
 
+function reportRemoteStorefrontFallback(args: {
+  storeId: number;
+  error: unknown;
+}) {
+  if (process.env.NODE_ENV !== "development") {
+    return;
+  }
+
+  console.warn("[tenant] Falling back to local storefront config", {
+    storeId: args.storeId,
+    error: args.error instanceof Error ? args.error.message : String(args.error),
+  });
+}
+
 function normalizeTenantConfig(args: {
   storeId: number;
   remoteConfig: {
@@ -69,9 +83,9 @@ export async function getTenantConfig() {
       remoteConfig,
     });
   } catch (error) {
-    console.error("[tenant] Failed to load remote storefront config", {
+    reportRemoteStorefrontFallback({
       storeId,
-      error: error instanceof Error ? error.message : String(error),
+      error,
     });
 
     return normalizeTenantConfig({

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" fill="none">
+  <rect width="1200" height="900" rx="40" fill="#f5eee6"/>
+  <circle cx="248" cy="196" r="136" fill="#fff" opacity=".58"/>
+  <rect x="84" y="74" width="1032" height="752" rx="34" fill="rgba(255,255,255,.68)" stroke="rgba(125,92,70,.12)"/>
+  <path d="M376 220h160v228l120 92v102H300v-84l76-62V302z" fill="#23201f"/>
+  <rect x="334" y="640" width="418" height="72" rx="30" fill="#6f5645"/>
+  <path d="M428 288h54m-54 56h54m-54 56h54" stroke="#d6c2af" stroke-width="10" stroke-linecap="round"/>
+  <text x="96" y="118" fill="#8a674f" font-size="26" font-family="Arial, sans-serif" letter-spacing="6">MILA SHOES</text>
+  <text x="96" y="792" fill="#3a312b" font-size="78" font-family="Arial, sans-serif" font-weight="700">Borcegos</text>
+</svg>

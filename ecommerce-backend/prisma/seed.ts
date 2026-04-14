@@ -41,6 +41,213 @@ const DEVELOPMENT_STORES = [
     domain: 'localhost:3005',
     adminEmail: 'Matiasciafardini@gmail.com',
   },
+  {
+    id: 6,
+    name: 'Mila Shoes',
+    domain: 'localhost:3006',
+    adminEmail: 'admin@milashoes.com',
+  },
+] as const;
+
+const MILASHOES_STOREFRONT_CONFIG = {
+  theme: 'milashoes',
+  pages: {
+    home: [
+      {
+        type: 'hero_carousel',
+        props: {
+          buttonText: 'Ver coleccion',
+          buttonLink: '/product',
+          showContentCard: true,
+          slides: [
+            {
+              image: '/images/milashoes/hero-shoes.svg',
+              eyebrow: 'Mila Shoes',
+              title: 'Calzado limpio para todos los dias',
+              subtitle:
+                'Siluetas claras, materiales nobles y una seleccion femenina para combinar sin esfuerzo.',
+            },
+            {
+              image: '/images/milashoes/products/sneaker-nube.svg',
+              eyebrow: 'Nueva capsula',
+              title: 'Sneakers livianos y versatiles',
+              subtitle:
+                'Pares comodos con una estetica blanca, fresca y moderna.',
+            },
+            {
+              image: '/images/milashoes/products/bota-alba.svg',
+              eyebrow: 'Coleccion blanca',
+              title: 'Botas suaves con presencia',
+              subtitle:
+                'Modelos pensados para elevar looks simples con una lectura premium.',
+            },
+          ],
+          animationPreset: 'soft',
+        },
+      },
+      {
+        type: 'featured_products',
+        props: {
+          title: 'Favoritos de la semana',
+          limit: 4,
+          columns: 4,
+          animationPreset: 'soft',
+        },
+      },
+      {
+        type: 'category_grid',
+        props: {
+          title: 'Explora por categoria',
+          columns: 3,
+          items: [
+            {
+              title: 'Botas',
+              description: 'Siluetas elegantes para sumar presencia sin perder comodidad.',
+              href: '/category/botas',
+              image: '/images/milashoes/categories/botas.svg',
+            },
+            {
+              title: 'Borcegos',
+              description: 'Modelos urbanos con estructura, textura y una impronta actual.',
+              href: '/category/borcegos',
+              image: '/images/milashoes/categories/borcegos.svg',
+            },
+            {
+              title: 'Sneakers',
+              description: 'Pares livianos y versatiles para acompanar todos los dias.',
+              href: '/category/sneakers',
+              image: '/images/milashoes/categories/sneakers.svg',
+            },
+          ],
+          animationPreset: 'soft',
+        },
+      },
+      {
+        type: 'banner',
+        props: {
+          text: 'Hasta 3 cuotas sin interes en seleccionados y envios a todo el pais',
+          backgroundColor: '#ffffff',
+          textColor: '#000000',
+          animationPreset: 'none',
+        },
+      },
+      {
+        type: 'product_grid',
+        props: {
+          title: 'Nuevos ingresos',
+          limit: 8,
+          columns: 4,
+          animationPreset: 'soft',
+        },
+      },
+      {
+        type: 'newsletter',
+        props: {
+          title: 'Recibi novedades de Mila Shoes',
+          subtitle:
+            'Suscribite para enterarte de restocks, lanzamientos y pares pensados para tu rotacion diaria.',
+          animationPreset: 'soft',
+        },
+      },
+    ],
+  },
+} as const;
+
+const MILASHOES_CATEGORY_DEFINITIONS = [
+  { name: 'Botas', slug: 'botas', imageUrl: '/images/milashoes/categories/botas.svg' },
+  { name: 'Borcegos', slug: 'borcegos', imageUrl: '/images/milashoes/categories/borcegos.svg' },
+  { name: 'Sneakers', slug: 'sneakers', imageUrl: '/images/milashoes/categories/sneakers.svg' },
+] as const;
+
+const MILASHOES_PRODUCTS = [
+  {
+    title: 'Bota Siena',
+    slug: 'bota-siena',
+    description:
+      'Bota femenina de cana media con lineas limpias, base firme y un acabado sobrio para elevar looks de todos los dias.',
+    categorySlug: 'botas',
+    price: 124990,
+    imageUrls: ['/images/milashoes/products/bota-siena.svg'],
+    colors: ['Negro', 'Chocolate'],
+    sizes: ['35', '36', '37', '38', '39', '40'],
+  },
+  {
+    title: 'Bota Alba',
+    slug: 'bota-alba',
+    description:
+      'Bota clara y minimalista con perfil estilizado, ideal para combinar con denim, tejidos y capas suaves.',
+    categorySlug: 'botas',
+    price: 118990,
+    imageUrls: ['/images/milashoes/products/bota-alba.svg'],
+    colors: ['Vison', 'Tiza'],
+    sizes: ['35', '36', '37', '38', '39', '40'],
+  },
+  {
+    title: 'Bota Helena',
+    slug: 'bota-helena',
+    description:
+      'Bota con volumen sutil y presencia equilibrada, pensada para un guardarropa moderno y versatil.',
+    categorySlug: 'botas',
+    price: 132990,
+    imageUrls: ['/images/milashoes/products/bota-helena.svg'],
+    colors: ['Topo', 'Negro'],
+    sizes: ['35', '36', '37', '38', '39', '40'],
+  },
+  {
+    title: 'Borcego Roma',
+    slug: 'borcego-roma',
+    description:
+      'Borcego urbano con actitud, suela marcada y terminacion premium para sumar estructura al look.',
+    categorySlug: 'borcegos',
+    price: 138990,
+    imageUrls: ['/images/milashoes/products/borcego-roma.svg'],
+    colors: ['Negro', 'Grafito'],
+    sizes: ['35', '36', '37', '38', '39', '40'],
+  },
+  {
+    title: 'Borcego Vera',
+    slug: 'borcego-vera',
+    description:
+      'Borcego de perfil refinado con textura suave y una lectura moderna para uso diario.',
+    categorySlug: 'borcegos',
+    price: 134990,
+    imageUrls: ['/images/milashoes/products/borcego-vera.svg'],
+    colors: ['Taupe', 'Arena'],
+    sizes: ['35', '36', '37', '38', '39', '40'],
+  },
+  {
+    title: 'Borcego Lila',
+    slug: 'borcego-lila',
+    description:
+      'Borcego minimalista con contraste sutil y estructura firme para jornadas largas con estilo.',
+    categorySlug: 'borcegos',
+    price: 136990,
+    imageUrls: ['/images/milashoes/products/borcego-lila.svg'],
+    colors: ['Negro', 'Cacao'],
+    sizes: ['35', '36', '37', '38', '39', '40'],
+  },
+  {
+    title: 'Sneaker Nube',
+    slug: 'sneaker-nube',
+    description:
+      'Sneaker liviano de uso diario con volumen limpio y una paleta neutra para rotar sin esfuerzo.',
+    categorySlug: 'sneakers',
+    price: 96990,
+    imageUrls: ['/images/milashoes/products/sneaker-nube.svg'],
+    colors: ['Crudo', 'Negro'],
+    sizes: ['35', '36', '37', '38', '39', '40'],
+  },
+  {
+    title: 'Sneaker Brisa',
+    slug: 'sneaker-brisa',
+    description:
+      'Sneaker de silueta femenina con base comoda y detalles suaves para un look relajado pero pulido.',
+    categorySlug: 'sneakers',
+    price: 99990,
+    imageUrls: ['/images/milashoes/products/sneaker-brisa.svg'],
+    colors: ['Blanco', 'Arena'],
+    sizes: ['35', '36', '37', '38', '39', '40'],
+  },
 ] as const;
 
 type DevelopmentStoreRecord = {
@@ -625,6 +832,9 @@ async function ensureDevelopmentStores() {
             mercadoPagoAccessToken: readStoreEnvCredential(definition.id, "ACCESS_TOKEN"),
             mercadoPagoPublicKey: readStoreEnvCredential(definition.id, "PUBLIC_KEY"),
             mercadoPagoWebhookSecret: readStoreEnvCredential(definition.id, "WEBHOOK_SECRET"),
+            ...(definition.id === 6
+              ? { storefrontConfig: MILASHOES_STOREFRONT_CONFIG as any }
+              : {}),
           },
         })
       : await prisma.store.create({
@@ -635,6 +845,9 @@ async function ensureDevelopmentStores() {
             mercadoPagoAccessToken: readStoreEnvCredential(definition.id, "ACCESS_TOKEN"),
             mercadoPagoPublicKey: readStoreEnvCredential(definition.id, "PUBLIC_KEY"),
             mercadoPagoWebhookSecret: readStoreEnvCredential(definition.id, "WEBHOOK_SECRET"),
+            ...(definition.id === 6
+              ? { storefrontConfig: MILASHOES_STOREFRONT_CONFIG as any }
+              : {}),
           },
         });
 
@@ -651,9 +864,19 @@ async function ensureDevelopmentStores() {
   return stores;
 }
 
-async function ensureAdmin(storeId: number, email: string) {
+async function ensureAdmin(
+  storeId: number,
+  email: string,
+  options?: {
+    password?: string;
+    name?: string;
+    role?: Role;
+  },
+) {
   const normalizedEmail = normalizeEmail(email);
-  const password = await bcrypt.hash('admin123', 10);
+  const password = await bcrypt.hash(options?.password ?? 'admin123', 10);
+  const role = options?.role ?? Role.OWNER;
+  const name = options?.name ?? 'Admin';
 
   await prisma.user.upsert({
     where: {
@@ -663,16 +886,42 @@ async function ensureAdmin(storeId: number, email: string) {
       },
     },
     update: {
-      role: Role.OWNER,
-      name: 'Admin',
+      role,
+      name,
       password,
     },
     create: {
       email: normalizedEmail,
       password,
-      name: 'Admin',
-      role: Role.OWNER,
+      name,
+      role,
       storeId,
+    },
+  });
+}
+
+async function ensureMilaShoesCustomer(storeId: number) {
+  const email = normalizeEmail('user@milashoes.com');
+  const password = await bcrypt.hash('User123!', 10);
+
+  await prisma.customer.upsert({
+    where: {
+      storeId_email: {
+        storeId,
+        email,
+      },
+    },
+    update: {
+      firstName: 'Mila',
+      lastName: 'Clienta',
+      password,
+    },
+    create: {
+      storeId,
+      email,
+      firstName: 'Mila',
+      lastName: 'Clienta',
+      password,
     },
   });
 }
@@ -971,12 +1220,125 @@ async function seedPapereriaCatalog(storeId: number) {
   }
 }
 
+async function seedMilaShoesCatalog(storeId: number) {
+  const categories = await Promise.all(
+    MILASHOES_CATEGORY_DEFINITIONS.map((category) =>
+      prisma.category.create({
+        data: {
+          storeId,
+          name: category.name,
+          slug: category.slug,
+          imageUrl: category.imageUrl,
+        },
+      }),
+    ),
+  );
+
+  const categoriesBySlug = new Map(
+    categories.map((category) => [category.slug, category] as const),
+  );
+
+  const sizeOption = await prisma.productOption.create({
+    data: {
+      storeId,
+      name: 'Talle',
+    },
+  });
+
+  const colorOption = await prisma.productOption.create({
+    data: {
+      storeId,
+      name: 'Color',
+    },
+  });
+
+  for (const [index, product] of MILASHOES_PRODUCTS.entries()) {
+    const category = categoriesBySlug.get(product.categorySlug);
+
+    if (!category) {
+      throw new Error(`Missing Mila Shoes category ${product.categorySlug}`);
+    }
+
+    const skuBase = `S${storeId}-${product.categorySlug
+      .slice(0, 3)
+      .toUpperCase()}-${String(index + 1).padStart(3, '0')}`;
+
+    await prisma.product.create({
+      data: {
+        storeId,
+        title: product.title,
+        slug: product.slug,
+        description: product.description,
+        published: true,
+        categories: {
+          create: [
+            {
+              categoryId: category.id,
+            },
+          ],
+        },
+        images: {
+          create: product.imageUrls.map((url, position) => ({
+            url,
+            position,
+          })),
+        },
+        optionValues: {
+          create: [
+            ...product.sizes.map((size) => ({
+              productOptionId: sizeOption.id,
+              value: size,
+            })),
+            ...product.colors.map((color) => ({
+              productOptionId: colorOption.id,
+              value: color,
+            })),
+          ],
+        },
+        variants: {
+          create: product.colors.flatMap((color, colorIndex) =>
+            product.sizes.map((size, sizeIndex) => ({
+              sku: `${skuBase}-${slugify(color).slice(0, 3).toUpperCase()}-${size}`,
+              price: product.price + colorIndex * 1500 + sizeIndex * 350,
+              Size: size,
+              Color: color,
+              weight: 0.9 + sizeIndex * 0.03,
+              width: 32 + sizeIndex,
+              height: 16 + colorIndex,
+              length: 30 + sizeIndex,
+              inventories: {
+                create: [
+                  {
+                    storeId,
+                    quantity: 6 + ((index + colorIndex + sizeIndex) % 7) * 2,
+                    reserved: 0,
+                  },
+                ],
+              },
+            })),
+          ),
+        },
+      },
+    });
+  }
+}
+
 async function main() {
   const stores = await ensureDevelopmentStores();
   const assetDirs = await ensureAssetDir();
 
   for (const store of stores) {
-    await ensureAdmin(store.id, store.adminEmail);
+    if (store.id === 6) {
+      await ensureAdmin(store.id, store.adminEmail, {
+        password: 'Admin123!',
+        name: 'Mila Shoes Admin',
+        role: Role.ADMIN,
+      });
+      await ensureMilaShoesCustomer(store.id);
+    } else {
+      await ensureAdmin(store.id, store.adminEmail);
+    }
+
     await resetCatalogData(store.id);
     if (store.id === 5) {
       continue;
@@ -984,6 +1346,8 @@ async function main() {
 
     if (store.id === 4) {
       await seedPapereriaCatalog(store.id);
+    } else if (store.id === 6) {
+      await seedMilaShoesCatalog(store.id);
     } else {
       await seedCatalog(store.id, assetDirs);
     }
@@ -1002,6 +1366,8 @@ async function main() {
           ? `${store.domain} -> catalogo vacio / listo para carga real`
           : store.id === 4
           ? `${store.domain} -> ${PAPERERIA_CATEGORIES.length} categorias / ${PAPERERIA_PRODUCTS.length} productos`
+          : store.id === 6
+          ? `${store.domain} -> ${MILASHOES_CATEGORY_DEFINITIONS.length} categorias / ${MILASHOES_PRODUCTS.length} productos`
           : `${store.domain} -> ${getCatalogSeedConfig(store.id).definitions.length} categorias / ${getCatalogSeedConfig(store.id).definitions.reduce(
               (sum, category) => sum + category.titles.length,
               0,
@@ -1011,8 +1377,10 @@ async function main() {
   );
   console.log('Usuarios admin disponibles:');
   for (const store of stores) {
-    console.log(`- ${store.adminEmail} / admin123 (${store.domain})`);
+    const password = store.id === 6 ? 'Admin123!' : 'admin123';
+    console.log(`- ${store.adminEmail} / ${password} (${store.domain})`);
   }
+  console.log('- user@milashoes.com / User123! (localhost:3006)');
 }
 
 main()

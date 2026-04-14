@@ -7,6 +7,22 @@ type Params = {
   productIds?: number[];
 };
 
+function reportProductsFallback(args: {
+  scope: "list" | "detail";
+  target: string;
+  error: unknown;
+}) {
+  if (process.env.NODE_ENV !== "development") {
+    return;
+  }
+
+  console.warn("[products] Falling back to empty storefront data", {
+    scope: args.scope,
+    target: args.target,
+    error: args.error instanceof Error ? args.error.message : String(args.error),
+  });
+}
+
 export async function getProducts(params?: Params): Promise<StoreProduct[]> {
   const query = new URLSearchParams();
 
@@ -32,9 +48,10 @@ export async function getProducts(params?: Params): Promise<StoreProduct[]> {
   try {
     products = await apiFetch<StoreProduct[]>(url);
   } catch (error) {
-    console.error("[products] Failed to load storefront products", {
-      url,
-      error: error instanceof Error ? error.message : String(error),
+    reportProductsFallback({
+      scope: "list",
+      target: url,
+      error,
     });
   }
 
@@ -52,9 +69,10 @@ export async function getProductBySlug(slug: string) {
   try {
     return await apiFetch<StoreProduct>(`/store/products/${slug}`);
   } catch (error) {
-    console.error("[products] Failed to load storefront product", {
-      slug,
-      error: error instanceof Error ? error.message : String(error),
+    reportProductsFallback({
+      scope: "detail",
+      target: slug,
+      error,
     });
 
     return null;

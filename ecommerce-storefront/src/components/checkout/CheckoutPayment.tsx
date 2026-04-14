@@ -10,6 +10,13 @@ type ShippingOption = {
   method: string;
   price: number;
   estimatedDays: number;
+  carrierId?: string;
+  carrierName?: string;
+  serviceCode?: string;
+  modalityCode?: string;
+  dispatchType?: string;
+  branchId?: string | null;
+  sellerCost?: number | null;
 };
 
 type PaymentOption = {

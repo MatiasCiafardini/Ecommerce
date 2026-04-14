@@ -1,4 +1,5 @@
 import type { ThemeBlockDefinition } from "@/types/block";
+import MilashoesHero from "@/themes/milashoes/MilashoesHero";
 
 export const blockThemeOverrides: Record<
   string,
@@ -37,6 +38,19 @@ export const blockThemeOverrides: Record<
         eyebrow: "Curado para una silueta femenina y actual",
         editorialLabel: "Mi Maria edit",
         editorialTitle: "Prendas versatiles para vestir todos los dias con elegancia",
+      },
+    },
+  },
+  milashoes: {
+    hero: {
+      component: MilashoesHero,
+    },
+    product_grid: {
+      defaultProps: {
+        eyebrow: "Mila essentials",
+        editorialLabel: "Curated shoes",
+        editorialTitle:
+          "Modelos versatiles para vestir todos los dias con un gesto limpio",
       },
     },
   },

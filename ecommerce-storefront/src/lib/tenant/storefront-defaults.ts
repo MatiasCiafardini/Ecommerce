@@ -16,6 +16,7 @@ const storefrontDefaultThemeIds = {
   trojani: 3,
   libreria: 4,
   mimaria: 5,
+  milashoes: 6,
 } as const;
 
 export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
@@ -542,6 +543,112 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
             title: "Recibi novedades de Mi Maria",
             subtitle:
               "Suscribite para enterarte de nuevos ingresos, seleccion boutique y propuestas pensadas para vos.",
+            animationPreset: "soft",
+          },
+        },
+      ],
+    },
+  },
+  6: {
+    theme: "milashoes",
+    pages: {
+      home: [
+        {
+          type: "hero_carousel",
+          props: {
+            buttonText: "Ver coleccion",
+            buttonLink: "/product",
+            showContentCard: true,
+            slides: [
+              {
+                image: "/images/milashoes/hero-shoes.svg",
+                eyebrow: "Mila Shoes",
+                title: "Calzado limpio para todos los dias",
+                subtitle:
+                  "Siluetas claras, materiales nobles y una seleccion femenina para combinar sin esfuerzo.",
+              },
+              {
+                image: "/images/milashoes/products/sneaker-nube.svg",
+                eyebrow: "Nueva capsula",
+                title: "Sneakers livianos y versatiles",
+                subtitle:
+                  "Pares comodos con una estetica blanca, fresca y moderna.",
+              },
+              {
+                image: "/images/milashoes/products/bota-alba.svg",
+                eyebrow: "Coleccion blanca",
+                title: "Botas suaves con presencia",
+                subtitle:
+                  "Modelos pensados para elevar looks simples con una lectura premium.",
+              },
+            ],
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "featured_products",
+          props: {
+            title: "Favoritos de la semana",
+            limit: 4,
+            columns: 4,
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "category_grid",
+          props: {
+            title: "Explora por categoria",
+            columns: 3,
+            items: [
+              {
+                title: "Botas",
+                description:
+                  "Siluetas elegantes para sumar presencia sin perder comodidad.",
+                href: "/category/botas",
+                image: "/images/milashoes/categories/botas.svg",
+              },
+              {
+                title: "Borcegos",
+                description:
+                  "Modelos urbanos con estructura, textura y una impronta actual.",
+                href: "/category/borcegos",
+                image: "/images/milashoes/categories/borcegos.svg",
+              },
+              {
+                title: "Sneakers",
+                description:
+                  "Pares livianos y versatiles para acompanar todos los dias.",
+                href: "/category/sneakers",
+                image: "/images/milashoes/categories/sneakers.svg",
+              },
+            ],
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "banner",
+          props: {
+            text: "Hasta 3 cuotas sin interes en seleccionados y envios a todo el pais",
+            backgroundColor: "#ffffff",
+            textColor: "#000000",
+            animationPreset: "none",
+          },
+        },
+        {
+          type: "product_grid",
+          props: {
+            title: "Nuevos ingresos",
+            limit: 8,
+            columns: 4,
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "newsletter",
+          props: {
+            title: "Recibi novedades de Mila Shoes",
+            subtitle:
+              "Suscribite para enterarte de restocks, lanzamientos y pares pensados para tu rotacion diaria.",
             animationPreset: "soft",
           },
         },

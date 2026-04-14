@@ -112,6 +112,12 @@ Start-ManagedProcess `
   -Command "npm.cmd run dev:store5" `
   -Port 3005
 
+Start-ManagedProcess `
+  -Name "store6" `
+  -WorkingDirectory (Join-Path $workspaceRoot "ecommerce-storefront") `
+  -Command "npm.cmd run dev:store6" `
+  -Port 3006
+
 Write-Host ""
 Write-Host "URLs locales:"
 Write-Host "- Backend: http://localhost:3000/docs"
@@ -120,6 +126,7 @@ Write-Host "- Store 2: http://localhost:3002"
 Write-Host "- Store 3: http://localhost:3003"
 Write-Host "- Store 4: http://localhost:3004"
 Write-Host "- Store 5: http://localhost:3005"
+Write-Host "- Store 6: http://localhost:3006"
 Write-Host ""
 Write-Host "Para revisar procesos: npm run dev:status"
 Write-Host "Para apagarlos: npm run dev:down"

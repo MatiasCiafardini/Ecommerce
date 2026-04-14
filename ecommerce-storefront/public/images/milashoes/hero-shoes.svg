@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fffdfa"/>
+      <stop offset="52%" stop-color="#f1e6da"/>
+      <stop offset="100%" stop-color="#e3d2c1"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.96)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.56)"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1100" rx="48" fill="url(#bg)"/>
+  <circle cx="1230" cy="190" r="168" fill="#fff" opacity=".42"/>
+  <circle cx="310" cy="860" r="180" fill="#dcc5b1" opacity=".34"/>
+  <path d="M0 930c164-66 333-99 507-99 230 0 444 58 642 174H0z" fill="#f6eee4"/>
+  <g opacity=".38" stroke="#ccb7a3" stroke-width="2">
+    <path d="M122 116h1356"/>
+    <path d="M122 226h1356"/>
+    <path d="M122 336h1356"/>
+    <path d="M122 446h1356"/>
+    <path d="M122 556h1356"/>
+  </g>
+  <rect x="116" y="96" width="1368" height="908" rx="40" fill="url(#card)" stroke="rgba(125,92,70,.12)"/>
+  <g transform="translate(704 348) rotate(-9)">
+    <path d="M40 232c90-18 179-64 269-130l165 33c34 7 61 34 66 68l5 38H0l12-43c7-25 28-44 55-49l86-17z" fill="#fffaf6" stroke="#8f6a54" stroke-width="12"/>
+    <path d="M191 148c44-29 96-67 154-115l133 28c27 6 47 28 51 55l5 35-148-25c-66 33-125 55-177 66-19 4-39 3-57-4l39-40z" fill="#c59e82" opacity=".24"/>
+    <rect x="51" y="242" width="489" height="32" rx="16" fill="#8f6a54"/>
+    <circle cx="150" cy="287" r="34" fill="#f4ece4" stroke="#8f6a54" stroke-width="10"/>
+    <circle cx="440" cy="287" r="34" fill="#f4ece4" stroke="#8f6a54" stroke-width="10"/>
+    <path d="M184 141c44 12 92 15 142 7" stroke="#8f6a54" stroke-width="10" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(252 512) rotate(6)">
+    <path d="M18 240c85-16 168-54 252-115l150 29c31 6 56 31 61 62l5 35H0l10-38c7-24 26-42 51-46l74-13z" fill="#fff" stroke="#6e5442" stroke-width="12"/>
+    <rect x="46" y="250" width="430" height="28" rx="14" fill="#6e5442"/>
+    <circle cx="138" cy="292" r="30" fill="#faf6f1" stroke="#6e5442" stroke-width="10"/>
+    <circle cx="388" cy="292" r="30" fill="#faf6f1" stroke="#6e5442" stroke-width="10"/>
+  </g>
+</svg>
