@@ -29,20 +29,40 @@ export class CreateVariantDto {
   @IsNumber()
   weight?: number;
 
+  @ApiPropertyOptional({ example: 400 })
+  @IsOptional()
+  @IsNumber()
+  weightGrams?: number;
+
   @ApiPropertyOptional({ example: 20 })
   @IsOptional()
   @IsNumber()
   width?: number;
+
+  @ApiPropertyOptional({ example: 20 })
+  @IsOptional()
+  @IsNumber()
+  packageWidthCm?: number;
 
   @ApiPropertyOptional({ example: 30 })
   @IsOptional()
   @IsNumber()
   height?: number;
 
+  @ApiPropertyOptional({ example: 30 })
+  @IsOptional()
+  @IsNumber()
+  packageHeightCm?: number;
+
   @ApiPropertyOptional({ example: 5 })
   @IsOptional()
   @IsNumber()
   length?: number;
+
+  @ApiPropertyOptional({ example: 5 })
+  @IsOptional()
+  @IsNumber()
+  packageLengthCm?: number;
 
   @ApiPropertyOptional({ example: 12 })
   @IsOptional()

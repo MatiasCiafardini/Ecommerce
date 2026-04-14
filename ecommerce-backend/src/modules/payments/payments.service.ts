@@ -52,6 +52,29 @@ export class PaymentsService {
 
     const order = await this.getOrderForPayment(storeId, orderId, requester);
 
+    if (provider === 'cash') {
+      this.ensureCashPaymentAllowed(order);
+
+      return this.prisma.payment.create({
+        data: {
+          storeId,
+          orderId,
+          provider: 'cash',
+          method: dto.method?.trim() || 'cash',
+          status: 'pending',
+          amount: order.total,
+          externalId: null,
+          reference: dto.reference?.trim() || null,
+          notes: dto.notes?.trim() || null,
+          idempotencyKey,
+          metadata: {
+            source: 'checkout',
+            channel: 'cash_on_pickup',
+          },
+        },
+      });
+    }
+
     let mpPayment;
 
     if (!dto.token || dto.token === 'test-token') {
@@ -399,6 +422,24 @@ export class PaymentsService {
     }
 
     return email;
+  }
+
+  private ensureCashPaymentAllowed(order: {
+    shippingProvider?: string | null;
+    shippingMethod?: string | null;
+  }) {
+    const shippingProvider = order.shippingProvider?.trim().toLowerCase() ?? '';
+    const shippingMethod = order.shippingMethod?.trim().toLowerCase() ?? '';
+    const pickupOrder =
+      shippingProvider === 'store' ||
+      shippingMethod.includes('retiro') ||
+      shippingMethod.includes('pickup');
+
+    if (!pickupOrder) {
+      throw new BadRequestException(
+        'Cash payments are only available for pickup orders',
+      );
+    }
   }
 
   private async finalizeApprovedOrder(orderId: number) {

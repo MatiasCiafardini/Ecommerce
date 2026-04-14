@@ -4,6 +4,7 @@ export interface ShippingRate {
   price: number;
   estimatedDays: number;
   quoteId?: string;
+  providerConfigId?: string | null;
   description?: string;
   storeShippingMethodId?: string | null;
   methodType?: string | null;
@@ -21,6 +22,13 @@ export type ShippingRateRequest = {
   postalCode: string;
   weight: number;
   value: number;
+  package?: {
+    weightGrams?: number;
+    height?: number;
+    width?: number;
+    length?: number;
+    summary?: Record<string, unknown> | null;
+  };
   state?: string;
   city?: string;
   country?: string;

@@ -8,6 +8,40 @@ import { UpdateVariantDto } from './dto/update-variant.dto';
 export class ProductVariantsService {
   constructor(private prisma: PrismaService) {}
 
+  private normalizeWeightGrams(data: {
+    weightGrams?: number | null;
+    weight?: number | null;
+  }) {
+    const directWeightGrams = Number(data.weightGrams ?? 0);
+    if (Number.isFinite(directWeightGrams) && directWeightGrams > 0) {
+      return directWeightGrams;
+    }
+
+    const legacyWeight = Number(data.weight ?? 0);
+    if (Number.isFinite(legacyWeight) && legacyWeight > 0) {
+      return Math.round(legacyWeight * 1000);
+    }
+
+    return null;
+  }
+
+  private normalizeDimensionCm(
+    preferred?: number | null,
+    legacy?: number | null,
+  ) {
+    const preferredValue = Number(preferred ?? 0);
+    if (Number.isFinite(preferredValue) && preferredValue > 0) {
+      return preferredValue;
+    }
+
+    const legacyValue = Number(legacy ?? 0);
+    if (Number.isFinite(legacyValue) && legacyValue > 0) {
+      return legacyValue;
+    }
+
+    return null;
+  }
+
   findAll(storeId: number) {
     return this.prisma.productVariant.findMany({
       where: {
@@ -49,6 +83,19 @@ export class ProductVariantsService {
     await this.ensureSkuAvailableInStore(data.sku, storeId);
 
     try {
+      const weightGrams = this.normalizeWeightGrams(data);
+      const packageWidthCm = this.normalizeDimensionCm(
+        data.packageWidthCm,
+        data.width,
+      );
+      const packageHeightCm = this.normalizeDimensionCm(
+        data.packageHeightCm,
+        data.height,
+      );
+      const packageLengthCm = this.normalizeDimensionCm(
+        data.packageLengthCm,
+        data.length,
+      );
       return await this.prisma.productVariant.create({
         data: {
           productId: data.productId,
@@ -56,10 +103,14 @@ export class ProductVariantsService {
           price: data.price,
           Size: data.Size,
           Color: data.Color,
-          weight: data.weight,
-          width: data.width,
-          height: data.height,
-          length: data.length,
+          weight: weightGrams !== null ? Number((weightGrams / 1000).toFixed(3)) : data.weight,
+          weightGrams,
+          width: packageWidthCm ?? data.width,
+          packageWidthCm,
+          height: packageHeightCm ?? data.height,
+          packageHeightCm,
+          length: packageLengthCm ?? data.length,
+          packageLengthCm,
           inventories:
             data.inventoryQuantity !== undefined
               ? {
@@ -112,19 +163,49 @@ export class ProductVariantsService {
       Size?: string | null;
       Color?: string | null;
       weight?: number | null;
+      weightGrams?: number | null;
       width?: number | null;
+      packageWidthCm?: number | null;
       height?: number | null;
+      packageHeightCm?: number | null;
       length?: number | null;
+      packageLengthCm?: number | null;
     } = {};
 
     if (data.sku !== undefined) payload.sku = data.sku;
     if (data.price !== undefined) payload.price = data.price;
     if (data.Size !== undefined) payload.Size = data.Size ?? null;
     if (data.Color !== undefined) payload.Color = data.Color ?? null;
-    if (data.weight !== undefined) payload.weight = data.weight ?? null;
-    if (data.width !== undefined) payload.width = data.width ?? null;
-    if (data.height !== undefined) payload.height = data.height ?? null;
-    if (data.length !== undefined) payload.length = data.length ?? null;
+    if (data.weight !== undefined || data.weightGrams !== undefined) {
+      const weightGrams = this.normalizeWeightGrams(data);
+      payload.weightGrams = weightGrams;
+      payload.weight =
+        weightGrams !== null ? Number((weightGrams / 1000).toFixed(3)) : null;
+    }
+    if (data.width !== undefined || data.packageWidthCm !== undefined) {
+      const packageWidthCm = this.normalizeDimensionCm(
+        data.packageWidthCm,
+        data.width,
+      );
+      payload.packageWidthCm = packageWidthCm;
+      payload.width = packageWidthCm;
+    }
+    if (data.height !== undefined || data.packageHeightCm !== undefined) {
+      const packageHeightCm = this.normalizeDimensionCm(
+        data.packageHeightCm,
+        data.height,
+      );
+      payload.packageHeightCm = packageHeightCm;
+      payload.height = packageHeightCm;
+    }
+    if (data.length !== undefined || data.packageLengthCm !== undefined) {
+      const packageLengthCm = this.normalizeDimensionCm(
+        data.packageLengthCm,
+        data.length,
+      );
+      payload.packageLengthCm = packageLengthCm;
+      payload.length = packageLengthCm;
+    }
 
     if (data.sku !== undefined) {
       await this.ensureSkuAvailableInStore(data.sku, storeId, variantId);

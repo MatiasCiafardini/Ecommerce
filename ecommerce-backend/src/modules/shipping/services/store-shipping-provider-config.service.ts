@@ -14,6 +14,24 @@ import {
 import { ShippingProvidersRegistryService } from './shipping-providers-registry.service';
 
 type ProviderConfigRecord = Prisma.StoreShippingProviderConfigGetPayload<object>;
+type ProviderConfigInput = {
+  provider: string;
+  enabled?: boolean;
+  isDefault?: boolean;
+  mode?: string | null;
+  email?: string | null;
+  password?: string | null;
+  agreement?: string | null;
+  apiKey?: string | null;
+  secretKey?: string | null;
+  originBranch?: string | null;
+  originAddressId?: string | null;
+  senderName?: string | null;
+  senderPhone?: string | null;
+  senderEmail?: string | null;
+  companyName?: string | null;
+  metadata?: Prisma.InputJsonValue | null;
+};
 
 @Injectable()
 export class StoreShippingProviderConfigService {
@@ -23,13 +41,15 @@ export class StoreShippingProviderConfigService {
   ) {}
 
   async findAll(storeId: number) {
-    return this.prisma.storeShippingProviderConfig.findMany({
+    const configs = await this.prisma.storeShippingProviderConfig.findMany({
       where: { storeId },
       orderBy: [
         { isDefault: 'desc' },
         { provider: 'asc' },
       ],
     });
+
+    return configs.map((config) => this.sanitizeRecordForOutput(config));
   }
 
   async findOne(storeId: number, id: string) {
@@ -44,35 +64,19 @@ export class StoreShippingProviderConfigService {
       throw new NotFoundException('Shipping provider config not found');
     }
 
-    return config;
+    return this.sanitizeRecordForOutput(config);
   }
 
   async createOrUpdate(
     storeId: number,
-    input: {
-      provider: string;
-      enabled?: boolean;
-      isDefault?: boolean;
-      mode?: string | null;
-      email?: string | null;
-      password?: string | null;
-      agreement?: string | null;
-      apiKey?: string | null;
-      secretKey?: string | null;
-      originBranch?: string | null;
-      originAddressId?: string | null;
-      senderName?: string | null;
-      senderPhone?: string | null;
-      senderEmail?: string | null;
-      companyName?: string | null;
-      metadata?: Prisma.InputJsonValue | null;
-    },
+    input: ProviderConfigInput,
   ) {
     const provider = input.provider.trim().toLowerCase();
     this.registry.getProvider(provider);
+    const sanitizedInput = this.sanitizeInputForProvider(provider, input);
 
     return this.prisma.$transaction(async (tx) => {
-      if (input.isDefault) {
+      if (sanitizedInput.isDefault) {
         await tx.storeShippingProviderConfig.updateMany({
           where: { storeId },
           data: { isDefault: false },
@@ -89,50 +93,75 @@ export class StoreShippingProviderConfigService {
         create: {
           storeId,
           provider,
-          enabled: input.enabled ?? true,
-          isDefault: input.isDefault ?? false,
-          mode: input.mode?.trim() || 'DEFAULT',
-          email: input.email ?? null,
-          password: input.password ?? null,
-          agreement: input.agreement ?? null,
-          apiKey: input.apiKey ?? null,
-          secretKey: input.secretKey ?? null,
-          originBranch: input.originBranch ?? null,
-          originAddressId: input.originAddressId ?? null,
-          senderName: input.senderName ?? null,
-          senderPhone: input.senderPhone ?? null,
-          senderEmail: input.senderEmail ?? null,
-          companyName: input.companyName ?? null,
-          metadata: input.metadata ?? Prisma.JsonNull,
+          enabled: sanitizedInput.enabled ?? true,
+          isDefault: sanitizedInput.isDefault ?? false,
+          mode: sanitizedInput.mode?.trim() || 'DEFAULT',
+          email: sanitizedInput.email ?? null,
+          password: sanitizedInput.password ?? null,
+          agreement: sanitizedInput.agreement ?? null,
+          apiKey: sanitizedInput.apiKey ?? null,
+          secretKey: sanitizedInput.secretKey ?? null,
+          originBranch: sanitizedInput.originBranch ?? null,
+          originAddressId: sanitizedInput.originAddressId ?? null,
+          senderName: sanitizedInput.senderName ?? null,
+          senderPhone: sanitizedInput.senderPhone ?? null,
+          senderEmail: sanitizedInput.senderEmail ?? null,
+          companyName: sanitizedInput.companyName ?? null,
+          metadata: sanitizedInput.metadata ?? Prisma.JsonNull,
         },
         update: {
-          enabled: input.enabled ?? undefined,
-          isDefault: input.isDefault ?? undefined,
-          mode: input.mode === undefined ? undefined : input.mode?.trim() || 'DEFAULT',
-          email: input.email === undefined ? undefined : input.email,
-          password: input.password === undefined ? undefined : input.password,
-          agreement: input.agreement === undefined ? undefined : input.agreement,
-          apiKey: input.apiKey === undefined ? undefined : input.apiKey,
-          secretKey: input.secretKey === undefined ? undefined : input.secretKey,
+          enabled: sanitizedInput.enabled ?? undefined,
+          isDefault: sanitizedInput.isDefault ?? undefined,
+          mode:
+            sanitizedInput.mode === undefined
+              ? undefined
+              : sanitizedInput.mode?.trim() || 'DEFAULT',
+          email:
+            sanitizedInput.email === undefined ? undefined : sanitizedInput.email,
+          password:
+            sanitizedInput.password === undefined
+              ? undefined
+              : sanitizedInput.password,
+          agreement:
+            sanitizedInput.agreement === undefined
+              ? undefined
+              : sanitizedInput.agreement,
+          apiKey:
+            sanitizedInput.apiKey === undefined ? undefined : sanitizedInput.apiKey,
+          secretKey:
+            sanitizedInput.secretKey === undefined
+              ? undefined
+              : sanitizedInput.secretKey,
           originBranch:
-            input.originBranch === undefined ? undefined : input.originBranch,
+            sanitizedInput.originBranch === undefined
+              ? undefined
+              : sanitizedInput.originBranch,
           originAddressId:
-            input.originAddressId === undefined
+            sanitizedInput.originAddressId === undefined
               ? undefined
-              : input.originAddressId,
-          senderName: input.senderName === undefined ? undefined : input.senderName,
+              : sanitizedInput.originAddressId,
+          senderName:
+            sanitizedInput.senderName === undefined
+              ? undefined
+              : sanitizedInput.senderName,
           senderPhone:
-            input.senderPhone === undefined ? undefined : input.senderPhone,
-          senderEmail:
-            input.senderEmail === undefined ? undefined : input.senderEmail,
-          companyName:
-            input.companyName === undefined ? undefined : input.companyName,
-          metadata:
-            input.metadata === undefined
+            sanitizedInput.senderPhone === undefined
               ? undefined
-              : input.metadata === null
+              : sanitizedInput.senderPhone,
+          senderEmail:
+            sanitizedInput.senderEmail === undefined
+              ? undefined
+              : sanitizedInput.senderEmail,
+          companyName:
+            sanitizedInput.companyName === undefined
+              ? undefined
+              : sanitizedInput.companyName,
+          metadata:
+            sanitizedInput.metadata === undefined
+              ? undefined
+              : sanitizedInput.metadata === null
                 ? Prisma.JsonNull
-                : input.metadata,
+                : sanitizedInput.metadata,
         },
       });
     });
@@ -141,23 +170,7 @@ export class StoreShippingProviderConfigService {
   async updateById(
     storeId: number,
     id: string,
-    input: {
-      enabled?: boolean;
-      isDefault?: boolean;
-      mode?: string | null;
-      email?: string | null;
-      password?: string | null;
-      agreement?: string | null;
-      apiKey?: string | null;
-      secretKey?: string | null;
-      originBranch?: string | null;
-      originAddressId?: string | null;
-      senderName?: string | null;
-      senderPhone?: string | null;
-      senderEmail?: string | null;
-      companyName?: string | null;
-      metadata?: Prisma.InputJsonValue | null;
-    },
+    input: Omit<ProviderConfigInput, 'provider'>,
   ) {
     const current = await this.findOne(storeId, id);
 
@@ -270,6 +283,19 @@ export class StoreShippingProviderConfigService {
           isDefault: true,
         },
       });
+    }
+
+    if (
+      !providerCode &&
+      !providerConfigId &&
+      (!configRecord || configRecord.provider === 'manual')
+    ) {
+      const automaticConfig =
+        await this.findPreferredAutomaticConfigRecord(storeId);
+
+      if (automaticConfig) {
+        configRecord = automaticConfig;
+      }
     }
 
     if (configRecord) {
@@ -402,5 +428,79 @@ export class StoreShippingProviderConfigService {
     }
 
     return 'manual';
+  }
+
+  private async findPreferredAutomaticConfigRecord(storeId: number) {
+    const configs = await this.prisma.storeShippingProviderConfig.findMany({
+      where: {
+        storeId,
+        enabled: true,
+        provider: {
+          not: 'manual',
+        },
+      },
+      orderBy: [
+        { isDefault: 'desc' },
+        { provider: 'asc' },
+      ],
+    });
+
+    if (!configs.length) {
+      return null;
+    }
+
+    const preferredOrder = ['correo-argentino', 'enviopack', 'mock'];
+
+    return (
+      configs.sort((left, right) => {
+        const leftIndex = preferredOrder.indexOf(left.provider);
+        const rightIndex = preferredOrder.indexOf(right.provider);
+        const leftRank = leftIndex === -1 ? preferredOrder.length : leftIndex;
+        const rightRank = rightIndex === -1 ? preferredOrder.length : rightIndex;
+
+        if (leftRank !== rightRank) {
+          return leftRank - rightRank;
+        }
+
+        if (left.isDefault !== right.isDefault) {
+          return left.isDefault ? -1 : 1;
+        }
+
+        return left.provider.localeCompare(right.provider);
+      })[0] ?? null
+    );
+  }
+
+  private sanitizeInputForProvider(
+    provider: string,
+    input: ProviderConfigInput,
+  ): ProviderConfigInput {
+    if (provider !== 'correo-argentino') {
+      return input;
+    }
+
+    return {
+      ...input,
+      email: null,
+      password: null,
+      agreement: null,
+      apiKey: null,
+      secretKey: null,
+    };
+  }
+
+  private sanitizeRecordForOutput(record: ProviderConfigRecord) {
+    if (record.provider !== 'correo-argentino') {
+      return record;
+    }
+
+    return {
+      ...record,
+      email: null,
+      password: null,
+      agreement: null,
+      apiKey: null,
+      secretKey: null,
+    };
   }
 }

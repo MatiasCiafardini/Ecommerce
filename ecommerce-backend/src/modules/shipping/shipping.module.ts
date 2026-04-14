@@ -19,6 +19,7 @@ import { ShippingProvidersRegistryService } from './services/shipping-providers-
 import { StoreShippingProviderConfigService } from './services/store-shipping-provider-config.service';
 import { ShippingQuotesService } from './services/shipping-quotes.service';
 import { StoreShippingMethodsService } from './services/store-shipping-methods.service';
+import { ShippingPackageCalculatorService } from './services/shipping-package-calculator.service';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { StoreShippingMethodsService } from './services/store-shipping-methods.s
     ShippingProvidersRegistryService,
     StoreShippingProviderConfigService,
     ShippingQuotesService,
+    ShippingPackageCalculatorService,
   ],
   exports: [
     ShippingService,
@@ -52,6 +54,7 @@ import { StoreShippingMethodsService } from './services/store-shipping-methods.s
     StoreShippingProviderConfigService,
     ShippingQuotesService,
     StoreShippingMethodsService,
+    ShippingPackageCalculatorService,
   ],
 })
 export class ShippingModule {}

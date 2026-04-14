@@ -161,6 +161,12 @@ describe('PaymentsService', () => {
       where: { id: 12 },
       data: {
         status: 'rejected',
+        metadata: expect.objectContaining({
+          gateway: 'mercadopago',
+          source: 'webhook',
+          webhookTopic: 'payment',
+          webhookResourceId: 'mp-900',
+        }),
       },
     });
     expect(inventoryLockService.releaseStockTx).toHaveBeenCalledWith(
@@ -175,5 +181,85 @@ describe('PaymentsService', () => {
         status: OrderStatus.cancelled,
       },
     });
+  });
+
+  it('creates a pending cash payment for pickup orders', async () => {
+    const createdPayment = {
+      id: 31,
+      orderId: 88,
+      storeId: 4,
+      provider: 'cash',
+      method: 'cash',
+      status: 'pending',
+    };
+    const order = {
+      id: 88,
+      storeId: 4,
+      customerId: 22,
+      total: 17500,
+      shippingProvider: 'store',
+      shippingMethod: 'Retiro en local',
+      customer: {
+        email: 'pickup@example.com',
+      },
+    };
+
+    (prisma as any).payment.create = jest.fn().mockResolvedValue(createdPayment);
+    (prisma as any).order = {
+      findFirst: jest.fn().mockResolvedValue(order),
+    };
+    prisma.payment.findFirst.mockResolvedValue(null);
+
+    const result = await service.createPayment(
+      4,
+      88,
+      {
+        provider: 'cash',
+        method: 'cash',
+        idempotencyKey: 'cash-1',
+      },
+      { sub: 22, role: 'CUSTOMER' },
+    );
+
+    expect(result).toBe(createdPayment);
+    expect((prisma as any).payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        storeId: 4,
+        orderId: 88,
+        provider: 'cash',
+        method: 'cash',
+        status: 'pending',
+      }),
+    });
+  });
+
+  it('rejects cash payments for shipping orders', async () => {
+    (prisma as any).order = {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 90,
+        storeId: 4,
+        customerId: 22,
+        total: 17500,
+        shippingProvider: 'correo-argentino',
+        shippingMethod: 'Correo Argentino - Domicilio',
+        customer: {
+          email: 'shipping@example.com',
+        },
+      }),
+    };
+    prisma.payment.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.createPayment(
+        4,
+        90,
+        {
+          provider: 'cash',
+          method: 'cash',
+          idempotencyKey: 'cash-2',
+        },
+        { sub: 22, role: 'CUSTOMER' },
+      ),
+    ).rejects.toThrow('Cash payments are only available for pickup orders');
   });
 });

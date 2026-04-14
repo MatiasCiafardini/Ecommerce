@@ -71,6 +71,10 @@ model Product {
   title           String
   description     String?
   storeId         Int
+  weightGrams     Float?
+  packageHeightCm Float?
+  packageWidthCm  Float?
+  packageLengthCm Float?
   createdAt       DateTime             @default(now())
   published       Boolean              @default(false)
   slug            String
@@ -102,6 +106,10 @@ model ProductVariant {
   productId       Int
   sku             String
   price           Decimal           @db.Decimal(10, 2)
+  weightGrams     Float?
+  packageHeightCm Float?
+  packageWidthCm  Float?
+  packageLengthCm Float?
   height          Float?
   length          Float?
   weight          Float?

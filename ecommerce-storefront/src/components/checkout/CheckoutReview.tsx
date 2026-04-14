@@ -11,6 +11,7 @@ import MercadoPagoCardPayment from "@/components/checkout/MercadoPagoCardPayment
 import { roundCurrency } from "@/lib/currency";
 
 type ShippingOption = {
+  quoteId?: string;
   provider: string;
   method: string;
   price: number;
@@ -151,6 +152,7 @@ export default function CheckoutReview({
   const shippingCost = roundCurrency(discountPreview?.freeShipping ? 0 : baseShippingCost);
   const total = roundCurrency(Math.max(subtotal - discountAmount + shippingCost, 0));
   const isBankTransfer = paymentMethod === "bank_transfer";
+  const isCashPayment = paymentMethod === "cash";
   const useDarkCompletionPopup = user?.storeId === 1 || user?.storeId === 3;
   const paymentDisplayLabel =
     paymentLabel ??
@@ -158,6 +160,8 @@ export default function CheckoutReview({
       ? "Mercado Pago"
       : paymentMethod === "bank_transfer"
         ? "Transferencia bancaria"
+        : paymentMethod === "cash"
+          ? "Efectivo al retirar"
         : "A confirmar");
 
   useEffect(() => {
@@ -283,6 +287,7 @@ export default function CheckoutReview({
     const order = await api(`/store/checkout/${cartId}`, {
       method: "POST",
       body: JSON.stringify({
+        shippingQuoteId: shippingOption?.quoteId,
         shippingProvider: shippingOption?.provider,
         shippingMethod: shippingOption?.method,
         shippingCost: shippingOption?.price,
@@ -440,6 +445,17 @@ export default function CheckoutReview({
         await api(`/store/payments/${order.id}/bank-transfer`, {
           method: "POST",
           body: formData,
+        });
+      }
+
+      if (isCashPayment) {
+        await api(`/store/payments/${order.id}`, {
+          method: "POST",
+          body: JSON.stringify({
+            provider: "cash",
+            method: "cash",
+            idempotencyKey: crypto.randomUUID(),
+          }),
         });
       }
 
@@ -652,6 +668,14 @@ export default function CheckoutReview({
                     style={{ display: "none" }}
                   />
                 </label>
+              </div>
+            ) : isCashPayment ? (
+              <div style={summaryCardStyle}>
+                <strong style={{ fontSize: 18 }}>Pago en efectivo</strong>
+                <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.7 }}>
+                  El pedido quedara reservado para que puedas abonarlo en efectivo
+                  al momento del retiro en el local.
+                </p>
               </div>
             ) : null}
 
@@ -950,6 +974,8 @@ export default function CheckoutReview({
               >
                 {isBankTransfer
                   ? `Tu pedido #${completedOrder.id} ya quedo registrado. El comercio recibio tu comprobante y ahora puede validar la transferencia.`
+                  : isCashPayment
+                    ? `Tu pedido #${completedOrder.id} ya quedo registrado para retiro en local. El pago quedo marcado como pendiente para abonarlo en efectivo al retirar.`
                   : completedPaymentStatus === "pending" || completedPaymentStatus === "in_process"
                     ? `Tu pedido #${completedOrder.id} ya quedo registrado. Mercado Pago indico que el pago sigue pendiente de confirmacion, asi que vas a poder seguir su estado desde el detalle del pedido.`
                     : `Tu pedido #${completedOrder.id} ya quedo registrado y el pago figura como confirmado. Desde aca puedes abrir el detalle para revisar productos, direccion, comprobante y seguimiento.`}

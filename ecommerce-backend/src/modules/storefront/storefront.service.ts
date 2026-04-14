@@ -10,6 +10,7 @@ import { GetStoreProductsDto } from './dto/get-store-products.dto';
 import { Prisma } from '@prisma/client';
 import { ProductPricingService } from '../discounts/product-pricing.service';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
+import { StoreShippingProviderConfigService } from '../shipping/services/store-shipping-provider-config.service';
 
 type NormalizedStorefrontConfig = {
   theme?: string;
@@ -116,6 +117,7 @@ export class StorefrontService {
     private ordersService: OrdersService,
     private productPricingService: ProductPricingService,
     private mercadoPagoProvider: MercadoPagoProvider,
+    private storeShippingProviderConfigService: StoreShippingProviderConfigService,
   ) {}
   async getStoreConfig(storeId?: number, domain?: string) {
     const normalizedDomain = this.normalizeStoreDomain(domain);
@@ -181,6 +183,9 @@ export class StorefrontService {
         enabled: true,
         discountPercentage: Number(store?.bankTransferDiscountPercentage ?? 0),
       },
+      cash: {
+        enabled: true,
+      },
     };
   }
 
@@ -227,6 +232,7 @@ export class StorefrontService {
       bankTransfer: {
         discountPercentage: Number(store?.bankTransferDiscountPercentage ?? 0),
       },
+      correoArgentino: await this.getAdminCorreoArgentinoConfig(storeId),
     };
   }
 
@@ -274,6 +280,92 @@ export class StorefrontService {
     };
   }
 
+  async updateAdminCorreoArgentinoConfig(
+    storeId: number,
+    input: {
+      enabled?: boolean | null;
+      isDefault?: boolean | null;
+      senderName?: string | null;
+      senderPhone?: string | null;
+      senderEmail?: string | null;
+      companyName?: string | null;
+      metadata?: Record<string, unknown> | null;
+    },
+  ) {
+    const current = await this.prisma.storeShippingProviderConfig.findFirst({
+      where: {
+        storeId,
+        provider: 'correo-argentino',
+      },
+      select: {
+        metadata: true,
+      },
+    });
+    const currentMetadata =
+      current?.metadata && typeof current.metadata === 'object'
+        ? (current.metadata as Record<string, unknown>)
+        : {};
+    const nextMetadata =
+      input.metadata && typeof input.metadata === 'object'
+        ? {
+            ...currentMetadata,
+            ...input.metadata,
+          }
+        : currentMetadata;
+
+    await this.storeShippingProviderConfigService.createOrUpdate(storeId, {
+      provider: 'correo-argentino',
+      enabled: input.enabled ?? true,
+      isDefault: input.isDefault ?? true,
+      senderName: input.senderName ?? null,
+      senderPhone: input.senderPhone ?? null,
+      senderEmail: input.senderEmail ?? null,
+      companyName: input.companyName ?? null,
+      metadata: nextMetadata as Prisma.InputJsonValue,
+    });
+
+    return {
+      correoArgentino: await this.getAdminCorreoArgentinoConfig(storeId),
+    };
+  }
+
+  async testAdminCorreoArgentinoConfig(storeId: number) {
+    const config =
+      await this.storeShippingProviderConfigService.resolveProviderForStore(storeId, {
+        providerCode: 'correo-argentino',
+      });
+
+    if (!config.provider.testConnection) {
+      return {
+        ok: false,
+        message:
+          'Correo Argentino no expone un test de conexion en el provider actual.',
+      };
+    }
+
+    const runtime = this.getCorreoArgentinoGlobalRuntimeConfig();
+    const connection = await config.provider.testConnection(config.context);
+    const currentConfig = await this.getAdminCorreoArgentinoConfig(storeId);
+
+    return {
+      ...connection,
+      checks: {
+        apiUsernameConfigured: runtime.apiUsernameConfigured,
+        apiPasswordConfigured: runtime.apiPasswordConfigured,
+        customerIdConfigured: runtime.customerIdConfigured,
+        customerEmailConfigured: runtime.customerEmailConfigured,
+        customerPasswordConfigured: runtime.customerPasswordConfigured,
+        enabled: currentConfig.enabled,
+        originPostalCodeConfigured: Boolean(
+          currentConfig.originAddress.postalCode,
+        ),
+        senderConfigured: Boolean(
+          currentConfig.senderName || currentConfig.companyName,
+        ),
+      },
+    };
+  }
+
   private normalizeStoreDomain(domain?: string) {
     const normalized = domain?.trim().toLowerCase() ?? '';
 
@@ -285,6 +377,154 @@ export class StorefrontService {
     }
 
     return normalized.split(':')[0];
+  }
+
+  private async getAdminCorreoArgentinoConfig(storeId: number) {
+    const config = await this.prisma.storeShippingProviderConfig.findFirst({
+      where: {
+        storeId,
+        provider: 'correo-argentino',
+      },
+      select: {
+        id: true,
+        enabled: true,
+        isDefault: true,
+        senderName: true,
+        senderPhone: true,
+        senderEmail: true,
+        companyName: true,
+        metadata: true,
+      },
+    });
+
+    const metadata =
+      config?.metadata && typeof config.metadata === 'object'
+        ? (config.metadata as Record<string, unknown>)
+        : {};
+    const originAddress =
+      metadata.originAddress && typeof metadata.originAddress === 'object'
+        ? (metadata.originAddress as Record<string, unknown>)
+        : {};
+    const defaultPackageDimensions =
+      metadata.defaultPackageDimensions &&
+      typeof metadata.defaultPackageDimensions === 'object'
+        ? (metadata.defaultPackageDimensions as Record<string, unknown>)
+        : {};
+    const pricing =
+      metadata.pricing && typeof metadata.pricing === 'object'
+        ? (metadata.pricing as Record<string, unknown>)
+        : {};
+    const rules =
+      metadata.rules && typeof metadata.rules === 'object'
+        ? (metadata.rules as Record<string, unknown>)
+        : {};
+    const flags =
+      metadata.flags && typeof metadata.flags === 'object'
+        ? (metadata.flags as Record<string, unknown>)
+        : {};
+    const runtime = this.getCorreoArgentinoGlobalRuntimeConfig();
+
+    return {
+      id: config?.id ?? null,
+      enabled: config?.enabled ?? false,
+      isDefault: config?.isDefault ?? false,
+      senderName: config?.senderName ?? '',
+      senderPhone: config?.senderPhone ?? '',
+      senderEmail: config?.senderEmail ?? '',
+      companyName: config?.companyName ?? '',
+      originAddress: {
+        streetName: this.pickString(originAddress.streetName),
+        streetNumber: this.pickString(originAddress.streetNumber),
+        floor: this.pickString(originAddress.floor),
+        apartment: this.pickString(originAddress.apartment),
+        city: this.pickString(originAddress.city),
+        state: this.pickString(originAddress.state),
+        provinceCode: this.pickString(originAddress.provinceCode),
+        postalCode: this.pickString(originAddress.postalCode),
+      },
+      defaultAgency: this.pickString(metadata.defaultAgency),
+      deliveryTypes: Array.isArray(metadata.deliveryTypes)
+        ? metadata.deliveryTypes
+            .map((value) =>
+              typeof value === 'string' ? value.trim().toUpperCase() : '',
+            )
+            .filter(Boolean)
+        : [],
+      defaultPackageDimensions: {
+        height: this.pickNumber(defaultPackageDimensions.height),
+        width: this.pickNumber(defaultPackageDimensions.width),
+        length: this.pickNumber(defaultPackageDimensions.length),
+      },
+      packagingMarginPercent: this.pickNumber(metadata.packagingMarginPercent),
+      pricing: {
+        markupType: this.pickString(pricing.markupType) || 'percentage',
+        markupValue: this.pickNumber(pricing.markupValue),
+      },
+      rules: {
+        allowHomeDelivery: this.pickBoolean(rules.allowHomeDelivery, true),
+        allowBranchDelivery: this.pickBoolean(rules.allowBranchDelivery, false),
+        requireBranchSelection: this.pickBoolean(
+          rules.requireBranchSelection,
+          false,
+        ),
+      },
+      flags: {
+        autoTrackingEnabled: this.pickBoolean(flags.autoTrackingEnabled, true),
+      },
+      global: runtime,
+    };
+  }
+
+  private getCorreoArgentinoGlobalRuntimeConfig() {
+    const envMetadata = this.parseJsonRecord(
+      process.env.CORREO_ARGENTINO_METADATA_JSON,
+    );
+    const testingEnabled =
+      this.pickBoolean(envMetadata.testing, undefined) ??
+      this.pickBoolean(process.env.CORREO_ARGENTINO_TESTING, true);
+    const mode =
+      this.pickString(envMetadata.mode).toUpperCase() ||
+      (process.env.CORREO_ARGENTINO_MODE?.trim().toUpperCase() || 'MICORREO');
+    const apiBaseUrl =
+      this.pickString(envMetadata.apiBaseUrl) ||
+      process.env.CORREO_ARGENTINO_API_BASE_URL?.trim() ||
+      (testingEnabled
+        ? 'https://apitest.correoargentino.com.ar/micorreo/v1'
+        : 'https://api.correoargentino.com.ar/micorreo/v1');
+    const apiUsername =
+      this.pickString(envMetadata.apiUsername) ||
+      process.env.CORREO_ARGENTINO_API_USERNAME?.trim() ||
+      process.env.CORREO_ARGENTINO_API_KEY?.trim() ||
+      '';
+    const apiPassword =
+      this.pickString(envMetadata.apiPassword) ||
+      process.env.CORREO_ARGENTINO_API_PASSWORD?.trim() ||
+      process.env.CORREO_ARGENTINO_SECRET_KEY?.trim() ||
+      '';
+    const customerId =
+      this.pickString(envMetadata.customerId) ||
+      process.env.CORREO_ARGENTINO_CUSTOMER_ID?.trim() ||
+      '';
+    const customerEmail =
+      this.pickString(envMetadata.customerEmail) ||
+      this.pickString(envMetadata.email) ||
+      process.env.CORREO_ARGENTINO_EMAIL?.trim() ||
+      '';
+    const customerPassword =
+      this.pickString(envMetadata.customerPassword) ||
+      this.pickString(envMetadata.password) ||
+      process.env.CORREO_ARGENTINO_PASSWORD?.trim() ||
+      '';
+
+    return {
+      mode,
+      apiBaseUrl,
+      apiUsernameConfigured: Boolean(apiUsername),
+      apiPasswordConfigured: Boolean(apiPassword),
+      customerIdConfigured: Boolean(customerId),
+      customerEmailConfigured: Boolean(customerEmail),
+      customerPasswordConfigured: Boolean(customerPassword),
+    };
   }
 
   async getProducts(storeId: number, query?: GetStoreProductsDto) {
@@ -579,6 +819,48 @@ export class StorefrontService {
       .split(',')
       .map((value) => Number(value.trim()))
       .filter((value) => Number.isInteger(value) && value > 0))];
+  }
+
+  private parseJsonRecord(value?: string | null) {
+    if (!value?.trim()) {
+      return {} as Record<string, unknown>;
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object'
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private pickString(value: unknown) {
+    return typeof value === 'string' && value.trim() ? value.trim() : '';
+  }
+
+  private pickNumber(value: unknown) {
+    const normalized = Number(value ?? 0);
+    return Number.isFinite(normalized) ? normalized : 0;
+  }
+
+  private pickBoolean(value: unknown, fallback?: boolean) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') {
+        return true;
+      }
+      if (normalized === 'false') {
+        return false;
+      }
+    }
+
+    return fallback ?? false;
   }
 
   private normalizeStorefrontConfig(input: unknown): NormalizedStorefrontConfig {

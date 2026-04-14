@@ -18,6 +18,10 @@ export class ProductsService {
         description: data.description,
         slug,
         published: data.published ?? false,
+        weightGrams: data.weightGrams,
+        packageHeightCm: data.packageHeightCm,
+        packageWidthCm: data.packageWidthCm,
+        packageLengthCm: data.packageLengthCm,
         storeId,
       },
     });
@@ -59,6 +63,10 @@ export class ProductsService {
       description?: string | null;
       published?: boolean;
       slug?: string;
+      weightGrams?: number | null;
+      packageHeightCm?: number | null;
+      packageWidthCm?: number | null;
+      packageLengthCm?: number | null;
     } = {};
 
     if (data.title !== undefined) {
@@ -74,6 +82,22 @@ export class ProductsService {
 
     if (data.published !== undefined) {
       payload.published = data.published;
+    }
+
+    if (data.weightGrams !== undefined) {
+      payload.weightGrams = data.weightGrams ?? null;
+    }
+
+    if (data.packageHeightCm !== undefined) {
+      payload.packageHeightCm = data.packageHeightCm ?? null;
+    }
+
+    if (data.packageWidthCm !== undefined) {
+      payload.packageWidthCm = data.packageWidthCm ?? null;
+    }
+
+    if (data.packageLengthCm !== undefined) {
+      payload.packageLengthCm = data.packageLengthCm ?? null;
     }
 
     return this.prisma.product.updateMany({

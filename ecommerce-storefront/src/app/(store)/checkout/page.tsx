@@ -12,6 +12,7 @@ import CheckoutPayment from "@/components/checkout/CheckoutPayment";
 import CheckoutReview from "@/components/checkout/CheckoutReview";
 
 type ShippingOption = {
+  quoteId?: string;
   provider: string;
   method: string;
   price: number;

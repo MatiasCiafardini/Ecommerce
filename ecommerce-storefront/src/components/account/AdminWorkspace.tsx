@@ -40,6 +40,10 @@ type Product = {
   slug: string;
   published: boolean;
   description?: string | null;
+  weightGrams?: number | null;
+  packageHeightCm?: number | null;
+  packageWidthCm?: number | null;
+  packageLengthCm?: number | null;
   images?: Array<{
     id: number;
     url: string;
@@ -592,6 +596,10 @@ function AdminProductsSection({
     title: "",
     description: "",
     published: false,
+    weightGrams: "",
+    packageHeightCm: "",
+    packageWidthCm: "",
+    packageLengthCm: "",
   });
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [autoOpenedProductId, setAutoOpenedProductId] = useState<number | null>(
@@ -843,7 +851,15 @@ function AdminProductsSection({
   const resetForm = () => {
     revokeUploadImages(imageFiles);
     setEditingProductId(null);
-    setForm({ title: "", description: "", published: false });
+    setForm({
+      title: "",
+      description: "",
+      published: false,
+      weightGrams: "",
+      packageHeightCm: "",
+      packageWidthCm: "",
+      packageLengthCm: "",
+    });
     setSelectedCategoryIds([]);
     setImageFiles([]);
     setExistingImages([]);
@@ -1353,6 +1369,10 @@ function AdminProductsSection({
           title: product.title,
           description: product.description ?? "",
           published: product.published,
+          weightGrams: String(product.weightGrams ?? ""),
+          packageHeightCm: String(product.packageHeightCm ?? ""),
+          packageWidthCm: String(product.packageWidthCm ?? ""),
+          packageLengthCm: String(product.packageLengthCm ?? ""),
         });
         setSelectedCategoryIds(
           (product.categories ?? []).map((entry) => entry.category.id),
@@ -1398,10 +1418,13 @@ function AdminProductsSection({
               inventoryQuantity: String(
                 variant.inventories?.[0]?.quantity ?? "",
               ),
-              weight: String(variant.weight ?? ""),
-              width: String(variant.width ?? ""),
-              height: String(variant.height ?? ""),
-              length: String(variant.length ?? ""),
+              weight: String(
+                variant.weightGrams ??
+                  (variant.weight ? Math.round(Number(variant.weight) * 1000) : ""),
+              ),
+              width: String(variant.packageWidthCm ?? variant.width ?? ""),
+              height: String(variant.packageHeightCm ?? variant.height ?? ""),
+              length: String(variant.packageLengthCm ?? variant.length ?? ""),
             }))
           : [];
 
@@ -1643,10 +1666,18 @@ function AdminProductsSection({
         inventoryQuantity: variant.inventoryQuantity.trim()
           ? Number(variant.inventoryQuantity)
           : undefined,
-        weight: variant.weight.trim() ? Number(variant.weight) : undefined,
-        width: variant.width.trim() ? Number(variant.width) : undefined,
-        height: variant.height.trim() ? Number(variant.height) : undefined,
-        length: variant.length.trim() ? Number(variant.length) : undefined,
+        weightGrams: variant.weight.trim()
+          ? Number(variant.weight)
+          : undefined,
+        packageWidthCm: variant.width.trim()
+          ? Number(variant.width)
+          : undefined,
+        packageHeightCm: variant.height.trim()
+          ? Number(variant.height)
+          : undefined,
+        packageLengthCm: variant.length.trim()
+          ? Number(variant.length)
+          : undefined,
       };
 
       if (variant.id) {
@@ -1703,6 +1734,18 @@ function AdminProductsSection({
             title: form.title.trim(),
             description: form.description.trim(),
             published: form.published,
+            weightGrams: form.weightGrams.trim()
+              ? Number(form.weightGrams)
+              : undefined,
+            packageHeightCm: form.packageHeightCm.trim()
+              ? Number(form.packageHeightCm)
+              : undefined,
+            packageWidthCm: form.packageWidthCm.trim()
+              ? Number(form.packageWidthCm)
+              : undefined,
+            packageLengthCm: form.packageLengthCm.trim()
+              ? Number(form.packageLengthCm)
+              : undefined,
           }),
         });
       } else {
@@ -1712,6 +1755,18 @@ function AdminProductsSection({
             title: form.title.trim(),
             description: form.description.trim() || undefined,
             published: form.published,
+            weightGrams: form.weightGrams.trim()
+              ? Number(form.weightGrams)
+              : undefined,
+            packageHeightCm: form.packageHeightCm.trim()
+              ? Number(form.packageHeightCm)
+              : undefined,
+            packageWidthCm: form.packageWidthCm.trim()
+              ? Number(form.packageWidthCm)
+              : undefined,
+            packageLengthCm: form.packageLengthCm.trim()
+              ? Number(form.packageLengthCm)
+              : undefined,
           }),
         });
 
@@ -1925,6 +1980,55 @@ function AdminProductsSection({
                 placeholder="Breve descripcion"
                 style={{ ...fieldStyle, minHeight: 120, resize: "vertical" }}
               />
+            </Step>
+
+            <Step title="Logistica base">
+              <span style={metaStyle}>
+                Estos valores funcionan como fallback del producto cuando una variante no tiene datos logisticos propios.
+              </span>
+              <div style={variantGridStyle}>
+                <SuggestionInput
+                  value={form.weightGrams}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, weightGrams: value }))
+                  }
+                  placeholder="Peso base (g)"
+                  suggestions={[]}
+                />
+                <SuggestionInput
+                  value={form.packageWidthCm}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      packageWidthCm: value,
+                    }))
+                  }
+                  placeholder="Ancho base (cm)"
+                  suggestions={[]}
+                />
+                <SuggestionInput
+                  value={form.packageHeightCm}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      packageHeightCm: value,
+                    }))
+                  }
+                  placeholder="Alto base (cm)"
+                  suggestions={[]}
+                />
+                <SuggestionInput
+                  value={form.packageLengthCm}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      packageLengthCm: value,
+                    }))
+                  }
+                  placeholder="Largo base (cm)"
+                  suggestions={[]}
+                />
+              </div>
             </Step>
 
             <Step title="Categorias">
@@ -2169,7 +2273,7 @@ function AdminProductsSection({
                 onChange={(value) =>
                   setVariantDraft((current) => ({ ...current, weight: value }))
                 }
-                placeholder="Peso"
+                placeholder="Peso (g)"
                 suggestions={variantAutocomplete.weight}
               />
               <SuggestionInput
@@ -2177,7 +2281,7 @@ function AdminProductsSection({
                 onChange={(value) =>
                   setVariantDraft((current) => ({ ...current, width: value }))
                 }
-                placeholder="Ancho"
+                placeholder="Ancho (cm)"
                 suggestions={variantAutocomplete.width}
               />
               <SuggestionInput
@@ -2185,7 +2289,7 @@ function AdminProductsSection({
                 onChange={(value) =>
                   setVariantDraft((current) => ({ ...current, height: value }))
                 }
-                placeholder="Alto"
+                placeholder="Alto (cm)"
                 suggestions={variantAutocomplete.height}
               />
               <SuggestionInput
@@ -2193,7 +2297,7 @@ function AdminProductsSection({
                 onChange={(value) =>
                   setVariantDraft((current) => ({ ...current, length: value }))
                 }
-                placeholder="Largo"
+                placeholder="Largo (cm)"
                 suggestions={variantAutocomplete.length}
               />
             </div>

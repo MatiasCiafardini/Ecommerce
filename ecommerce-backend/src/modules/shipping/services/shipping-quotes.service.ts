@@ -47,7 +47,8 @@ export class ShippingQuotesService {
             dispatchType: rate.dispatchType ?? null,
             branchId: rate.branchId ?? null,
             sellerCost: rate.sellerCost ?? null,
-            providerConfigId: params.providerConfigId ?? null,
+            providerConfigId:
+              rate.providerConfigId ?? params.providerConfigId ?? null,
             metadata:
               (rate.metadata as Prisma.InputJsonValue | undefined) ??
               ({

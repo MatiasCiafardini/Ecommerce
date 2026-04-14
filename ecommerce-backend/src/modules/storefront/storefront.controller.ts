@@ -104,6 +104,33 @@ export class StorefrontController {
   }
 
   @UseGuards(AdminAuthGuard)
+  @Put('admin/integrations/correo-argentino')
+  updateAdminCorreoArgentinoIntegration(
+    @Req() req,
+    @Body()
+    body: {
+      enabled?: boolean | null;
+      isDefault?: boolean | null;
+      senderName?: string | null;
+      senderPhone?: string | null;
+      senderEmail?: string | null;
+      companyName?: string | null;
+      metadata?: Record<string, unknown> | null;
+    },
+  ) {
+    return this.storefrontService.updateAdminCorreoArgentinoConfig(
+      req.storeId,
+      body,
+    );
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('admin/integrations/correo-argentino/test')
+  testAdminCorreoArgentinoIntegration(@Req() req) {
+    return this.storefrontService.testAdminCorreoArgentinoConfig(req.storeId);
+  }
+
+  @UseGuards(AdminAuthGuard)
   @Post('admin/assets/upload')
   @UseInterceptors(
     FileInterceptor('file', {

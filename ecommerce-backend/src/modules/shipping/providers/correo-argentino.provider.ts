@@ -41,7 +41,7 @@ export class CorreoArgentinoProvider implements ShippingProvider {
             postalCodeOrigin: this.getOriginPostalCode(config),
             postalCodeDestination: data.postalCode,
             deliveredType,
-            dimensions: this.buildQuoteDimensions(data.weight, config),
+            dimensions: this.buildQuoteDimensions(data, config),
           },
           this.auth(token),
         ),
@@ -305,9 +305,23 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     };
   }
 
-  private buildQuoteDimensions(weight: number, config: RuntimeConfig) {
+  private buildQuoteDimensions(
+    data: ShippingRateRequest,
+    config: RuntimeConfig,
+  ) {
     const defaults = config.metadata.defaultPackageDimensions && typeof config.metadata.defaultPackageDimensions === 'object' ? (config.metadata.defaultPackageDimensions as Record<string, unknown>) : {};
-    return { weight: this.weightToGrams(weight, config.weightUnit), height: this.dim(Number(defaults.height ?? 10)), width: this.dim(Number(defaults.width ?? 10)), length: this.dim(Number(defaults.length ?? 10)) };
+    return {
+      weight: Math.max(
+        Math.round(
+          Number(data.package?.weightGrams ?? 0) ||
+            this.weightToGrams(data.weight, config.weightUnit),
+        ),
+        1,
+      ),
+      height: this.dim(Number(data.package?.height ?? defaults.height ?? 10)),
+      width: this.dim(Number(data.package?.width ?? defaults.width ?? 10)),
+      length: this.dim(Number(data.package?.length ?? defaults.length ?? 10)),
+    };
   }
 
   private getQuotedDeliveryTypes(config: RuntimeConfig) {

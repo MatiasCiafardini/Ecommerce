@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 
 type ShippingOption = {
+  quoteId?: string;
   provider: string;
   method: string;
   price: number;
@@ -19,6 +20,12 @@ type PaymentOption = {
 };
 
 const paymentOptions: PaymentOption[] = [
+  {
+    id: "cash",
+    title: "Efectivo al retirar",
+    description: "Reserva el pedido ahora y pagalo cuando pases a buscarlo por la tienda.",
+    eyebrow: "Pickup",
+  },
   {
     id: "mercadopago",
     title: "Mercado Pago",
@@ -43,10 +50,21 @@ const getShippingBadge = (option: ShippingOption) => {
     method.includes("retiro") ||
     method.includes("pickup")
   ) {
-    return "Entrega";
+    return "Retiro en local";
   }
 
-  return option.provider;
+  return "Envio por correo";
+};
+
+const isPickupShipping = (option: ShippingOption | null) => {
+  const provider = option?.provider?.trim().toLowerCase() ?? "";
+  const method = option?.method?.trim().toLowerCase() ?? "";
+
+  return (
+    provider === "store" ||
+    method.includes("retiro") ||
+    method.includes("pickup")
+  );
 };
 
 const getShippingTimingCopy = (option: ShippingOption) => {
@@ -84,6 +102,8 @@ export default function CheckoutPayment({
     shippingOptions[0] ?? null,
   );
   const [bankTransferDiscountPercentage, setBankTransferDiscountPercentage] = useState(0);
+  const [mercadoPagoEnabled, setMercadoPagoEnabled] = useState(false);
+  const [bankTransferEnabled, setBankTransferEnabled] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -97,10 +117,14 @@ export default function CheckoutPayment({
         setBankTransferDiscountPercentage(
           Number(config?.bankTransfer?.discountPercentage ?? 0),
         );
+        setMercadoPagoEnabled(Boolean(config?.mercadopago?.enabled));
+        setBankTransferEnabled(config?.bankTransfer?.enabled !== false);
       })
       .catch(() => {
         if (active) {
           setBankTransferDiscountPercentage(0);
+          setMercadoPagoEnabled(false);
+          setBankTransferEnabled(true);
         }
       });
 
@@ -108,6 +132,31 @@ export default function CheckoutPayment({
       active = false;
     };
   }, []);
+
+  const availablePaymentOptions = paymentOptions.filter((option) => {
+    if (option.id === "cash") {
+      return isPickupShipping(selectedShipping);
+    }
+
+    if (option.id === "mercadopago") {
+      return mercadoPagoEnabled;
+    }
+
+    if (option.id === "bank_transfer") {
+      return bankTransferEnabled;
+    }
+
+    return true;
+  });
+
+  useEffect(() => {
+    if (
+      selectedMethod &&
+      !availablePaymentOptions.some((option) => option.id === selectedMethod.id)
+    ) {
+      setSelectedMethod(null);
+    }
+  }, [availablePaymentOptions, selectedMethod]);
 
   return (
     <section
@@ -246,7 +295,7 @@ export default function CheckoutPayment({
         </div>
 
         <div style={{ display: "grid", gap: 12 }}>
-          {paymentOptions.map((method) => {
+          {availablePaymentOptions.map((method) => {
             const active = selectedMethod?.id === method.id;
             const hasTransferDiscount =
               method.id === "bank_transfer" && bankTransferDiscountPercentage > 0;
@@ -326,6 +375,8 @@ export default function CheckoutPayment({
               ? bankTransferDiscountPercentage > 0
                 ? `En la revision final vas a subir el comprobante y se aplicara un ${bankTransferDiscountPercentage}% de descuento a la transferencia.`
                 : "En la revision final vas a subir el comprobante para que el comercio valide la transferencia."
+              : selectedMethod?.id === "cash"
+                ? "El pedido quedara reservado para que puedas pagarlo en efectivo al momento del retiro."
               : "Al confirmar, el pedido se registra con Mercado Pago como medio de cobro online."}
             </p>
         </div>

@@ -167,6 +167,14 @@ export class CheckoutService {
       finalShippingCost = roundCurrency(validatedShipping.shippingCost);
     }
 
+    this.validatePaymentMethod({
+      paymentMethod,
+      shippingProvider:
+        validatedShipping?.shippingProvider ?? shippingProvider ?? null,
+      shippingMethod:
+        validatedShipping?.shippingMethod ?? shippingMethod ?? null,
+    });
+
     const total = roundCurrency(subtotal - discountAmount + finalShippingCost);
 
     return this.prisma.$transaction(async (tx) => {
@@ -485,5 +493,57 @@ export class CheckoutService {
       shippingProviderConfigId: null,
       shippingQuoteId: null,
     };
+  }
+
+  private validatePaymentMethod(params: {
+    paymentMethod?: string | null;
+    shippingProvider?: string | null;
+    shippingMethod?: string | null;
+  }) {
+    const paymentMethod = params.paymentMethod?.trim().toLowerCase() ?? '';
+
+    if (!paymentMethod) {
+      throw new BadRequestException('Payment method is required for checkout');
+    }
+
+    const pickupOrder = this.isPickupOrder({
+      shippingProvider: params.shippingProvider,
+      shippingMethod: params.shippingMethod,
+    });
+
+    if (
+      paymentMethod === 'cash' ||
+      paymentMethod === 'cash_on_pickup' ||
+      paymentMethod === 'efectivo'
+    ) {
+      if (!pickupOrder) {
+        throw new BadRequestException(
+          'Cash payments are only available for pickup orders',
+        );
+      }
+
+      return;
+    }
+
+    if (
+      paymentMethod !== 'mercadopago' &&
+      paymentMethod !== 'bank_transfer'
+    ) {
+      throw new BadRequestException('Unsupported payment method for checkout');
+    }
+  }
+
+  private isPickupOrder(order: {
+    shippingProvider?: string | null;
+    shippingMethod?: string | null;
+  }) {
+    const shippingProvider = order.shippingProvider?.trim().toLowerCase() ?? '';
+    const shippingMethod = order.shippingMethod?.trim().toLowerCase() ?? '';
+
+    return (
+      shippingProvider === 'store' ||
+      shippingMethod.includes('retiro') ||
+      shippingMethod.includes('pickup')
+    );
   }
 }

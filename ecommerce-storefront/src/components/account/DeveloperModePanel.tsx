@@ -68,6 +68,70 @@ type MercadoPagoTestResult = {
   } | null;
 };
 
+type AdminCorreoArgentinoConfig = {
+  enabled: boolean;
+  isDefault: boolean;
+  senderName: string;
+  senderPhone: string;
+  senderEmail: string;
+  companyName: string;
+  originAddress: {
+    streetName: string;
+    streetNumber: string;
+    floor: string;
+    apartment: string;
+    city: string;
+    state: string;
+    provinceCode: string;
+    postalCode: string;
+  };
+  defaultAgency: string;
+  deliveryTypes: string[];
+  defaultPackageDimensions: {
+    height: string;
+    width: string;
+    length: string;
+  };
+  packagingMarginPercent: string;
+  pricing: {
+    markupType: string;
+    markupValue: string;
+  };
+  rules: {
+    allowHomeDelivery: boolean;
+    allowBranchDelivery: boolean;
+    requireBranchSelection: boolean;
+  };
+  flags: {
+    autoTrackingEnabled: boolean;
+  };
+  global: {
+    mode: string;
+    apiBaseUrl: string;
+    apiUsernameConfigured: boolean;
+    apiPasswordConfigured: boolean;
+    customerIdConfigured: boolean;
+    customerEmailConfigured: boolean;
+    customerPasswordConfigured: boolean;
+  };
+};
+
+type CorreoArgentinoTestResult = {
+  ok: boolean;
+  message?: string;
+  details?: string | null;
+  checks?: {
+    apiUsernameConfigured?: boolean;
+    apiPasswordConfigured?: boolean;
+    customerIdConfigured?: boolean;
+    customerEmailConfigured?: boolean;
+    customerPasswordConfigured?: boolean;
+    enabled?: boolean;
+    originPostalCodeConfigured?: boolean;
+    senderConfigured?: boolean;
+  };
+};
+
 type BlockContextMenuState = {
   index: number;
   x: number;
@@ -618,7 +682,7 @@ export default function DeveloperModePanel({
   const [expanded, setExpanded] = useState(forceExpanded);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [testingIntegration, setTestingIntegration] = useState(false);
+  const [testingIntegration, setTestingIntegration] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -639,6 +703,54 @@ export default function DeveloperModePanel({
     webhookSecretPreview: null,
   });
   const [mercadoPagoTestResult, setMercadoPagoTestResult] = useState<MercadoPagoTestResult | null>(null);
+  const [correoArgentinoConfig, setCorreoArgentinoConfig] = useState<AdminCorreoArgentinoConfig>({
+    enabled: false,
+    isDefault: true,
+    senderName: "",
+    senderPhone: "",
+    senderEmail: "",
+    companyName: "",
+    originAddress: {
+      streetName: "",
+      streetNumber: "",
+      floor: "",
+      apartment: "",
+      city: "",
+      state: "",
+      provinceCode: "",
+      postalCode: "",
+    },
+    defaultAgency: "",
+    deliveryTypes: ["D"],
+    defaultPackageDimensions: {
+      height: "10",
+      width: "10",
+      length: "10",
+    },
+    packagingMarginPercent: "8",
+    pricing: {
+      markupType: "percentage",
+      markupValue: "0",
+    },
+    rules: {
+      allowHomeDelivery: true,
+      allowBranchDelivery: false,
+      requireBranchSelection: false,
+    },
+    flags: {
+      autoTrackingEnabled: true,
+    },
+    global: {
+      mode: "MICORREO",
+      apiBaseUrl: "",
+      apiUsernameConfigured: false,
+      apiPasswordConfigured: false,
+      customerIdConfigured: false,
+      customerEmailConfigured: false,
+      customerPasswordConfigured: false,
+    },
+  });
+  const [correoArgentinoTestResult, setCorreoArgentinoTestResult] = useState<CorreoArgentinoTestResult | null>(null);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [draggedBlockIndex, setDraggedBlockIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
@@ -646,6 +758,7 @@ export default function DeveloperModePanel({
   const [blockContextMenu, setBlockContextMenu] = useState<BlockContextMenuState>(null);
   const [savedConfigSnapshot, setSavedConfigSnapshot] = useState("");
   const [savedMercadoPagoSnapshot, setSavedMercadoPagoSnapshot] = useState("");
+  const [savedCorreoArgentinoSnapshot, setSavedCorreoArgentinoSnapshot] = useState("");
 
   useEffect(() => {
     if (!expanded) {
@@ -694,6 +807,55 @@ export default function DeveloperModePanel({
             ? integrationsResponse.mercadopago.webhookSecretPreview
             : null,
         });
+        setCorreoArgentinoConfig({
+          enabled: Boolean(integrationsResponse?.correoArgentino?.enabled),
+          isDefault: integrationsResponse?.correoArgentino?.isDefault !== false,
+          senderName: String(integrationsResponse?.correoArgentino?.senderName ?? ""),
+          senderPhone: String(integrationsResponse?.correoArgentino?.senderPhone ?? ""),
+          senderEmail: String(integrationsResponse?.correoArgentino?.senderEmail ?? ""),
+          companyName: String(integrationsResponse?.correoArgentino?.companyName ?? ""),
+          originAddress: {
+            streetName: String(integrationsResponse?.correoArgentino?.originAddress?.streetName ?? ""),
+            streetNumber: String(integrationsResponse?.correoArgentino?.originAddress?.streetNumber ?? ""),
+            floor: String(integrationsResponse?.correoArgentino?.originAddress?.floor ?? ""),
+            apartment: String(integrationsResponse?.correoArgentino?.originAddress?.apartment ?? ""),
+            city: String(integrationsResponse?.correoArgentino?.originAddress?.city ?? ""),
+            state: String(integrationsResponse?.correoArgentino?.originAddress?.state ?? ""),
+            provinceCode: String(integrationsResponse?.correoArgentino?.originAddress?.provinceCode ?? ""),
+            postalCode: String(integrationsResponse?.correoArgentino?.originAddress?.postalCode ?? ""),
+          },
+          defaultAgency: String(integrationsResponse?.correoArgentino?.defaultAgency ?? ""),
+          deliveryTypes: Array.isArray(integrationsResponse?.correoArgentino?.deliveryTypes)
+            ? integrationsResponse.correoArgentino.deliveryTypes.map((value: unknown) => String(value))
+            : ["D"],
+          defaultPackageDimensions: {
+            height: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.height ?? 10)),
+            width: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.width ?? 10)),
+            length: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
+          },
+          packagingMarginPercent: String(Number(integrationsResponse?.correoArgentino?.packagingMarginPercent ?? 8)),
+          pricing: {
+            markupType: String(integrationsResponse?.correoArgentino?.pricing?.markupType ?? "percentage"),
+            markupValue: String(Number(integrationsResponse?.correoArgentino?.pricing?.markupValue ?? 0)),
+          },
+          rules: {
+            allowHomeDelivery: integrationsResponse?.correoArgentino?.rules?.allowHomeDelivery !== false,
+            allowBranchDelivery: Boolean(integrationsResponse?.correoArgentino?.rules?.allowBranchDelivery),
+            requireBranchSelection: Boolean(integrationsResponse?.correoArgentino?.rules?.requireBranchSelection),
+          },
+          flags: {
+            autoTrackingEnabled: integrationsResponse?.correoArgentino?.flags?.autoTrackingEnabled !== false,
+          },
+          global: {
+            mode: String(integrationsResponse?.correoArgentino?.global?.mode ?? "MICORREO"),
+            apiBaseUrl: String(integrationsResponse?.correoArgentino?.global?.apiBaseUrl ?? ""),
+            apiUsernameConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.apiUsernameConfigured),
+            apiPasswordConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.apiPasswordConfigured),
+            customerIdConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.customerIdConfigured),
+            customerEmailConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.customerEmailConfigured),
+            customerPasswordConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.customerPasswordConfigured),
+          },
+        });
         setSavedMercadoPagoSnapshot(
           JSON.stringify({
             publicKey: String(integrationsResponse?.mercadopago?.publicKey ?? ""),
@@ -710,7 +872,59 @@ export default function DeveloperModePanel({
               : null,
           }),
         );
+        setSavedCorreoArgentinoSnapshot(
+          JSON.stringify({
+            enabled: Boolean(integrationsResponse?.correoArgentino?.enabled),
+            isDefault: integrationsResponse?.correoArgentino?.isDefault !== false,
+            senderName: String(integrationsResponse?.correoArgentino?.senderName ?? ""),
+            senderPhone: String(integrationsResponse?.correoArgentino?.senderPhone ?? ""),
+            senderEmail: String(integrationsResponse?.correoArgentino?.senderEmail ?? ""),
+            companyName: String(integrationsResponse?.correoArgentino?.companyName ?? ""),
+            originAddress: {
+              streetName: String(integrationsResponse?.correoArgentino?.originAddress?.streetName ?? ""),
+              streetNumber: String(integrationsResponse?.correoArgentino?.originAddress?.streetNumber ?? ""),
+              floor: String(integrationsResponse?.correoArgentino?.originAddress?.floor ?? ""),
+              apartment: String(integrationsResponse?.correoArgentino?.originAddress?.apartment ?? ""),
+              city: String(integrationsResponse?.correoArgentino?.originAddress?.city ?? ""),
+              state: String(integrationsResponse?.correoArgentino?.originAddress?.state ?? ""),
+              provinceCode: String(integrationsResponse?.correoArgentino?.originAddress?.provinceCode ?? ""),
+              postalCode: String(integrationsResponse?.correoArgentino?.originAddress?.postalCode ?? ""),
+            },
+            defaultAgency: String(integrationsResponse?.correoArgentino?.defaultAgency ?? ""),
+            deliveryTypes: Array.isArray(integrationsResponse?.correoArgentino?.deliveryTypes)
+              ? integrationsResponse.correoArgentino.deliveryTypes.map((value: unknown) => String(value))
+              : ["D"],
+            defaultPackageDimensions: {
+              height: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.height ?? 10)),
+              width: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.width ?? 10)),
+              length: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
+            },
+            packagingMarginPercent: String(Number(integrationsResponse?.correoArgentino?.packagingMarginPercent ?? 8)),
+            pricing: {
+              markupType: String(integrationsResponse?.correoArgentino?.pricing?.markupType ?? "percentage"),
+              markupValue: String(Number(integrationsResponse?.correoArgentino?.pricing?.markupValue ?? 0)),
+            },
+            rules: {
+              allowHomeDelivery: integrationsResponse?.correoArgentino?.rules?.allowHomeDelivery !== false,
+              allowBranchDelivery: Boolean(integrationsResponse?.correoArgentino?.rules?.allowBranchDelivery),
+              requireBranchSelection: Boolean(integrationsResponse?.correoArgentino?.rules?.requireBranchSelection),
+            },
+            flags: {
+              autoTrackingEnabled: integrationsResponse?.correoArgentino?.flags?.autoTrackingEnabled !== false,
+            },
+            global: {
+              mode: String(integrationsResponse?.correoArgentino?.global?.mode ?? "MICORREO"),
+              apiBaseUrl: String(integrationsResponse?.correoArgentino?.global?.apiBaseUrl ?? ""),
+              apiUsernameConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.apiUsernameConfigured),
+              apiPasswordConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.apiPasswordConfigured),
+              customerIdConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.customerIdConfigured),
+              customerEmailConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.customerEmailConfigured),
+              customerPasswordConfigured: Boolean(integrationsResponse?.correoArgentino?.global?.customerPasswordConfigured),
+            },
+          }),
+        );
         setMercadoPagoTestResult(null);
+        setCorreoArgentinoTestResult(null);
       } catch (err) {
         if (!active) {
           return;
@@ -756,8 +970,15 @@ export default function DeveloperModePanel({
     [config, savedConfigSnapshot],
   );
   const hasUnsavedIntegrationChanges = useMemo(
-    () => JSON.stringify(mercadoPagoConfig) !== savedMercadoPagoSnapshot,
-    [mercadoPagoConfig, savedMercadoPagoSnapshot],
+    () =>
+      JSON.stringify(mercadoPagoConfig) !== savedMercadoPagoSnapshot ||
+      JSON.stringify(correoArgentinoConfig) !== savedCorreoArgentinoSnapshot,
+    [
+      mercadoPagoConfig,
+      savedMercadoPagoSnapshot,
+      correoArgentinoConfig,
+      savedCorreoArgentinoSnapshot,
+    ],
   );
   const hasUnsavedChanges =
     activeSection === "integrations" ? hasUnsavedIntegrationChanges : hasUnsavedStorefrontChanges;
@@ -1371,6 +1592,7 @@ export default function DeveloperModePanel({
         setError("");
         setSuccess("");
         setMercadoPagoTestResult(null);
+        setCorreoArgentinoTestResult(null);
 
         const payload: {
           publicKey: string;
@@ -1399,6 +1621,49 @@ export default function DeveloperModePanel({
             discountPercentage: Number(mercadoPagoConfig.bankTransferDiscountPercentage || 0),
           }),
         });
+        const correoResponse = await api("/store/admin/integrations/correo-argentino", {
+          method: "PUT",
+          body: JSON.stringify({
+            enabled: correoArgentinoConfig.enabled,
+            isDefault: correoArgentinoConfig.isDefault,
+            senderName: correoArgentinoConfig.senderName.trim() || null,
+            senderPhone: correoArgentinoConfig.senderPhone.trim() || null,
+            senderEmail: correoArgentinoConfig.senderEmail.trim() || null,
+            companyName: correoArgentinoConfig.companyName.trim() || null,
+            metadata: {
+              originAddress: {
+                streetName: correoArgentinoConfig.originAddress.streetName.trim(),
+                streetNumber: correoArgentinoConfig.originAddress.streetNumber.trim(),
+                floor: correoArgentinoConfig.originAddress.floor.trim(),
+                apartment: correoArgentinoConfig.originAddress.apartment.trim(),
+                city: correoArgentinoConfig.originAddress.city.trim(),
+                state: correoArgentinoConfig.originAddress.state.trim(),
+                provinceCode: correoArgentinoConfig.originAddress.provinceCode.trim(),
+                postalCode: correoArgentinoConfig.originAddress.postalCode.trim(),
+              },
+              defaultAgency: correoArgentinoConfig.defaultAgency.trim(),
+              deliveryTypes: correoArgentinoConfig.deliveryTypes,
+              defaultPackageDimensions: {
+                height: Number(correoArgentinoConfig.defaultPackageDimensions.height || 0),
+                width: Number(correoArgentinoConfig.defaultPackageDimensions.width || 0),
+                length: Number(correoArgentinoConfig.defaultPackageDimensions.length || 0),
+              },
+              packagingMarginPercent: Number(correoArgentinoConfig.packagingMarginPercent || 0),
+              pricing: {
+                markupType: correoArgentinoConfig.pricing.markupType,
+                markupValue: Number(correoArgentinoConfig.pricing.markupValue || 0),
+              },
+              rules: {
+                allowHomeDelivery: correoArgentinoConfig.rules.allowHomeDelivery,
+                allowBranchDelivery: correoArgentinoConfig.rules.allowBranchDelivery,
+                requireBranchSelection: correoArgentinoConfig.rules.requireBranchSelection,
+              },
+              flags: {
+                autoTrackingEnabled: correoArgentinoConfig.flags.autoTrackingEnabled,
+              },
+            },
+          }),
+        });
 
         setMercadoPagoConfig({
           publicKey: String(response?.mercadopago?.publicKey ?? ""),
@@ -1416,6 +1681,55 @@ export default function DeveloperModePanel({
             ? response.mercadopago.webhookSecretPreview
             : null,
         });
+        setCorreoArgentinoConfig({
+          enabled: Boolean(correoResponse?.correoArgentino?.enabled),
+          isDefault: correoResponse?.correoArgentino?.isDefault !== false,
+          senderName: String(correoResponse?.correoArgentino?.senderName ?? ""),
+          senderPhone: String(correoResponse?.correoArgentino?.senderPhone ?? ""),
+          senderEmail: String(correoResponse?.correoArgentino?.senderEmail ?? ""),
+          companyName: String(correoResponse?.correoArgentino?.companyName ?? ""),
+          originAddress: {
+            streetName: String(correoResponse?.correoArgentino?.originAddress?.streetName ?? ""),
+            streetNumber: String(correoResponse?.correoArgentino?.originAddress?.streetNumber ?? ""),
+            floor: String(correoResponse?.correoArgentino?.originAddress?.floor ?? ""),
+            apartment: String(correoResponse?.correoArgentino?.originAddress?.apartment ?? ""),
+            city: String(correoResponse?.correoArgentino?.originAddress?.city ?? ""),
+            state: String(correoResponse?.correoArgentino?.originAddress?.state ?? ""),
+            provinceCode: String(correoResponse?.correoArgentino?.originAddress?.provinceCode ?? ""),
+            postalCode: String(correoResponse?.correoArgentino?.originAddress?.postalCode ?? ""),
+          },
+          defaultAgency: String(correoResponse?.correoArgentino?.defaultAgency ?? ""),
+          deliveryTypes: Array.isArray(correoResponse?.correoArgentino?.deliveryTypes)
+            ? correoResponse.correoArgentino.deliveryTypes.map((value: unknown) => String(value))
+            : ["D"],
+          defaultPackageDimensions: {
+            height: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.height ?? 10)),
+            width: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.width ?? 10)),
+            length: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
+          },
+          packagingMarginPercent: String(Number(correoResponse?.correoArgentino?.packagingMarginPercent ?? 8)),
+          pricing: {
+            markupType: String(correoResponse?.correoArgentino?.pricing?.markupType ?? "percentage"),
+            markupValue: String(Number(correoResponse?.correoArgentino?.pricing?.markupValue ?? 0)),
+          },
+          rules: {
+            allowHomeDelivery: correoResponse?.correoArgentino?.rules?.allowHomeDelivery !== false,
+            allowBranchDelivery: Boolean(correoResponse?.correoArgentino?.rules?.allowBranchDelivery),
+            requireBranchSelection: Boolean(correoResponse?.correoArgentino?.rules?.requireBranchSelection),
+          },
+          flags: {
+            autoTrackingEnabled: correoResponse?.correoArgentino?.flags?.autoTrackingEnabled !== false,
+          },
+          global: {
+            mode: String(correoResponse?.correoArgentino?.global?.mode ?? "MICORREO"),
+            apiBaseUrl: String(correoResponse?.correoArgentino?.global?.apiBaseUrl ?? ""),
+            apiUsernameConfigured: Boolean(correoResponse?.correoArgentino?.global?.apiUsernameConfigured),
+            apiPasswordConfigured: Boolean(correoResponse?.correoArgentino?.global?.apiPasswordConfigured),
+            customerIdConfigured: Boolean(correoResponse?.correoArgentino?.global?.customerIdConfigured),
+            customerEmailConfigured: Boolean(correoResponse?.correoArgentino?.global?.customerEmailConfigured),
+            customerPasswordConfigured: Boolean(correoResponse?.correoArgentino?.global?.customerPasswordConfigured),
+          },
+        });
         setSavedMercadoPagoSnapshot(
           JSON.stringify({
             publicKey: String(response?.mercadopago?.publicKey ?? ""),
@@ -1430,6 +1744,57 @@ export default function DeveloperModePanel({
             webhookSecretPreview: typeof response?.mercadopago?.webhookSecretPreview === "string"
               ? response.mercadopago.webhookSecretPreview
               : null,
+          }),
+        );
+        setSavedCorreoArgentinoSnapshot(
+          JSON.stringify({
+            enabled: Boolean(correoResponse?.correoArgentino?.enabled),
+            isDefault: correoResponse?.correoArgentino?.isDefault !== false,
+            senderName: String(correoResponse?.correoArgentino?.senderName ?? ""),
+            senderPhone: String(correoResponse?.correoArgentino?.senderPhone ?? ""),
+            senderEmail: String(correoResponse?.correoArgentino?.senderEmail ?? ""),
+            companyName: String(correoResponse?.correoArgentino?.companyName ?? ""),
+            originAddress: {
+              streetName: String(correoResponse?.correoArgentino?.originAddress?.streetName ?? ""),
+              streetNumber: String(correoResponse?.correoArgentino?.originAddress?.streetNumber ?? ""),
+              floor: String(correoResponse?.correoArgentino?.originAddress?.floor ?? ""),
+              apartment: String(correoResponse?.correoArgentino?.originAddress?.apartment ?? ""),
+              city: String(correoResponse?.correoArgentino?.originAddress?.city ?? ""),
+              state: String(correoResponse?.correoArgentino?.originAddress?.state ?? ""),
+              provinceCode: String(correoResponse?.correoArgentino?.originAddress?.provinceCode ?? ""),
+              postalCode: String(correoResponse?.correoArgentino?.originAddress?.postalCode ?? ""),
+            },
+            defaultAgency: String(correoResponse?.correoArgentino?.defaultAgency ?? ""),
+            deliveryTypes: Array.isArray(correoResponse?.correoArgentino?.deliveryTypes)
+              ? correoResponse.correoArgentino.deliveryTypes.map((value: unknown) => String(value))
+              : ["D"],
+            defaultPackageDimensions: {
+              height: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.height ?? 10)),
+              width: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.width ?? 10)),
+              length: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
+            },
+            packagingMarginPercent: String(Number(correoResponse?.correoArgentino?.packagingMarginPercent ?? 8)),
+            pricing: {
+              markupType: String(correoResponse?.correoArgentino?.pricing?.markupType ?? "percentage"),
+              markupValue: String(Number(correoResponse?.correoArgentino?.pricing?.markupValue ?? 0)),
+            },
+            rules: {
+              allowHomeDelivery: correoResponse?.correoArgentino?.rules?.allowHomeDelivery !== false,
+              allowBranchDelivery: Boolean(correoResponse?.correoArgentino?.rules?.allowBranchDelivery),
+              requireBranchSelection: Boolean(correoResponse?.correoArgentino?.rules?.requireBranchSelection),
+            },
+            flags: {
+              autoTrackingEnabled: correoResponse?.correoArgentino?.flags?.autoTrackingEnabled !== false,
+            },
+            global: {
+              mode: String(correoResponse?.correoArgentino?.global?.mode ?? "MICORREO"),
+              apiBaseUrl: String(correoResponse?.correoArgentino?.global?.apiBaseUrl ?? ""),
+              apiUsernameConfigured: Boolean(correoResponse?.correoArgentino?.global?.apiUsernameConfigured),
+              apiPasswordConfigured: Boolean(correoResponse?.correoArgentino?.global?.apiPasswordConfigured),
+              customerIdConfigured: Boolean(correoResponse?.correoArgentino?.global?.customerIdConfigured),
+              customerEmailConfigured: Boolean(correoResponse?.correoArgentino?.global?.customerEmailConfigured),
+              customerPasswordConfigured: Boolean(correoResponse?.correoArgentino?.global?.customerPasswordConfigured),
+            },
           }),
         );
         setSuccess("Las configuraciones de pago se guardaron correctamente.");
@@ -1473,7 +1838,7 @@ export default function DeveloperModePanel({
 
   const testMercadoPago = async () => {
     try {
-      setTestingIntegration(true);
+      setTestingIntegration("mercadopago");
       setError("");
       setSuccess("");
       setMercadoPagoTestResult(null);
@@ -1495,7 +1860,35 @@ export default function DeveloperModePanel({
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo probar la integracion.");
     } finally {
-      setTestingIntegration(false);
+      setTestingIntegration(null);
+    }
+  };
+
+  const testCorreoArgentino = async () => {
+    try {
+      setTestingIntegration("correo-argentino");
+      setError("");
+      setSuccess("");
+      setCorreoArgentinoTestResult(null);
+
+      const response = await api("/store/admin/integrations/correo-argentino/test", {
+        method: "POST",
+      });
+
+      setCorreoArgentinoTestResult(response as CorreoArgentinoTestResult);
+      if (response?.ok) {
+        setSuccess(
+          typeof response?.message === "string"
+            ? response.message
+            : "La integracion con Correo Argentino respondio correctamente.",
+        );
+      } else if (typeof response?.message === "string") {
+        setError(response.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo probar la integracion.");
+    } finally {
+      setTestingIntegration(null);
     }
   };
 
@@ -1561,16 +1954,7 @@ export default function DeveloperModePanel({
               <strong>{hasUnsavedChanges ? "Cambios sin guardar" : "Todo guardado"}</strong>
               <span>{hasUnsavedChanges ? "Estas viendo preview en vivo" : "Sincronizado con la tienda"}</span>
             </div>
-            {activeSection === "integrations" ? (
-              <button
-                type="button"
-                onClick={testMercadoPago}
-                disabled={saving || loading || testingIntegration}
-                style={secondaryButtonStyle}
-              >
-                {testingIntegration ? "Probando..." : "Probar integracion"}
-              </button>
-            ) : (
+            {activeSection === "integrations" ? null : (
               <button type="button" onClick={resetToDefaults} disabled={saving || loading} style={secondaryButtonStyle}>
                 Restaurar defaults
               </button>
@@ -1696,6 +2080,12 @@ export default function DeveloperModePanel({
                   <button type="button" style={blockNavStyle(true)}>
                     <strong>01</strong>
                     <span>Mercado Pago</span>
+                    <span style={dragHintStyle}>Cobros online y tarjeta</span>
+                  </button>
+                  <button type="button" style={blockNavStyle(true)}>
+                    <strong>02</strong>
+                    <span>Correo Argentino</span>
+                    <span style={dragHintStyle}>Envios automaticos por tienda</span>
                   </button>
                 </div>
               </div>
@@ -1711,6 +2101,454 @@ export default function DeveloperModePanel({
                     : "Cargando integraciones..."}
                 </p>
               ) : activeSection === "integrations" ? (
+                <>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <p style={eyebrowStyle}>Integraciones operativas</p>
+                    <h4 style={{ margin: 0, fontSize: 24 }}>Cobros y envios</h4>
+                    <p style={copyStyle}>
+                      Desde aca administras Mercado Pago por tienda y la configuracion operativa de Correo Argentino.
+                    </p>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 18 }}>
+                    <div style={integrationInfoCardStyle}>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <p style={eyebrowStyle}>Integracion 01</p>
+                        <h5 style={{ margin: 0, fontSize: 20 }}>Mercado Pago</h5>
+                        <p style={hintStyle}>
+                          Carga las credenciales de esta tienda y valida que la cuenta responda antes de publicar.
+                        </p>
+                      </div>
+
+                      <div style={{ display: "grid", gap: 14 }}>
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <label style={labelStyle}>Public key</label>
+                          <input
+                            type="text"
+                            value={mercadoPagoConfig.publicKey}
+                            onChange={(event) => {
+                              setMercadoPagoConfig((current) => ({
+                                ...current,
+                                publicKey: event.target.value,
+                              }));
+                              setMercadoPagoTestResult(null);
+                            }}
+                            placeholder="APP_USR-..."
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <label style={labelStyle}>Access token</label>
+                          <input
+                            type="password"
+                            value={mercadoPagoConfig.accessToken}
+                            onChange={(event) => {
+                              setMercadoPagoConfig((current) => ({
+                                ...current,
+                                accessToken: event.target.value,
+                              }));
+                              setMercadoPagoTestResult(null);
+                            }}
+                            placeholder="APP_USR-..."
+                            autoComplete="new-password"
+                            style={inputStyle}
+                          />
+                          {mercadoPagoConfig.accessTokenConfigured && !mercadoPagoConfig.accessToken ? (
+                            <p style={hintStyle}>
+                              Token ya configurado en backend{mercadoPagoConfig.accessTokenPreview ? ` (${mercadoPagoConfig.accessTokenPreview})` : ""}. Carga uno nuevo solo si queres rotarlo.
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <label style={labelStyle}>Webhook secret</label>
+                          <input
+                            type="password"
+                            value={mercadoPagoConfig.webhookSecret}
+                            onChange={(event) => {
+                              setMercadoPagoConfig((current) => ({
+                                ...current,
+                                webhookSecret: event.target.value,
+                              }));
+                              setMercadoPagoTestResult(null);
+                            }}
+                            placeholder="Secret del webhook"
+                            autoComplete="new-password"
+                            style={inputStyle}
+                          />
+                          {mercadoPagoConfig.webhookSecretConfigured && !mercadoPagoConfig.webhookSecret ? (
+                            <p style={hintStyle}>
+                              Secret ya configurado{mercadoPagoConfig.webhookSecretPreview ? ` (${mercadoPagoConfig.webhookSecretPreview})` : ""}. Escribi uno nuevo solo si queres reemplazarlo.
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <label style={labelStyle}>Descuento por transferencia (%)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            value={mercadoPagoConfig.bankTransferDiscountPercentage}
+                            onChange={(event) => {
+                              setMercadoPagoConfig((current) => ({
+                                ...current,
+                                bankTransferDiscountPercentage: event.target.value,
+                              }));
+                            }}
+                            placeholder="0"
+                            style={inputStyle}
+                          />
+                          <p style={hintStyle}>
+                            Si la tienda quiere incentivar transferencia bancaria, carga aca el porcentaje. Ejemplo: 10.
+                          </p>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                          <button
+                            type="button"
+                            onClick={testMercadoPago}
+                            disabled={saving || loading || testingIntegration !== null}
+                            style={secondaryButtonStyle}
+                          >
+                            {testingIntegration === "mercadopago" ? "Probando..." : "Probar integracion"}
+                          </button>
+                        </div>
+
+                        <div style={integrationInfoCardStyle}>
+                          <strong style={{ fontSize: 15 }}>Chequeos rapidos</strong>
+                          <div style={{ display: "grid", gap: 8 }}>
+                            <div style={integrationCheckStyle(Boolean(mercadoPagoConfig.publicKey))}>
+                              <span>Public key</span>
+                              <strong>{mercadoPagoConfig.publicKey ? "Cargada" : "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(Boolean(mercadoPagoConfig.accessToken || mercadoPagoConfig.accessTokenConfigured))}>
+                              <span>Access token</span>
+                              <strong>{mercadoPagoConfig.accessToken || mercadoPagoConfig.accessTokenConfigured ? "Cargado" : "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(Boolean(mercadoPagoConfig.webhookSecret || mercadoPagoConfig.webhookSecretConfigured))}>
+                              <span>Webhook secret</span>
+                              <strong>{mercadoPagoConfig.webhookSecret || mercadoPagoConfig.webhookSecretConfigured ? "Cargado" : "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(Number(mercadoPagoConfig.bankTransferDiscountPercentage || 0) > 0)}>
+                              <span>Descuento transferencia</span>
+                              <strong>
+                                {Number(mercadoPagoConfig.bankTransferDiscountPercentage || 0) > 0
+                                  ? `${Number(mercadoPagoConfig.bankTransferDiscountPercentage)}%`
+                                  : "Sin descuento"}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        {mercadoPagoTestResult ? (
+                          <div
+                            style={{
+                              ...integrationInfoCardStyle,
+                              border: mercadoPagoTestResult!.ok
+                                ? "1px solid var(--admin-tone-success-border)"
+                                : "1px solid var(--admin-danger-border)",
+                            }}
+                          >
+                            <strong style={{ fontSize: 15 }}>
+                              {mercadoPagoTestResult!.ok ? "Test exitoso" : "Test con observaciones"}
+                            </strong>
+                            {mercadoPagoTestResult!.account ? (
+                              <p style={hintStyle}>
+                                Cuenta: {mercadoPagoTestResult!.account!.nickname || "Sin alias"}
+                                {mercadoPagoTestResult!.account!.email ? ` · ${mercadoPagoTestResult!.account!.email}` : ""}
+                              </p>
+                            ) : null}
+                            {mercadoPagoTestResult!.details ? (
+                              <p style={hintStyle}>{mercadoPagoTestResult!.details}</p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div style={integrationInfoCardStyle}>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <p style={eyebrowStyle}>Integracion 02</p>
+                        <h5 style={{ margin: 0, fontSize: 20 }}>Correo Argentino</h5>
+                        <p style={hintStyle}>
+                          Las credenciales se administran a nivel plataforma. En esta tienda solo configuras origen,
+                          remitente, modalidades y reglas operativas.
+                        </p>
+                      </div>
+
+                      <div style={{ display: "grid", gap: 14 }}>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                          <label style={productChipStyle(correoArgentinoConfig.enabled)}>
+                            <input
+                              type="checkbox"
+                              checked={correoArgentinoConfig.enabled}
+                              onChange={(event) => {
+                                setCorreoArgentinoConfig((current) => ({
+                                  ...current,
+                                  enabled: event.target.checked,
+                                }));
+                                setCorreoArgentinoTestResult(null);
+                              }}
+                            />
+                            <span>Integracion activa</span>
+                          </label>
+                          <label style={productChipStyle(correoArgentinoConfig.isDefault)}>
+                            <input
+                              type="checkbox"
+                              checked={correoArgentinoConfig.isDefault}
+                              onChange={(event) => {
+                                setCorreoArgentinoConfig((current) => ({
+                                  ...current,
+                                  isDefault: event.target.checked,
+                                }));
+                                setCorreoArgentinoTestResult(null);
+                              }}
+                            />
+                            <span>Provider por defecto</span>
+                          </label>
+                          <label style={productChipStyle(correoArgentinoConfig.flags.autoTrackingEnabled)}>
+                            <input
+                              type="checkbox"
+                              checked={correoArgentinoConfig.flags.autoTrackingEnabled}
+                              onChange={(event) => {
+                                setCorreoArgentinoConfig((current) => ({
+                                  ...current,
+                                  flags: {
+                                    ...current.flags,
+                                    autoTrackingEnabled: event.target.checked,
+                                  },
+                                }));
+                              }}
+                            />
+                            <span>Tracking automatico</span>
+                          </label>
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <strong style={{ fontSize: 15 }}>Datos del remitente</strong>
+                          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Sender name</label>
+                              <input
+                                type="text"
+                                value={correoArgentinoConfig.senderName}
+                                onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, senderName: event.target.value }))}
+                                placeholder="Nombre de remitente"
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Sender phone</label>
+                              <input
+                                type="text"
+                                value={correoArgentinoConfig.senderPhone}
+                                onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, senderPhone: event.target.value }))}
+                                placeholder="Telefono"
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Sender email</label>
+                              <input
+                                type="email"
+                                value={correoArgentinoConfig.senderEmail}
+                                onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, senderEmail: event.target.value }))}
+                                placeholder="correo@tienda.com"
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Company name</label>
+                              <input
+                                type="text"
+                                value={correoArgentinoConfig.companyName}
+                                onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, companyName: event.target.value }))}
+                                placeholder="Nombre comercial"
+                                style={inputStyle}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <strong style={{ fontSize: 15 }}>Direccion de origen</strong>
+                          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Calle</label>
+                              <input type="text" value={correoArgentinoConfig.originAddress.streetName} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, originAddress: { ...current.originAddress, streetName: event.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Numero</label>
+                              <input type="text" value={correoArgentinoConfig.originAddress.streetNumber} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, originAddress: { ...current.originAddress, streetNumber: event.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Piso</label>
+                              <input type="text" value={correoArgentinoConfig.originAddress.floor} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, originAddress: { ...current.originAddress, floor: event.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Departamento</label>
+                              <input type="text" value={correoArgentinoConfig.originAddress.apartment} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, originAddress: { ...current.originAddress, apartment: event.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Ciudad</label>
+                              <input type="text" value={correoArgentinoConfig.originAddress.city} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, originAddress: { ...current.originAddress, city: event.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Provincia</label>
+                              <input type="text" value={correoArgentinoConfig.originAddress.state} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, originAddress: { ...current.originAddress, state: event.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Codigo provincia</label>
+                              <input type="text" value={correoArgentinoConfig.originAddress.provinceCode} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, originAddress: { ...current.originAddress, provinceCode: event.target.value.toUpperCase() } }))} maxLength={1} placeholder="B" style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Codigo postal</label>
+                              <input type="text" value={correoArgentinoConfig.originAddress.postalCode} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, originAddress: { ...current.originAddress, postalCode: event.target.value } }))} style={inputStyle} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <strong style={{ fontSize: 15 }}>Modalidades y paquete</strong>
+                          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Sucursal por defecto</label>
+                              <input type="text" value={correoArgentinoConfig.defaultAgency} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, defaultAgency: event.target.value.toUpperCase() }))} placeholder="B0107" style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Markup</label>
+                              <div style={{ display: "grid", gap: 8, gridTemplateColumns: "minmax(140px, 180px) 1fr" }}>
+                                <select value={correoArgentinoConfig.pricing.markupType} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, pricing: { ...current.pricing, markupType: event.target.value } }))} style={inputStyle}>
+                                  <option value="percentage">Porcentaje</option>
+                                  <option value="fixed">Monto fijo</option>
+                                </select>
+                                <input type="number" min={0} step="0.01" value={correoArgentinoConfig.pricing.markupValue} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, pricing: { ...current.pricing, markupValue: event.target.value } }))} placeholder="0" style={inputStyle} />
+                              </div>
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Margen de empaque (%)</label>
+                              <input type="number" min={0} max={100} step="0.1" value={correoArgentinoConfig.packagingMarginPercent} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, packagingMarginPercent: event.target.value }))} placeholder="8" style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Alto por defecto (cm)</label>
+                              <input type="number" min={0} step="0.1" value={correoArgentinoConfig.defaultPackageDimensions.height} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, defaultPackageDimensions: { ...current.defaultPackageDimensions, height: event.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Ancho por defecto (cm)</label>
+                              <input type="number" min={0} step="0.1" value={correoArgentinoConfig.defaultPackageDimensions.width} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, defaultPackageDimensions: { ...current.defaultPackageDimensions, width: event.target.value } }))} style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Largo por defecto (cm)</label>
+                              <input type="number" min={0} step="0.1" value={correoArgentinoConfig.defaultPackageDimensions.length} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, defaultPackageDimensions: { ...current.defaultPackageDimensions, length: event.target.value } }))} style={inputStyle} />
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <label style={productChipStyle(correoArgentinoConfig.deliveryTypes.includes("D"))}>
+                              <input type="checkbox" checked={correoArgentinoConfig.deliveryTypes.includes("D")} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, deliveryTypes: event.target.checked ? Array.from(new Set([...current.deliveryTypes, "D"])) : current.deliveryTypes.filter((value) => value !== "D") }))} />
+                              <span>Domicilio</span>
+                            </label>
+                            <label style={productChipStyle(correoArgentinoConfig.deliveryTypes.includes("S"))}>
+                              <input type="checkbox" checked={correoArgentinoConfig.deliveryTypes.includes("S")} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, deliveryTypes: event.target.checked ? Array.from(new Set([...current.deliveryTypes, "S"])) : current.deliveryTypes.filter((value) => value !== "S") }))} />
+                              <span>Sucursal</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <strong style={{ fontSize: 15 }}>Reglas operativas</strong>
+                          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <label style={productChipStyle(correoArgentinoConfig.rules.allowHomeDelivery)}>
+                              <input type="checkbox" checked={correoArgentinoConfig.rules.allowHomeDelivery} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, rules: { ...current.rules, allowHomeDelivery: event.target.checked } }))} />
+                              <span>Permitir domicilio</span>
+                            </label>
+                            <label style={productChipStyle(correoArgentinoConfig.rules.allowBranchDelivery)}>
+                              <input type="checkbox" checked={correoArgentinoConfig.rules.allowBranchDelivery} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, rules: { ...current.rules, allowBranchDelivery: event.target.checked } }))} />
+                              <span>Permitir sucursal</span>
+                            </label>
+                            <label style={productChipStyle(correoArgentinoConfig.rules.requireBranchSelection)}>
+                              <input type="checkbox" checked={correoArgentinoConfig.rules.requireBranchSelection} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, rules: { ...current.rules, requireBranchSelection: event.target.checked } }))} />
+                              <span>Requerir seleccion de sucursal</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                          <button
+                            type="button"
+                            onClick={testCorreoArgentino}
+                            disabled={saving || loading || testingIntegration !== null}
+                            style={secondaryButtonStyle}
+                          >
+                            {testingIntegration === "correo-argentino" ? "Probando..." : "Probar integracion"}
+                          </button>
+                        </div>
+
+                        <div style={integrationInfoCardStyle}>
+                          <strong style={{ fontSize: 15 }}>Chequeos globales y por tienda</strong>
+                          <div style={{ display: "grid", gap: 8 }}>
+                            <div style={integrationCheckStyle(Boolean(correoArgentinoConfig.global.mode))}>
+                              <span>Modo</span>
+                              <strong>{correoArgentinoConfig.global.mode || "Sin definir"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(Boolean(correoArgentinoConfig.global.apiBaseUrl))}>
+                              <span>Base URL</span>
+                              <strong>{correoArgentinoConfig.global.apiBaseUrl || "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(correoArgentinoConfig.global.apiUsernameConfigured)}>
+                              <span>API username global</span>
+                              <strong>{correoArgentinoConfig.global.apiUsernameConfigured ? "Configurado" : "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(correoArgentinoConfig.global.apiPasswordConfigured)}>
+                              <span>API password global</span>
+                              <strong>{correoArgentinoConfig.global.apiPasswordConfigured ? "Configurado" : "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(correoArgentinoConfig.global.customerIdConfigured)}>
+                              <span>Customer ID global</span>
+                              <strong>{correoArgentinoConfig.global.customerIdConfigured ? "Configurado" : "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(Boolean(correoArgentinoConfig.senderName || correoArgentinoConfig.companyName))}>
+                              <span>Remitente de la tienda</span>
+                              <strong>{correoArgentinoConfig.senderName || correoArgentinoConfig.companyName ? "Configurado" : "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(Boolean(correoArgentinoConfig.originAddress.postalCode))}>
+                              <span>Origen de la tienda</span>
+                              <strong>{correoArgentinoConfig.originAddress.postalCode ? "Configurado" : "Pendiente"}</strong>
+                            </div>
+                            <div style={integrationCheckStyle(correoArgentinoConfig.deliveryTypes.length > 0)}>
+                              <span>Modalidades</span>
+                              <strong>{correoArgentinoConfig.deliveryTypes.length > 0 ? correoArgentinoConfig.deliveryTypes.join(", ") : "Pendiente"}</strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        {correoArgentinoTestResult ? (
+                          <div
+                            style={{
+                              ...integrationInfoCardStyle,
+                              border: correoArgentinoTestResult!.ok
+                                ? "1px solid var(--admin-tone-success-border)"
+                                : "1px solid var(--admin-danger-border)",
+                            }}
+                          >
+                            <strong style={{ fontSize: 15 }}>
+                              {correoArgentinoTestResult!.ok ? "Test exitoso" : "Test con observaciones"}
+                            </strong>
+                            {correoArgentinoTestResult!.message ? (
+                              <p style={hintStyle}>{correoArgentinoTestResult!.message}</p>
+                            ) : null}
+                            {correoArgentinoTestResult!.details ? (
+                              <p style={hintStyle}>{correoArgentinoTestResult!.details}</p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : false ? (
                 <>
                   <div style={{ display: "grid", gap: 8 }}>
                     <p style={eyebrowStyle}>Integracion seleccionada</p>
@@ -1836,24 +2674,24 @@ export default function DeveloperModePanel({
                       <div
                         style={{
                           ...integrationInfoCardStyle,
-                          border: mercadoPagoTestResult.ok
+                          border: mercadoPagoTestResult!.ok
                             ? "1px solid var(--admin-tone-success-border)"
                             : "1px solid var(--admin-danger-border)",
                         }}
                       >
                         <strong style={{ fontSize: 15 }}>
-                          {mercadoPagoTestResult.ok ? "Test exitoso" : "Test con observaciones"}
+                          {mercadoPagoTestResult!.ok ? "Test exitoso" : "Test con observaciones"}
                         </strong>
-                        {mercadoPagoTestResult.account ? (
+                        {mercadoPagoTestResult!.account ? (
                           <p style={hintStyle}>
-                            Cuenta: {mercadoPagoTestResult.account.nickname || "Sin alias"}
-                            {mercadoPagoTestResult.account.email
-                              ? ` · ${mercadoPagoTestResult.account.email}`
+                            Cuenta: {mercadoPagoTestResult!.account!.nickname || "Sin alias"}
+                            {mercadoPagoTestResult!.account!.email
+                              ? ` · ${mercadoPagoTestResult!.account!.email}`
                               : ""}
                           </p>
                         ) : null}
-                        {mercadoPagoTestResult.details ? (
-                          <p style={hintStyle}>{mercadoPagoTestResult.details}</p>
+                        {mercadoPagoTestResult!.details ? (
+                          <p style={hintStyle}>{mercadoPagoTestResult!.details}</p>
                         ) : null}
                       </div>
                     ) : null}
@@ -2946,3 +3784,4 @@ function productChipStyle(active: boolean): React.CSSProperties {
     color: "var(--account-text-strong)",
   };
 }
+

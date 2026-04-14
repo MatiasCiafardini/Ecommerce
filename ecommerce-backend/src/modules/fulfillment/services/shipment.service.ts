@@ -15,6 +15,7 @@ import {
   ShipmentProvisionRequest,
 } from '../../shipping/providers/shipping-provider.interface';
 import { StoreShippingProviderConfigService } from '../../shipping/services/store-shipping-provider-config.service';
+import { ShippingPackageCalculatorService } from '../../shipping/services/shipping-package-calculator.service';
 
 @Injectable()
 export class ShipmentService {
@@ -23,6 +24,7 @@ export class ShipmentService {
   constructor(
     private prisma: PrismaService,
     private providerConfigService: StoreShippingProviderConfigService,
+    private packageCalculator: ShippingPackageCalculatorService,
   ) {}
 
   async createShipment(storeId: number, dto: CreateShipmentDto) {
@@ -40,6 +42,14 @@ export class ShipmentService {
         providerCode: dto.provider,
       });
 
+    const packageCalculation =
+      resolvedProvider.provider.providerCode === 'manual'
+        ? null
+        : this.packageCalculator.calculateFromItems(
+            order.items as any,
+            resolvedProvider.context.config,
+          );
+
     const providerShipment = await this.createProviderShipment(order, {
       provider: resolvedProvider.provider.providerCode,
       carrierId: dto.provider,
@@ -49,7 +59,8 @@ export class ShipmentService {
       modalityCode: order.shippingModalityCode,
       dispatchType: order.shippingDispatchType,
       branchId: order.shippingBranchId,
-      weight: dto.weight,
+      weight: packageCalculation?.weightKg ?? dto.weight,
+      package: packageCalculation?.package,
       shippingAddress: dto.shippingAddress,
       postalCode: dto.postalCode,
     }, resolvedProvider.context, resolvedProvider.provider);
@@ -58,7 +69,7 @@ export class ShipmentService {
       provider: resolvedProvider.provider.providerCode,
       carrier: dto.provider,
       method: dto.method,
-      weight: dto.weight,
+      weight: packageCalculation?.weightKg ?? dto.weight,
       shippingAddress: dto.shippingAddress,
       postalCode: dto.postalCode,
       providerConfigId: resolvedProvider.config?.id ?? null,
@@ -94,6 +105,11 @@ export class ShipmentService {
         providerConfigId: order.shippingProviderConfigId,
       });
 
+    const packageCalculation = this.packageCalculator.calculateFromItems(
+      order.items as any,
+      resolvedProvider.context.config,
+    );
+
     const providerShipment = await this.createProviderShipment(order, {
       provider: resolvedProvider.provider.providerCode,
       carrierId: order.shippingCarrierId || order.shippingProvider,
@@ -103,7 +119,8 @@ export class ShipmentService {
       modalityCode: order.shippingModalityCode,
       dispatchType: order.shippingDispatchType,
       branchId: order.shippingBranchId,
-      weight: this.calculateOrderWeight(order.items),
+      weight: packageCalculation.weightKg,
+      package: packageCalculation.package,
       shippingAddress,
       postalCode,
     }, resolvedProvider.context, resolvedProvider.provider);
@@ -112,7 +129,7 @@ export class ShipmentService {
       provider: resolvedProvider.provider.providerCode,
       carrier: order.shippingCarrierName || order.shippingProvider || null,
       method: order.shippingMethod || 'standard',
-      weight: this.calculateOrderWeight(order.items),
+      weight: packageCalculation.weightKg,
       shippingAddress,
       postalCode,
       providerConfigId:
@@ -621,6 +638,11 @@ export class ShipmentService {
       dispatchType?: string | null;
       branchId?: string | null;
       weight?: number;
+      package?: {
+        width?: number;
+        height?: number;
+        length?: number;
+      };
       shippingAddress: string;
       postalCode: string;
     },
@@ -674,6 +696,11 @@ export class ShipmentService {
       dispatchType?: string | null;
       branchId?: string | null;
       weight?: number;
+      package?: {
+        width?: number;
+        height?: number;
+        length?: number;
+      };
       shippingAddress: string;
       postalCode: string;
     },
@@ -724,7 +751,7 @@ export class ShipmentService {
         postalCode: options.postalCode,
         country: order.shippingCountrySnapshot || 'AR',
       },
-      package: this.calculatePackageDimensions(order.items),
+      package: options.package ?? this.calculatePackageDimensions(order.items),
     };
   }
 
