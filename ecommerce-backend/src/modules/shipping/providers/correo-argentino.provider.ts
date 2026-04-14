@@ -43,10 +43,14 @@ export class CorreoArgentinoProvider implements ShippingProvider {
             deliveredType,
             dimensions: this.buildQuoteDimensions(data, config),
           },
-          this.auth(token),
+          {
+            ...this.auth(token),
+            // MiCorreo returns 202 Accepted for successful rate queries — treat all 2xx as success
+            validateStatus: (status: number) => status >= 200 && status < 300,
+          },
         ),
       ),
-    ).catch((error) => this.fail(error, 'Error fetching shipping rates from Correo Argentino MiCorreo'));
+    ).catch((error) => this.fail(error, 'Error fetching shipping rates from Correo Argentino MiCorreo (/rates)'));
 
     const seen = new Set<string>();
     return responses.flatMap((response: any, index: number) =>
@@ -162,9 +166,76 @@ export class CorreoArgentinoProvider implements ShippingProvider {
   async testConnection(context?: ShippingProviderContext) {
     const config = this.getConfig(context?.config);
     this.ensureMiCorreoMode(config);
+
+    // Step 1: validate token (/token with Basic Auth)
     const token = await this.getAccessToken(config);
+
+    // Step 2: resolve customerId (returns immediately if CORREO_ARGENTINO_CUSTOMER_ID is set)
     const customerId = await this.getCustomerId(config, token);
-    return { ok: true, message: 'Correo Argentino MiCorreo credentials are valid', details: { customerId, mode: config.mode, apiBaseUrl: config.apiBaseUrl } };
+
+    // Step 3: validate full API flow with a real /rates call if originPostalCode is configured
+    const originAddress =
+      config.metadata.originAddress && typeof config.metadata.originAddress === 'object'
+        ? (config.metadata.originAddress as Record<string, unknown>)
+        : {};
+    const postalCodeOrigin = this.text(originAddress.postalCode);
+
+    if (!postalCodeOrigin) {
+      return {
+        ok: true,
+        message:
+          'Correo Argentino MiCorreo: token y customerId válidos. Configurá originAddress.postalCode para habilitar el test completo de cotización.',
+        details: {
+          customerId,
+          mode: config.mode,
+          apiBaseUrl: config.apiBaseUrl,
+          originPostalCodeConfigured: false,
+        },
+      };
+    }
+
+    // Minimal /rates payload matching the confirmed working curl payload
+    const ratesResponse = await axios
+      .post(
+        this.url(config.apiBaseUrl, '/rates'),
+        {
+          customerId,
+          postalCodeOrigin,
+          postalCodeDestination: '1000',
+          deliveredType: 'D',
+          dimensions: { weight: 1000, height: 10, width: 10, length: 10 },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          // MiCorreo returns 202 Accepted for successful rate queries — treat all 2xx as success
+          validateStatus: (status) => status >= 200 && status < 300,
+        },
+      )
+      .catch((error) =>
+        this.fail(error, 'Error en test de cotización a Correo Argentino MiCorreo (/rates)'),
+      );
+
+    const rates = Array.isArray(ratesResponse.data?.rates) ? ratesResponse.data.rates : [];
+
+    return {
+      ok: true,
+      message: `Correo Argentino MiCorreo operativo. ${rates.length} tarifa(s) obtenida(s) desde CP ${postalCodeOrigin}.`,
+      details: {
+        customerId,
+        mode: config.mode,
+        apiBaseUrl: config.apiBaseUrl,
+        originPostalCodeConfigured: true,
+        rateCount: rates.length,
+        sampleRates: rates.slice(0, 3).map((r: any) => ({
+          deliveredType: r.deliveredType,
+          productName: r.productName,
+          price: r.price,
+        })),
+      },
+    };
   }
 
   private async getShipmentDetailFromSnapshot(data: ShipmentTrackingSnapshot, context?: ShippingProviderContext): Promise<ProviderShipment> {
