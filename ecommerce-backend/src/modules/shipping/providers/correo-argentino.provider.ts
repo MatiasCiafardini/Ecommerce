@@ -1,3 +1,4 @@
+import { execFile } from 'child_process';
 import { BadRequestException, Injectable, InternalServerErrorException, NotImplementedException, ServiceUnavailableException } from '@nestjs/common';
 import axios from 'axios';
 import { ProviderShipment, ProviderTrackingEvent, ResolvedShippingProviderConfig, ShipmentCancellation, ShippingAgency, ShippingAgencyLookupRequest, ShippingProvider, ShippingProviderContext, ShippingRate, ShippingRateRequest, ShipmentProvisionRequest, ShipmentTrackingSnapshot } from './shipping-provider.interface';
@@ -306,39 +307,49 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     const cached = this.tokenCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
     const tokenUrl = this.url(config.apiBaseUrl, '/token');
-    const basicCredential = Buffer.from(`${config.apiUsername}:${config.apiPassword}`).toString('base64');
-    console.log(`[CorreoArgentino] POST ${tokenUrl} — user: ${config.apiUsername?.slice(0, 4)}*** Authorization: Basic manual, no Content-Type, no body`);
-    const response = await axios
-      .request({
-        method: 'POST',
-        url: tokenUrl,
-        // Replicate curl -u behavior: manual Basic Auth header, no body, no Content-Type
-        data: null,
-        headers: {
-          Authorization: `Basic ${basicCredential}`,
-          Accept: 'application/json',
-          'Content-Length': '0',
-        },
-        // Strip any Content-Type axios might inject through defaults or transformRequest
-        transformRequest: [
-          (_data, headers) => {
-            delete headers['Content-Type'];
-            delete headers['content-type'];
-            return undefined;
-          },
+    console.log(`[CorreoArgentino] /token — curl POST ${tokenUrl} user: ${config.apiUsername?.slice(0, 4)}***`);
+    // axios and Node's http stack fail with 415 against MiCorreo /token regardless of headers.
+    // curl succeeds. Root cause is likely HTTP framing differences (Transfer-Encoding, expect headers, etc.).
+    // Using execFile + curl replicates the exact wire behavior that MiCorreo accepts.
+    // execFile (not exec) is used intentionally: args are passed as an array — no shell expansion, no injection risk.
+    const rawResponse = await new Promise<string>((resolve, reject) => {
+      execFile(
+        'curl',
+        [
+          '-s',
+          '-X', 'POST',
+          tokenUrl,
+          '-u', `${config.apiUsername}:${config.apiPassword}`,
+          '--max-time', '10',
+          '--connect-timeout', '5',
         ],
-        validateStatus: (status) => status >= 200 && status < 300,
-      })
-      .catch((error) => {
-        const status = axios.isAxiosError(error) ? error.response?.status : null;
-        const body = axios.isAxiosError(error) ? JSON.stringify(error.response?.data) : null;
-        console.error(`[CorreoArgentino] /token failed — HTTP ${status ?? 'no-response'} body: ${body ?? error?.message}`);
-        return this.fail(error, 'Error authenticating against Correo Argentino MiCorreo (/token)');
-      });
-    console.log(`[CorreoArgentino] /token response — HTTP ${response.status} hasToken: ${Boolean(response.data?.token)}`);
-    const token = this.text(response.data?.token);
+        { timeout: 12000 },
+        (error, stdout, stderr) => {
+          if (error) {
+            console.error(`[CorreoArgentino] /token curl error: ${error.message}`);
+            return reject(new ServiceUnavailableException(`Correo Argentino /token curl error: ${error.message}`));
+          }
+          if (!stdout?.trim()) {
+            console.error(`[CorreoArgentino] /token curl empty response. stderr: ${stderr}`);
+            return reject(new ServiceUnavailableException('Correo Argentino /token returned empty response'));
+          }
+          resolve(stdout);
+        },
+      );
+    });
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(rawResponse);
+    } catch {
+      console.error(`[CorreoArgentino] /token non-JSON response: ${rawResponse.slice(0, 200)}`);
+      throw new ServiceUnavailableException(`Correo Argentino /token returned non-JSON: ${rawResponse.slice(0, 200)}`);
+    }
+
+    console.log(`[CorreoArgentino] /token response — hasToken: ${Boolean(parsed.token)}`);
+    const token = this.text(parsed.token);
     if (!token) throw new ServiceUnavailableException('Correo Argentino MiCorreo token response did not include a token');
-    this.tokenCache.set(cacheKey, { token, expiresAt: this.expiration(response.data?.expires) });
+    this.tokenCache.set(cacheKey, { token, expiresAt: this.expiration(parsed.expires as string | undefined) });
     return token;
   }
 
