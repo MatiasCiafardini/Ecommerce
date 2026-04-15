@@ -21,7 +21,7 @@ import { UpdateSystemStoreDto } from './dto/update-system-store.dto';
 import { CreateSystemStoreUserDto } from './dto/create-system-store-user.dto';
 import { UpdateSystemStoreUserDto } from './dto/update-system-store-user.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { clearAuthCookie, setAuthCookie } from '../auth/utils/auth-cookie.util';
 
 @ApiTags('system')
@@ -35,6 +35,7 @@ export class SystemController {
   @Post('auth/login')
   async login(
     @Body() body: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = await this.authService.validateSuperAdmin(
@@ -43,7 +44,7 @@ export class SystemController {
     );
 
     const session = await this.authService.login(user);
-    setAuthCookie(res, session.access_token, 'system');
+    setAuthCookie(res, session.access_token, 'system', req.headers.host);
 
     return {
       user: session.user,
@@ -51,8 +52,8 @@ export class SystemController {
   }
 
   @Post('auth/logout')
-  logout(@Res({ passthrough: true }) res: Response) {
-    clearAuthCookie(res, 'system');
+  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    clearAuthCookie(res, 'system', req.headers.host);
     return { success: true };
   }
 

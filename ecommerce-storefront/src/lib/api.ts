@@ -59,7 +59,8 @@ const extractErrorMessage = async (res: Response) => {
 };
 
 export const api = async (endpoint: string, options: ApiOptions = {}) => {
-  const apiUrl = getPublicApiUrl();
+  const apiUrl =
+    typeof window === "undefined" ? getPublicApiUrl() : "/api/proxy";
   const { host, storeId } = getClientStoreContext();
 
   const res = await fetch(`${apiUrl}${endpoint}`, {
@@ -79,7 +80,8 @@ export const api = async (endpoint: string, options: ApiOptions = {}) => {
 };
 
 export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
-  const apiUrl = getPublicApiUrl();
+  const apiUrl =
+    typeof window === "undefined" ? getPublicApiUrl() : "/api/proxy";
   const { host, storeId } = getClientStoreContext();
 
   const res = await fetch(`${apiUrl}${endpoint}`, {
@@ -97,7 +99,8 @@ export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
 };
 
 export const apiBlob = async (endpoint: string, options: ApiOptions = {}) => {
-  const apiUrl = getPublicApiUrl();
+  const apiUrl =
+    typeof window === "undefined" ? getPublicApiUrl() : "/api/proxy";
   const { host, storeId } = getClientStoreContext();
 
   const res = await fetch(`${apiUrl}${endpoint}`, {

@@ -16,6 +16,42 @@ function getCookiePath(kind: AuthCookieKind) {
   return kind === 'system' ? systemApiPath : apiBasePath;
 }
 
+function normalizeHostname(value: string | undefined) {
+  if (!value) {
+    return '';
+  }
+
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+    .replace(/^\.+/, '');
+}
+
+function resolveCookieDomain(requestHost?: string) {
+  const configuredDomain = runtimeConfig.authCookieDomain?.trim();
+
+  if (!configuredDomain) {
+    return undefined;
+  }
+
+  const normalizedConfiguredDomain = normalizeHostname(configuredDomain);
+  const normalizedRequestHost = normalizeHostname(requestHost);
+
+  if (!normalizedRequestHost) {
+    return configuredDomain;
+  }
+
+  if (
+    normalizedRequestHost === normalizedConfiguredDomain ||
+    normalizedRequestHost.endsWith(`.${normalizedConfiguredDomain}`)
+  ) {
+    return configuredDomain;
+  }
+
+  return undefined;
+}
+
 export function getAuthCookieName(kind: AuthCookieKind = 'store') {
   if (kind === 'system') {
     return runtimeConfig.systemAuthCookieName;
@@ -28,23 +64,28 @@ export function setAuthCookie(
   response: Response,
   token: string,
   kind: AuthCookieKind = 'store',
+  requestHost?: string,
 ) {
   response.cookie(getAuthCookieName(kind), token, {
     httpOnly: true,
     secure: runtimeConfig.authCookieSecure,
     sameSite: normalizeSameSite() as 'lax' | 'strict' | 'none',
-    domain: runtimeConfig.authCookieDomain,
+    domain: resolveCookieDomain(requestHost),
     path: getCookiePath(kind),
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 }
 
-export function clearAuthCookie(response: Response, kind: AuthCookieKind = 'store') {
+export function clearAuthCookie(
+  response: Response,
+  kind: AuthCookieKind = 'store',
+  requestHost?: string,
+) {
   response.clearCookie(getAuthCookieName(kind), {
     httpOnly: true,
     secure: runtimeConfig.authCookieSecure,
     sameSite: normalizeSameSite() as 'lax' | 'strict' | 'none',
-    domain: runtimeConfig.authCookieDomain,
+    domain: resolveCookieDomain(requestHost),
     path: getCookiePath(kind),
   });
 }

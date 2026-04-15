@@ -87,13 +87,14 @@ Antes de desplegar:
   - `CORS_ORIGINS=https://estudiosmc.cloud,https://www.estudiosmc.cloud,https://trojani.com.ar,https://www.trojani.com.ar,https://admin.estudiosmc.cloud`
   - `UPLOADS_DIR=/var/www/ecommerce/shared/uploads`
   - `PRIVATE_UPLOADS_DIR=/var/www/ecommerce/shared/private-uploads`
-  - `AUTH_COOKIE_DOMAIN=` vacio para soportar multidominio con cookie host-only en `api.estudiosmc.cloud`
+- `AUTH_COOKIE_DOMAIN=` vacio para soportar multidominio con cookie host-only en `api.estudiosmc.cloud`
   - `AUTH_COOKIE_SECURE=true`
   - `AUTH_COOKIE_SAME_SITE=none`
 - Definir `DOCS_ENABLED=false`.
 - Definir `CORS_ORIGINS` con los dominios reales del storefront y admin.
 - Definir `AUTH_COOKIE_SECURE=true`.
 - Definir `AUTH_COOKIE_DOMAIN` si backend, admin y storefront comparten dominio base.
+- Si usas dominios custom por tienda o un proxy same-origin desde el storefront, dejar `AUTH_COOKIE_DOMAIN` vacio para evitar cookies invalidas entre sitios distintos.
 - Usar `AUTH_COOKIE_SAME_SITE=none` cuando el frontend y la API operen por HTTPS en subdominios distintos.
 - Asegurar que `PRIVATE_UPLOADS_DIR` exista y tenga backup y permisos restringidos.
 - Confirmar que el proxy inverso preserve cookies, `x-forwarded-host` y HTTPS.

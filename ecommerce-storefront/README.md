@@ -67,5 +67,6 @@ Si el host no esta mapeado, el storefront ahora falla de forma explicita en luga
 ## Notas
 
 - `NEXT_PUBLIC_API_URL` es obligatoria en produccion.
+- En navegador, el storefront proxya las llamadas cliente por `/api/proxy/*` para que la sesion viaje como cookie first-party incluso en mobile y en dominios custom.
 - En desarrollo existe fallback local para evitar que el storefront explote temprano si falta esa variable.
 - Hoy la home multi-tienda sigue teniendo contenido hardcodeado por tienda en `src/lib/tenant/get-tenant.ts`.

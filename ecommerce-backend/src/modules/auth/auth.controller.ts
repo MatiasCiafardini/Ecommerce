@@ -48,7 +48,7 @@ export class AuthController {
       storeId,
     );
 
-    return this.finishLogin(res, user);
+    return this.finishLogin(res, user, req);
   }
 
   @Post('session-login')
@@ -65,7 +65,7 @@ export class AuthController {
       storeId,
     );
 
-    return this.finishLogin(res, authEntity);
+    return this.finishLogin(res, authEntity, req);
   }
 
   @Post('customer/register')
@@ -95,7 +95,7 @@ export class AuthController {
       storeId,
     );
 
-    return this.finishLogin(res, customer);
+    return this.finishLogin(res, customer, req);
   }
 
   @Post('google')
@@ -111,12 +111,12 @@ export class AuthController {
       body.clientId,
     );
 
-    return this.finishLogin(res, customer);
+    return this.finishLogin(res, customer, req);
   }
 
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response) {
-    clearAuthCookie(res, 'store');
+  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    clearAuthCookie(res, 'store', this.readCookieRequestHost(req));
     return { success: true };
   }
 
@@ -186,12 +186,26 @@ export class AuthController {
     return storeId;
   }
 
-  private async finishLogin(res: Response, authEntity: any) {
+  private async finishLogin(res: Response, authEntity: any, req: Request) {
     const payload = await this.authService.login(authEntity);
-    setAuthCookie(res, payload.access_token, 'store');
+    setAuthCookie(res, payload.access_token, 'store', this.readCookieRequestHost(req));
 
     return {
       user: payload.user,
     };
+  }
+
+  private readCookieRequestHost(req: Request) {
+    const storeHostHeader = req.headers['x-store-host'];
+    const storeHost = Array.isArray(storeHostHeader)
+      ? storeHostHeader[0]
+      : storeHostHeader;
+
+    if (storeHost?.trim()) {
+      return storeHost;
+    }
+
+    const hostHeader = req.headers.host;
+    return Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
   }
 }

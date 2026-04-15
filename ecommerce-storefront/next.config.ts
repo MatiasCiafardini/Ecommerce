@@ -1,7 +1,17 @@
 import type { NextConfig } from "next";
 
+function normalizeApiUrl(rawUrl?: string) {
+  const value = rawUrl?.trim();
+
+  if (!value) {
+    return "";
+  }
+
+  return value.replace(/\/+$/, "");
+}
+
 const remotePatterns = (() => {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const apiUrl = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
 
   if (!apiUrl) {
     return [];
@@ -27,6 +37,20 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     remotePatterns,
+  },
+  async rewrites() {
+    const apiUrl = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
+
+    if (!apiUrl) {
+      return [];
+    }
+
+    return [
+      {
+        source: "/api/proxy/:path*",
+        destination: `${apiUrl}/:path*`,
+      },
+    ];
   },
   turbopack: {
     root: __dirname,
