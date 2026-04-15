@@ -1,6 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
+function useViewportFlags() {
+  const [isTabletOrSmaller, setIsTabletOrSmaller] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = window.matchMedia("(max-width: 1024px)");
+    const sync = () => setIsTabletOrSmaller(q.matches);
+    sync();
+    q.addEventListener("change", sync);
+    return () => q.removeEventListener("change", sync);
+  }, []);
+  return { isTabletOrSmaller };
+}
 import { api } from "@/lib/api";
 import AdminShipmentOperationsPanel from "./AdminShipmentOperationsPanel";
 import AdminShippingMethodsCard from "./AdminShippingMethodsCard";
@@ -38,6 +51,7 @@ const formatShipmentStatus = (status: string) =>
   status.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function AdminShipmentsSection() {
+  const { isTabletOrSmaller } = useViewportFlags();
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [shipments, setShipments] = useState<AdminShipment[]>([]);
   const [shippingMethods, setShippingMethods] = useState<AdminStoreShippingMethod[]>([]);
@@ -173,7 +187,7 @@ export default function AdminShipmentsSection() {
       {loading ? (
         <StateCard label="Cargando gestion de envios..." />
       ) : (
-        <div style={layoutStyle}>
+        <div style={{ ...layoutStyle, gridTemplateColumns: isTabletOrSmaller ? "minmax(0, 1fr)" : layoutStyle.gridTemplateColumns }}>
           <div style={{ display: "grid", gap: 20, alignSelf: "start" }}>
             <section style={infoCardStyle}>
               <div style={{ display: "grid", gap: 8 }}>
@@ -381,13 +395,13 @@ function StateCard({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
 }
 
-const panelStyle: React.CSSProperties = { display: "grid", gap: 24 };
+const panelStyle: React.CSSProperties = { display: "grid", gap: 24, width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" };
 const layoutStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(320px, 400px) minmax(0, 1fr)", gap: 20, alignItems: "start" };
-const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--page-panel-bg)", padding: 22, display: "grid", gap: 16 };
+const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--page-panel-bg)", padding: 22, display: "grid", gap: 16, minWidth: 0, maxWidth: "100%", boxSizing: "border-box" };
 const formGridStyle: React.CSSProperties = { display: "grid", gap: 12 };
 const trackingStackStyle: React.CSSProperties = { display: "grid", gap: 16 };
 const shipmentListGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 };
-const fieldStyle: React.CSSProperties = { width: "100%", padding: "14px 16px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 16, outline: "none" };
+const fieldStyle: React.CSSProperties = { width: "100%", maxWidth: "100%", padding: "14px 16px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 16, outline: "none", boxSizing: "border-box" };
 const textareaStyle: React.CSSProperties = { ...fieldStyle, resize: "vertical", minHeight: 96 };
 const primaryButtonStyle: React.CSSProperties = { padding: "14px 18px", background: "var(--accent-strong)", color: "var(--accent-contrast)", border: "none", borderRadius: 999, cursor: "pointer", fontWeight: 700 };
 const stateStyle: React.CSSProperties = { borderRadius: 20, border: "1px solid var(--checkout-border-strong)", background: "var(--page-panel-strong-bg)", padding: 18, color: "var(--account-text-muted)" };

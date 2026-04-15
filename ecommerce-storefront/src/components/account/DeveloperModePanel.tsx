@@ -2,6 +2,19 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+function useViewportFlags() {
+  const [isTabletOrSmaller, setIsTabletOrSmaller] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = window.matchMedia("(max-width: 1024px)");
+    const sync = () => setIsTabletOrSmaller(q.matches);
+    sync();
+    q.addEventListener("change", sync);
+    return () => q.removeEventListener("change", sync);
+  }, []);
+  return { isTabletOrSmaller };
+}
 import { api } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import { blockThemeOverrides } from "@/config/block-theme-overrides";
@@ -678,6 +691,7 @@ export default function DeveloperModePanel({
   user: User;
   forceExpanded?: boolean;
 }) {
+  const { isTabletOrSmaller } = useViewportFlags();
   const panelRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(forceExpanded);
   const [loading, setLoading] = useState(false);
@@ -1961,7 +1975,7 @@ export default function DeveloperModePanel({
             )}
           </div>
 
-          <div style={developerGridStyle}>
+          <div style={{ ...developerGridStyle, gridTemplateColumns: isTabletOrSmaller ? "minmax(0, 1fr)" : developerGridStyle.gridTemplateColumns }}>
             {activeSection === "blocks" ? (
               <div style={menuCardStyle}>
                 <strong style={{ fontSize: 16 }}>Bloques activos</strong>

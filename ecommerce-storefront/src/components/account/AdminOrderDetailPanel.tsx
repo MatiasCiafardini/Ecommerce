@@ -924,10 +924,10 @@ function escapePdfText(value: string) {
 
 const decoder = new TextDecoder();
 
-const panelStyle: React.CSSProperties = { display: "grid", gap: 24 };
+const panelStyle: React.CSSProperties = { display: "grid", gap: 24, width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" };
 const heroGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))",
   gap: 20,
 };
 const highlightCardStyle: React.CSSProperties = {
@@ -1114,7 +1114,7 @@ const stateStyle: React.CSSProperties = {
 };
 const unifiedWorkflowStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
   gap: 18,
   alignItems: "start",
 };

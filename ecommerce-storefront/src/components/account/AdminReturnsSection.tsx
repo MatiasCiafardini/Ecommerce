@@ -788,20 +788,20 @@ function InfoCell({ label, value }: { label: string; value: string }) {
   );
 }
 
-const panelStyle: React.CSSProperties = { display: "grid", gap: 24 };
-const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--page-panel-bg)", padding: 22, display: "grid", gap: 16 };
-const requestGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 };
-const requestCardStyle: React.CSSProperties = { borderRadius: 20, border: "1px solid var(--checkout-border)", background: "var(--page-panel-strong-bg)", padding: 18, display: "grid", gap: 14 };
-const historyGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 };
+const panelStyle: React.CSSProperties = { display: "grid", gap: 24, width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" };
+const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--page-panel-bg)", padding: 22, display: "grid", gap: 16, minWidth: 0, maxWidth: "100%", boxSizing: "border-box" };
+const requestGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))", gap: 16 };
+const requestCardStyle: React.CSSProperties = { borderRadius: 20, border: "1px solid var(--checkout-border)", background: "var(--page-panel-strong-bg)", padding: 18, display: "grid", gap: 14, minWidth: 0, boxSizing: "border-box" };
+const historyGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 14 };
 const historyCardStyle: React.CSSProperties = { borderRadius: 18, border: "1px solid var(--checkout-border)", background: "var(--page-panel-strong-bg)", padding: 16, display: "grid", gap: 10 };
 const infoGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 };
 const infoCellStyle: React.CSSProperties = { borderRadius: 16, border: "1px solid var(--checkout-border)", background: "var(--page-panel-strong-bg)", padding: 14, display: "grid", gap: 6 };
 const itemListStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const inlineItemStyle: React.CSSProperties = { display: "inline-flex", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--checkout-border)", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", fontSize: 13 };
-const actionsRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(180px, 1fr) auto auto", gap: 10, alignItems: "center" };
+const actionsRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 10, alignItems: "center" };
 const reviewActionsRowStyle: React.CSSProperties = { display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" };
 const checkboxRowStyle: React.CSSProperties = { display: "flex", gap: 10, alignItems: "center", color: "var(--account-text-strong)" };
-const fieldStyle: React.CSSProperties = { width: "100%", padding: "14px 16px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 16, outline: "none" };
+const fieldStyle: React.CSSProperties = { width: "100%", maxWidth: "100%", padding: "14px 16px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 16, outline: "none", boxSizing: "border-box" };
 const primaryButtonStyle: React.CSSProperties = { padding: "12px 16px", background: "var(--accent-strong)", color: "var(--accent-contrast)", border: "none", borderRadius: 999, cursor: "pointer", fontWeight: 700 };
 const secondaryButtonStyle: React.CSSProperties = { padding: "12px 16px", background: "transparent", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border-strong)", borderRadius: 999, cursor: "pointer" };
 const stateStyle: React.CSSProperties = { borderRadius: 20, border: "1px solid var(--checkout-border-strong)", background: "var(--page-panel-strong-bg)", padding: 18, color: "var(--account-text-muted)" };

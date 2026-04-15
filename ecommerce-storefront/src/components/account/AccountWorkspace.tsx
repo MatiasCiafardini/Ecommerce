@@ -43,6 +43,8 @@ const customerSections: Array<{ id: AccountSection; label: string; description: 
 export default function AccountWorkspace({ user, section, onSectionChange }: Props) {
   const isAdmin = user.role && user.role !== "CUSTOMER";
   const displayName = [user.name, user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -53,20 +55,52 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
   const [sidebarHover, setSidebarHover] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const narrowQuery = window.matchMedia("(max-width: 1024px)");
+    const compactQuery = window.matchMedia("(max-width: 640px)");
+
+    const syncViewport = () => {
+      setIsNarrowViewport(narrowQuery.matches);
+      setIsCompactViewport(compactQuery.matches);
+    };
+
+    syncViewport();
+    narrowQuery.addEventListener("change", syncViewport);
+    compactQuery.addEventListener("change", syncViewport);
+
+    return () => {
+      narrowQuery.removeEventListener("change", syncViewport);
+      compactQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isNarrowViewport) return;
     window.localStorage.setItem("account-sidebar-collapsed", String(sidebarCollapsed));
-  }, [sidebarCollapsed]);
+  }, [isNarrowViewport, sidebarCollapsed]);
+
+  useEffect(() => {
+    if (isNarrowViewport && sidebarCollapsed) {
+      setSidebarCollapsed(false);
+    }
+  }, [isNarrowViewport, sidebarCollapsed]);
+
+  const shouldCollapseSidebar = sidebarCollapsed && !isNarrowViewport;
 
   return (
     <section
       data-account-shell
       style={{
-        padding: "72px 20px 96px",
+        padding: isCompactViewport ? "28px 12px 48px" : isNarrowViewport ? "40px 16px 64px" : "72px 20px 96px",
         background: "var(--account-shell-bg)",
       }}
     >
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: isCompactViewport ? 20 : 28 }}>
           <p
             style={{
               margin: "0 0 12px",
@@ -94,29 +128,31 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
         <div
           className="layout-two-col"
           style={{
-            gridTemplateColumns: sidebarCollapsed
+            gridTemplateColumns: shouldCollapseSidebar
               ? "92px minmax(0, 1fr)"
-              : "minmax(320px, 0.34fr) minmax(0, 1fr)",
-            gap: 24,
+              : isNarrowViewport
+                ? "1fr"
+                : "minmax(320px, 0.34fr) minmax(0, 1fr)",
+            gap: isCompactViewport ? 16 : 24,
             alignItems: "stretch",
             transition: "grid-template-columns 240ms var(--ease-theme)",
           }}
         >
           <aside
             className="layout-sidebar"
-            onClick={sidebarCollapsed ? () => setSidebarCollapsed(false) : undefined}
-            role={sidebarCollapsed ? "button" : undefined}
-            aria-label={sidebarCollapsed ? "Abrir menu lateral" : undefined}
-            title={sidebarCollapsed ? "Abrir menu lateral" : undefined}
-            onMouseEnter={sidebarCollapsed ? () => setSidebarHover(true) : undefined}
-            onMouseLeave={sidebarCollapsed ? () => setSidebarHover(false) : undefined}
+            onClick={shouldCollapseSidebar ? () => setSidebarCollapsed(false) : undefined}
+            role={shouldCollapseSidebar ? "button" : undefined}
+            aria-label={shouldCollapseSidebar ? "Abrir menu lateral" : undefined}
+            title={shouldCollapseSidebar ? "Abrir menu lateral" : undefined}
+            onMouseEnter={shouldCollapseSidebar ? () => setSidebarHover(true) : undefined}
+            onMouseLeave={shouldCollapseSidebar ? () => setSidebarHover(false) : undefined}
             style={{
-              padding: sidebarCollapsed ? 14 : 28,
-              borderRadius: 32,
-              border: sidebarCollapsed && sidebarHover
+              padding: shouldCollapseSidebar ? 14 : isCompactViewport ? 18 : isNarrowViewport ? 22 : 28,
+              borderRadius: isCompactViewport ? 24 : 32,
+              border: shouldCollapseSidebar && sidebarHover
                 ? "1px solid var(--account-item-border-active)"
                 : "1px solid var(--account-sidebar-border)",
-              background: sidebarCollapsed
+              background: shouldCollapseSidebar
                 ? sidebarHover
                   ? "color-mix(in srgb, var(--account-sidebar-bg) 84%, var(--account-item-bg-active) 16%)"
                   : "color-mix(in srgb, var(--account-sidebar-bg) 92%, var(--account-item-bg-active) 8%)"
@@ -124,20 +160,20 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
               display: "grid",
               alignContent: "start",
               alignItems: "start",
-              gap: sidebarCollapsed ? 14 : 22,
+              gap: shouldCollapseSidebar ? 14 : isCompactViewport ? 16 : 22,
               position: "relative",
               alignSelf: "stretch",
               top: 0,
               overflow: "hidden",
               transition: "padding 240ms var(--ease-theme), gap 240ms var(--ease-theme), background 180ms var(--ease-theme), border-color 180ms var(--ease-theme), transform 180ms var(--ease-theme)",
-              cursor: sidebarCollapsed ? "pointer" : "default",
+              cursor: shouldCollapseSidebar ? "pointer" : "default",
               minHeight: "100%",
-              transform: sidebarCollapsed && sidebarHover ? "translateX(-2px)" : "none",
+              transform: shouldCollapseSidebar && sidebarHover ? "translateX(-2px)" : "none",
             }}
           >
-            {!sidebarCollapsed ? (
+            {!shouldCollapseSidebar ? (
               <>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
                 <div>
                   <p
                     style={{
@@ -153,7 +189,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                   <h2
                     style={{
                       margin: "0 0 8px",
-                      fontSize: 28,
+                      fontSize: isCompactViewport ? 24 : 28,
                       color: "var(--account-text-strong)",
                     }}
                   >
@@ -174,15 +210,17 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                       : "Gestiona tus datos, direcciones y preferencias antes del proximo checkout."}
                   </p>
                 </div>
-                  <button
-                    type="button"
-                    onClick={() => setSidebarCollapsed(true)}
-                    aria-label="Minimizar menu lateral"
-                    title="Minimizar menu lateral"
-                    style={collapseButtonStyle}
-                  >
-                    <ChevronIcon collapsed={false} />
-                  </button>
+                  {!isNarrowViewport ? (
+                    <button
+                      type="button"
+                      onClick={() => setSidebarCollapsed(true)}
+                      aria-label="Minimizar menu lateral"
+                      title="Minimizar menu lateral"
+                      style={collapseButtonStyle}
+                    >
+                      <ChevronIcon collapsed={false} />
+                    </button>
+                  ) : null}
                 </div>
 
                 {isAdmin ? (
@@ -234,7 +272,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
           </aside>
 
           <div
-            style={{ display: "grid", gap: 24, minWidth: 0, alignSelf: "start" }}
+            style={{ display: "grid", gap: isCompactViewport ? 18 : 24, minWidth: 0, alignSelf: "start" }}
             data-account-content
           >
             {renderSection(section, user, onSectionChange)}

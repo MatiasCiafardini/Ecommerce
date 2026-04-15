@@ -1,6 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+
+function useViewportFlags() {
+  const [isTabletOrSmaller, setIsTabletOrSmaller] = useState(false);
+  const [isPhone, setIsPhone] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tq = window.matchMedia("(max-width: 1024px)");
+    const pq = window.matchMedia("(max-width: 640px)");
+    const sync = () => { setIsTabletOrSmaller(tq.matches); setIsPhone(pq.matches); };
+    sync();
+    tq.addEventListener("change", sync);
+    pq.addEventListener("change", sync);
+    return () => { tq.removeEventListener("change", sync); pq.removeEventListener("change", sync); };
+  }, []);
+  return { isTabletOrSmaller, isPhone };
+}
 import { api } from "@/lib/api";
 import { getClientStoreId } from "@/lib/tenant/store-context";
 import { money } from "./order-utils";
@@ -94,6 +110,7 @@ function scopeCategoriesToActiveStore(items: Category[]) {
 }
 
 export default function AdminPromotionsSection() {
+  const { isTabletOrSmaller, isPhone } = useViewportFlags();
   const [promotions, setPromotions] = useState<AdminPromotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -437,8 +454,8 @@ export default function AdminPromotionsSection() {
         </div>
       </header>
 
-      <div style={workspaceStyle}>
-        <section style={formPanelStyle}>
+      <div style={{ ...workspaceStyle, gridTemplateColumns: isTabletOrSmaller ? "minmax(0, 1fr)" : workspaceStyle.gridTemplateColumns }}>
+        <section style={{ ...formPanelStyle, padding: isPhone ? 16 : isTabletOrSmaller ? 20 : formPanelStyle.padding }}>
           <div style={sectionHeaderStyle}>
             <div>
               <p style={eyebrowStyle}>{editingPromotionId ? "Edición" : "Nueva promoción"}</p>
@@ -797,7 +814,7 @@ export default function AdminPromotionsSection() {
           </div>
         </section>
 
-        <section style={listPanelStyle}>
+        <section style={{ ...listPanelStyle, padding: isPhone ? 16 : isTabletOrSmaller ? 20 : listPanelStyle.padding, position: isTabletOrSmaller ? "static" : "sticky" }}>
           <div style={sectionHeaderStyle}>
             <div>
               <p style={eyebrowStyle}>Promos existentes</p>
@@ -1083,7 +1100,7 @@ function toLocalDateTimeInput(value: string) {
 const panelStyle: React.CSSProperties = { display: "grid", gap: 24 };
 const workspaceStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1.2fr) minmax(340px, 0.8fr)",
+  gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 0.8fr)",
   gap: 24,
   alignItems: "start",
 };
@@ -1115,6 +1132,9 @@ const formPanelStyle: React.CSSProperties = {
   borderRadius: 32,
   border: "1px solid var(--checkout-border)",
   background: "var(--page-panel-bg)",
+  minWidth: 0,
+  maxWidth: "100%",
+  boxSizing: "border-box",
 };
 const listPanelStyle: React.CSSProperties = {
   display: "grid",
@@ -1125,6 +1145,9 @@ const listPanelStyle: React.CSSProperties = {
   background: "var(--page-panel-bg)",
   position: "sticky",
   top: 24,
+  minWidth: 0,
+  maxWidth: "100%",
+  boxSizing: "border-box",
 };
 const statsGridStyle: React.CSSProperties = {
   display: "grid",
@@ -1147,16 +1170,18 @@ const metricLabelStyle: React.CSSProperties = {
   color: "var(--account-text-soft)",
 };
 const metricValueStyle: React.CSSProperties = { fontSize: 28, color: "var(--account-text-strong)" };
-const gridTwoStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16 };
-const gridThreeStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 };
+const gridTwoStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 16 };
+const gridThreeStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: 16 };
 const fieldStyle: React.CSSProperties = {
   width: "100%",
+  maxWidth: "100%",
   padding: "14px 16px",
   borderRadius: 16,
   border: "1px solid var(--checkout-border)",
   background: "var(--muted-field-bg)",
   color: "var(--account-text-strong)",
   outline: "none",
+  boxSizing: "border-box",
 };
 const dateTimeFieldWrapStyle: React.CSSProperties = {
   ...fieldStyle,
@@ -1219,7 +1244,7 @@ const scopeDescriptionStyle: React.CSSProperties = {
   lineHeight: 1.5,
   color: "var(--account-text-muted)",
 };
-const toggleRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 };
+const toggleRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(140px, 100%), 1fr))", gap: 8 };
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   padding: "12px 14px",
   borderRadius: 14,

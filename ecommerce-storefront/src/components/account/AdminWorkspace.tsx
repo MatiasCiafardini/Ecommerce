@@ -250,6 +250,39 @@ export default function AdminWorkspace({
   );
 }
 
+function useViewportFlags() {
+  const [isTabletOrSmaller, setIsTabletOrSmaller] = useState(false);
+  const [isPhone, setIsPhone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const tabletQuery = window.matchMedia("(max-width: 1024px)");
+    const phoneQuery = window.matchMedia("(max-width: 640px)");
+
+    const sync = () => {
+      setIsTabletOrSmaller(tabletQuery.matches);
+      setIsPhone(phoneQuery.matches);
+    };
+
+    sync();
+    tabletQuery.addEventListener("change", sync);
+    phoneQuery.addEventListener("change", sync);
+
+    return () => {
+      tabletQuery.removeEventListener("change", sync);
+      phoneQuery.removeEventListener("change", sync);
+    };
+  }, []);
+
+  return {
+    isTabletOrSmaller,
+    isPhone,
+  };
+}
+
 function AdminOverviewSection({
   onOpenDeveloper,
 }: {
@@ -345,6 +378,7 @@ function AdminOverviewSection({
 }
 
 function AdminAccountingSection() {
+  const { isTabletOrSmaller, isPhone } = useViewportFlags();
   const today = new Date().toISOString().slice(0, 10);
   const monthStart = `${today.slice(0, 8)}01`;
   const [from, setFrom] = useState(monthStart);
@@ -396,8 +430,21 @@ function AdminAccountingSection() {
         title="Contabilidad"
         copy="Export simple para contador con ventas, pagos, descuentos, envio y refunds. Pensado para conciliacion y cierre mensual."
       />
-      <div style={twoColumnStyle}>
-        <article style={groupPanelStyle}>
+      <div
+        style={{
+          ...twoColumnStyle,
+          gridTemplateColumns: isTabletOrSmaller
+            ? "minmax(0, 1fr)"
+            : twoColumnStyle.gridTemplateColumns,
+        }}
+      >
+        <article
+          style={{
+            ...groupPanelStyle,
+            padding: isPhone ? 18 : groupPanelStyle.padding,
+            minWidth: 0,
+          }}
+        >
           <p style={eyebrowStyle}>Filtros</p>
           <h3 style={title3Style}>Periodo de exportacion</h3>
           <label style={shellStyle}>
@@ -494,10 +541,17 @@ function AdminAccountingSection() {
           {error ? <p style={errorStyle}>{error}</p> : null}
           {success ? <p style={successStyle}>{success}</p> : null}
         </article>
-        <article style={groupPanelStyle}>
+        <article
+          style={{
+            ...groupPanelStyle,
+            padding: isPhone ? 18 : groupPanelStyle.padding,
+            minWidth: 0,
+            overflow: "hidden",
+          }}
+        >
           <p style={eyebrowStyle}>Columnas</p>
           <h3 style={title3Style}>Que incluye</h3>
-          <div style={shellStyle}>
+          <div style={{ ...shellStyle, minWidth: 0 }}>
             {[
               "Fecha y numero de pedido",
               "Estado del pedido",
@@ -509,9 +563,16 @@ function AdminAccountingSection() {
               "Cantidad y monto de refunds",
               "Filtros por proveedor o metodo cuando haga falta separar conciliaciones",
             ].map((item) => (
-              <div key={item} style={checkStyle}>
+              <div
+                key={item}
+                style={{
+                  ...checkStyle,
+                  alignItems: "flex-start",
+                  minWidth: 0,
+                }}
+              >
                 <span style={softChipStyle}>CSV</span>
-                <span>{item}</span>
+                <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{item}</span>
               </div>
             ))}
           </div>
@@ -556,6 +617,7 @@ function AdminProductsSection({
 }: {
   initialTab?: ProductAdminTab;
 }) {
+  const { isTabletOrSmaller, isPhone } = useViewportFlags();
   const searchParams = useSearchParams();
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const optionInUseRef = useRef<HTMLElement | null>(null);
@@ -626,6 +688,69 @@ function AdminProductsSection({
   const [variants, setVariants] = useState<EditableVariant[]>([]);
   const [loadedVariants, setLoadedVariants] = useState<EditableVariant[]>([]);
   const uploadImagesRef = useRef<UploadImage[]>([]);
+
+  const stackedSectionStyle: React.CSSProperties = {
+    ...tableSectionStyle,
+    padding: isPhone ? 18 : 24,
+    width: "100%",
+    maxWidth: "100%",
+    boxSizing: "border-box",
+  };
+  const responsiveShellStyle: React.CSSProperties = {
+    ...shellStyle,
+    gap: isPhone ? 14 : 18,
+    minWidth: 0,
+    width: "100%",
+  };
+  const responsiveTopGridStyle: React.CSSProperties = {
+    ...topGridStyle,
+    gridTemplateColumns: isTabletOrSmaller
+      ? "minmax(0, 1fr)"
+      : topGridStyle.gridTemplateColumns,
+    minWidth: 0,
+  };
+  const responsiveVariantGridStyle: React.CSSProperties = {
+    ...variantGridStyle,
+    gridTemplateColumns: isPhone
+      ? "minmax(0, 1fr)"
+      : variantGridStyle.gridTemplateColumns,
+    minWidth: 0,
+  };
+  const responsiveImageEditorGridStyle: React.CSSProperties = {
+    ...imageEditorGridStyle,
+    gridTemplateColumns: isPhone
+      ? "minmax(0, 1fr)"
+      : imageEditorGridStyle.gridTemplateColumns,
+    minWidth: 0,
+  };
+  const responsiveOptionGridStyle: React.CSSProperties = {
+    ...optionGridStyle,
+    gridTemplateColumns: isPhone
+      ? "minmax(0, 1fr)"
+      : optionGridStyle.gridTemplateColumns,
+    minWidth: 0,
+  };
+  const responsiveSearchFieldStyle: React.CSSProperties = {
+    ...searchFieldStyle,
+    minWidth: isTabletOrSmaller ? 0 : searchFieldStyle.minWidth,
+    width: isTabletOrSmaller ? "100%" : undefined,
+    flex: isTabletOrSmaller ? "1 1 100%" : "1 1 280px",
+  };
+  const responsiveSelectStyle: React.CSSProperties = {
+    ...selectStyle,
+    width: isTabletOrSmaller ? "100%" : selectStyle.width,
+    maxWidth: isTabletOrSmaller ? "100%" : selectStyle.maxWidth,
+  };
+  const responsiveTabRailStyle: React.CSSProperties = {
+    ...tabRailStyle,
+    flexWrap: "nowrap",
+    overflowX: "auto",
+    overflowY: "hidden",
+    paddingBottom: 6,
+    scrollbarWidth: "thin",
+    maxWidth: "100%",
+    minWidth: 0,
+  };
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -1873,15 +1998,15 @@ function AdminProductsSection({
         copy="Gestiona altas, catalogo, stock, etiquetas y categorias."
       />
       <div ref={formTopRef} />
-      <section style={tableSectionStyle}>
-        <div style={betweenStyle}>
+      <section style={stackedSectionStyle}>
+        <div style={{ display: "grid", gap: 14, minWidth: 0, width: "100%" }}>
           <div>
             <p style={eyebrowStyle}>Gestion del catalogo</p>
             <h3 style={{ ...title3Style, marginTop: 8 }}>
               Alta, catalogo y stock
             </h3>
           </div>
-          <div style={tabRailStyle}>
+          <div style={responsiveTabRailStyle}>
             <button
               type="button"
               onClick={() => setActiveTab("create")}
@@ -1921,7 +2046,7 @@ function AdminProductsSection({
         </div>
         <section
           style={{
-            ...shellStyle,
+            ...responsiveShellStyle,
             display: activeTab === "create" ? "grid" : "none",
           }}
         >
@@ -1943,7 +2068,7 @@ function AdminProductsSection({
             </div>
           ) : null}
 
-          <div style={topGridStyle}>
+          <div style={responsiveTopGridStyle}>
             <Step title="Datos base">
               <label style={checkStyle}>
                 <input
@@ -1986,7 +2111,7 @@ function AdminProductsSection({
               <span style={metaStyle}>
                 Estos valores funcionan como fallback del producto cuando una variante no tiene datos logisticos propios.
               </span>
-              <div style={variantGridStyle}>
+              <div style={responsiveVariantGridStyle}>
                 <SuggestionInput
                   value={form.weightGrams}
                   onChange={(value) =>
@@ -2090,7 +2215,7 @@ function AdminProductsSection({
             </div>
 
             {existingImages.length > 0 ? (
-              <div style={imageEditorGridStyle}>
+              <div style={responsiveImageEditorGridStyle}>
                 {existingImages.map((image) => (
                   <CatalogImageLayoutEditor
                     key={image.id}
@@ -2113,7 +2238,7 @@ function AdminProductsSection({
             ) : null}
 
             {imageFiles.length > 0 ? (
-              <div style={imageEditorGridStyle}>
+              <div style={responsiveImageEditorGridStyle}>
                 {imageFiles.map((entry, index) => (
                   <CatalogImageLayoutEditor
                     key={`${entry.name}-${index}`}
@@ -2149,7 +2274,7 @@ function AdminProductsSection({
                 {creatingOption ? "Creando..." : "Crear"}
               </button>
             </div>
-            <div style={optionGridStyle}>
+            <div style={responsiveOptionGridStyle}>
               {options.map((option) => (
                 <article key={option.id} style={optionCardStyle}>
                   <strong style={{ color: "#fff" }}>{option.name}</strong>
@@ -2224,7 +2349,7 @@ function AdminProductsSection({
           </Step>
 
           <Step title="Variantes e inventario">
-            <div style={variantGridStyle}>
+            <div style={responsiveVariantGridStyle}>
               <SuggestionInput
                 value={variantDraft.sku}
                 onChange={(value) =>
@@ -2320,65 +2445,117 @@ function AdminProductsSection({
               ) : null}
             </div>
             {variants.length > 0 ? (
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={thStyle}>SKU</th>
-                      <th style={thStyle}>Atributos</th>
-                      <th style={thStyle}>Precio</th>
-                      <th style={thStyle}>Stock</th>
-                      <th style={thStyle}>Accion</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {variants.map((variant, index) => (
-                      <tr
-                        key={`${variant.id ?? "new"}-${variant.sku}-${index}`}
-                      >
-                        <td style={tdStyle}>{variant.sku}</td>
-                        <td style={tdStyle}>
-                          {[variant.Size, variant.Color]
-                            .filter(Boolean)
-                            .join(" / ") || "Base"}
-                        </td>
-                        <td style={tdStyle}>{money(variant.price)}</td>
-                        <td style={tdStyle}>
-                          {variant.inventoryQuantity || "0"}
-                        </td>
-                        <td style={tdStyle}>
-                          <div style={rowWrapStyle}>
-                            <button
-                              type="button"
-                              onClick={() => editVariant(index)}
-                              style={ghostButtonStyle}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setPendingRemoval({
-                                  kind: "variant",
-                                  variantIndex: index,
-                                  variantLabel:
-                                    [variant.sku, variant.Size, variant.Color]
-                                      .filter(Boolean)
-                                      .join(" - ") || `Variante ${index + 1}`,
-                                  productsCount: 0,
-                                })
-                              }
-                              style={ghostButtonStyle}
-                            >
-                              Quitar
-                            </button>
-                          </div>
-                        </td>
+              isPhone ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {variants.map((variant, index) => (
+                    <article
+                      key={`${variant.id ?? "new"}-${variant.sku}-${index}`}
+                      style={{ ...itemStyle, padding: 16 }}
+                    >
+                      <div style={betweenStyle}>
+                        <strong style={{ color: "#fff" }}>
+                          {variant.sku || `Variante ${index + 1}`}
+                        </strong>
+                        <span style={softChipStyle}>
+                          Stock {variant.inventoryQuantity || "0"}
+                        </span>
+                      </div>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <span style={metaStyle}>
+                          {[variant.Size, variant.Color].filter(Boolean).join(" / ") || "Base"}
+                        </span>
+                        <strong style={{ color: "#fff" }}>{money(variant.price)}</strong>
+                      </div>
+                      <div style={rowWrapStyle}>
+                        <button
+                          type="button"
+                          onClick={() => editVariant(index)}
+                          style={ghostButtonStyle}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingRemoval({
+                              kind: "variant",
+                              variantIndex: index,
+                              variantLabel:
+                                [variant.sku, variant.Size, variant.Color]
+                                  .filter(Boolean)
+                                  .join(" - ") || `Variante ${index + 1}`,
+                              productsCount: 0,
+                            })
+                          }
+                          style={ghostButtonStyle}
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>SKU</th>
+                        <th style={thStyle}>Atributos</th>
+                        <th style={thStyle}>Precio</th>
+                        <th style={thStyle}>Stock</th>
+                        <th style={thStyle}>Accion</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {variants.map((variant, index) => (
+                        <tr
+                          key={`${variant.id ?? "new"}-${variant.sku}-${index}`}
+                        >
+                          <td style={tdStyle}>{variant.sku}</td>
+                          <td style={tdStyle}>
+                            {[variant.Size, variant.Color]
+                              .filter(Boolean)
+                              .join(" / ") || "Base"}
+                          </td>
+                          <td style={tdStyle}>{money(variant.price)}</td>
+                          <td style={tdStyle}>
+                            {variant.inventoryQuantity || "0"}
+                          </td>
+                          <td style={tdStyle}>
+                            <div style={rowWrapStyle}>
+                              <button
+                                type="button"
+                                onClick={() => editVariant(index)}
+                                style={ghostButtonStyle}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPendingRemoval({
+                                    kind: "variant",
+                                    variantIndex: index,
+                                    variantLabel:
+                                      [variant.sku, variant.Size, variant.Color]
+                                        .filter(Boolean)
+                                        .join(" - ") || `Variante ${index + 1}`,
+                                    productsCount: 0,
+                                  })
+                                }
+                                style={ghostButtonStyle}
+                              >
+                                Quitar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             ) : null}
           </Step>
 
@@ -2413,7 +2590,7 @@ function AdminProductsSection({
 
         <section
           style={{
-            ...tableSectionStyle,
+            ...stackedSectionStyle,
             display: activeTab === "catalog" ? "grid" : "none",
           }}
         >
@@ -2427,7 +2604,7 @@ function AdminProductsSection({
                 value={productQuery}
                 onChange={(event) => setProductQuery(event.target.value)}
                 placeholder="Filtrar por producto, slug o categoria"
-                style={searchFieldStyle}
+                style={responsiveSearchFieldStyle}
               />
               <button
                 type="button"
@@ -2441,82 +2618,137 @@ function AdminProductsSection({
           {loading ? (
             <StateCard label="Cargando catalogo..." />
           ) : (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Producto</th>
-                    <th style={thStyle}>Estado</th>
-                    <th style={thStyle}>Categorias</th>
-                    <th style={thStyle}>Imagenes</th>
-                    <th style={thStyle}>Variantes</th>
-                    <th style={thStyle}>Accion</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.map((product) => (
-                    <tr key={product.id}>
-                      <td style={tdStyle}>
+            isTabletOrSmaller ? (
+              <div style={{ display: "grid", gap: 12 }}>
+                {filteredProducts.map((product) => (
+                  <article key={product.id} style={{ ...itemStyle, padding: isPhone ? 16 : 18 }}>
+                    <div style={betweenStyle}>
+                      <div>
                         <strong style={{ display: "block", color: "#fff" }}>
                           {product.title}
                         </strong>
                         <span style={metaStyle}>/{product.slug}</span>
-                      </td>
-                      <td style={tdStyle}>
-                        <span style={statusStyle(product.published)}>
-                          {product.published ? "Publicado" : "Borrador"}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
+                      </div>
+                      <span style={statusStyle(product.published)}>
+                        {product.published ? "Publicado" : "Borrador"}
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <span style={metaStyle}>
                         {(product.categories ?? [])
                           .map((entry) => entry.category.name)
                           .join(", ") || "Sin categorias"}
-                      </td>
-                      <td style={tdStyle}>{product.images?.length ?? 0}</td>
-                      <td style={tdStyle}>{product.variants?.length ?? 0}</td>
-                      <td style={tdStyle}>
-                        <div style={rowWrapStyle}>
-                          <button
-                            type="button"
-                            onClick={() => void hydrateFormFromProduct(product)}
-                            style={ghostButtonStyle}
-                            disabled={loadingEditId === product.id}
-                          >
-                            {loadingEditId === product.id
-                              ? "Cargando..."
-                              : "Editar"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPendingRemoval({
-                                kind: "product",
-                                productId: product.id,
-                                productTitle: product.title,
-                                productsCount: 0,
-                              })
-                            }
-                            style={ghostButtonStyle}
-                            disabled={
-                              savingOptionKey === `product-${product.id}`
-                            }
-                          >
-                            {savingOptionKey === `product-${product.id}`
-                              ? "Eliminando..."
-                              : "Eliminar"}
-                          </button>
-                        </div>
-                      </td>
+                      </span>
+                      <span style={copyStyle}>
+                        {product.images?.length ?? 0} imagenes · {product.variants?.length ?? 0} variantes
+                      </span>
+                    </div>
+                    <div style={rowWrapStyle}>
+                      <button
+                        type="button"
+                        onClick={() => void hydrateFormFromProduct(product)}
+                        style={ghostButtonStyle}
+                        disabled={loadingEditId === product.id}
+                      >
+                        {loadingEditId === product.id ? "Cargando..." : "Editar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingRemoval({
+                            kind: "product",
+                            productId: product.id,
+                            productTitle: product.title,
+                            productsCount: 0,
+                          })
+                        }
+                        style={ghostButtonStyle}
+                        disabled={savingOptionKey === `product-${product.id}`}
+                      >
+                        {savingOptionKey === `product-${product.id}` ? "Eliminando..." : "Eliminar"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Producto</th>
+                      <th style={thStyle}>Estado</th>
+                      <th style={thStyle}>Categorias</th>
+                      <th style={thStyle}>Imagenes</th>
+                      <th style={thStyle}>Variantes</th>
+                      <th style={thStyle}>Accion</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredProducts.map((product) => (
+                      <tr key={product.id}>
+                        <td style={tdStyle}>
+                          <strong style={{ display: "block", color: "#fff" }}>
+                            {product.title}
+                          </strong>
+                          <span style={metaStyle}>/{product.slug}</span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={statusStyle(product.published)}>
+                            {product.published ? "Publicado" : "Borrador"}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>
+                          {(product.categories ?? [])
+                            .map((entry) => entry.category.name)
+                            .join(", ") || "Sin categorias"}
+                        </td>
+                        <td style={tdStyle}>{product.images?.length ?? 0}</td>
+                        <td style={tdStyle}>{product.variants?.length ?? 0}</td>
+                        <td style={tdStyle}>
+                          <div style={rowWrapStyle}>
+                            <button
+                              type="button"
+                              onClick={() => void hydrateFormFromProduct(product)}
+                              style={ghostButtonStyle}
+                              disabled={loadingEditId === product.id}
+                            >
+                              {loadingEditId === product.id
+                                ? "Cargando..."
+                                : "Editar"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPendingRemoval({
+                                  kind: "product",
+                                  productId: product.id,
+                                  productTitle: product.title,
+                                  productsCount: 0,
+                                })
+                              }
+                              style={ghostButtonStyle}
+                              disabled={
+                                savingOptionKey === `product-${product.id}`
+                              }
+                            >
+                              {savingOptionKey === `product-${product.id}`
+                                ? "Eliminando..."
+                                : "Eliminar"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
         </section>
         <section
           style={{
-            ...tableSectionStyle,
+            ...stackedSectionStyle,
             display: activeTab === "stock" ? "grid" : "none",
           }}
         >
@@ -2532,13 +2764,13 @@ function AdminProductsSection({
                 value={stockQuery}
                 onChange={(event) => setStockQuery(event.target.value)}
                 placeholder="Buscar por nombre, slug o categoria"
-                style={searchFieldStyle}
+                style={responsiveSearchFieldStyle}
               />
               <select
                 className="theme-select"
                 value={stockCategoryFilter}
                 onChange={(event) => setStockCategoryFilter(event.target.value)}
-                style={selectStyle}
+                style={responsiveSelectStyle}
               >
                 <option value="all">Todas las categorias</option>
                 {categories.map((category) => (
@@ -2555,7 +2787,7 @@ function AdminProductsSection({
                     event.target.value as "all" | "published" | "draft",
                   )
                 }
-                style={selectStyle}
+                style={responsiveSelectStyle}
               >
                 <option value="all">Todos</option>
                 <option value="published">Publicados</option>
@@ -2573,100 +2805,167 @@ function AdminProductsSection({
           {stockLoading ? (
             <StateCard label="Cargando stock..." />
           ) : (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Producto</th>
-                    <th style={thStyle}>Categorias</th>
-                    <th style={thStyle}>Variantes</th>
-                    <th style={thStyle}>Stock total</th>
-                    <th style={thStyle}>Stock bajo</th>
-                    <th style={thStyle}>Publicar</th>
-                    <th style={thStyle}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStockRows.map((row) => (
-                    <tr key={row.id}>
-                      <td style={tdStyle}>
+            isTabletOrSmaller ? (
+              <div style={{ display: "grid", gap: 12 }}>
+                {filteredStockRows.map((row) => (
+                  <article key={row.id} style={{ ...itemStyle, padding: isPhone ? 16 : 18 }}>
+                    <div style={betweenStyle}>
+                      <div>
                         <strong style={{ display: "block", color: "#fff" }}>
                           {row.title}
                         </strong>
                         <span style={metaStyle}>/{row.slug}</span>
-                      </td>
-                      <td style={tdStyle}>
+                      </div>
+                      <strong style={{ color: row.totalStock <= 0 ? "#ff9f9f" : "#fff" }}>
+                        {row.totalStock}
+                      </strong>
+                    </div>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <span style={metaStyle}>
                         {row.categories.join(", ") || "Sin categorias"}
-                      </td>
-                      <td style={tdStyle}>{row.variantsCount}</td>
-                      <td style={tdStyle}>
-                        <strong
-                          style={{
-                            color: row.totalStock <= 0 ? "#ff9f9f" : "#fff",
-                          }}
-                        >
-                          {row.totalStock}
-                        </strong>
-                      </td>
-                      <td style={tdStyle}>
+                      </span>
+                      <span style={copyStyle}>
+                        {row.variantsCount} variantes ·{" "}
                         {row.lowStockVariants > 0
-                          ? `${row.lowStockVariants} variante${row.lowStockVariants === 1 ? "" : "s"} con poco stock`
+                          ? `${row.lowStockVariants} con stock bajo`
                           : row.totalStock <= 0
                             ? "Sin stock"
                             : "Stock OK"}
-                      </td>
-                      <td style={tdStyle}>
-                        <label style={publishToggleCellStyle}>
-                          <input
-                            type="checkbox"
-                            checked={row.published}
-                            disabled={publishingProductIds.includes(row.id)}
-                            onChange={() =>
-                              void updateProductPublishedState(
-                                row.id,
-                                !row.published,
-                              )
-                            }
-                          />
-                          <span style={metaStyle}>
-                            {publishingProductIds.includes(row.id)
-                              ? "Guardando..."
-                              : row.published
-                                ? "Si"
-                                : "No"}
-                          </span>
-                        </label>
-                      </td>
-                      <td style={tdStyle}>
-                        <div style={rowWrapStyle}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const product = products.find(
-                                (item) => item.id === row.id,
-                              );
-                              if (product) {
-                                void hydrateFormFromProduct(product);
-                              }
-                            }}
-                            style={ghostButtonStyle}
-                          >
-                            Editar
-                          </button>
-                        </div>
-                      </td>
+                      </span>
+                    </div>
+                    <div style={betweenStyle}>
+                      <label style={publishToggleCellStyle}>
+                        <input
+                          type="checkbox"
+                          checked={row.published}
+                          disabled={publishingProductIds.includes(row.id)}
+                          onChange={() =>
+                            void updateProductPublishedState(
+                              row.id,
+                              !row.published,
+                            )
+                          }
+                        />
+                        <span style={metaStyle}>
+                          {publishingProductIds.includes(row.id)
+                            ? "Guardando..."
+                            : row.published
+                              ? "Publicado"
+                              : "Borrador"}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const product = products.find((item) => item.id === row.id);
+                          if (product) {
+                            void hydrateFormFromProduct(product);
+                          }
+                        }}
+                        style={ghostButtonStyle}
+                      >
+                        Editar
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Producto</th>
+                      <th style={thStyle}>Categorias</th>
+                      <th style={thStyle}>Variantes</th>
+                      <th style={thStyle}>Stock total</th>
+                      <th style={thStyle}>Stock bajo</th>
+                      <th style={thStyle}>Publicar</th>
+                      <th style={thStyle}>Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredStockRows.map((row) => (
+                      <tr key={row.id}>
+                        <td style={tdStyle}>
+                          <strong style={{ display: "block", color: "#fff" }}>
+                            {row.title}
+                          </strong>
+                          <span style={metaStyle}>/{row.slug}</span>
+                        </td>
+                        <td style={tdStyle}>
+                          {row.categories.join(", ") || "Sin categorias"}
+                        </td>
+                        <td style={tdStyle}>{row.variantsCount}</td>
+                        <td style={tdStyle}>
+                          <strong
+                            style={{
+                              color: row.totalStock <= 0 ? "#ff9f9f" : "#fff",
+                            }}
+                          >
+                            {row.totalStock}
+                          </strong>
+                        </td>
+                        <td style={tdStyle}>
+                          {row.lowStockVariants > 0
+                            ? `${row.lowStockVariants} variante${row.lowStockVariants === 1 ? "" : "s"} con poco stock`
+                            : row.totalStock <= 0
+                              ? "Sin stock"
+                              : "Stock OK"}
+                        </td>
+                        <td style={tdStyle}>
+                          <label style={publishToggleCellStyle}>
+                            <input
+                              type="checkbox"
+                              checked={row.published}
+                              disabled={publishingProductIds.includes(row.id)}
+                              onChange={() =>
+                                void updateProductPublishedState(
+                                  row.id,
+                                  !row.published,
+                                )
+                              }
+                            />
+                            <span style={metaStyle}>
+                              {publishingProductIds.includes(row.id)
+                                ? "Guardando..."
+                                : row.published
+                                  ? "Si"
+                                  : "No"}
+                            </span>
+                          </label>
+                        </td>
+                        <td style={tdStyle}>
+                          <div style={rowWrapStyle}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const product = products.find(
+                                  (item) => item.id === row.id,
+                                );
+                                if (product) {
+                                  void hydrateFormFromProduct(product);
+                                }
+                              }}
+                              style={ghostButtonStyle}
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
           {error ? <p style={errorStyle}>{error}</p> : null}
           {success ? <p style={successStyle}>{success}</p> : null}
         </section>
         <section
           style={{
-            ...tableSectionStyle,
+            ...stackedSectionStyle,
             display: activeTab === "options" ? "grid" : "none",
           }}
         >
@@ -2687,7 +2986,7 @@ function AdminProductsSection({
                 value={optionQuery}
                 onChange={(event) => setOptionQuery(event.target.value)}
                 placeholder="Buscar por etiqueta o valor"
-                style={searchFieldStyle}
+                style={responsiveSearchFieldStyle}
               />
               <button
                 type="button"
@@ -3173,6 +3472,7 @@ function OptionGroupSection({
 }
 
 function AdminCategoriesManager() {
+  const { isTabletOrSmaller } = useViewportFlags();
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -3277,7 +3577,7 @@ function AdminCategoriesManager() {
 
   return (
     <>
-      <div style={twoColumnStyle}>
+      <div style={{ ...twoColumnStyle, gridTemplateColumns: isTabletOrSmaller ? "minmax(0, 1fr)" : twoColumnStyle.gridTemplateColumns }}>
         <div style={blockStyle}>
           {editingCategoryId ? (
             <span style={metaStyle}>
@@ -3707,6 +4007,7 @@ function AdminOrdersSection() {
 }
 
 function AdminCustomersSection() {
+  const { isTabletOrSmaller, isPhone } = useViewportFlags();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [returns, setReturns] = useState<AdminReturn[]>([]);
@@ -3926,12 +4227,24 @@ function AdminCustomersSection() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Buscar por nombre, email, telefono o segmento"
-                  style={searchFieldStyle}
+                  style={{
+                    ...searchFieldStyle,
+                    minWidth: isTabletOrSmaller ? 0 : searchFieldStyle.minWidth,
+                    width: isTabletOrSmaller ? "100%" : undefined,
+                    flex: isTabletOrSmaller ? "1 1 100%" : "1 1 280px",
+                  }}
                 />
               </div>
             </div>
 
-            <div style={tabRailStyle}>
+            <div
+              style={{
+                ...tabRailStyle,
+                flexWrap: isPhone ? "nowrap" : "wrap",
+                overflowX: isPhone ? "auto" : "visible",
+                paddingBottom: isPhone ? 6 : 0,
+              }}
+            >
               <button
                 type="button"
                 onClick={() => setActiveTab("summary")}
@@ -4001,65 +4314,102 @@ function AdminCustomersSection() {
 
             {activeTab === "customers" ? (
               filteredRows.length ? (
-                <div style={tableWrapStyle}>
-                  <table style={tableStyle}>
-                    <thead>
-                      <tr>
-                        <th style={thStyle}>Cliente</th>
-                        <th style={thStyle}>Contacto</th>
-                        <th style={thStyle}>Pedidos</th>
-                        <th style={thStyle}>Facturacion</th>
-                        <th style={thStyle}>Ultima compra</th>
-                        <th style={thStyle}>Segmento</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredRows.map((row) => (
-                        <tr key={row.customer.id}>
-                          <td style={tdStyle}>
+                isTabletOrSmaller ? (
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {filteredRows.map((row) => (
+                      <article key={row.customer.id} style={{ ...itemStyle, padding: isPhone ? 16 : 18 }}>
+                        <div style={betweenStyle}>
+                          <div>
                             <strong style={{ display: "block", color: "#fff" }}>
                               {getCustomerDisplayName(row.customer)}
                             </strong>
-                            <span style={metaStyle}>
-                              Cliente #{row.customer.id}
-                            </span>
-                          </td>
-                          <td style={tdStyle}>
-                            <div style={{ display: "grid", gap: 4 }}>
-                              <span>{row.customer.email}</span>
-                              <span style={metaStyle}>
-                                {row.customer.phone || "Sin telefono cargado"}
-                              </span>
-                            </div>
-                          </td>
-                          <td style={tdStyle}>
-                            <div style={{ display: "grid", gap: 4 }}>
-                              <span>{row.ordersCount}</span>
-                              <span style={metaStyle}>
-                                Promedio {money(row.averageTicket)}
-                              </span>
-                            </div>
-                          </td>
-                          <td style={tdStyle}>{money(row.totalSpent)}</td>
-                          <td style={tdStyle}>
+                            <span style={metaStyle}>Cliente #{row.customer.id}</span>
+                          </div>
+                          <span style={customerSegmentStyle(row.segment.tone)}>
+                            {row.segment.label}
+                          </span>
+                        </div>
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <span>{row.customer.email}</span>
+                          <span style={metaStyle}>
+                            {row.customer.phone || "Sin telefono cargado"}
+                          </span>
+                        </div>
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <span style={copyStyle}>
+                            {row.ordersCount} pedidos · Promedio {money(row.averageTicket)}
+                          </span>
+                          <strong style={{ color: "#fff" }}>{money(row.totalSpent)}</strong>
+                          <span style={metaStyle}>
                             {row.lastOrderAt
-                              ? new Date(row.lastOrderAt).toLocaleDateString(
-                                  "es-AR",
-                                )
+                              ? `Ultima compra ${new Date(row.lastOrderAt).toLocaleDateString("es-AR")}`
                               : "Sin compras"}
-                          </td>
-                          <td style={tdStyle}>
-                            <span
-                              style={customerSegmentStyle(row.segment.tone)}
-                            >
-                              {row.segment.label}
-                            </span>
-                          </td>
+                          </span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={tableWrapStyle}>
+                    <table style={tableStyle}>
+                      <thead>
+                        <tr>
+                          <th style={thStyle}>Cliente</th>
+                          <th style={thStyle}>Contacto</th>
+                          <th style={thStyle}>Pedidos</th>
+                          <th style={thStyle}>Facturacion</th>
+                          <th style={thStyle}>Ultima compra</th>
+                          <th style={thStyle}>Segmento</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {filteredRows.map((row) => (
+                          <tr key={row.customer.id}>
+                            <td style={tdStyle}>
+                              <strong style={{ display: "block", color: "#fff" }}>
+                                {getCustomerDisplayName(row.customer)}
+                              </strong>
+                              <span style={metaStyle}>
+                                Cliente #{row.customer.id}
+                              </span>
+                            </td>
+                            <td style={tdStyle}>
+                              <div style={{ display: "grid", gap: 4 }}>
+                                <span>{row.customer.email}</span>
+                                <span style={metaStyle}>
+                                  {row.customer.phone || "Sin telefono cargado"}
+                                </span>
+                              </div>
+                            </td>
+                            <td style={tdStyle}>
+                              <div style={{ display: "grid", gap: 4 }}>
+                                <span>{row.ordersCount}</span>
+                                <span style={metaStyle}>
+                                  Promedio {money(row.averageTicket)}
+                                </span>
+                              </div>
+                            </td>
+                            <td style={tdStyle}>{money(row.totalSpent)}</td>
+                            <td style={tdStyle}>
+                              {row.lastOrderAt
+                                ? new Date(row.lastOrderAt).toLocaleDateString(
+                                    "es-AR",
+                                  )
+                                : "Sin compras"}
+                            </td>
+                            <td style={tdStyle}>
+                              <span
+                                style={customerSegmentStyle(row.segment.tone)}
+                              >
+                                {row.segment.label}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
               ) : (
                 <StateCard label="No encontramos clientes con ese filtro." />
               )
@@ -4110,15 +4460,33 @@ function Header({
   actions?: React.ReactNode;
 }) {
   return (
-    <div style={betweenStyle}>
-      <div>
+    <div style={{ ...betweenStyle, minWidth: 0, width: "100%" }}>
+      <div style={{ minWidth: 0, maxWidth: "100%" }}>
         <p style={eyebrowStyle}>Gestion</p>
         <h2 style={title2Style}>{title}</h2>
       </div>
-      <div style={{ display: "grid", justifyItems: "end", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          justifyItems: "end",
+          gap: 10,
+          minWidth: 0,
+          flex: "1 1 320px",
+          maxWidth: "min(100%, 520px)",
+          marginLeft: "auto",
+        }}
+      >
         {actions}
         {copy ? (
-          <p style={{ ...copyStyle, maxWidth: 520, textAlign: "right" }}>
+          <p
+            style={{
+              ...copyStyle,
+              width: "100%",
+              maxWidth: "100%",
+              textAlign: "right",
+              overflowWrap: "anywhere",
+            }}
+          >
             {copy}
           </p>
         ) : null}
@@ -4523,7 +4891,14 @@ function getCustomerSegment({
   };
 }
 
-const panelStyle: React.CSSProperties = { display: "grid", gap: 24 };
+const panelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 24,
+  minWidth: 0,
+  width: "100%",
+  maxWidth: "100%",
+  boxSizing: "border-box",
+};
 const shellStyle: React.CSSProperties = { display: "grid", gap: 18 };
 const topGridStyle: React.CSSProperties = {
   display: "grid",
@@ -4538,7 +4913,7 @@ const statsGridStyle: React.CSSProperties = {
 };
 const ordersGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+  gridTemplateColumns: "repeat(auto-fit,minmax(min(260px,100%),1fr))",
   gap: 16,
 };
 const twoColumnStyle: React.CSSProperties = {
@@ -4598,22 +4973,37 @@ const footerStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 const tabRailStyle: React.CSSProperties = {
-  display: "flex",
+  display: "grid",
+  gridAutoFlow: "column",
+  gridAutoColumns: "max-content",
+  justifyContent: "start",
+  alignItems: "center",
   gap: 10,
-  flexWrap: "wrap",
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  overflowX: "auto",
+  overflowY: "hidden",
+  paddingBottom: 4,
+  scrollbarWidth: "thin",
 };
 const tableWrapStyle: React.CSSProperties = {
   width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
   overflowX: "auto",
+  boxSizing: "border-box",
 };
 const fieldStyle: React.CSSProperties = {
   width: "100%",
+  maxWidth: "100%",
   padding: "14px 16px",
   background: "var(--muted-field-bg)",
   color: "var(--account-text-strong)",
   border: "1px solid var(--checkout-border)",
   borderRadius: 16,
   outline: "none",
+  boxSizing: "border-box",
 };
 const smallFieldStyle: React.CSSProperties = {
   ...fieldStyle,
@@ -4621,10 +5011,13 @@ const smallFieldStyle: React.CSSProperties = {
 };
 const searchFieldStyle: React.CSSProperties = {
   ...smallFieldStyle,
+  width: "100%",
   minWidth: 280,
+  maxWidth: 420,
 };
 const selectStyle: React.CSSProperties = {
   ...fieldStyle,
+  width: "100%",
   maxWidth: 260,
   background: "var(--select-bg)",
   color: "var(--select-color)",
@@ -4632,7 +5025,7 @@ const selectStyle: React.CSSProperties = {
 };
 const imageEditorGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
   gap: 16,
 };
 const imageEditorCardStyle: React.CSSProperties = {
@@ -4897,6 +5290,10 @@ const blockStyle: React.CSSProperties = {
   padding: 20,
   display: "grid",
   gap: 14,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
 };
 const editingBannerStyle: React.CSSProperties = {
   ...blockStyle,
@@ -5120,6 +5517,7 @@ const compactGhostButtonStyle: React.CSSProperties = {
   borderRadius: 14,
 };
 const workspaceTabStyle = (active: boolean): React.CSSProperties => ({
+  flex: "0 0 auto",
   padding: "10px 14px",
   borderRadius: 999,
   border: active
@@ -5129,6 +5527,7 @@ const workspaceTabStyle = (active: boolean): React.CSSProperties => ({
   color: active ? "var(--accent-contrast)" : "var(--account-text-strong)",
   cursor: "pointer",
   fontWeight: 700,
+  whiteSpace: "nowrap",
 });
 const customerSegmentStyle = (
   tone: "neutral" | "soft" | "info" | "success" | "warning",
