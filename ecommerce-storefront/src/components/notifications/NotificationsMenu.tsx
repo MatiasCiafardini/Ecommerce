@@ -26,9 +26,30 @@ export function NotificationsMenuInner({
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [lastSeenAt, setLastSeenAt] = useState<string | null>(null);
+  const [forceMobileSheet, setForceMobileSheet] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const isAdmin = Boolean(user?.role && user.role !== "CUSTOMER");
+  const useMobileSheet = mobileSheet || forceMobileSheet;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 1024px)");
+
+    const syncViewport = () => {
+      setForceMobileSheet(mediaQuery.matches);
+    };
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -86,7 +107,7 @@ export function NotificationsMenuInner({
   useEffect(() => {
     if (!open) return;
 
-    if (mobileSheet) {
+    if (useMobileSheet) {
       const handleEscape = (event: KeyboardEvent) => {
         if (event.key === "Escape") {
           setOpen(false);
@@ -119,10 +140,10 @@ export function NotificationsMenuInner({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [mobileSheet, open]);
+  }, [open, useMobileSheet]);
 
   useEffect(() => {
-    if (!open || !mobileSheet) return;
+    if (!open || !useMobileSheet) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -130,13 +151,14 @@ export function NotificationsMenuInner({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [mobileSheet, open]);
+  }, [open, useMobileSheet]);
 
   const unreadCount = useMemo(() => {
     if (!lastSeenAt) return items.length;
     const seenTimestamp = new Date(lastSeenAt).getTime();
     return items.filter((item) => new Date(item.createdAt).getTime() > seenTimestamp).length;
   }, [items, lastSeenAt]);
+  const isEmptyState = !loading && items.length === 0;
 
   if (!user) {
     return null;
@@ -158,14 +180,19 @@ export function NotificationsMenuInner({
       </button>
 
       {open ? (
-        mobileSheet ? (
+        useMobileSheet ? (
           <>
             <div
               style={mobileSheetOverlayStyle}
               onClick={() => setOpen(false)}
               aria-hidden="true"
             />
-            <div style={mobilePopoverStyle}>
+            <div
+              style={{
+                ...mobilePopoverStyle,
+                ...(isEmptyState ? mobilePopoverCompactStyle : null),
+              }}
+            >
               <div style={dropdownHeaderStyle}>
                 <div>
                   <strong
@@ -184,9 +211,23 @@ export function NotificationsMenuInner({
                         : "Todo al dia"}
                   </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Cerrar notificaciones"
+                  style={closeButtonStyle}
+                >
+                  <CloseIcon />
+                </button>
               </div>
 
-              <div className="theme-vertical-scroll" style={listStyle}>
+              <div
+                className="theme-vertical-scroll"
+                style={{
+                  ...listStyle,
+                  ...(isEmptyState ? compactListStyle : null),
+                }}
+              >
                 {loading ? (
                   <div style={emptyStyle}>Cargando notificaciones...</div>
                 ) : items.length === 0 ? (
@@ -292,6 +333,25 @@ function BellIcon() {
   );
 }
 
+function CloseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
 function formatNotificationDate(value: string) {
   const date = new Date(value);
   return date.toLocaleDateString("es-AR", {
@@ -368,11 +428,12 @@ const mobileSheetOverlayStyle: React.CSSProperties = {
 
 const mobilePopoverStyle: React.CSSProperties = {
   position: "fixed",
-  left: 12,
-  right: 12,
-  bottom: 12,
+  top: "calc(env(safe-area-inset-top, 0px) + 78px)",
+  left: 14,
+  right: 14,
+  bottom: 14,
   width: "auto",
-  maxHeight: "min(78vh, 640px)",
+  maxHeight: "calc(100dvh - 92px - env(safe-area-inset-top, 0px))",
   overflow: "hidden",
   borderRadius: 28,
   border: "1px solid var(--notification-panel-border, rgba(255,255,255,0.08))",
@@ -381,6 +442,11 @@ const mobilePopoverStyle: React.CSSProperties = {
   boxShadow: "var(--notification-panel-shadow, 0 26px 70px rgba(0,0,0,0.38))",
   backdropFilter: "blur(22px)",
   zIndex: 80,
+};
+
+const mobilePopoverCompactStyle: React.CSSProperties = {
+  bottom: "auto",
+  maxHeight: "min(260px, calc(100dvh - 110px - env(safe-area-inset-top, 0px)))",
 };
 
 const dropdownHeaderStyle: React.CSSProperties = {
@@ -394,12 +460,33 @@ const dropdownHeaderStyle: React.CSSProperties = {
     "var(--notification-header-bg, linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)))",
 };
 
+const closeButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 40,
+  height: 40,
+  padding: 0,
+  borderRadius: 999,
+  border: "1px solid var(--notification-card-border, rgba(255,255,255,0.08))",
+  background: "var(--notification-card-bg, rgba(255,255,255,0.03))",
+  color: "var(--notification-text-strong, #fff)",
+  cursor: "pointer",
+  flex: "0 0 auto",
+};
+
 const listStyle: React.CSSProperties = {
   maxHeight: "min(58vh, 460px)",
   overflowY: "auto",
   padding: 16,
   display: "grid",
   gap: 12,
+};
+
+const compactListStyle: React.CSSProperties = {
+  maxHeight: "none",
+  overflowY: "visible",
+  padding: 16,
 };
 
 const notificationCardStyle: React.CSSProperties = {
