@@ -26,10 +26,45 @@ const getDefaultOptionValues = (options: StoreProductOption[]) =>
       .map((option) => [option.id, option.values[0].value]),
   );
 
+const parseMeasureValue = (value?: number | string | null) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().replace(",", ".");
+
+  if (!normalized) {
+    return null;
+  }
+
+  const directNumber = Number(normalized);
+
+  if (Number.isFinite(directNumber)) {
+    return directNumber;
+  }
+
+  const matchedNumber = normalized.match(/-?\d+(?:\.\d+)?/);
+
+  if (!matchedNumber) {
+    return null;
+  }
+
+  const parsed = Number(matchedNumber[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const formatMeasure = (value?: number | string | null, suffix = "cm") => {
-  if (value === null || value === undefined || value === "")
+  const parsedValue = parseMeasureValue(value);
+
+  if (parsedValue === null) {
     return "No especificado";
-  return `${value} ${suffix}`;
+  }
+
+  return `${parsedValue} ${suffix}`;
 };
 
 const formatVariantTitle = (variant?: StoreVariant | null) => {

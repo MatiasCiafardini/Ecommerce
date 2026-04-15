@@ -2119,6 +2119,7 @@ function AdminProductsSection({
                   }
                   placeholder="Peso base (g)"
                   suggestions={[]}
+                  sanitize={sanitizeDecimalInput}
                 />
                 <SuggestionInput
                   value={form.packageWidthCm}
@@ -2130,6 +2131,7 @@ function AdminProductsSection({
                   }
                   placeholder="Ancho base (cm)"
                   suggestions={[]}
+                  sanitize={sanitizeDecimalInput}
                 />
                 <SuggestionInput
                   value={form.packageHeightCm}
@@ -2141,6 +2143,7 @@ function AdminProductsSection({
                   }
                   placeholder="Alto base (cm)"
                   suggestions={[]}
+                  sanitize={sanitizeDecimalInput}
                 />
                 <SuggestionInput
                   value={form.packageLengthCm}
@@ -2152,6 +2155,7 @@ function AdminProductsSection({
                   }
                   placeholder="Largo base (cm)"
                   suggestions={[]}
+                  sanitize={sanitizeDecimalInput}
                 />
               </div>
             </Step>
@@ -2400,6 +2404,7 @@ function AdminProductsSection({
                 }
                 placeholder="Peso (g)"
                 suggestions={variantAutocomplete.weight}
+                sanitize={sanitizeDecimalInput}
               />
               <SuggestionInput
                 value={variantDraft.width}
@@ -2408,6 +2413,7 @@ function AdminProductsSection({
                 }
                 placeholder="Ancho (cm)"
                 suggestions={variantAutocomplete.width}
+                sanitize={sanitizeDecimalInput}
               />
               <SuggestionInput
                 value={variantDraft.height}
@@ -2416,6 +2422,7 @@ function AdminProductsSection({
                 }
                 placeholder="Alto (cm)"
                 suggestions={variantAutocomplete.height}
+                sanitize={sanitizeDecimalInput}
               />
               <SuggestionInput
                 value={variantDraft.length}
@@ -2424,6 +2431,7 @@ function AdminProductsSection({
                 }
                 placeholder="Largo (cm)"
                 suggestions={variantAutocomplete.length}
+                sanitize={sanitizeDecimalInput}
               />
             </div>
             <div style={rowWrapStyle}>
@@ -4717,6 +4725,22 @@ const resizeHandles: ResizeHandle[] = [
   "sw",
 ];
 
+function sanitizeDecimalInput(value: string) {
+  let normalized = value.replace(",", ".");
+  normalized = normalized.replace(/[^0-9.]/g, "");
+
+  const firstDotIndex = normalized.indexOf(".");
+
+  if (firstDotIndex === -1) {
+    return normalized;
+  }
+
+  return (
+    normalized.slice(0, firstDotIndex + 1) +
+    normalized.slice(firstDotIndex + 1).replace(/\./g, "")
+  );
+}
+
 function getResizeFactor(
   handle: ResizeHandle,
   deltaX: number,
@@ -4752,11 +4776,13 @@ function SuggestionInput({
   onChange,
   placeholder,
   suggestions,
+  sanitize,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   suggestions: string[];
+  sanitize?: (value: string) => string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -4782,7 +4808,7 @@ function SuggestionInput({
       <input
         value={value}
         onChange={(event) => {
-          onChange(event.target.value);
+          onChange(sanitize ? sanitize(event.target.value) : event.target.value);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
@@ -4802,6 +4828,7 @@ function SuggestionInput({
         placeholder={placeholder}
         style={fieldStyle}
         autoComplete="off"
+        inputMode={sanitize ? "decimal" : undefined}
       />
       {open && filteredSuggestions.length > 0 ? (
         <div style={suggestionDropdownStyle}>
