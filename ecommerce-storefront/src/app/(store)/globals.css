@@ -73,9 +73,9 @@
   --store-wide-max: 1280px;
   --store-reading-max: 1280px;
   --product-card-width: 312px;
-  --product-card-height: 470px;
+  --product-card-height: 510px;
   --product-card-media-height: 320px;
-  --product-card-copy-min-height: 146px;
+  --product-card-copy-min-height: 186px;
   --header-action-bg: rgba(255, 255, 255, 0.04);
   --header-action-bg-active: rgba(255, 255, 255, 0.08);
   --header-action-border: rgba(255, 255, 255, 0.12);
@@ -204,6 +204,7 @@
 
 .theme-minimal,
 .theme-trojani {
+  --theme-layout-max-width: 1600px;
   --background: var(--theme-colors-background);
   --foreground: var(--theme-colors-text);
   --surface: var(--theme-colors-background-soft);
@@ -235,47 +236,51 @@
   --ghost-chip-bg: transparent;
   --ghost-chip-active-bg: color-mix(in srgb, var(--paper) 16%, transparent);
   --ghost-chip-color: var(--text-strong);
-  --store-shell-bg: #0b0b0b;
+  --store-shell-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 78%, var(--theme-colors-paper-muted) 22%),
+    color-mix(in srgb, white 92%, var(--theme-colors-paper-muted) 8%)
+  );
   --store-content-bg: transparent;
   --block-section-bg: transparent;
   --block-card-bg: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--theme-colors-text-strong) 6%, transparent),
-    color-mix(in srgb, var(--theme-colors-text-strong) 3%, transparent)
+    color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%),
+    color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
   );
   --block-panel-bg: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--theme-colors-text-strong) 6%, transparent),
-    color-mix(in srgb, var(--theme-colors-text-strong) 2%, transparent)
+    color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%),
+    color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
   );
   --testimonial-card-bg: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--theme-colors-text-strong) 5%, transparent),
-    color-mix(in srgb, var(--theme-colors-text-strong) 2%, transparent)
+    color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%),
+    color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
   );
   --testimonial-card-featured-bg: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--theme-colors-paper) 16%, transparent),
-    color-mix(in srgb, var(--theme-colors-text-strong) 5%, transparent)
+    color-mix(in srgb, white 76%, var(--theme-colors-paper-muted) 24%),
+    color-mix(in srgb, white 94%, var(--theme-colors-paper-muted) 6%)
   );
   --newsletter-shell-bg: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--theme-colors-text-strong) 7%, transparent),
-    color-mix(in srgb, var(--theme-colors-text-strong) 2%, transparent)
+    color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%),
+    color-mix(in srgb, white 94%, var(--theme-colors-paper-muted) 6%)
   );
   --newsletter-input-bg: color-mix(
     in srgb,
-    var(--theme-colors-text-strong) 6%,
-    transparent
+    white 84%,
+    var(--theme-colors-paper-muted) 16%
   );
   --product-media-fallback: #ffffff;
   --category-image-overlay: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--theme-colors-background) 8%, transparent),
-    color-mix(in srgb, var(--theme-colors-background) 34%, transparent)
+    color-mix(in srgb, var(--theme-colors-background) 10%, transparent),
+    color-mix(in srgb, var(--theme-colors-background) 28%, transparent)
   );
   --theme-hover-translate-y: -5px;
-  --theme-hover-shadow: 0 22px 40px rgba(0, 0, 0, 0.18);
+  --theme-hover-shadow: 0 22px 40px rgba(90, 67, 53, 0.12);
   --theme-hover-border: var(--theme-colors-border-strong);
   --theme-ambient-animation: theme-ambient-pan 18s linear infinite alternate;
   --theme-float-animation: theme-float-slow 6.4s var(--ease-theme) infinite
@@ -1540,8 +1545,7 @@ body {
   );
 }
 
-.theme-minimal .theme-editorial-panel,
-.theme-trojani .theme-editorial-panel {
+.theme-minimal .theme-editorial-panel {
   background:
     linear-gradient(135deg, rgba(12, 12, 12, 0.14), rgba(243, 238, 231, 0.06)),
     radial-gradient(
@@ -1557,6 +1561,28 @@ body {
   );
   --editorial-pill-bg: rgba(10, 10, 10, 0.32);
   --editorial-title-shadow: none;
+}
+
+.theme-trojani .theme-editorial-panel {
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%),
+      color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
+    ),
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0) 58%
+    );
+  --editorial-panel-overlay: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.08) 46%,
+    rgba(229, 212, 196, 0.14) 100%
+  );
+  --editorial-pill-bg: rgba(255, 255, 255, 0.82);
+  --editorial-title-shadow: 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
 .theme-fashion .theme-editorial-panel {
@@ -1603,14 +1629,20 @@ body {
   --editorial-title-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-.theme-minimal .theme-category-media[data-tone="soft"],
-.theme-trojani .theme-category-media[data-tone="soft"] {
+.theme-minimal .theme-category-media[data-tone="soft"] {
   background: linear-gradient(135deg, #2a2a2a 0%, #83786a 100%);
 }
 
-.theme-minimal .theme-category-media[data-tone="warm"],
-.theme-trojani .theme-category-media[data-tone="warm"] {
+.theme-minimal .theme-category-media[data-tone="warm"] {
   background: linear-gradient(135deg, #171717 0%, #8e6d54 100%);
+}
+
+.theme-trojani .theme-category-media[data-tone="soft"] {
+  background: linear-gradient(135deg, #ead9c9 0%, #d2b39a 100%);
+}
+
+.theme-trojani .theme-category-media[data-tone="warm"] {
+  background: linear-gradient(135deg, #f1e2d8 0%, #cfa894 100%);
 }
 
 .theme-fashion .theme-category-media[data-tone="soft"] {
@@ -1880,13 +1912,24 @@ button:disabled {
 }
 
 .theme-trojani .layout-header-bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   min-height: 78px;
+  column-gap: 24px;
 }
 
 .theme-trojani .layout-header-nav,
 .theme-trojani .layout-header-actions {
   align-items: center;
+}
+
+.theme-trojani .layout-header-nav {
+  justify-content: center;
+}
+
+.theme-trojani .layout-header-actions {
+  justify-content: flex-end;
 }
 
 .theme-brand {
@@ -2262,9 +2305,9 @@ button:disabled {
 @media (max-width: 768px) {
   :root {
     --product-card-width: 168px;
-    --product-card-height: 348px;
+    --product-card-height: 376px;
     --product-card-media-height: 220px;
-    --product-card-copy-min-height: 128px;
+    --product-card-copy-min-height: 156px;
   }
 
   .layout-product-grid,
@@ -2309,7 +2352,7 @@ button:disabled {
 
 @media (max-width: 640px) {
   :root {
-    --product-card-copy-min-height: 116px;
+    --product-card-copy-min-height: 148px;
   }
 
   .theme-brand {
@@ -2339,6 +2382,7 @@ button:disabled {
   .theme-trojani .layout-header-bar,
   .theme-trojani .layout-header-nav,
   .theme-trojani .layout-header-actions {
+    display: flex !important;
     align-items: center !important;
   }
 
@@ -2409,9 +2453,9 @@ button:disabled {
 @media (max-width: 480px) {
   :root {
     --product-card-width: min(148px, calc((100vw - 56px) / 2));
-    --product-card-height: 308px;
+    --product-card-height: 356px;
     --product-card-media-height: 180px;
-    --product-card-copy-min-height: 96px;
+    --product-card-copy-min-height: 146px;
   }
 
   .layout-product-grid,

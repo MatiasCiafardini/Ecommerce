@@ -13,6 +13,13 @@ const cloneColumns = (columns: StorefrontFooterColumn[]): StorefrontFooterColumn
     links: cloneLinks(column.links),
   }));
 
+const trojaniPrimaryLinks: StorefrontNavLink[] = [
+  { href: "/product", label: "Shop" },
+  { href: "/category/sale", label: "Sale" },
+  { href: "/category/gift-cards", label: "Gift Cards" },
+  { href: "/quienes-somos", label: "Quienes somos" },
+];
+
 const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
   minimal: {
     header: {
@@ -55,12 +62,7 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
   trojani: {
     header: {
       brandLabel: "Trojani",
-      primaryLinks: [
-        { href: "/", label: "Inicio" },
-        { href: "/product", label: "Drop" },
-        { href: "/category/remeras", label: "Remeras" },
-        { href: "/category/buzos", label: "Buzos" },
-      ],
+      primaryLinks: trojaniPrimaryLinks,
     },
     footer: {
       brandTitle: "Trojani",
@@ -279,8 +281,11 @@ export function mergeThemeLayout(
   layout?: StorefrontThemeLayout | null,
 ) {
   const fallback = getDefaultThemeLayout(theme);
+  const normalizedTheme = theme?.trim().toLowerCase() ?? "";
   const headerLinks =
-    Array.isArray(layout?.header?.primaryLinks) && layout.header.primaryLinks.length > 0
+    normalizedTheme === "trojani"
+      ? trojaniPrimaryLinks
+      : Array.isArray(layout?.header?.primaryLinks) && layout.header.primaryLinks.length > 0
       ? layout.header.primaryLinks
       : (fallback.header?.primaryLinks ?? []);
   const footerColumns =

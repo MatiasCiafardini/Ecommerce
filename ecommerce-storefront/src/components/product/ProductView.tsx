@@ -17,6 +17,7 @@ type Props = {
   productOptions?: StoreProductOption[];
   relatedProducts?: StoreProduct[];
   storeId?: number;
+  bankTransferDiscountPercentage?: number;
 };
 
 const getDefaultOptionValues = (options: StoreProductOption[]) =>
@@ -123,6 +124,7 @@ export default function ProductView({
   productOptions = [],
   relatedProducts = [],
   storeId,
+  bankTransferDiscountPercentage = 0,
 }: Props) {
   const isMiMaria = storeId === 5;
   const { user } = useAuth();
@@ -347,7 +349,7 @@ export default function ProductView({
     >
       <div
         style={{
-          maxWidth: 1280,
+          maxWidth: "var(--theme-layout-max-width, 1280px)",
           margin: "0 auto",
           display: "grid",
           gap: 28,
@@ -536,7 +538,6 @@ export default function ProductView({
                 }}
               >
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
-                  <span style={slugChipStyle}>/{product.slug}</span>
                   {stockUrgencyMessage ? (
                     <span style={urgencyChipStyle}>{stockUrgencyMessage}</span>
                   ) : null}
@@ -808,7 +809,7 @@ export default function ProductView({
               <p
                 style={{
                   margin: "-8px 0 0",
-                  color: "var(--text-muted)",
+                  color: "var(--text)",
                   lineHeight: 1.6,
                 }}
               >
@@ -820,7 +821,10 @@ export default function ProductView({
               <p
                 style={{
                   margin: addStatus === "added" ? "-8px 0 0" : "0",
-                  color: addStatus === "added" ? "#b8f5c2" : "#ffb4b4",
+                  color:
+                    addStatus === "added"
+                      ? "color-mix(in srgb, var(--accent-strong) 84%, var(--text-strong))"
+                      : "color-mix(in srgb, var(--accent-strong) 92%, var(--text-strong))",
                   lineHeight: 1.6,
                 }}
               >
@@ -1066,7 +1070,11 @@ export default function ProductView({
               }}
             >
               {relatedProducts.map((relatedProduct) => (
-                <ProductCard key={relatedProduct.id} product={relatedProduct} />
+                <ProductCard
+                  key={relatedProduct.id}
+                  product={relatedProduct}
+                  bankTransferDiscountPercentage={bankTransferDiscountPercentage}
+                />
               ))}
             </div>
           </div>
@@ -1172,7 +1180,7 @@ export default function ProductView({
 
         .gallery-arrow-button:hover {
           background: transparent !important;
-          color: #ffe4bf !important;
+          color: var(--accent-strong) !important;
           backdrop-filter: none !important;
           text-shadow: none !important;
           border-color: transparent !important;
@@ -1181,7 +1189,7 @@ export default function ProductView({
 
         .gallery-arrow-button:focus-visible {
           outline: none;
-          color: #ffe4bf;
+          color: var(--accent-strong);
           text-shadow: none;
           background: transparent;
           border-color: transparent;
@@ -1252,26 +1260,14 @@ const variantChipStyle = (
   opacity: available ? 1 : 0.7,
 });
 
-const slugChipStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "8px 12px",
-  borderRadius: 999,
-  border: "1px solid var(--border-soft)",
-  background: "var(--block-card-bg)",
-  color: "var(--text-muted)",
-  fontSize: 12,
-  letterSpacing: "0.08em",
-};
-
 const urgencyChipStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,193,122,0.24)",
-  background: "rgba(255,193,122,0.12)",
-  color: "#ffe4bf",
+  border: "1px solid color-mix(in srgb, var(--accent-strong) 28%, var(--border-soft))",
+  background: "color-mix(in srgb, var(--accent) 10%, var(--page-panel-bg))",
+  color: "var(--accent-strong)",
   fontSize: 12,
   fontWeight: 700,
   letterSpacing: "0.06em",
@@ -1460,9 +1456,9 @@ const cartPromptEyebrowStyle: React.CSSProperties = {
   width: "fit-content",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,193,122,0.24)",
-  background: "rgba(255,193,122,0.12)",
-  color: "#ffe4bf",
+  border: "1px solid color-mix(in srgb, var(--accent-strong) 28%, var(--border-soft))",
+  background: "color-mix(in srgb, var(--accent) 10%, var(--page-panel-bg))",
+  color: "var(--accent-strong)",
   fontSize: 11,
   fontWeight: 700,
   letterSpacing: "0.14em",

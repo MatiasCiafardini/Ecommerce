@@ -1,4 +1,5 @@
 import { getProducts } from "@/services/products.service";
+import { getBankTransferDiscountPercentage } from "@/services/payment-config.service";
 import ProductCard from "@/components/product/ProductCard";
 import StaggerReveal from "@/components/motion/StaggerReveal";
 import { StoreProduct } from "@/types/store";
@@ -16,7 +17,10 @@ export default async function FeaturedProducts({
   columns = 3,
   productIds,
 }: Props) {
-  const products = await getProducts({ limit, productIds });
+  const [products, bankTransferDiscountPercentage] = await Promise.all([
+    getProducts({ limit, productIds }),
+    getBankTransferDiscountPercentage(),
+  ]);
 
   return (
     <section
@@ -39,7 +43,10 @@ export default async function FeaturedProducts({
         >
           {products.map((product: StoreProduct, index: number) => (
             <StaggerReveal key={product.id} delayMs={index * 90}>
-              <ProductCard product={product} />
+              <ProductCard
+                product={product}
+                bankTransferDiscountPercentage={bankTransferDiscountPercentage}
+              />
             </StaggerReveal>
           ))}
         </div>

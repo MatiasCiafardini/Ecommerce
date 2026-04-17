@@ -15,7 +15,7 @@ export default async function StoreLayout({
       themePalette={config.themePalette}
       themeLayout={config.themeLayout}
     >
-      <StoreShell>{children}</StoreShell>
+      <StoreShell themeName={config.theme}>{children}</StoreShell>
     </ThemeProvider>
   );
 }

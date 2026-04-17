@@ -1,22 +1,41 @@
 import { getProducts } from "@/services/products.service";
 import { getStoreProductOptions } from "@/services/product-options.service";
+import { getBankTransferDiscountPercentage } from "@/services/payment-config.service";
 import CatalogView from "@/components/store/CatalogView";
 import { getTenantConfig } from "@/lib/tenant/get-tenant";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProductsPage() {
-  const [products, storeOptions, config] = await Promise.all([
+const hiddenCatalogCategorySlugs = new Set(["sale", "gift-cards"]);
+
+type ProductsPageProps = {
+  searchParams?: Promise<{
+    category?: string;
+  }>;
+};
+
+export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const [products, storeOptions, config, bankTransferDiscountPercentage] = await Promise.all([
     getProducts(),
     getStoreProductOptions(),
     getTenantConfig(),
+    getBankTransferDiscountPercentage(),
   ]);
+  const catalogProducts = products.filter(
+    (product) =>
+      !(product.categories ?? []).some((entry) =>
+        hiddenCatalogCategorySlugs.has(entry.category.slug),
+      ),
+  );
 
   return (
     <CatalogView
-      products={products}
+      products={catalogProducts}
       storeOptions={storeOptions}
       storeId={config.storeId}
+      initialCategory={resolvedSearchParams?.category}
+      bankTransferDiscountPercentage={bankTransferDiscountPercentage}
     />
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/auth-context";
 import type { User } from "@/context/auth-context";
 import OrdersSection from "./OrdersSection";
 import ProfileSection from "./ProfileSection";
@@ -41,6 +43,8 @@ const customerSections: Array<{ id: AccountSection; label: string; description: 
 ];
 
 export default function AccountWorkspace({ user, section, onSectionChange }: Props) {
+  const router = useRouter();
+  const { logout } = useAuth();
   const isAdmin = user.role && user.role !== "CUSTOMER";
   const displayName = [user.name, user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
@@ -88,6 +92,11 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
       setSidebarCollapsed(false);
     }
   }, [isNarrowViewport, sidebarCollapsed]);
+
+  const handleLogout = () => {
+    logout();
+    router.push("/");
+  };
 
   const shouldCollapseSidebar = sidebarCollapsed && !isNarrowViewport;
 
@@ -240,6 +249,9 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                   onSectionChange={onSectionChange}
                   collapsed={false}
                 />
+                <button type="button" onClick={handleLogout} style={logoutButtonStyle}>
+                  Cerrar sesion
+                </button>
               </>
             ) : (
               <div
@@ -444,4 +456,17 @@ const collapsedHintIconStyle = {
   alignItems: "center",
   justifyContent: "center",
   color: "var(--account-text-strong)",
+} as const;
+
+const logoutButtonStyle = {
+  width: "100%",
+  padding: "14px 16px",
+  borderRadius: 20,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  textAlign: "left",
+  fontSize: 15,
+  fontWeight: 700,
 } as const;

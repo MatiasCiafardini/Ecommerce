@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
@@ -15,12 +14,12 @@ const navLinkStyle = {
   textDecoration: "none",
   padding: "10px 0",
   position: "relative",
+  fontSize: 17,
 } as const;
 
 export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
-  const { user, logout, authUiLocked } = useAuth();
+  const { user, authUiLocked } = useAuth();
   const { cart } = useCart();
-  const router = useRouter();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const sessionUiPending = authUiLocked;
   const manualSalesEnabled = Boolean(
@@ -61,12 +60,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const layoutConfig = mergeThemeLayout("trojani", themeLayout);
   const primaryLinks = layoutConfig.header?.primaryLinks ?? [];
 
-  const handleLogout = () => {
-    setMenuOpen(false);
-    logout();
-    router.push("/");
-  };
-
   return (
     <header
       style={{
@@ -83,7 +76,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
       <div
         className="layout-header-bar"
         style={{
-          maxWidth: 1280,
+          maxWidth: "var(--theme-layout-max-width, 1280px)",
           margin: "0 auto",
           padding: "16px 20px",
         }}
@@ -116,7 +109,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
           <nav
             className="layout-header-nav"
             style={{
-              fontSize: 14,
+              fontSize: 17,
             }}
           >
             {primaryLinks.map((link) => (
@@ -131,7 +124,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
           className="layout-header-actions"
           style={{
             color: "var(--theme-colors-text-strong)",
-            fontSize: 14,
+            fontSize: 17,
             alignItems: "center",
             marginLeft: "auto",
           }}
@@ -165,20 +158,18 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                 ) : null}
                 <Link
                   href="/account"
-                  style={{ ...navLinkStyle, color: "var(--theme-colors-text-strong)" }}
+                  aria-label="Cuenta"
+                  title="Cuenta"
+                  style={iconActionStyle}
                 >
-                  Cuenta
+                  <PersonIcon />
                 </Link>
-                <button
-                  onClick={handleLogout}
-                  className="theme-button"
-                  style={sessionButtonStyle}
-                >
-                  Salir
-                </button>
               </>
             ) : (
-              <Link href="/login" style={{ ...navLinkStyle, color: "white" }}>
+              <Link
+                href="/login"
+                style={{ ...navLinkStyle, color: "var(--theme-colors-text-strong)" }}
+              >
                 Ingresar
               </Link>
             )
@@ -215,10 +206,10 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               right: 14,
               zIndex: 40,
               borderRadius: 28,
-              border: "1px solid rgba(255,255,255,0.08)",
+              border: "1px solid var(--header-action-border)",
               background:
-                "linear-gradient(180deg, rgba(18,18,18,0.98), rgba(10,10,10,0.98))",
-              boxShadow: "0 26px 70px rgba(0,0,0,0.38)",
+                "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-strong-bg) 98%, var(--page-panel-bg)) 0%, color-mix(in srgb, var(--page-panel-bg) 96%, var(--page-shell-bg)) 100%)",
+              boxShadow: "0 26px 70px color-mix(in srgb, var(--theme-colors-text-strong) 10%, transparent)",
               padding: 20,
               display: "grid",
               gap: 18,
@@ -230,7 +221,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                   textTransform: "uppercase",
                   letterSpacing: "0.2em",
                   fontSize: 11,
-                  color: "rgba(247,241,232,0.48)",
+                  color: "var(--theme-colors-text-muted)",
                 }}
               >
                 Navegacion
@@ -252,7 +243,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
             <div
               style={{
                 height: 1,
-                background: "rgba(255,255,255,0.08)",
+                background: "var(--header-action-border)",
               }}
             />
 
@@ -262,7 +253,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                   textTransform: "uppercase",
                   letterSpacing: "0.2em",
                   fontSize: 11,
-                  color: "rgba(247,241,232,0.48)",
+                  color: "var(--theme-colors-text-muted)",
                 }}
               >
                 Cuenta
@@ -287,19 +278,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                   >
                     Mi cuenta
                   </Link>
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                    }}
-                    className="theme-button"
-                    style={{
-                      ...mobileNavLinkStyle,
-                      textAlign: "left",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Salir
-                  </button>
                 </>
               ) : (
                 <Link
@@ -357,6 +335,25 @@ function CartIcon() {
   );
 }
 
+function PersonIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 21a8 8 0 0 0-16 0" />
+      <circle cx="12" cy="8" r="4" />
+    </svg>
+  );
+}
+
 function HeaderSessionPlaceholder({ mobile = false }: { mobile?: boolean }) {
   return (
     <span
@@ -369,13 +366,13 @@ function HeaderSessionPlaceholder({ mobile = false }: { mobile?: boolean }) {
 }
 
 const iconActionStyle = {
-  color: "white",
+  color: "var(--header-action-color)",
   textDecoration: "none",
   width: 46,
   height: 46,
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
+  border: "1px solid var(--header-action-border)",
+  background: "var(--header-action-bg)",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -399,38 +396,30 @@ const iconBadgeStyle = {
   right: -4,
 } as const;
 
-const sessionButtonStyle = {
-  border: "1px solid rgba(255,255,255,0.2)",
-  borderRadius: 999,
-  background: "rgba(255,255,255,0.04)",
-  color: "white",
-  padding: "10px 14px",
-  cursor: "pointer",
-} as const;
-
 const sessionPlaceholderStyle = {
   padding: "10px 14px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(247,241,232,0.48)",
+  border: "1px solid var(--header-action-border)",
+  background: "var(--header-action-bg)",
+  color: "var(--theme-colors-text-muted)",
   letterSpacing: "0.08em",
   textTransform: "uppercase",
   fontSize: 11,
 } as const;
 
 const mobileNavLinkStyle = {
-  color: "#fff",
+  color: "var(--theme-colors-text-strong)",
   textDecoration: "none",
   padding: "14px 16px",
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
+  border: "1px solid var(--header-action-border)",
+  background: "var(--header-action-bg)",
+  fontSize: 16,
 } as const;
 
 const mobileSessionPlaceholderStyle = {
   ...mobileNavLinkStyle,
-  color: "rgba(247,241,232,0.48)",
+  color: "var(--theme-colors-text-muted)",
   textTransform: "uppercase",
   letterSpacing: "0.08em",
   fontSize: 11,

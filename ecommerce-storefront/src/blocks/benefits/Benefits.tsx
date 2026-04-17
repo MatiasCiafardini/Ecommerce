@@ -43,7 +43,14 @@ export default function Benefits({
       className="theme-block-section theme-block-section--benefits"
       style={{ padding: "84px 20px" }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto", display: "grid", gap: 30 }}>
+      <div
+        style={{
+          maxWidth: "var(--theme-layout-max-width, 1280px)",
+          margin: "0 auto",
+          display: "grid",
+          gap: 30,
+        }}
+      >
         <div style={{ display: "grid", gap: 10, maxWidth: 680 }}>
           <span
             style={{

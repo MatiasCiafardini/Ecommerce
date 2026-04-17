@@ -1978,7 +1978,9 @@ export default function DeveloperModePanel({
           <div style={{ ...developerGridStyle, gridTemplateColumns: isTabletOrSmaller ? "minmax(0, 1fr)" : developerGridStyle.gridTemplateColumns }}>
             {activeSection === "blocks" ? (
               <div style={menuCardStyle}>
-                <strong style={{ fontSize: 16 }}>Bloques activos</strong>
+                <strong style={{ fontSize: 16, color: "var(--account-text-strong)" }}>
+                  Bloques activos
+                </strong>
                 <p style={{ ...hintStyle, margin: 0 }}>
                   Arrastra para reordenar. Click derecho sobre una card para eliminarla.
                 </p>
@@ -3522,7 +3524,7 @@ const eyebrowStyle: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.18em",
   fontSize: 12,
-  color: "var(--account-text-soft)",
+  color: "var(--account-text-strong)",
 };
 
 const titleStyle: React.CSSProperties = {
@@ -3615,9 +3617,9 @@ const secondaryButtonStyle: React.CSSProperties = {
 
 const miniGhostDangerButtonStyle: React.CSSProperties = {
   padding: "10px 12px",
-  background: "transparent",
-  color: "var(--admin-danger-color)",
-  border: "1px solid var(--admin-danger-border)",
+  background: "color-mix(in srgb, var(--page-panel-strong-bg) 92%, var(--page-panel-bg))",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--checkout-border)",
   borderRadius: 999,
   cursor: "pointer",
   whiteSpace: "nowrap",
@@ -3625,9 +3627,9 @@ const miniGhostDangerButtonStyle: React.CSSProperties = {
 
 const dangerButtonStyle: React.CSSProperties = {
   padding: "8px 12px",
-  background: "var(--admin-danger-bg)",
-  color: "var(--admin-danger-color)",
-  border: "1px solid var(--admin-danger-border)",
+  background: "color-mix(in srgb, var(--page-panel-strong-bg) 94%, var(--page-panel-bg))",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--checkout-border)",
   borderRadius: 999,
   cursor: "pointer",
 };
@@ -3650,7 +3652,13 @@ const errorStyle: React.CSSProperties = {
 
 const successStyle: React.CSSProperties = {
   margin: 0,
+  padding: "14px 16px",
+  borderRadius: 18,
+  border: "1px solid var(--admin-tone-success-border)",
+  background: "var(--admin-tone-success-bg)",
   color: "var(--admin-tone-success-color)",
+  fontWeight: 700,
+  lineHeight: 1.5,
 };
 
 const themeNavSectionStyle: React.CSSProperties = {
@@ -3692,6 +3700,7 @@ const slideCardStyle: React.CSSProperties = {
   padding: 16,
   display: "grid",
   gap: 10,
+  color: "var(--account-text-strong)",
 };
 
 const assetActionsStyle: React.CSSProperties = {
@@ -3798,4 +3807,3 @@ function productChipStyle(active: boolean): React.CSSProperties {
     color: "var(--account-text-strong)",
   };
 }
-

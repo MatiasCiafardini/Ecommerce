@@ -1,5 +1,6 @@
 import { getProductBySlug, getProducts } from "@/services/products.service";
 import { getProductOptions } from "@/services/product-options.service";
+import { getBankTransferDiscountPercentage } from "@/services/payment-config.service";
 import ProductView from "@/components/product/ProductView";
 import { getTenantConfig } from "@/lib/tenant/get-tenant";
 
@@ -14,10 +15,11 @@ type Props = {
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
 
-  const [product, productOptions, config] = await Promise.all([
+  const [product, productOptions, config, bankTransferDiscountPercentage] = await Promise.all([
     getProductBySlug(slug),
     getProductOptions(slug),
     getTenantConfig(),
+    getBankTransferDiscountPercentage(),
   ]);
 
   if (!product) {
@@ -49,6 +51,7 @@ export default async function ProductPage({ params }: Props) {
       productOptions={productOptions}
       relatedProducts={relatedProducts.slice(0, 4)}
       storeId={config.storeId}
+      bankTransferDiscountPercentage={bankTransferDiscountPercentage}
     />
   );
 }

@@ -7,9 +7,13 @@ import { getCatalogImageTransform } from "@/lib/product-image-layout";
 
 type Props = {
   product: StoreProduct;
+  bankTransferDiscountPercentage?: number;
 };
 
-export default function ProductCard({ product }: Props) {
+export default function ProductCard({
+  product,
+  bankTransferDiscountPercentage = 0,
+}: Props) {
   const imageUrl =
     product.images && product.images.length > 0
       ? resolveAssetUrl(product.images[0].url)
@@ -23,9 +27,14 @@ export default function ProductCard({ product }: Props) {
   const basePrice = hasPromotion
     ? roundCurrency(product.pricing?.basePrice ?? fallbackPrice)
     : roundCurrency(fallbackPrice);
-  const categoryName =
-    product.categories?.[0]?.category?.name ??
-    "Coleccion boutique";
+  const transferPrice =
+    displayPrice > 0 && bankTransferDiscountPercentage > 0
+      ? roundCurrency(
+          Math.max(displayPrice * (1 - bankTransferDiscountPercentage / 100), 0),
+        )
+      : null;
+  const installmentPrice =
+    displayPrice > 0 ? roundCurrency(displayPrice / 3) : null;
 
   return (
     <Link
@@ -123,47 +132,90 @@ export default function ProductCard({ product }: Props) {
           minHeight: "var(--product-card-copy-min-height)",
           display: "grid",
           alignContent: "start",
-          gap: 6,
+          gap: 10,
           position: "relative",
           zIndex: 1,
+          padding: "18px 18px 30px",
         }}
       >
+        <h3
+          className="product-card-title"
+          style={{
+            margin: 0,
+            color: "var(--text-strong)",
+            fontSize: 13,
+            lineHeight: 1.2,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            fontWeight: 400,
+          }}
+        >
+          {product.title}
+        </h3>
+
         {displayPrice > 0 ? (
-          <div style={{ display: "grid", gap: 6 }}>
+          <div style={{ display: "grid", gap: 8 }}>
             {hasPromotion ? (
               <p
                 style={{
                   margin: 0,
-                  color: "var(--text-muted)",
-                  textDecoration: "line-through",
+                  color: "var(--text-strong)",
+                  fontSize: 13,
+                  lineHeight: 1.1,
+                  fontWeight: 700,
                 }}
               >
                 {formatCurrency(basePrice)}
               </p>
+            ) : (
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--text-strong)",
+                  fontSize: 13,
+                  lineHeight: 1.1,
+                  fontWeight: 700,
+                }}
+              >
+                {formatCurrency(displayPrice)}
+              </p>
+            )}
+            {transferPrice !== null ? (
+              <p
+                className="product-card-price"
+                style={{
+                  margin: 0,
+                  color: "var(--text-strong)",
+                  fontSize: 22,
+                  lineHeight: 1.04,
+                  letterSpacing: "-0.04em",
+                  fontWeight: 800,
+                }}
+              >
+                {formatCurrency(transferPrice)} con
+                <br />
+                Transferencia
+              </p>
             ) : null}
-            <p className="product-card-price" style={{ margin: 0, fontWeight: 700, color: "var(--text-strong)" }}>
-              {formatCurrency(displayPrice)}
-            </p>
+            {installmentPrice !== null ? (
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--text-muted)",
+                  fontSize: 11,
+                  lineHeight: 1.35,
+                  fontWeight: 400,
+                }}
+              >
+                3 cuotas sin interes de {formatCurrency(installmentPrice)}
+              </p>
+            ) : null}
           </div>
         ) : (
           <p className="product-card-price" style={{ margin: 0, color: "var(--text-muted)" }}>
             Consultar precio
           </p>
         )}
-        <h3 className="product-card-title" style={{ margin: 0, color: "var(--text-strong)" }}>
-          {product.title}
-        </h3>
-        <p
-          className="product-card-kicker"
-          style={{
-            margin: 0,
-            color: "var(--text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.16em",
-          }}
-        >
-          {categoryName}
-        </p>
       </div>
     </Link>
   );

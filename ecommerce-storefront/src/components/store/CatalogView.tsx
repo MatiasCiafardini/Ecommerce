@@ -2,13 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ProductCard from "@/components/product/ProductCard";
-import { StoreCategory, StoreProduct, StoreProductOption, StoreVariant } from "@/types/store";
+import {
+  StoreCategory,
+  StoreProduct,
+  StoreProductOption,
+  StoreVariant,
+} from "@/types/store";
 import { formatCurrency, roundCurrency } from "@/lib/currency";
 
 type CatalogViewProps = {
   products: StoreProduct[];
   storeOptions: StoreProductOption[];
   storeId?: number;
+  initialCategory?: string;
+  bankTransferDiscountPercentage?: number;
 };
 
 const getPrice = (product: StoreProduct) => {
@@ -27,7 +34,11 @@ const getAvailableStock = (variant: StoreVariant) => {
   const inventories = variant.inventories ?? [];
   return inventories.reduce(
     (total: number, inventory) =>
-      total + Math.max(Number(inventory.quantity ?? 0) - Number(inventory.reserved ?? 0), 0),
+      total +
+      Math.max(
+        Number(inventory.quantity ?? 0) - Number(inventory.reserved ?? 0),
+        0,
+      ),
     0,
   );
 };
@@ -73,10 +84,14 @@ const normalizeOptionGroups = (storeOptions: StoreProductOption[]) =>
     };
   });
 
+const hiddenCatalogCategorySlugs = new Set(["sale", "gift-cards"]);
+
 export default function CatalogView({
   products,
   storeOptions,
   storeId,
+  initialCategory,
+  bankTransferDiscountPercentage = 0,
 }: CatalogViewProps) {
   const isMiMaria = storeId === 5;
   const priceValues = useMemo(
@@ -91,6 +106,10 @@ export default function CatalogView({
 
     products.forEach((product) => {
       getProductCategories(product).forEach((category) => {
+        if (hiddenCatalogCategorySlugs.has(category.slug)) {
+          return;
+        }
+
         if (!map.has(category.slug)) {
           map.set(category.slug, category.name);
         }
@@ -105,18 +124,28 @@ export default function CatalogView({
       [
         ...new Set(
           products.flatMap((product) =>
-            (product.variants ?? []).map((variant) => variant.Size).filter(Boolean),
+            (product.variants ?? [])
+              .map((variant) => variant.Size)
+              .filter(Boolean),
           ),
         ),
       ] as string[],
     [products],
   );
 
-  const dynamicOptions = useMemo(() => normalizeOptionGroups(storeOptions), [storeOptions]);
+  const dynamicOptions = useMemo(
+    () => normalizeOptionGroups(storeOptions),
+    [storeOptions],
+  );
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const normalizedInitialCategory = initialCategory?.trim().toLowerCase() ?? "";
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    normalizedInitialCategory ? [normalizedInitialCategory] : [],
+  );
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
-  const [selectedOptionValues, setSelectedOptionValues] = useState<Record<number, string[]>>({});
+  const [selectedOptionValues, setSelectedOptionValues] = useState<
+    Record<number, string[]>
+  >({});
   const [priceMin, setPriceMin] = useState(String(minCatalogPrice || ""));
   const [priceMax, setPriceMax] = useState(String(maxCatalogPrice || ""));
   const [onlyStock, setOnlyStock] = useState(true);
@@ -144,7 +173,11 @@ export default function CatalogView({
     values: string[],
     setter: (next: string[]) => void,
   ) => {
-    setter(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
+    setter(
+      values.includes(value)
+        ? values.filter((item) => item !== value)
+        : [...values, value],
+    );
   };
 
   const toggleDynamicValue = (optionId: number, valueLabel: string) => {
@@ -170,7 +203,9 @@ export default function CatalogView({
   const filteredProducts = useMemo(() => {
     const visibleProducts = products.filter((product) => {
       const price = getPrice(product);
-      const productCategories = getProductCategories(product).map((category) => category.slug);
+      const productCategories = getProductCategories(product).map(
+        (category) => category.slug,
+      );
       const productSizes = (product.variants ?? [])
         .map((variant) => variant.Size)
         .filter(Boolean);
@@ -182,7 +217,9 @@ export default function CatalogView({
 
       if (
         selectedCategories.length > 0 &&
-        !selectedCategories.some((category) => productCategories.includes(category))
+        !selectedCategories.some((category) =>
+          productCategories.includes(category),
+        )
       ) {
         return false;
       }
@@ -210,7 +247,8 @@ export default function CatalogView({
 
         const matchesOption = option.values.some(
           (value) =>
-            selectedValues.includes(value.label) && value.productIds.includes(product.id),
+            selectedValues.includes(value.label) &&
+            value.productIds.includes(product.id),
         );
 
         if (!matchesOption) {
@@ -275,7 +313,7 @@ export default function CatalogView({
       }
     : {
         cardWidth: "272px",
-        cardHeight: "412px",
+        cardHeight: "472px",
         mediaHeight: "282px",
         copyMinHeight: "130px",
         gap: 18,
@@ -288,9 +326,20 @@ export default function CatalogView({
         padding: "72px 20px",
         background: "var(--page-shell-bg)",
         overflowX: "clip",
+        ["--product-card-height" as string]: "700px",
+        ["--product-card-copy-min-height" as string]: "376px",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto", display: "grid", gap: 28, width: "100%", minWidth: 0 }}>
+      <div
+        style={{
+          maxWidth: 1280,
+          margin: "0 auto",
+          display: "grid",
+          gap: 28,
+          width: "100%",
+          minWidth: 0,
+        }}
+      >
         <div>
           <h1
             style={{
@@ -346,7 +395,14 @@ export default function CatalogView({
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  flexWrap: "wrap",
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setFiltersOpen((current) => !current)}
@@ -359,22 +415,37 @@ export default function CatalogView({
                     cursor: "pointer",
                   }}
                 >
-                  Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+                  Filtros
+                  {activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
                 </button>
 
                 <p style={{ margin: 0, color: "var(--text-muted)" }}>
-                  {filteredProducts.length} producto{filteredProducts.length === 1 ? "" : "s"} encontrados
+                  {filteredProducts.length} producto
+                  {filteredProducts.length === 1 ? "" : "s"} encontrados
                 </p>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
                 <p style={{ margin: 0, color: "var(--text-muted)" }}>
-                  Precio entre {formatCurrency(minCatalogPrice)} y {formatCurrency(maxCatalogPrice)}
+                  Precio entre {formatCurrency(minCatalogPrice)} y{" "}
+                  {formatCurrency(maxCatalogPrice)}
                 </p>
                 <select
                   value={sortBy}
                   onChange={(event) =>
-                    setSortBy(event.target.value as "featured" | "price-asc" | "price-desc")
+                    setSortBy(
+                      event.target.value as
+                        | "featured"
+                        | "price-asc"
+                        | "price-desc",
+                    )
                   }
                   className="theme-select"
                   aria-label="Ordenar catalogo"
@@ -429,7 +500,14 @@ export default function CatalogView({
                   "width 320ms var(--ease-theme), max-height 320ms var(--ease-theme), opacity 220ms var(--ease-theme), padding 320ms var(--ease-theme), border-color 320ms var(--ease-theme)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
                 <strong style={{ fontSize: 22, color: "var(--text-strong)" }}>
                   Refina tu seleccion
                 </strong>
@@ -491,13 +569,19 @@ export default function CatalogView({
                   <p style={filterLabelStyle}>Categorias</p>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {categoryOptions.map((category) => {
-                      const selected = selectedCategories.includes(category.slug);
+                      const selected = selectedCategories.includes(
+                        category.slug,
+                      );
                       return (
                         <button
                           key={category.slug}
                           type="button"
                           onClick={() =>
-                            toggleValue(category.slug, selectedCategories, setSelectedCategories)
+                            toggleValue(
+                              category.slug,
+                              selectedCategories,
+                              setSelectedCategories,
+                            )
                           }
                           className="theme-button"
                           style={chipStyle(selected)}
@@ -520,7 +604,9 @@ export default function CatalogView({
                         <button
                           key={size}
                           type="button"
-                          onClick={() => toggleValue(size, selectedSizes, setSelectedSizes)}
+                          onClick={() =>
+                            toggleValue(size, selectedSizes, setSelectedSizes)
+                          }
                           className="theme-button"
                           style={chipStyle(selected)}
                         >
@@ -537,15 +623,17 @@ export default function CatalogView({
                   <p style={filterLabelStyle}>{option.name}</p>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {option.values.map((value) => {
-                      const selected = (selectedOptionValues[option.id] ?? []).includes(
-                        value.label,
-                      );
+                      const selected = (
+                        selectedOptionValues[option.id] ?? []
+                      ).includes(value.label);
 
                       return (
                         <button
                           key={`${option.id}-${value.label}`}
                           type="button"
-                          onClick={() => toggleDynamicValue(option.id, value.label)}
+                          onClick={() =>
+                            toggleDynamicValue(option.id, value.label)
+                          }
                           className="theme-button"
                           style={chipStyle(selected)}
                         >
@@ -570,8 +658,8 @@ export default function CatalogView({
                     lineHeight: 1.8,
                   }}
                 >
-                  No encontramos productos con esa combinacion de filtros. Prueba abrir el rango de
-                  precio o quitar alguna seleccion.
+                  No encontramos productos con esa combinacion de filtros.
+                  Prueba abrir el rango de precio o quitar alguna seleccion.
                 </div>
               ) : (
                 <div
@@ -598,7 +686,13 @@ export default function CatalogView({
                   }}
                 >
                   {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      bankTransferDiscountPercentage={
+                        bankTransferDiscountPercentage
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -634,9 +728,7 @@ const chipStyle = (selected: boolean): React.CSSProperties => ({
   border: selected
     ? "1px solid var(--ghost-chip-active-border)"
     : "1px solid var(--ghost-chip-border)",
-  background: selected
-    ? "var(--ghost-chip-active-bg)"
-    : "var(--ghost-chip-bg)",
+  background: selected ? "var(--ghost-chip-active-bg)" : "var(--ghost-chip-bg)",
   color: "var(--ghost-chip-color)",
   cursor: "pointer",
   textTransform: "uppercase",

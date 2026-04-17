@@ -18,7 +18,7 @@ export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeL
       <div
         className="theme-footer-grid"
         style={{
-          maxWidth: 1280,
+          maxWidth: "var(--theme-layout-max-width, 1280px)",
           margin: "0 auto",
           padding: "48px 20px 56px",
           display: "grid",

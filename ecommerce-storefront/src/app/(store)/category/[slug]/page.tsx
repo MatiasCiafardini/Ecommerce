@@ -1,4 +1,5 @@
 import { getProducts } from "@/services/products.service";
+import { getBankTransferDiscountPercentage } from "@/services/payment-config.service";
 import ProductCard from "@/components/product/ProductCard";
 import { getTenantConfig } from "@/lib/tenant/get-tenant";
 
@@ -12,9 +13,10 @@ type Props = {
 
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
-  const [products, config] = await Promise.all([
+  const [products, config, bankTransferDiscountPercentage] = await Promise.all([
     getProducts({ category: slug }),
     getTenantConfig(),
+    getBankTransferDiscountPercentage(),
   ]);
   const categoryTitle = slug
     .split("-")
@@ -54,7 +56,11 @@ export default async function CategoryPage({ params }: Props) {
           }}
         >
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              bankTransferDiscountPercentage={bankTransferDiscountPercentage}
+            />
           ))}
         </div>
       </div>

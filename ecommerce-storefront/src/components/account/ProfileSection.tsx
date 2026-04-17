@@ -308,5 +308,11 @@ const errorStyle: React.CSSProperties = {
 
 const successStyle: React.CSSProperties = {
   margin: 0,
+  padding: "14px 16px",
+  borderRadius: 18,
+  border: "1px solid var(--admin-tone-success-border)",
+  background: "var(--admin-tone-success-bg)",
   color: "var(--admin-tone-success-color)",
+  fontWeight: 700,
+  lineHeight: 1.5,
 };
