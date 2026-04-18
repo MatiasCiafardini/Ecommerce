@@ -381,7 +381,6 @@
 .theme-mimaria .mimaria-menu-secondary,
 .theme-mimaria .mimaria-menu-sublink {
   border-radius: 14px;
-  overflow: hidden;
   transition:
     background-color 180ms ease-out,
     color 180ms ease-out,
@@ -392,16 +391,19 @@
 .theme-mimaria .mimaria-menu-link {
   padding: 14px 16px !important;
   margin-inline: -8px;
+  line-height: 1.35;
 }
 
 .theme-mimaria .mimaria-menu-secondary {
   padding: 12px 16px !important;
   margin-inline: -8px;
+  line-height: 1.35;
 }
 
 .theme-mimaria .mimaria-menu-sublink {
   padding: 8px 14px !important;
   margin-inline: -6px;
+  line-height: 1.35;
 }
 
 .theme-mimaria .mimaria-menu-link:hover,
