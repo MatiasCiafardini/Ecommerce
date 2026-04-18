@@ -289,7 +289,7 @@ export default function Header({
               width: isMobile ? "fit-content" : undefined,
             }}
           >
-            <NotificationsMenu mobileSheet={isMobile} />
+            <NotificationsMenu mobileSheet={isMobile ?? undefined} />
 
             {isMobile === false && user ? (
               <Link
@@ -349,7 +349,6 @@ export default function Header({
             transform: translateX(-50%) !important;
           }
         `}</style>
-
       </header>
 
       {menuMounted ? (
