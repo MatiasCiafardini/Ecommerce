@@ -82,9 +82,6 @@ export default function HeroCarousel({
     setVirtualIndex(normalizedIndex + 1);
   };
 
-  const goToPreviousSlide = () => goToSlide(activeIndex - 1);
-  const goToNextSlide = () => goToSlide(activeIndex + 1);
-
   const handleAutoplayAdvance = useEffectEvent(() => {
     goToSlide(activeIndex + 1);
   });
@@ -165,12 +162,13 @@ export default function HeroCarousel({
       >
         <div
           ref={trackRef}
+          className="theme-hero-carousel-track"
+          data-transition-enabled={isTransitionEnabled ? "true" : "false"}
           style={{
             display: "flex",
             width: `${renderedSlides.length * 100}%`,
             minHeight: "clamp(460px, 62vh, 600px)",
             transform: `translate3d(-${virtualIndex * (100 / renderedSlides.length)}%, 0, 0)`,
-            transition: isTransitionEnabled ? carouselTransition : "none",
             willChange: "transform",
             backfaceVisibility: "hidden",
           }}
@@ -447,64 +445,6 @@ export default function HeroCarousel({
 
         {safeSlides.length > 1 ? (
           <>
-            <button
-              type="button"
-              aria-label="Banner anterior"
-              onClick={goToPreviousSlide}
-              className="theme-button"
-              style={{
-                position: "absolute",
-                left: 18,
-                top: "50%",
-                transform: "translateY(-50%)",
-                zIndex: 3,
-                width: 48,
-                height: 48,
-                display: "grid",
-                placeItems: "center",
-                borderRadius: 999,
-                border: "1px solid var(--border-soft)",
-                background: "color-mix(in srgb, var(--page-panel-bg) 84%, transparent)",
-                color: "var(--text-strong)",
-                backdropFilter: "blur(10px)",
-                cursor: "pointer",
-                padding: 0,
-              }}
-            >
-              <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
-                {"<"}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              aria-label="Banner siguiente"
-              onClick={goToNextSlide}
-              className="theme-button"
-              style={{
-                position: "absolute",
-                right: 18,
-                top: "50%",
-                transform: "translateY(-50%)",
-                zIndex: 3,
-                width: 48,
-                height: 48,
-                display: "grid",
-                placeItems: "center",
-                borderRadius: 999,
-                border: "1px solid var(--border-soft)",
-                background: "color-mix(in srgb, var(--page-panel-bg) 84%, transparent)",
-                color: "var(--text-strong)",
-                backdropFilter: "blur(10px)",
-                cursor: "pointer",
-                padding: 0,
-              }}
-            >
-              <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
-                {">"}
-              </span>
-            </button>
-
             <div
               style={{
                 position: "absolute",
@@ -562,6 +502,26 @@ export default function HeroCarousel({
           </>
         ) : null}
       </div>
+
+      <style jsx>{`
+        .theme-hero-carousel-track[data-transition-enabled="true"] {
+          transition: ${carouselTransition};
+        }
+
+        .theme-hero-carousel-track[data-transition-enabled="false"] {
+          transition: none;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .theme-hero-carousel-track[data-transition-enabled="true"] {
+            transition: ${carouselTransition} !important;
+          }
+
+          .theme-hero-carousel-track[data-transition-enabled="false"] {
+            transition: none !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }

@@ -1,0 +1,258 @@
+/* =============================================================================
+   THEME: MINIMAL
+   Dark mode. Rounded shapes (28px). Ambient animations enabled.
+   Paleta: negro profundo, acentos tierra/cobre.
+   ============================================================================= */
+
+.theme-minimal {
+  /* Layout */
+  --theme-layout-max-width: 1600px;
+
+  /* Semantic color mappings — values injected by ThemeProvider inline style */
+  --background: var(--theme-colors-background);
+  --foreground: var(--theme-colors-text);
+  --surface: var(--theme-colors-background-soft);
+  --surface-soft: var(--theme-colors-background-elevated);
+  --border-soft: var(--theme-colors-border);
+  --border-strong: var(--theme-colors-border-strong);
+  --paper: var(--theme-colors-paper);
+  --paper-muted: var(--theme-colors-paper-muted);
+  --text-strong: var(--theme-colors-text-strong);
+  --text-muted: var(--theme-colors-text-muted);
+  --accent: var(--theme-colors-accent);
+  --accent-strong: var(--theme-colors-accent-strong);
+  --accent-contrast: var(--theme-colors-accent-contrast);
+
+  /* Page shells */
+  --page-shell-bg: var(--background);
+  --page-panel-bg: color-mix(in srgb, var(--surface) 88%, var(--background));
+  --page-panel-strong-bg: color-mix(in srgb, var(--surface-soft) 92%, var(--background));
+  --muted-field-bg: color-mix(in srgb, var(--surface-soft) 82%, var(--background));
+  --muted-field-color: var(--text-strong);
+
+  /* Chips */
+  --ghost-chip-border: var(--border-soft);
+  --ghost-chip-active-border: var(--border-strong);
+  --ghost-chip-bg: transparent;
+  --ghost-chip-active-bg: color-mix(in srgb, var(--paper) 16%, transparent);
+  --ghost-chip-color: var(--text-strong);
+
+  /* Store shells */
+  --store-shell-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 78%, var(--theme-colors-paper-muted) 22%),
+    color-mix(in srgb, white 92%, var(--theme-colors-paper-muted) 8%)
+  );
+  --store-content-bg: transparent;
+  --block-section-bg: transparent;
+  --block-card-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%),
+    color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
+  );
+  --block-panel-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%),
+    color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
+  );
+  --testimonial-card-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%),
+    color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
+  );
+  --testimonial-card-featured-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 76%, var(--theme-colors-paper-muted) 24%),
+    color-mix(in srgb, white 94%, var(--theme-colors-paper-muted) 6%)
+  );
+  --newsletter-shell-bg: linear-gradient(
+    135deg,
+    color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%),
+    color-mix(in srgb, white 94%, var(--theme-colors-paper-muted) 6%)
+  );
+  --newsletter-input-bg: color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%);
+  --product-media-fallback: #ffffff;
+  --category-image-overlay: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-colors-background) 10%, transparent),
+    color-mix(in srgb, var(--theme-colors-background) 28%, transparent)
+  );
+
+  /* Hover/interaction */
+  --theme-hover-translate-y: -5px;
+  --theme-hover-shadow: 0 22px 40px rgba(90, 67, 53, 0.12);
+  --theme-hover-border: var(--theme-colors-border-strong);
+
+  /* Animations — enabled for minimal */
+  --theme-ambient-animation: theme-minimal-ambient-pan 18s linear infinite alternate;
+  --theme-float-animation: theme-minimal-float-slow 6.4s var(--ease-theme) infinite alternate;
+  --theme-pulse-animation: theme-minimal-pulse-glow 5.8s var(--ease-theme) infinite;
+
+  /* Header actions */
+  --header-action-bg: rgba(255, 255, 255, 0.04);
+  --header-action-bg-active: rgba(255, 255, 255, 0.08);
+  --header-action-border: rgba(255, 255, 255, 0.12);
+  --header-action-border-active: rgba(247, 241, 232, 0.22);
+  --header-action-color: #ffffff;
+  --header-action-badge-bg: #f7f1e8;
+  --header-action-badge-color: #0b0b0b;
+
+  /* Notifications */
+  --notification-overlay-bg: rgba(0, 0, 0, 0.42);
+  --notification-panel-bg: rgba(10, 10, 10, 0.96);
+  --notification-panel-mobile-bg: linear-gradient(
+    180deg,
+    rgba(18, 18, 18, 0.98),
+    rgba(10, 10, 10, 0.98)
+  );
+  --notification-panel-border: rgba(255, 255, 255, 0.08);
+  --notification-panel-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  --notification-header-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.02)
+  );
+  --notification-header-border: rgba(255, 255, 255, 0.08);
+  --notification-card-bg: rgba(255, 255, 255, 0.03);
+  --notification-card-border: rgba(255, 255, 255, 0.08);
+  --notification-empty-bg: rgba(255, 255, 255, 0.02);
+  --notification-empty-border: rgba(255, 255, 255, 0.12);
+  --notification-text-strong: #ffffff;
+  --notification-text-muted: rgba(247, 241, 232, 0.54);
+  --notification-text-soft: rgba(247, 241, 232, 0.7);
+  --notification-text-faint: rgba(247, 241, 232, 0.66);
+
+  /* Checkout */
+  --checkout-panel-bg: var(--page-panel-bg);
+  --checkout-panel-strong-bg: var(--page-panel-strong-bg);
+  --checkout-card-bg: color-mix(in srgb, var(--surface-soft) 84%, var(--background));
+  --checkout-card-alt-bg: color-mix(in srgb, var(--surface-soft) 74%, var(--background));
+  --checkout-border: var(--border-soft);
+  --checkout-border-strong: var(--border-strong);
+  --checkout-text-strong: var(--text-strong);
+  --checkout-text-muted: var(--text-muted);
+  --checkout-field-bg: var(--muted-field-bg);
+  --checkout-field-color: var(--muted-field-color);
+  --checkout-primary-bg: var(--accent-strong);
+  --checkout-primary-color: var(--accent-contrast);
+  --checkout-secondary-bg: transparent;
+  --checkout-secondary-color: var(--text-strong);
+
+  /* Account */
+  --account-shell-bg:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 30%),
+    #0b0b0b;
+  --account-sidebar-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.02)
+  );
+  --account-sidebar-border: rgba(255, 255, 255, 0.08);
+  --account-group-bg: rgba(255, 255, 255, 0.03);
+  --account-group-border: rgba(255, 255, 255, 0.08);
+  --account-item-bg: rgba(8, 8, 8, 0.35);
+  --account-item-bg-active: rgba(255, 255, 255, 0.08);
+  --account-item-border: rgba(255, 255, 255, 0.08);
+  --account-item-border-active: rgba(255, 255, 255, 0.18);
+  --account-text-strong: #f7f1e8;
+  --account-text-muted: rgba(247, 241, 232, 0.68);
+  --account-text-soft: rgba(247, 241, 232, 0.56);
+  --account-text-faint: rgba(247, 241, 232, 0.48);
+
+  /* Admin */
+  --admin-stat-bg: color-mix(in srgb, var(--page-panel-bg) 92%, var(--background));
+  --admin-overlay-bg: rgba(7, 7, 7, 0.76);
+  --admin-modal-shadow: 0 28px 60px rgba(0, 0, 0, 0.28);
+  --admin-preview-stage-bg: #ffffff;
+  --admin-preview-frame-border: rgba(255, 255, 255, 0.28);
+  --admin-preview-gridline: rgba(255, 255, 255, 0.24);
+  --admin-preview-crop-mask: rgba(8, 8, 8, 0.52);
+  --admin-preview-guide-border: rgba(255, 255, 255, 0.72);
+  --admin-preview-guide-bg: rgba(255, 255, 255, 0.14);
+  --admin-status-idle-bg: rgba(255, 255, 255, 0.04);
+  --admin-status-idle-border: rgba(255, 255, 255, 0.12);
+  --admin-status-idle-color: #f7f1e8;
+  --admin-tone-soft-bg: rgba(198, 179, 255, 0.14);
+  --admin-tone-soft-border: rgba(198, 179, 255, 0.3);
+  --admin-tone-soft-color: #efe6ff;
+  --admin-tone-info-bg: rgba(129, 199, 255, 0.12);
+  --admin-tone-info-border: rgba(129, 199, 255, 0.26);
+  --admin-tone-info-color: #d2efff;
+  --admin-tone-success-bg: rgba(184, 245, 194, 0.12);
+  --admin-tone-success-border: rgba(184, 245, 194, 0.24);
+  --admin-tone-success-color: #cbffd2;
+  --admin-tone-warning-bg: rgba(255, 214, 122, 0.12);
+  --admin-tone-warning-border: rgba(255, 214, 122, 0.26);
+  --admin-tone-warning-color: #ffe8ad;
+  --admin-chip-bg: rgba(255, 255, 255, 0.03);
+  --admin-chip-border: rgba(255, 255, 255, 0.12);
+  --admin-chip-color: #f7f1e8;
+  --admin-chip-selected-bg: linear-gradient(
+    180deg,
+    rgba(255, 214, 122, 0.28),
+    rgba(255, 173, 51, 0.18)
+  );
+  --admin-chip-selected-border: rgba(255, 214, 122, 0.58);
+  --admin-chip-selected-color: #fff6df;
+  --admin-chip-selected-shadow: 0 0 0 1px rgba(255, 183, 77, 0.18) inset;
+  --admin-danger-bg: rgba(255, 159, 159, 0.08);
+  --admin-danger-border: rgba(255, 159, 159, 0.28);
+  --admin-danger-color: #ffd6d6;
+
+  /* Select */
+  --select-bg: var(--muted-field-bg);
+  --select-color: var(--muted-field-color);
+  --select-border: var(--border-soft);
+  --select-border-focus: color-mix(in srgb, var(--foreground) 24%, transparent);
+  --select-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--foreground) 8%, transparent);
+  --select-arrow-color: color-mix(in srgb, var(--foreground) 92%, transparent);
+}
+
+/* Minimal-specific component overrides */
+.theme-minimal .checkout-select-card:hover {
+  border-color: var(--checkout-border-strong) !important;
+}
+
+.theme-minimal .checkout-select-card[data-active="true"] {
+  background: var(--ghost-chip-active-bg) !important;
+  border-color: var(--checkout-border-strong) !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.16);
+}
+
+.theme-minimal .theme-editorial-panel {
+  background:
+    linear-gradient(135deg, rgba(12, 12, 12, 0.14), rgba(243, 238, 231, 0.06)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 55%);
+  --editorial-panel-overlay: linear-gradient(
+    90deg,
+    rgba(11, 11, 11, 0.18) 0%,
+    rgba(11, 11, 11, 0.04) 46%,
+    rgba(243, 238, 231, 0.04) 100%
+  );
+  --editorial-pill-bg: rgba(10, 10, 10, 0.32);
+  --editorial-title-shadow: none;
+}
+
+.theme-minimal .theme-category-media[data-tone="soft"] {
+  background: linear-gradient(135deg, #2a2a2a 0%, #83786a 100%);
+}
+
+.theme-minimal .theme-category-media[data-tone="warm"] {
+  background: linear-gradient(135deg, #171717 0%, #8e6d54 100%);
+}
+
+/* Minimal theme keyframes — scoped to this theme only */
+@keyframes theme-minimal-ambient-pan {
+  0% { background-position: 0% 0%, center, center; }
+  100% { background-position: 6% 4%, center, center; }
+}
+
+@keyframes theme-minimal-float-slow {
+  from { transform: translateY(0); }
+  to { transform: translateY(-8px); }
+}
+
+@keyframes theme-minimal-pulse-glow {
+  0%, 100% { box-shadow: 0 18px 38px rgba(0, 0, 0, 0.12); }
+  50% { box-shadow: 0 24px 44px rgba(243, 238, 231, 0.1); }
+}

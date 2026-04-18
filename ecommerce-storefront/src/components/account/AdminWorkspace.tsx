@@ -166,6 +166,10 @@ type DuplicateSkuPromptState = {
   title: string;
 };
 
+type PendingVariantSwitchState = {
+  nextIndex: number | null;
+};
+
 const statuses = [
   "pending",
   "paid",
@@ -654,6 +658,13 @@ function AdminProductsSection({
     useState<PendingOptionRemoval | null>(null);
   const [duplicateSkuPrompt, setDuplicateSkuPrompt] =
     useState<DuplicateSkuPromptState | null>(null);
+  const [editingVariantIndex, setEditingVariantIndex] = useState<number | null>(
+    null,
+  );
+  const [variantDraftInitialState, setVariantDraftInitialState] =
+    useState<EditableVariant | null>(null);
+  const [pendingVariantSwitch, setPendingVariantSwitch] =
+    useState<PendingVariantSwitchState | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -993,6 +1004,9 @@ function AdminProductsSection({
     setLoadedOptionValues([]);
     setDraftOptionValues({});
     setVariantDraft(emptyVariant());
+    setEditingVariantIndex(null);
+    setVariantDraftInitialState(null);
+    setPendingVariantSwitch(null);
     setVariants([]);
     setLoadedVariants([]);
   };
@@ -1152,6 +1166,42 @@ function AdminProductsSection({
     length: variant.length.trim(),
   });
 
+  const isVariantEmpty = useCallback((variant: EditableVariant) => {
+    const normalized = normalizeVariant(variant);
+    return ![
+      normalized.sku,
+      normalized.price,
+      normalized.Size,
+      normalized.Color,
+      normalized.inventoryQuantity,
+      normalized.weight,
+      normalized.width,
+      normalized.height,
+      normalized.length,
+    ].some(Boolean);
+  }, []);
+
+  const variantDraftIsDirty = useMemo(() => {
+    const normalizedDraft = normalizeVariant(variantDraft);
+
+    if (editingVariantIndex !== null && variantDraftInitialState) {
+      const normalizedInitial = normalizeVariant(variantDraftInitialState);
+      return (
+        normalizedDraft.sku !== normalizedInitial.sku ||
+        normalizedDraft.price !== normalizedInitial.price ||
+        normalizedDraft.Size !== normalizedInitial.Size ||
+        normalizedDraft.Color !== normalizedInitial.Color ||
+        normalizedDraft.inventoryQuantity !== normalizedInitial.inventoryQuantity ||
+        normalizedDraft.weight !== normalizedInitial.weight ||
+        normalizedDraft.width !== normalizedInitial.width ||
+        normalizedDraft.height !== normalizedInitial.height ||
+        normalizedDraft.length !== normalizedInitial.length
+      );
+    }
+
+    return !isVariantEmpty(normalizedDraft);
+  }, [editingVariantIndex, isVariantEmpty, variantDraft, variantDraftInitialState]);
+
   const isDuplicateSkuError = (message: string) => {
     const normalized = message.trim().toLowerCase();
     return normalized.includes("sku already exists");
@@ -1186,41 +1236,136 @@ function AdminProductsSection({
     }));
   };
 
+  const loadVariantIntoDraft = (index: number) => {
+    const selected = variants[index];
+
+    if (!selected) {
+      setVariantDraft(emptyVariant());
+      setEditingVariantIndex(null);
+      setVariantDraftInitialState(null);
+      return;
+    }
+
+    const normalized = normalizeVariant(selected);
+    setVariantDraft(normalized);
+    setEditingVariantIndex(index);
+    setVariantDraftInitialState(normalized);
+  };
+
+  const requestEditVariant = (index: number) => {
+    if (index === editingVariantIndex) {
+      return;
+    }
+
+    if (variantDraftIsDirty) {
+      setPendingVariantSwitch({ nextIndex: index });
+      return;
+    }
+
+    loadVariantIntoDraft(index);
+  };
+
+  const clearVariantDraft = () => {
+    setVariantDraft(emptyVariant());
+    setEditingVariantIndex(null);
+    setVariantDraftInitialState(null);
+  };
+
   const addVariant = () => {
     const normalized = normalizeVariant(variantDraft);
 
     if (!normalized.sku || !normalized.price) {
       setError("Cada variante necesita al menos SKU y precio.");
-      return;
+      return false;
+    }
+
+    const duplicateIndex = variants.findIndex(
+      (item, itemIndex) =>
+        item.sku.trim().toLowerCase() === normalized.sku.toLowerCase() &&
+        item.id !== normalized.id &&
+        itemIndex !== editingVariantIndex,
+    );
+
+    if (duplicateIndex >= 0) {
+      setError("Ya existe otra variante con ese SKU.");
+      return false;
     }
 
     setVariants((current) => {
-      const duplicateIndex = current.findIndex(
-        (item) =>
-          item.sku.trim().toLowerCase() === normalized.sku.toLowerCase() &&
-          item.id !== normalized.id,
-      );
-
-      if (duplicateIndex >= 0) {
+      if (
+        editingVariantIndex !== null &&
+        editingVariantIndex >= 0 &&
+        editingVariantIndex < current.length
+      ) {
         const next = [...current];
-        next[duplicateIndex] = normalized;
+        next[editingVariantIndex] = normalized;
         return next;
       }
 
       return [...current, normalized];
     });
 
-    setVariantDraft(emptyVariant());
+    clearVariantDraft();
     setError("");
+    return true;
   };
 
-  const editVariant = (index: number) => {
-    setVariants((current) => {
-      const next = [...current];
-      const [selected] = next.splice(index, 1);
-      setVariantDraft(selected ?? emptyVariant());
-      return next;
-    });
+  const handleVariantDiscard = () => {
+    const nextIndex = pendingVariantSwitch?.nextIndex ?? null;
+    clearVariantDraft();
+    setPendingVariantSwitch(null);
+    if (nextIndex !== null) {
+      loadVariantIntoDraft(nextIndex);
+    }
+  };
+
+  const handleVariantSaveAndContinue = () => {
+    const nextIndex = pendingVariantSwitch?.nextIndex ?? null;
+    const saved = addVariant();
+
+    if (!saved) {
+      return;
+    }
+
+    setPendingVariantSwitch(null);
+    if (nextIndex !== null) {
+      loadVariantIntoDraft(nextIndex);
+    }
+  };
+
+  const buildVariantsToPersist = () => {
+    const draftIsEmpty = isVariantEmpty(variantDraft);
+    const normalizedDraft = normalizeVariant(variantDraft);
+    let nextVariants = [...variants];
+
+    if (!draftIsEmpty) {
+      if (!normalizedDraft.sku || !normalizedDraft.price) {
+        throw new Error("Cada variante necesita al menos SKU y precio.");
+      }
+
+      const duplicateIndex = nextVariants.findIndex(
+        (item, itemIndex) =>
+          item.sku.trim().toLowerCase() === normalizedDraft.sku.toLowerCase() &&
+          item.id !== normalizedDraft.id &&
+          itemIndex !== editingVariantIndex,
+      );
+
+      if (duplicateIndex >= 0) {
+        throw new Error("Ya existe otra variante con ese SKU.");
+      }
+
+      if (
+        editingVariantIndex !== null &&
+        editingVariantIndex >= 0 &&
+        editingVariantIndex < nextVariants.length
+      ) {
+        nextVariants[editingVariantIndex] = normalizedDraft;
+      } else {
+        nextVariants = [...nextVariants, normalizedDraft];
+      }
+    }
+
+    return nextVariants;
   };
 
   const createOption = async () => {
@@ -1448,11 +1593,17 @@ function AdminProductsSection({
         pendingRemoval.productsCount,
       );
     } else if (pendingRemoval.kind === "variant") {
+      const removedIndex = pendingRemoval.variantIndex;
       setVariants((current) =>
         current.filter(
-          (_, itemIndex) => itemIndex !== pendingRemoval.variantIndex,
+          (_, itemIndex) => itemIndex !== removedIndex,
         ),
       );
+      if (editingVariantIndex === removedIndex) {
+        clearVariantDraft();
+      } else if (editingVariantIndex !== null && editingVariantIndex > removedIndex) {
+        setEditingVariantIndex(editingVariantIndex - 1);
+      }
       setSuccess("Variante eliminada del borrador actual.");
     } else if (pendingRemoval.kind === "product") {
       await removeProduct(
@@ -1555,7 +1706,7 @@ function AdminProductsSection({
 
         setVariants(safeVariants);
         setLoadedVariants(safeVariants);
-        setVariantDraft(emptyVariant());
+        clearVariantDraft();
         setActiveTab("create");
 
         formTopRef.current?.scrollIntoView({
@@ -1783,14 +1934,16 @@ function AdminProductsSection({
     );
 
     for (const variant of variantsToSync) {
-      const payload = {
+      const inventoryQuantity = variant.inventoryQuantity.trim()
+        ? Number(variant.inventoryQuantity)
+        : 0;
+
+      const createPayload = {
         sku: variant.sku.trim(),
         price: Number(variant.price),
         Size: variant.Size.trim() || undefined,
         Color: variant.Color.trim() || undefined,
-        inventoryQuantity: variant.inventoryQuantity.trim()
-          ? Number(variant.inventoryQuantity)
-          : undefined,
+        inventoryQuantity,
         weightGrams: variant.weight.trim()
           ? Number(variant.weight)
           : undefined,
@@ -1805,15 +1958,35 @@ function AdminProductsSection({
           : undefined,
       };
 
+      const updatePayload = {
+        sku: variant.sku.trim(),
+        price: Number(variant.price),
+        Size: variant.Size.trim() || null,
+        Color: variant.Color.trim() || null,
+        inventoryQuantity,
+        weightGrams: variant.weight.trim()
+          ? Number(variant.weight)
+          : null,
+        packageWidthCm: variant.width.trim()
+          ? Number(variant.width)
+          : null,
+        packageHeightCm: variant.height.trim()
+          ? Number(variant.height)
+          : null,
+        packageLengthCm: variant.length.trim()
+          ? Number(variant.length)
+          : null,
+      };
+
       if (variant.id) {
         await api(`/variants/${variant.id}`, {
           method: "PATCH",
-          body: JSON.stringify(payload),
+          body: JSON.stringify(updatePayload),
         });
       } else {
         await api("/variants", {
           method: "POST",
-          body: JSON.stringify({ ...payload, productId }),
+          body: JSON.stringify({ ...createPayload, productId }),
         });
       }
     }
@@ -1831,13 +2004,6 @@ function AdminProductsSection({
       return;
     }
 
-    if (
-      variants.some((variant) => !variant.sku.trim() || !variant.price.trim())
-    ) {
-      setError("Cada variante cargada necesita al menos SKU y precio.");
-      return;
-    }
-
     try {
       setSaving(true);
       setError("");
@@ -1848,9 +2014,21 @@ function AdminProductsSection({
       let currentProduct = products.find(
         (product) => product.id === editingProductId,
       );
+      const baseVariantsToSync = buildVariantsToPersist();
+
+      if (
+        baseVariantsToSync.some(
+          (variant) => !variant.sku.trim() || !variant.price.trim(),
+        )
+      ) {
+        setError("Cada variante cargada necesita al menos SKU y precio.");
+        setSaving(false);
+        return;
+      }
+
       const variantsToSync = autoGenerateSkus
-        ? generateAutomaticSkus(variants)
-        : variants;
+        ? generateAutomaticSkus(baseVariantsToSync)
+        : baseVariantsToSync;
 
       if (editingProductId) {
         await api(`/products/${editingProductId}`, {
@@ -1913,11 +2091,13 @@ function AdminProductsSection({
       if (activeTab === "stock") {
         await loadStockData(nextProducts);
       }
-      if (autoGenerateSkus) {
-        setVariants(variantsToSync);
-        setLoadedVariants(variantsToSync);
+      const refreshedProduct = nextProducts.find((item) => item.id === productId);
+
+      if (wasEditing && refreshedProduct) {
+        await hydrateFormFromProduct(refreshedProduct);
+      } else {
+        resetForm();
       }
-      resetForm();
       setSuccess(
         wasEditing
           ? "Producto actualizado desde el formulario principal."
@@ -2281,7 +2461,9 @@ function AdminProductsSection({
             <div style={responsiveOptionGridStyle}>
               {options.map((option) => (
                 <article key={option.id} style={optionCardStyle}>
-                  <strong style={{ color: "#fff" }}>{option.name}</strong>
+                  <strong style={{ color: "var(--account-text-strong)" }}>
+                    {option.name}
+                  </strong>
                   <div style={optionValuesAreaStyle}>
                     <div style={chipRowStyle}>
                       {(option.reusableValues ?? []).map((value) => (
@@ -2442,13 +2624,13 @@ function AdminProductsSection({
               >
                 {variantDraft.id ? "Actualizar variante" : "Agregar variante"}
               </button>
-              {variantDraft.sku || variantDraft.price ? (
+              {variantDraftIsDirty ? (
                 <button
                   type="button"
-                  onClick={() => setVariantDraft(emptyVariant())}
+                  onClick={clearVariantDraft}
                   style={ghostButtonStyle}
                 >
-                  Limpiar variante
+                  {editingVariantIndex !== null ? "Cancelar edicion" : "Limpiar variante"}
                 </button>
               ) : null}
             </div>
@@ -2477,7 +2659,7 @@ function AdminProductsSection({
                       <div style={rowWrapStyle}>
                         <button
                           type="button"
-                          onClick={() => editVariant(index)}
+                          onClick={() => requestEditVariant(index)}
                           style={ghostButtonStyle}
                         >
                           Editar
@@ -2534,7 +2716,7 @@ function AdminProductsSection({
                             <div style={rowWrapStyle}>
                               <button
                                 type="button"
-                                onClick={() => editVariant(index)}
+                                onClick={() => requestEditVariant(index)}
                                 style={ghostButtonStyle}
                               >
                                 Editar
@@ -2632,7 +2814,12 @@ function AdminProductsSection({
                   <article key={product.id} style={{ ...itemStyle, padding: isPhone ? 16 : 18 }}>
                     <div style={betweenStyle}>
                       <div>
-                        <strong style={{ display: "block", color: "#fff" }}>
+                        <strong
+                          style={{
+                            display: "block",
+                            color: "var(--account-text-strong)",
+                          }}
+                        >
                           {product.title}
                         </strong>
                         <span style={metaStyle}>/{product.slug}</span>
@@ -2696,7 +2883,12 @@ function AdminProductsSection({
                     {filteredProducts.map((product) => (
                       <tr key={product.id}>
                         <td style={tdStyle}>
-                          <strong style={{ display: "block", color: "#fff" }}>
+                          <strong
+                            style={{
+                              display: "block",
+                              color: "var(--account-text-strong)",
+                            }}
+                          >
                             {product.title}
                           </strong>
                           <span style={metaStyle}>/{product.slug}</span>
@@ -3188,6 +3380,87 @@ function AdminProductsSection({
                 style={primaryButtonStyle}
               >
                 Confirmar eliminacion
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {pendingVariantSwitch ? (
+        <div
+          style={modalOverlayStyle}
+          role="presentation"
+          onClick={() => setPendingVariantSwitch(null)}
+        >
+          <section
+            style={{
+              ...modalCardStyle,
+              width: "min(100%, 640px)",
+              padding: "clamp(18px, 4vw, 30px)",
+              borderRadius: "clamp(20px, 4vw, 28px)",
+              gap: 18,
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="variant-discard-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <p
+                style={{
+                  ...eyebrowStyle,
+                  color: "var(--account-text-soft)",
+                }}
+              >
+                Cambios sin guardar
+              </p>
+              <strong
+                id="variant-discard-title"
+                style={{
+                  color: "var(--account-text-strong)",
+                  fontSize: "clamp(1.5rem, 4vw, 2rem)",
+                  lineHeight: 1.08,
+                }}
+              >
+                Hay cambios en la variante que todavia no guardaste.
+              </strong>
+              <p
+                style={{
+                  ...copyStyle,
+                  color: "var(--account-text-muted)",
+                  fontSize: "clamp(0.98rem, 2vw, 1.05rem)",
+                }}
+              >
+                Puedes guardarlos antes de abrir otra variante o descartarlos para continuar.
+              </p>
+            </div>
+            <div
+              style={{
+                ...modalActionsStyle,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                width: "100%",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setPendingVariantSwitch(null)}
+                style={{ ...ghostButtonStyle, width: "100%", justifyContent: "center" }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleVariantDiscard}
+                style={{ ...ghostButtonStyle, width: "100%", justifyContent: "center" }}
+              >
+                Descartar cambios
+              </button>
+              <button
+                type="button"
+                onClick={handleVariantSaveAndContinue}
+                style={{ ...primaryButtonStyle, width: "100%", justifyContent: "center" }}
+              >
+                Guardar
               </button>
             </div>
           </section>
@@ -4685,16 +4958,11 @@ function CatalogImageLayoutEditor({
           </div>
         </div>
 
-        <div style={catalogPreviewInfoStyle}>
-          <span style={catalogPreviewPriceStyle}>$33990</span>
-          <strong style={catalogPreviewTitleStyle}>{label}</strong>
-          <span style={catalogPreviewEyebrowStyle}>Streetwear essential</span>
-        </div>
       </div>
 
       <div style={{ display: "grid", gap: 10 }}>
         <div style={{ display: "grid", gap: 4 }}>
-          <strong style={{ color: "#fff" }}>{label}</strong>
+          <strong style={{ color: "var(--account-text-strong)" }}>{label}</strong>
           <span style={metaStyle}>{secondaryText}</span>
         </div>
         <span style={metaStyle}>
@@ -5064,16 +5332,13 @@ const imageEditorCardStyle: React.CSSProperties = {
   gap: 14,
 };
 const catalogPreviewCardStyle: React.CSSProperties = {
-  width: "var(--product-card-width)",
+  width: "100%",
   maxWidth: "100%",
-  height: "var(--product-card-height)",
-  minHeight: "var(--product-card-height)",
+  minWidth: 0,
   borderRadius: 24,
   overflow: "hidden",
   border: "1px solid var(--checkout-border)",
   background: "var(--page-panel-strong-bg)",
-  display: "grid",
-  gridTemplateRows: "320px 1fr",
 };
 const catalogPreviewFrameStyle: React.CSSProperties = {
   position: "absolute",
@@ -5116,8 +5381,10 @@ function catalogPreviewGridStyle(lines: number): React.CSSProperties {
 }
 const catalogPreviewEditorStageStyle: React.CSSProperties = {
   position: "relative",
-  minHeight: 320,
-  height: 320,
+  width: "100%",
+  aspectRatio: "1 / 1",
+  minHeight: 0,
+  height: "auto",
   display: "grid",
   placeItems: "center",
   overflow: "hidden",
@@ -5141,31 +5408,6 @@ const catalogPreviewCenterGuideStyle: React.CSSProperties = {
   border: "1px solid var(--admin-preview-guide-border)",
   background: "var(--admin-preview-guide-bg)",
   pointerEvents: "none",
-};
-const catalogPreviewInfoStyle: React.CSSProperties = {
-  minHeight: 126,
-  padding: "16px 16px 18px",
-  display: "grid",
-  gap: 6,
-  alignContent: "start",
-  borderTop: "1px solid var(--checkout-border)",
-  background: "var(--page-panel-bg)",
-};
-const catalogPreviewEyebrowStyle: React.CSSProperties = {
-  color: "var(--account-text-soft)",
-  textTransform: "uppercase",
-  letterSpacing: "0.16em",
-  fontSize: 11,
-};
-const catalogPreviewTitleStyle: React.CSSProperties = {
-  color: "var(--account-text-strong)",
-  fontSize: 18,
-  lineHeight: 1.12,
-};
-const catalogPreviewPriceStyle: React.CSSProperties = {
-  color: "var(--account-text-strong)",
-  fontSize: 14,
-  fontWeight: 700,
 };
 const resizeHandleBaseStyle: React.CSSProperties = {
   position: "absolute",

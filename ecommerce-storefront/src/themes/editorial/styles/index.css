@@ -1,0 +1,182 @@
+/* =============================================================================
+   THEME: EDITORIAL
+   Tinta negra sobre crudo. Tipografía editorial grande y bold. Contraste absoluto.
+   Identidad: revista de moda de alto nivel, impresión tipográfica.
+   ============================================================================= */
+
+.theme-editorial {
+  --background: var(--theme-colors-background);
+  --foreground: var(--theme-colors-text);
+  --surface: var(--theme-colors-background-soft);
+  --surface-soft: var(--theme-colors-background-elevated);
+  --border-soft: var(--theme-colors-border);
+  --border-strong: var(--theme-colors-border-strong);
+  --paper: var(--theme-colors-paper);
+  --paper-muted: var(--theme-colors-paper-muted);
+  --text-strong: var(--theme-colors-text-strong);
+  --text-muted: var(--theme-colors-text-muted);
+  --accent: var(--theme-colors-accent);
+  --accent-strong: var(--theme-colors-accent-strong);
+  --accent-contrast: var(--theme-colors-accent-contrast);
+
+  color-scheme: light;
+
+  --page-shell-bg: var(--background);
+  --page-panel-bg: var(--surface);
+  --page-panel-strong-bg: var(--surface-soft);
+  --muted-field-bg: var(--surface-soft);
+  --muted-field-color: var(--text-strong);
+  --ghost-chip-border: var(--border-strong);
+  --ghost-chip-active-border: var(--text-strong);
+  --ghost-chip-bg: transparent;
+  --ghost-chip-active-bg: var(--text-strong);
+  --ghost-chip-color: var(--text-strong);
+
+  --store-shell-bg: var(--background);
+  --store-content-bg: transparent;
+  --block-section-bg: transparent;
+  --block-card-bg: var(--background);
+  --block-panel-bg: var(--surface);
+  --testimonial-card-bg: var(--surface);
+  --testimonial-card-featured-bg: var(--text-strong);
+  --newsletter-shell-bg: var(--text-strong);
+  --newsletter-input-bg: rgba(255,255,255,0.1);
+  --product-media-fallback: var(--surface-soft);
+  --category-image-overlay: linear-gradient(
+    180deg,
+    transparent 20%,
+    color-mix(in srgb, var(--text-strong) 36%, transparent)
+  );
+
+  --theme-hover-translate-y: 0px;
+  --theme-hover-shadow: none;
+  --theme-hover-border: var(--text-strong);
+  --theme-ambient-animation: none;
+  --theme-float-animation: none;
+  --theme-pulse-animation: none;
+
+  --header-action-bg: transparent;
+  --header-action-bg-active: var(--text-strong);
+  --header-action-border: var(--text-strong);
+  --header-action-border-active: var(--text-strong);
+  --header-action-color: var(--text-strong);
+  --header-action-badge-bg: var(--text-strong);
+  --header-action-badge-color: var(--background);
+
+  --notification-overlay-bg: rgba(244,240,234,0.7);
+  --notification-panel-bg: var(--background);
+  --notification-panel-mobile-bg: var(--background);
+  --notification-panel-border: var(--border-strong);
+  --notification-panel-shadow: 0 12px 48px rgba(0,0,0,0.14);
+  --notification-header-bg: var(--surface);
+  --notification-header-border: var(--border-strong);
+  --notification-card-bg: var(--surface);
+  --notification-card-border: var(--border-soft);
+  --notification-empty-bg: var(--surface);
+  --notification-empty-border: var(--border-strong);
+  --notification-text-strong: var(--text-strong);
+  --notification-text-muted: var(--text-muted);
+  --notification-text-soft: var(--foreground);
+  --notification-text-faint: color-mix(in srgb, var(--foreground) 58%, transparent);
+
+  --checkout-panel-bg: var(--page-panel-bg);
+  --checkout-panel-strong-bg: var(--page-panel-strong-bg);
+  --checkout-card-bg: var(--background);
+  --checkout-card-alt-bg: var(--surface);
+  --checkout-border: var(--border-strong);
+  --checkout-border-strong: var(--text-strong);
+  --checkout-text-strong: var(--text-strong);
+  --checkout-text-muted: var(--text-muted);
+  --checkout-field-bg: var(--surface-soft);
+  --checkout-field-color: var(--text-strong);
+  --checkout-primary-bg: var(--text-strong);
+  --checkout-primary-color: var(--background);
+  --checkout-secondary-bg: transparent;
+  --checkout-secondary-color: var(--text-strong);
+
+  --account-shell-bg: var(--background);
+  --account-sidebar-bg: var(--surface);
+  --account-sidebar-border: var(--border-strong);
+  --account-group-bg: var(--surface-soft);
+  --account-group-border: var(--border-strong);
+  --account-item-bg: var(--background);
+  --account-item-bg-active: var(--surface);
+  --account-item-border: var(--border-soft);
+  --account-item-border-active: var(--text-strong);
+  --account-text-strong: var(--text-strong);
+  --account-text-muted: var(--text-muted);
+  --account-text-soft: color-mix(in srgb, var(--foreground) 68%, transparent);
+  --account-text-faint: color-mix(in srgb, var(--foreground) 44%, transparent);
+
+  --select-bg: var(--surface-soft);
+  --select-color: var(--text-strong);
+  --select-border: var(--border-strong);
+  --select-border-focus: var(--text-strong);
+  --select-shadow-focus: none;
+  --select-arrow-color: var(--text-strong);
+}
+
+.theme-editorial * {
+  color: inherit;
+}
+
+.theme-editorial h1,
+.theme-editorial h2,
+.theme-editorial h3,
+.theme-editorial .feature-title,
+.theme-editorial .theme-brand {
+  font-family: var(--font-display, "Times New Roman", serif);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.theme-editorial h1 { font-size: clamp(2.8rem, 6vw, 5.5rem); line-height: 0.96; }
+.theme-editorial h2 { font-size: clamp(1.8rem, 4vw, 3.2rem); line-height: 1.02; }
+
+.theme-editorial .theme-brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.theme-editorial .product-card-title {
+  font-family: var(--font-display, "Times New Roman", serif);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.theme-editorial .product-card-kicker {
+  letter-spacing: 0.22em;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+.theme-editorial .theme-hover-lift:hover {
+  outline: 2px solid var(--text-strong);
+  outline-offset: -2px;
+}
+
+.theme-editorial .theme-button:hover {
+  background: var(--text-strong) !important;
+  color: var(--background) !important;
+  border-color: var(--text-strong) !important;
+}
+
+.theme-editorial .theme-editorial-panel {
+  background: transparent;
+  --editorial-pill-bg: rgba(244,240,234,0.9);
+}
+
+.theme-editorial .checkout-select-card:hover {
+  border-color: var(--text-strong) !important;
+}
+
+.theme-editorial .checkout-select-card[data-active="true"] {
+  background: var(--surface-soft) !important;
+  border-color: var(--text-strong) !important;
+}

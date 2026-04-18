@@ -1,0 +1,284 @@
+/* =============================================================================
+   THEME: TROJANI
+   Tono cálido claro. Rounded shapes (28px). Animaciones sutiles.
+   Paleta: beige/crema, acentos terracota/cobre.
+   ============================================================================= */
+
+.theme-trojani {
+  /* Layout */
+  --theme-layout-max-width: 1600px;
+
+  /* Semantic color mappings */
+  --background: var(--theme-colors-background);
+  --foreground: var(--theme-colors-text);
+  --surface: var(--theme-colors-background-soft);
+  --surface-soft: var(--theme-colors-background-elevated);
+  --border-soft: var(--theme-colors-border);
+  --border-strong: var(--theme-colors-border-strong);
+  --paper: var(--theme-colors-paper);
+  --paper-muted: var(--theme-colors-paper-muted);
+  --text-strong: var(--theme-colors-text-strong);
+  --text-muted: var(--theme-colors-text-muted);
+  --accent: var(--theme-colors-accent);
+  --accent-strong: var(--theme-colors-accent-strong);
+  --accent-contrast: var(--theme-colors-accent-contrast);
+
+  /* Page shells */
+  --page-shell-bg: var(--background);
+  --page-panel-bg: color-mix(in srgb, var(--surface) 88%, var(--background));
+  --page-panel-strong-bg: color-mix(in srgb, var(--surface-soft) 92%, var(--background));
+  --muted-field-bg: color-mix(in srgb, var(--surface-soft) 82%, var(--background));
+  --muted-field-color: var(--text-strong);
+
+  /* Chips */
+  --ghost-chip-border: var(--border-soft);
+  --ghost-chip-active-border: var(--border-strong);
+  --ghost-chip-bg: transparent;
+  --ghost-chip-active-bg: color-mix(in srgb, var(--paper) 16%, transparent);
+  --ghost-chip-color: var(--text-strong);
+
+  /* Store shells */
+  --store-shell-bg: #ffffff;
+  --store-content-bg: transparent;
+  --block-section-bg: transparent;
+  --block-card-bg: #ffffff;
+  --block-panel-bg: #f8f8f8;
+  --testimonial-card-bg: #ffffff;
+  --testimonial-card-featured-bg: #f8f8f8;
+  --newsletter-shell-bg: #f8f8f8;
+  --newsletter-input-bg: #ffffff;
+  --product-media-fallback: #ffffff;
+  --category-image-overlay: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-colors-background) 10%, transparent),
+    color-mix(in srgb, var(--theme-colors-background) 28%, transparent)
+  );
+
+  /* Hover/interaction */
+  --theme-hover-translate-y: -5px;
+  --theme-hover-shadow: 0 22px 40px rgba(90, 67, 53, 0.12);
+  --theme-hover-border: var(--theme-colors-border-strong);
+
+  /* Animations — enabled for trojani */
+  --theme-ambient-animation: theme-trojani-ambient-pan 18s linear infinite alternate;
+  --theme-float-animation: theme-trojani-float-slow 6.4s var(--ease-theme) infinite alternate;
+  --theme-pulse-animation: theme-trojani-pulse-glow 5.8s var(--ease-theme) infinite;
+
+  /* Header actions — fondo negro, ícono blanco */
+  --header-action-bg: #000000;
+  --header-action-bg-active: #1a1a1a;
+  --header-action-border: #000000;
+  --header-action-border-active: #000000;
+  --header-action-color: #ffffff;
+  --header-action-badge-bg: #ffffff;
+  --header-action-badge-color: #000000;
+
+  /* Notifications */
+  --notification-overlay-bg: rgba(0, 0, 0, 0.28);
+  --notification-panel-bg: var(--page-panel-bg);
+  --notification-panel-mobile-bg: var(--page-panel-bg);
+  --notification-panel-border: var(--theme-colors-border);
+  --notification-panel-shadow: 0 24px 70px rgba(107, 84, 70, 0.16);
+  --notification-header-bg: var(--page-panel-strong-bg);
+  --notification-header-border: var(--theme-colors-border);
+  --notification-card-bg: var(--page-panel-strong-bg);
+  --notification-card-border: var(--theme-colors-border);
+  --notification-empty-bg: var(--page-panel-strong-bg);
+  --notification-empty-border: var(--theme-colors-border-strong);
+  --notification-text-strong: var(--theme-colors-text-strong);
+  --notification-text-muted: var(--theme-colors-text-muted);
+  --notification-text-soft: var(--theme-colors-text);
+  --notification-text-faint: color-mix(in srgb, var(--theme-colors-text) 78%, transparent);
+
+  /* Checkout */
+  --checkout-panel-bg: var(--page-panel-bg);
+  --checkout-panel-strong-bg: var(--page-panel-strong-bg);
+  --checkout-card-bg: color-mix(in srgb, var(--surface-soft) 84%, var(--background));
+  --checkout-card-alt-bg: color-mix(in srgb, var(--surface-soft) 74%, var(--background));
+  --checkout-border: var(--border-soft);
+  --checkout-border-strong: var(--border-strong);
+  --checkout-text-strong: var(--text-strong);
+  --checkout-text-muted: var(--text-muted);
+  --checkout-field-bg: var(--muted-field-bg);
+  --checkout-field-color: var(--muted-field-color);
+  --checkout-primary-bg: var(--accent-strong);
+  --checkout-primary-color: var(--accent-contrast);
+  --checkout-secondary-bg: transparent;
+  --checkout-secondary-color: var(--text-strong);
+
+  /* Account */
+  --account-shell-bg: var(--page-shell-bg);
+  --account-sidebar-bg: var(--page-panel-bg);
+  --account-sidebar-border: var(--theme-colors-border);
+  --account-group-bg: var(--page-panel-strong-bg);
+  --account-group-border: var(--theme-colors-border);
+  --account-item-bg: var(--page-panel-bg);
+  --account-item-bg-active: var(--page-panel-strong-bg);
+  --account-item-border: var(--theme-colors-border);
+  --account-item-border-active: var(--theme-colors-border-strong);
+  --account-text-strong: var(--theme-colors-text-strong);
+  --account-text-muted: var(--theme-colors-text-muted);
+  --account-text-soft: color-mix(in srgb, var(--theme-colors-text) 76%, transparent);
+  --account-text-faint: color-mix(in srgb, var(--theme-colors-text) 58%, transparent);
+
+  /* Admin */
+  --admin-stat-bg: var(--page-panel-bg);
+  --admin-overlay-bg: rgba(107, 84, 70, 0.22);
+  --admin-modal-shadow: 0 28px 60px rgba(107, 84, 70, 0.16);
+  --admin-preview-stage-bg: var(--page-panel-bg);
+  --admin-preview-frame-border: var(--theme-colors-border-strong);
+  --admin-preview-gridline: var(--theme-colors-border);
+  --admin-preview-guide-border: var(--theme-colors-border-strong);
+  --admin-preview-guide-bg: var(--page-panel-strong-bg);
+  --admin-status-idle-bg: var(--page-panel-strong-bg);
+  --admin-status-idle-border: var(--theme-colors-border);
+  --admin-status-idle-color: var(--theme-colors-text-strong);
+  --admin-chip-bg: var(--page-panel-bg);
+  --admin-chip-border: var(--theme-colors-border);
+  --admin-chip-color: var(--theme-colors-text-strong);
+  --admin-chip-selected-bg: var(--page-panel-strong-bg);
+  --admin-chip-selected-border: var(--theme-colors-border-strong);
+  --admin-chip-selected-color: var(--theme-colors-text-strong);
+
+  /* Select */
+  --select-bg: var(--muted-field-bg);
+  --select-color: var(--theme-colors-text-strong);
+  --select-border: var(--border-soft);
+  --select-border-focus: color-mix(in srgb, var(--foreground) 24%, transparent);
+  --select-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--foreground) 8%, transparent);
+  --select-arrow-color: color-mix(in srgb, var(--foreground) 92%, transparent);
+}
+
+/* Footer social icons */
+.trojani-footer-social {
+  display: flex;
+  gap: 12px;
+}
+
+.trojani-footer-social-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--theme-colors-border);
+  color: var(--theme-colors-text-strong);
+  text-decoration: none;
+  transition: border-color 200ms, background 200ms;
+}
+
+.trojani-footer-social-icon:hover {
+  background: var(--theme-colors-background-soft);
+  border-color: var(--theme-colors-border-strong);
+}
+
+/* Newsletter — botón negro con texto blanco */
+.theme-trojani .theme-newsletter-shell button.theme-button {
+  background: #111111 !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.theme-trojani .theme-newsletter-shell button.theme-button:hover {
+  background: #333333 !important;
+  color: #ffffff !important;
+}
+
+/* Product cards — fondo blanco, sin borde */
+.theme-trojani .theme-product-card,
+.theme-trojani .theme-product-card:hover,
+.theme-trojani .theme-hover-lift.theme-product-card,
+.theme-trojani .theme-hover-lift.theme-product-card:hover {
+  border: none !important;
+  border-color: transparent !important;
+}
+
+.theme-trojani .product-card-copy {
+  background: #ffffff;
+}
+
+/* Trojani-specific component overrides */
+.theme-trojani .checkout-select-card:hover {
+  border-color: var(--checkout-border-strong) !important;
+}
+
+.theme-trojani .checkout-select-card[data-active="true"] {
+  background: var(--ghost-chip-active-bg) !important;
+  border-color: var(--checkout-border-strong) !important;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.16);
+}
+
+.theme-trojani .theme-editorial-panel {
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%),
+      color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
+    ),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%);
+  --editorial-panel-overlay: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.08) 46%,
+    rgba(229, 212, 196, 0.14) 100%
+  );
+  --editorial-pill-bg: rgba(255, 255, 255, 0.82);
+  --editorial-title-shadow: 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.theme-trojani .theme-category-media[data-tone="soft"] {
+  background: linear-gradient(135deg, #ead9c9 0%, #d2b39a 100%);
+}
+
+.theme-trojani .theme-category-media[data-tone="warm"] {
+  background: linear-gradient(135deg, #f1e2d8 0%, #cfa894 100%);
+}
+
+/* Header layout — trojani uses 3-column centered nav */
+.theme-trojani .layout-header-bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  min-height: 78px;
+  column-gap: 24px;
+}
+
+.theme-trojani .layout-header-nav,
+.theme-trojani .layout-header-actions {
+  align-items: center;
+}
+
+.theme-trojani .layout-header-nav {
+  justify-content: center;
+}
+
+.theme-trojani .layout-header-actions {
+  justify-content: flex-end;
+}
+
+/* Trojani keyframes */
+@keyframes theme-trojani-ambient-pan {
+  0% { background-position: 0% 0%, center, center; }
+  100% { background-position: 6% 4%, center, center; }
+}
+
+@keyframes theme-trojani-float-slow {
+  from { transform: translateY(0); }
+  to { transform: translateY(-8px); }
+}
+
+@keyframes theme-trojani-pulse-glow {
+  0%, 100% { box-shadow: 0 18px 38px rgba(0, 0, 0, 0.08); }
+  50% { box-shadow: 0 24px 44px rgba(192, 138, 96, 0.12); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .theme-trojani .layout-header-bar,
+  .theme-trojani .layout-header-nav,
+  .theme-trojani .layout-header-actions {
+    display: flex !important;
+    align-items: center !important;
+  }
+}

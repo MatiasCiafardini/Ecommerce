@@ -60,7 +60,7 @@ export const mimariaPreviousThemeTokens = {
 
 const mimaria: Theme = {
   name: "mimaria",
-  className: "theme-fashion theme-mimaria",
+  className: "theme-mimaria",
   Header,
   Footer,
   tokens: mimariaThemeTokens,

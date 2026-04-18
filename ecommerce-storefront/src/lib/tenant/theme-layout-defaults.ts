@@ -63,6 +63,8 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
     header: {
       brandLabel: "Trojani",
       primaryLinks: trojaniPrimaryLinks,
+      announcementText:
+        "3X2 / 10% OFF EN TRANSFERENCIA / ENVIO GRATIS A PARTIR DE $120.000",
     },
     footer: {
       brandTitle: "Trojani",
@@ -263,6 +265,7 @@ export function getDefaultThemeLayout(theme?: string | null): StorefrontThemeLay
     header: base.header
       ? {
           brandLabel: base.header.brandLabel,
+          announcementText: base.header.announcementText,
           primaryLinks: cloneLinks(base.header.primaryLinks ?? []),
         }
       : undefined,
@@ -296,6 +299,8 @@ export function mergeThemeLayout(
   return {
     header: {
       brandLabel: layout?.header?.brandLabel?.trim() || fallback.header?.brandLabel || "",
+      announcementText:
+        layout?.header?.announcementText?.trim() || fallback.header?.announcementText || "",
       primaryLinks: cloneLinks(
         headerLinks.filter(
           (link): link is StorefrontNavLink =>

@@ -1,0 +1,350 @@
+/* =============================================================================
+   THEME: FASHION
+   Light warm. Sin radius (0px). Sin animaciones. Tipografía serif para headings.
+   Paleta: crema/beige cálido, acentos cobre/marron.
+   ============================================================================= */
+
+.theme-fashion {
+  /* Semantic color mappings */
+  --background: var(--theme-colors-background);
+  --foreground: var(--theme-colors-text);
+  --surface: var(--theme-colors-background-soft);
+  --surface-soft: var(--theme-colors-background-elevated);
+  --border-soft: var(--theme-colors-border);
+  --border-strong: var(--theme-colors-border-strong);
+  --paper: var(--theme-colors-paper);
+  --paper-muted: var(--theme-colors-paper-muted);
+  --text-strong: var(--theme-colors-text-strong);
+  --text-muted: var(--theme-colors-text-muted);
+  --accent: var(--theme-colors-accent);
+  --accent-strong: var(--theme-colors-accent-strong);
+  --accent-contrast: var(--theme-colors-accent-contrast);
+
+  /* Page shells */
+  --page-shell-bg: var(--background);
+  --page-panel-bg: color-mix(in srgb, var(--surface) 88%, var(--background));
+  --page-panel-strong-bg: color-mix(in srgb, var(--surface-soft) 92%, var(--background));
+  --muted-field-bg: color-mix(in srgb, var(--surface-soft) 82%, var(--background));
+  --muted-field-color: var(--text-strong);
+
+  /* Chips */
+  --ghost-chip-border: var(--border-soft);
+  --ghost-chip-active-border: var(--border-strong);
+  --ghost-chip-bg: transparent;
+  --ghost-chip-active-bg: color-mix(in srgb, var(--paper) 16%, transparent);
+  --ghost-chip-color: var(--text-strong);
+
+  /* Store shells */
+  --store-shell-bg: #f6efe6;
+  --store-content-bg: transparent;
+  --block-section-bg: transparent;
+  --block-card-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-colors-paper) 82%, transparent),
+    color-mix(in srgb, var(--theme-colors-paper) 50%, transparent)
+  );
+  --block-panel-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-colors-paper) 78%, transparent),
+    color-mix(in srgb, var(--theme-colors-paper) 48%, transparent)
+  );
+  --testimonial-card-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-colors-paper) 76%, transparent),
+    color-mix(in srgb, var(--theme-colors-paper) 40%, transparent)
+  );
+  --testimonial-card-featured-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-colors-paper) 88%, transparent),
+    color-mix(in srgb, var(--theme-colors-paper-muted) 56%, transparent)
+  );
+  --newsletter-shell-bg: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--theme-colors-paper) 84%, transparent),
+    color-mix(in srgb, var(--theme-colors-paper-muted) 58%, transparent)
+  );
+  --newsletter-input-bg: color-mix(in srgb, var(--theme-colors-paper) 58%, transparent);
+  --product-media-fallback: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--theme-colors-paper-muted) 65%, white),
+    color-mix(in srgb, var(--theme-colors-paper-muted) 90%, var(--theme-colors-accent) 10%)
+  );
+  --category-image-overlay: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-colors-paper) 12%, transparent),
+    color-mix(in srgb, var(--theme-colors-paper) 6%, transparent)
+  );
+
+  /* Hover/interaction */
+  --theme-hover-translate-y: -2px;
+  --theme-hover-shadow: 0 16px 30px rgba(125, 90, 73, 0.12);
+  --theme-hover-border: rgba(166, 132, 112, 0.34);
+
+  /* Animations — disabled for fashion */
+  --theme-ambient-animation: none;
+  --theme-float-animation: none;
+  --theme-pulse-animation: none;
+
+  /* Header actions */
+  --header-action-bg: #ffffff;
+  --header-action-bg-active: color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%);
+  --header-action-border: rgba(63, 37, 29, 0.12);
+  --header-action-border-active: rgba(125, 90, 73, 0.18);
+  --header-action-color: var(--theme-colors-text-strong);
+  --header-action-badge-bg: #b5513c;
+  --header-action-badge-color: #ffffff;
+
+  /* Notifications */
+  --notification-overlay-bg: rgba(42, 27, 21, 0.18);
+  --notification-panel-bg: #ffffff;
+  --notification-panel-mobile-bg: linear-gradient(180deg, rgba(255, 252, 248, 0.98), rgba(246, 236, 225, 0.98));
+  --notification-panel-border: rgba(63, 37, 29, 0.12);
+  --notification-panel-shadow: 0 24px 70px rgba(91, 60, 44, 0.16);
+  --notification-header-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 236, 225, 0.72));
+  --notification-header-border: rgba(63, 37, 29, 0.08);
+  --notification-card-bg: rgba(255, 255, 255, 0.82);
+  --notification-card-border: rgba(63, 37, 29, 0.1);
+  --notification-empty-bg: rgba(255, 255, 255, 0.72);
+  --notification-empty-border: rgba(63, 37, 29, 0.12);
+  --notification-text-strong: var(--theme-colors-text-strong);
+  --notification-text-muted: color-mix(in srgb, var(--theme-colors-text-strong) 58%, transparent);
+  --notification-text-soft: color-mix(in srgb, var(--theme-colors-text-strong) 78%, transparent);
+  --notification-text-faint: color-mix(in srgb, var(--theme-colors-text-strong) 68%, transparent);
+
+  /* Checkout */
+  --checkout-panel-bg: #ffffff;
+  --checkout-panel-strong-bg: #ffffff;
+  --checkout-card-bg: #ffffff;
+  --checkout-card-alt-bg: color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%);
+  --checkout-border: rgba(125, 90, 73, 0.12);
+  --checkout-border-strong: rgba(125, 90, 73, 0.22);
+  --checkout-text-strong: var(--theme-colors-text-strong);
+  --checkout-text-muted: rgba(106, 82, 71, 0.78);
+  --checkout-field-bg: #ffffff;
+  --checkout-field-color: var(--theme-colors-text-strong);
+  --checkout-primary-bg: var(--theme-colors-accent-strong);
+  --checkout-primary-color: var(--theme-colors-accent-contrast);
+  --checkout-secondary-bg: #ffffff;
+  --checkout-secondary-color: var(--theme-colors-text-strong);
+
+  /* Account */
+  --account-shell-bg:
+    radial-gradient(circle at top left, rgba(125, 90, 73, 0.08), transparent 30%),
+    #f6efe6;
+  --account-sidebar-bg: #ffffff;
+  --account-sidebar-border: rgba(125, 90, 73, 0.12);
+  --account-group-bg: color-mix(in srgb, white 90%, var(--theme-colors-paper) 10%);
+  --account-group-border: rgba(125, 90, 73, 0.12);
+  --account-item-bg: #ffffff;
+  --account-item-bg-active: color-mix(in srgb, white 70%, var(--theme-colors-paper-muted) 30%);
+  --account-item-border: rgba(92, 66, 53, 0.22);
+  --account-item-border-active: rgba(92, 66, 53, 0.4);
+  --account-text-strong: var(--theme-colors-text-strong);
+  --account-text-muted: rgba(92, 66, 53, 0.9);
+  --account-text-soft: rgba(92, 66, 53, 0.8);
+  --account-text-faint: rgba(92, 66, 53, 0.72);
+
+  /* Admin */
+  --admin-stat-bg: #ffffff;
+  --admin-overlay-bg: rgba(42, 27, 21, 0.18);
+  --admin-modal-shadow: 0 28px 60px rgba(91, 60, 44, 0.16);
+  --admin-preview-stage-bg: #ffffff;
+  --admin-preview-frame-border: rgba(125, 90, 73, 0.18);
+  --admin-preview-gridline: rgba(125, 90, 73, 0.16);
+  --admin-preview-crop-mask: rgba(125, 90, 73, 0.16);
+  --admin-preview-guide-border: rgba(125, 90, 73, 0.46);
+  --admin-preview-guide-bg: rgba(255, 255, 255, 0.92);
+  --admin-status-idle-bg: rgba(125, 90, 73, 0.06);
+  --admin-status-idle-border: rgba(92, 66, 53, 0.22);
+  --admin-status-idle-color: rgba(92, 66, 53, 0.96);
+  --admin-tone-soft-bg: rgba(232, 214, 195, 0.48);
+  --admin-tone-soft-border: rgba(125, 90, 73, 0.18);
+  --admin-tone-soft-color: var(--theme-colors-text-strong);
+  --admin-tone-info-bg: rgba(210, 232, 244, 0.72);
+  --admin-tone-info-border: rgba(98, 141, 167, 0.22);
+  --admin-tone-info-color: var(--theme-colors-text-strong);
+  --admin-tone-success-bg: rgba(219, 240, 224, 0.84);
+  --admin-tone-success-border: rgba(97, 144, 110, 0.2);
+  --admin-tone-success-color: #355640;
+  --admin-tone-warning-bg: rgba(247, 233, 202, 0.92);
+  --admin-tone-warning-border: rgba(191, 145, 67, 0.22);
+  --admin-tone-warning-color: #6f4f1c;
+  --admin-chip-bg: rgba(255, 255, 255, 0.92);
+  --admin-chip-border: rgba(92, 66, 53, 0.2);
+  --admin-chip-color: var(--theme-colors-text-strong);
+  --admin-chip-selected-bg: linear-gradient(180deg, rgba(236, 220, 208, 0.98), rgba(248, 239, 232, 0.96));
+  --admin-chip-selected-border: rgba(92, 66, 53, 0.4);
+  --admin-chip-selected-color: var(--theme-colors-text-strong);
+  --admin-chip-selected-shadow: 0 0 0 1px rgba(92, 66, 53, 0.12) inset;
+  --admin-danger-bg: rgba(201, 106, 106, 0.08);
+  --admin-danger-border: rgba(201, 106, 106, 0.2);
+  --admin-danger-color: #8a4b4b;
+
+  /* Select */
+  --select-bg: #ffffff;
+  --select-color: var(--theme-colors-text-strong);
+  --select-border: rgba(92, 66, 53, 0.22);
+  --select-border-focus: rgba(92, 66, 53, 0.34);
+  --select-shadow-focus: 0 0 0 3px rgba(92, 66, 53, 0.1);
+  --select-arrow-color: color-mix(in srgb, var(--theme-colors-text-strong) 84%, transparent);
+}
+
+/* Fashion: force light color-scheme for select */
+.theme-fashion select {
+  color-scheme: light;
+}
+
+/* Fashion: explicit text color for all elements (light-mode theme, prevents dark inherit) */
+.theme-fashion {
+  color: var(--foreground);
+}
+
+.theme-fashion,
+.theme-fashion h1,
+.theme-fashion h2,
+.theme-fashion h3,
+.theme-fashion h4,
+.theme-fashion h5,
+.theme-fashion h6,
+.theme-fashion p,
+.theme-fashion span,
+.theme-fashion label,
+.theme-fashion li,
+.theme-fashion input,
+.theme-fashion textarea,
+.theme-fashion select,
+.theme-fashion option {
+  color: var(--theme-colors-text-strong);
+}
+
+.theme-fashion :is(h1, h2, h3, h4, h5, h6, p, span, label, li, strong, small, input, textarea, select, option) {
+  color: var(--theme-colors-text-strong) !important;
+}
+
+.theme-fashion button,
+.theme-fashion [role="button"] {
+  color: inherit;
+}
+
+/* Fashion: serif typography emphasis */
+.theme-fashion .theme-brand {
+  letter-spacing: 0.24em;
+}
+
+/* Fashion: hover & interaction overrides */
+.theme-fashion .theme-hover-lift:hover {
+  box-shadow: 0 20px 40px rgba(108, 71, 54, 0.12);
+  border-color: rgba(166, 132, 112, 0.34);
+}
+
+.theme-fashion .theme-button:hover {
+  box-shadow: 0 14px 28px rgba(170, 135, 114, 0.22);
+  background: #ecd9cc !important;
+  color: var(--theme-colors-text-strong) !important;
+  border-color: rgba(166, 132, 112, 0.42) !important;
+}
+
+.theme-fashion button:not(:disabled):hover {
+  box-shadow: 0 14px 28px rgba(170, 135, 114, 0.22);
+  background: #ecd9cc !important;
+  color: var(--theme-colors-text-strong) !important;
+  border-color: rgba(166, 132, 112, 0.42) !important;
+}
+
+/* Fashion: product card overrides */
+.theme-fashion .product-card-copy {
+  padding: 24px 22px 26px;
+}
+
+.theme-fashion .product-card-media {
+  background: linear-gradient(145deg, #efe2d4 0%, #d8b89d 100%);
+}
+
+.theme-fashion .product-card-kicker {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+}
+
+.theme-fashion .product-card-title {
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.theme-fashion input,
+.theme-fashion textarea {
+  color: var(--theme-colors-text);
+}
+
+.theme-fashion input::placeholder,
+.theme-fashion textarea::placeholder {
+  color: color-mix(in srgb, var(--theme-colors-text) 42%, transparent);
+}
+
+.theme-fashion [data-hero-product-spotlight] {
+  box-shadow: 0 24px 60px rgba(108, 71, 54, 0.14);
+}
+
+/* Fashion: block shadows */
+.theme-fashion .theme-block-card,
+.theme-fashion .theme-block-panel,
+.theme-fashion .theme-testimonial-card,
+.theme-fashion .theme-newsletter-shell {
+  box-shadow: 0 16px 38px rgba(125, 90, 73, 0.08);
+}
+
+.theme-fashion .theme-category-media,
+.theme-fashion .product-card-media {
+  background-color: color-mix(in srgb, var(--theme-colors-paper-muted) 72%, white);
+}
+
+/* Fashion: editorial panel */
+.theme-fashion .theme-editorial-panel {
+  background:
+    linear-gradient(135deg, rgba(255, 248, 241, 0.84), rgba(234, 216, 201, 0.52)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%);
+  --editorial-panel-overlay: linear-gradient(
+    90deg,
+    rgba(255, 250, 245, 0.18) 0%,
+    rgba(255, 250, 245, 0.08) 46%,
+    rgba(243, 238, 231, 0.04) 100%
+  );
+  --editorial-pill-bg: rgba(255, 255, 255, 0.72);
+  --editorial-title-shadow: 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* Fashion: category media tones */
+.theme-fashion .theme-category-media[data-tone="soft"] {
+  background: linear-gradient(135deg, #ead9c9 0%, #d2b39a 100%);
+}
+
+.theme-fashion .theme-category-media[data-tone="warm"] {
+  background: linear-gradient(135deg, #f1e2d8 0%, #cfa894 100%);
+}
+
+/* Fashion: checkout overrides */
+.theme-fashion .checkout-select-card:hover {
+  background: color-mix(in srgb, white 90%, var(--theme-colors-paper-muted) 10%) !important;
+  border-color: rgba(125, 90, 73, 0.16) !important;
+  box-shadow: 0 10px 24px rgba(125, 90, 73, 0.06);
+}
+
+.theme-fashion .checkout-select-card[data-active="true"] {
+  background: color-mix(in srgb, white 82%, var(--theme-colors-paper-muted) 18%) !important;
+  border-color: rgba(125, 90, 73, 0.22) !important;
+  box-shadow: 0 10px 22px rgba(125, 90, 73, 0.05);
+}
+
+.theme-fashion .checkout-step-button:hover {
+  background: color-mix(in srgb, white 92%, var(--theme-colors-paper-muted) 8%) !important;
+  border-color: rgba(125, 90, 73, 0.14) !important;
+}
+
+.theme-fashion .checkout-step-button[data-state="active"] {
+  background: color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%) !important;
+  border-color: rgba(125, 90, 73, 0.18) !important;
+}
+
+.theme-fashion .checkout-step-button[data-state="active"] .checkout-step-badge {
+  background: color-mix(in srgb, white 76%, var(--theme-colors-paper-muted) 24%) !important;
+  color: var(--theme-colors-text-strong) !important;
+}

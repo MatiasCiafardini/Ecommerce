@@ -1,0 +1,327 @@
+/* =============================================================================
+   THEME: LIBRERIA
+   Light. Rounded shapes (24px). Sin animaciones. Paleta rosa/lila suave.
+   ============================================================================= */
+
+.theme-libreria {
+  /* Semantic color mappings */
+  --background: var(--theme-colors-background);
+  --foreground: var(--theme-colors-text);
+  --surface: var(--theme-colors-background-soft);
+  --surface-soft: var(--theme-colors-background-elevated);
+  --border-soft: var(--theme-colors-border);
+  --border-strong: var(--theme-colors-border-strong);
+  --paper: var(--theme-colors-paper);
+  --paper-muted: var(--theme-colors-paper-muted);
+  --text-strong: var(--theme-colors-text-strong);
+  --text-muted: var(--theme-colors-text-muted);
+  --accent: var(--theme-colors-accent);
+  --accent-strong: var(--theme-colors-accent-strong);
+  --accent-contrast: var(--theme-colors-accent-contrast);
+
+  /* Page shells */
+  --page-shell-bg: var(--background);
+  --page-panel-bg: color-mix(in srgb, var(--surface) 92%, var(--background));
+  --page-panel-strong-bg: color-mix(in srgb, var(--surface-soft) 94%, var(--background));
+  --muted-field-bg: color-mix(in srgb, white 90%, var(--theme-colors-paper-muted) 10%);
+  --muted-field-color: var(--text-strong);
+
+  /* Chips */
+  --ghost-chip-border: var(--border-soft);
+  --ghost-chip-active-border: var(--border-strong);
+  --ghost-chip-bg: rgba(255, 255, 255, 0.75);
+  --ghost-chip-active-bg: color-mix(in srgb, white 82%, var(--theme-colors-paper-muted) 18%);
+  --ghost-chip-color: var(--text-strong);
+
+  /* Store shells */
+  --store-shell-bg:
+    radial-gradient(circle at top left, rgba(232, 169, 193, 0.18), transparent 28%),
+    linear-gradient(180deg, #fffafd 0%, #fff1f6 100%);
+  --store-content-bg: transparent;
+  --block-section-bg: transparent;
+  --block-card-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 88%, var(--theme-colors-paper-muted) 12%),
+    color-mix(in srgb, white 94%, var(--theme-colors-paper-muted) 6%)
+  );
+  --block-panel-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%),
+    color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
+  );
+  --testimonial-card-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%),
+    color-mix(in srgb, white 96%, var(--theme-colors-paper-muted) 4%)
+  );
+  --testimonial-card-featured-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 74%, var(--theme-colors-paper-muted) 26%),
+    color-mix(in srgb, white 94%, var(--theme-colors-paper-muted) 6%)
+  );
+  --newsletter-shell-bg: linear-gradient(
+    135deg,
+    color-mix(in srgb, white 84%, var(--theme-colors-paper-muted) 16%),
+    color-mix(in srgb, white 94%, var(--theme-colors-paper-muted) 6%)
+  );
+  --newsletter-input-bg: rgba(255, 255, 255, 0.92);
+  --product-media-fallback: linear-gradient(145deg, #f2faff 0%, #d7eef9 100%);
+  --category-image-overlay: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 10%, transparent),
+    color-mix(in srgb, white 4%, transparent)
+  );
+
+  /* Hover/interaction */
+  --theme-hover-translate-y: -3px;
+  --theme-hover-shadow: 0 18px 38px rgba(207, 132, 163, 0.14);
+  --theme-hover-border: rgba(109, 67, 85, 0.18);
+
+  /* Animations — disabled */
+  --theme-ambient-animation: none;
+  --theme-float-animation: none;
+  --theme-pulse-animation: none;
+
+  /* Header actions */
+  --header-action-bg: #ffffff;
+  --header-action-bg-active: color-mix(in srgb, white 78%, var(--theme-colors-paper-muted) 22%);
+  --header-action-border: rgba(109, 67, 85, 0.12);
+  --header-action-border-active: rgba(109, 67, 85, 0.2);
+  --header-action-color: var(--theme-colors-text-strong);
+  --header-action-badge-bg: var(--theme-colors-accent-strong);
+  --header-action-badge-color: #ffffff;
+
+  /* Notifications */
+  --notification-overlay-bg: rgba(109, 67, 85, 0.16);
+  --notification-panel-bg: #ffffff;
+  --notification-panel-mobile-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 248, 255, 0.98));
+  --notification-panel-border: rgba(109, 67, 85, 0.12);
+  --notification-panel-shadow: 0 24px 70px rgba(207, 132, 163, 0.16);
+  --notification-header-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 236, 243, 0.82));
+  --notification-header-border: rgba(109, 67, 85, 0.08);
+  --notification-card-bg: rgba(255, 255, 255, 0.9);
+  --notification-card-border: rgba(109, 67, 85, 0.1);
+  --notification-empty-bg: rgba(255, 255, 255, 0.8);
+  --notification-empty-border: rgba(109, 67, 85, 0.12);
+  --notification-text-strong: var(--theme-colors-text-strong);
+  --notification-text-muted: color-mix(in srgb, var(--theme-colors-text-strong) 58%, transparent);
+  --notification-text-soft: color-mix(in srgb, var(--theme-colors-text-strong) 78%, transparent);
+  --notification-text-faint: color-mix(in srgb, var(--theme-colors-text-strong) 68%, transparent);
+
+  /* Checkout */
+  --checkout-panel-bg: #ffffff;
+  --checkout-panel-strong-bg: #ffffff;
+  --checkout-card-bg: #ffffff;
+  --checkout-card-alt-bg: color-mix(in srgb, white 82%, var(--theme-colors-paper-muted) 18%);
+  --checkout-border: rgba(109, 67, 85, 0.12);
+  --checkout-border-strong: rgba(109, 67, 85, 0.22);
+  --checkout-text-strong: var(--theme-colors-text-strong);
+  --checkout-text-muted: color-mix(in srgb, var(--theme-colors-text-strong) 68%, transparent);
+  --checkout-field-bg: #ffffff;
+  --checkout-field-color: var(--theme-colors-text-strong);
+  --checkout-primary-bg: var(--theme-colors-accent-strong);
+  --checkout-primary-color: var(--theme-colors-accent-contrast);
+  --checkout-secondary-bg: #ffffff;
+  --checkout-secondary-color: var(--theme-colors-text-strong);
+
+  /* Account */
+  --account-shell-bg:
+    radial-gradient(circle at top left, rgba(207, 132, 163, 0.1), transparent 30%),
+    #fff1f6;
+  --account-sidebar-bg: #ffffff;
+  --account-sidebar-border: rgba(109, 67, 85, 0.12);
+  --account-group-bg: color-mix(in srgb, white 90%, var(--theme-colors-paper) 10%);
+  --account-group-border: rgba(109, 67, 85, 0.12);
+  --account-item-bg: #ffffff;
+  --account-item-bg-active: color-mix(in srgb, white 82%, var(--theme-colors-paper-muted) 18%);
+  --account-item-border: rgba(109, 67, 85, 0.12);
+  --account-item-border-active: rgba(109, 67, 85, 0.2);
+  --account-text-strong: var(--theme-colors-text-strong);
+  --account-text-muted: color-mix(in srgb, var(--theme-colors-text-strong) 72%, transparent);
+  --account-text-soft: color-mix(in srgb, var(--theme-colors-text-strong) 62%, transparent);
+  --account-text-faint: color-mix(in srgb, var(--theme-colors-text-strong) 54%, transparent);
+
+  /* Admin */
+  --admin-stat-bg: #ffffff;
+  --admin-overlay-bg: rgba(109, 67, 85, 0.16);
+  --admin-modal-shadow: 0 28px 60px rgba(207, 132, 163, 0.14);
+  --admin-preview-stage-bg: #ffffff;
+  --admin-preview-frame-border: rgba(109, 67, 85, 0.16);
+  --admin-preview-gridline: rgba(109, 67, 85, 0.12);
+  --admin-preview-crop-mask: rgba(109, 67, 85, 0.16);
+  --admin-preview-guide-border: rgba(109, 67, 85, 0.36);
+  --admin-preview-guide-bg: rgba(255, 255, 255, 0.94);
+  --admin-status-idle-bg: rgba(109, 67, 85, 0.06);
+  --admin-status-idle-border: rgba(109, 67, 85, 0.14);
+  --admin-status-idle-color: color-mix(in srgb, var(--theme-colors-text-strong) 88%, transparent);
+  --admin-tone-soft-bg: rgba(246, 219, 231, 0.72);
+  --admin-tone-soft-border: rgba(109, 67, 85, 0.16);
+  --admin-tone-soft-color: var(--theme-colors-text-strong);
+  --admin-tone-info-bg: rgba(232, 240, 247, 0.86);
+  --admin-tone-info-border: rgba(120, 155, 179, 0.2);
+  --admin-tone-info-color: var(--theme-colors-text-strong);
+  --admin-tone-success-bg: rgba(232, 244, 234, 0.92);
+  --admin-tone-success-border: rgba(112, 162, 124, 0.18);
+  --admin-tone-success-color: #42644b;
+  --admin-tone-warning-bg: rgba(251, 239, 214, 0.94);
+  --admin-tone-warning-border: rgba(202, 163, 95, 0.2);
+  --admin-tone-warning-color: #7a5a28;
+  --admin-chip-bg: rgba(255, 255, 255, 0.94);
+  --admin-chip-border: rgba(109, 67, 85, 0.14);
+  --admin-chip-color: var(--theme-colors-text-strong);
+  --admin-chip-selected-bg: color-mix(in srgb, white 80%, var(--theme-colors-paper-muted) 20%);
+  --admin-chip-selected-border: rgba(109, 67, 85, 0.24);
+  --admin-chip-selected-color: var(--theme-colors-text-strong);
+  --admin-chip-selected-shadow: 0 0 0 1px rgba(109, 67, 85, 0.06) inset;
+  --admin-danger-bg: rgba(208, 110, 126, 0.08);
+  --admin-danger-border: rgba(208, 110, 126, 0.18);
+  --admin-danger-color: #9a5568;
+
+  /* Select */
+  --select-bg: #ffffff;
+  --select-color: var(--theme-colors-text-strong);
+  --select-border: rgba(109, 67, 85, 0.14);
+  --select-border-focus: rgba(109, 67, 85, 0.26);
+  --select-shadow-focus: 0 0 0 3px rgba(207, 132, 163, 0.12);
+  --select-arrow-color: color-mix(in srgb, var(--theme-colors-text-strong) 84%, transparent);
+}
+
+.theme-libreria {
+  color: var(--foreground);
+}
+
+.theme-libreria select {
+  color-scheme: light;
+}
+
+.theme-libreria,
+.theme-libreria h1, .theme-libreria h2, .theme-libreria h3,
+.theme-libreria h4, .theme-libreria h5, .theme-libreria h6,
+.theme-libreria p, .theme-libreria span, .theme-libreria label,
+.theme-libreria li, .theme-libreria input, .theme-libreria textarea,
+.theme-libreria select, .theme-libreria option {
+  color: var(--theme-colors-text-strong);
+}
+
+.theme-libreria :is(h1, h2, h3, h4, h5, h6, p, span, label, li, strong, small, input, textarea, select, option) {
+  color: var(--theme-colors-text-strong) !important;
+}
+
+.theme-libreria button,
+.theme-libreria [role="button"] {
+  color: inherit;
+}
+
+.theme-libreria .theme-brand {
+  letter-spacing: 0.2em;
+}
+
+/* Libreria: hover & interaction */
+.theme-libreria .theme-hover-lift:hover {
+  box-shadow: 0 18px 36px rgba(207, 132, 163, 0.16);
+  border-color: color-mix(in srgb, var(--theme-colors-accent) 26%, transparent);
+}
+
+.theme-libreria .theme-button:hover {
+  box-shadow: 0 12px 24px rgba(207, 132, 163, 0.22);
+  background: var(--accent) !important;
+  color: var(--accent-contrast) !important;
+  border-color: var(--accent-strong) !important;
+}
+
+/* Libreria: product card */
+.theme-libreria .product-card-copy {
+  padding: 24px 22px 26px;
+}
+
+.theme-libreria .product-card-media {
+  background: linear-gradient(145deg, #fff8fb 0%, #f6dbe7 100%);
+}
+
+.theme-libreria .product-card-kicker {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+}
+
+.theme-libreria .product-card-title {
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.theme-libreria input,
+.theme-libreria textarea {
+  color: var(--theme-colors-text);
+}
+
+.theme-libreria input::placeholder,
+.theme-libreria textarea::placeholder {
+  color: color-mix(in srgb, var(--theme-colors-text) 42%, transparent);
+}
+
+.theme-libreria [data-hero-product-spotlight] {
+  box-shadow: 0 24px 60px rgba(207, 132, 163, 0.14);
+}
+
+/* Libreria: block shadows */
+.theme-libreria .theme-block-card,
+.theme-libreria .theme-block-panel,
+.theme-libreria .theme-testimonial-card,
+.theme-libreria .theme-newsletter-shell {
+  box-shadow: 0 16px 38px rgba(207, 132, 163, 0.1);
+}
+
+.theme-libreria .theme-category-media,
+.theme-libreria .product-card-media {
+  background-color: color-mix(in srgb, var(--theme-colors-paper-muted) 72%, white);
+}
+
+/* Libreria: editorial panel */
+.theme-libreria .theme-editorial-panel {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(246, 219, 231, 0.62)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%);
+  --editorial-panel-overlay: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.08) 46%,
+    rgba(246, 219, 231, 0.14) 100%
+  );
+  --editorial-pill-bg: rgba(255, 255, 255, 0.82);
+  --editorial-title-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.theme-libreria .theme-category-media[data-tone="soft"] {
+  background: linear-gradient(135deg, #fff3f8 0%, #f3c7da 100%);
+}
+
+.theme-libreria .theme-category-media[data-tone="warm"] {
+  background: linear-gradient(135deg, #fdebf3 0%, #e8a9c1 100%);
+}
+
+/* Libreria: checkout overrides */
+.theme-libreria .checkout-select-card:hover {
+  background: color-mix(in srgb, white 90%, var(--theme-colors-paper-muted) 10%) !important;
+  border-color: rgba(109, 67, 85, 0.16) !important;
+  box-shadow: 0 10px 24px rgba(207, 132, 163, 0.1);
+}
+
+.theme-libreria .checkout-select-card[data-active="true"] {
+  background: color-mix(in srgb, white 82%, var(--theme-colors-paper-muted) 18%) !important;
+  border-color: rgba(109, 67, 85, 0.22) !important;
+  box-shadow: 0 10px 22px rgba(207, 132, 163, 0.08);
+}
+
+.theme-libreria .checkout-step-button:hover {
+  background: color-mix(in srgb, white 92%, var(--theme-colors-paper-muted) 8%) !important;
+  border-color: rgba(109, 67, 85, 0.14) !important;
+}
+
+.theme-libreria .checkout-step-button[data-state="active"] {
+  background: color-mix(in srgb, white 86%, var(--theme-colors-paper-muted) 14%) !important;
+  border-color: rgba(109, 67, 85, 0.18) !important;
+}
+
+.theme-libreria .checkout-step-button[data-state="active"] .checkout-step-badge {
+  background: color-mix(in srgb, white 76%, var(--theme-colors-paper-muted) 24%) !important;
+  color: var(--theme-colors-text-strong) !important;
+}

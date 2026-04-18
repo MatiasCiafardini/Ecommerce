@@ -1,6 +1,7 @@
 "use client";
 
 import { themes } from "@/config/theme-registry";
+import AnnouncementTicker from "@/components/store/AnnouncementTicker";
 import { buildThemeStyle } from "@/lib/theme/theme-palette-style";
 import type { ThemePalette } from "@/types/theme";
 import type { StorefrontThemeLayout } from "@/types/storefront-config";
@@ -26,6 +27,16 @@ export default function ThemeProvider({
 
   return (
     <div className={theme.className} style={themeStyle}>
+      {themeName === "mimaria" ? (
+        <style jsx global>{`
+          html,
+          body {
+            background: rgba(198, 186, 176, 1);
+            overscroll-behavior-y: none;
+          }
+        `}</style>
+      ) : null}
+      <AnnouncementTicker text={themeLayout?.header?.announcementText} />
       {Header && <Header themeLayout={themeLayout} />}
 
       <main>{children}</main>

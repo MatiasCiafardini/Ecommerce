@@ -1,0 +1,177 @@
+/* =============================================================================
+   THEME: URBAN
+   Concreto, contraste máximo, energía callejera. Tipografía bold comprimida.
+   Identidad: streetwear urbano, drop culture, ciudad.
+   ============================================================================= */
+
+.theme-urban {
+  --background: var(--theme-colors-background);
+  --foreground: var(--theme-colors-text);
+  --surface: var(--theme-colors-background-soft);
+  --surface-soft: var(--theme-colors-background-elevated);
+  --border-soft: var(--theme-colors-border);
+  --border-strong: var(--theme-colors-border-strong);
+  --paper: var(--theme-colors-paper);
+  --paper-muted: var(--theme-colors-paper-muted);
+  --text-strong: var(--theme-colors-text-strong);
+  --text-muted: var(--theme-colors-text-muted);
+  --accent: var(--theme-colors-accent);
+  --accent-strong: var(--theme-colors-accent-strong);
+  --accent-contrast: var(--theme-colors-accent-contrast);
+
+  --page-shell-bg: var(--background);
+  --page-panel-bg: var(--surface);
+  --page-panel-strong-bg: var(--surface-soft);
+  --muted-field-bg: color-mix(in srgb, var(--surface-soft) 80%, var(--background));
+  --muted-field-color: var(--text-strong);
+  --ghost-chip-border: var(--border-soft);
+  --ghost-chip-active-border: var(--accent);
+  --ghost-chip-bg: transparent;
+  --ghost-chip-active-bg: color-mix(in srgb, var(--accent) 14%, transparent);
+  --ghost-chip-color: var(--text-strong);
+
+  --store-shell-bg: var(--background);
+  --store-content-bg: transparent;
+  --block-section-bg: transparent;
+  --block-card-bg: var(--surface);
+  --block-panel-bg: var(--surface);
+  --testimonial-card-bg: var(--surface);
+  --testimonial-card-featured-bg: var(--surface-soft);
+  --newsletter-shell-bg: var(--accent);
+  --newsletter-input-bg: rgba(255,255,255,0.1);
+  --product-media-fallback: var(--surface);
+  --category-image-overlay: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--background) 0%, transparent),
+    color-mix(in srgb, var(--background) 48%, transparent)
+  );
+
+  --theme-hover-translate-y: -3px;
+  --theme-hover-shadow: 0 16px 40px rgba(0,0,0,0.36);
+  --theme-hover-border: var(--theme-colors-accent);
+  --theme-ambient-animation: theme-urban-ambient-pan 28s linear infinite;
+  --theme-float-animation: none;
+  --theme-pulse-animation: none;
+
+  --header-action-bg: rgba(255,255,255,0.05);
+  --header-action-bg-active: rgba(255,255,255,0.1);
+  --header-action-border: rgba(255,255,255,0.12);
+  --header-action-border-active: var(--theme-colors-accent);
+  --header-action-color: var(--theme-colors-text-strong);
+  --header-action-badge-bg: var(--theme-colors-accent);
+  --header-action-badge-color: var(--theme-colors-accent-contrast);
+
+  --notification-overlay-bg: rgba(0,0,0,0.6);
+  --notification-panel-bg: var(--surface);
+  --notification-panel-mobile-bg: var(--surface);
+  --notification-panel-border: var(--border-soft);
+  --notification-panel-shadow: 0 24px 72px rgba(0,0,0,0.48);
+  --notification-header-bg: var(--surface-soft);
+  --notification-header-border: var(--border-soft);
+  --notification-card-bg: var(--surface-soft);
+  --notification-card-border: var(--border-soft);
+  --notification-empty-bg: var(--surface);
+  --notification-empty-border: var(--border-strong);
+  --notification-text-strong: var(--text-strong);
+  --notification-text-muted: var(--text-muted);
+  --notification-text-soft: var(--foreground);
+  --notification-text-faint: color-mix(in srgb, var(--foreground) 68%, transparent);
+
+  --checkout-panel-bg: var(--page-panel-bg);
+  --checkout-panel-strong-bg: var(--page-panel-strong-bg);
+  --checkout-card-bg: var(--surface);
+  --checkout-card-alt-bg: var(--surface-soft);
+  --checkout-border: var(--border-soft);
+  --checkout-border-strong: var(--border-strong);
+  --checkout-text-strong: var(--text-strong);
+  --checkout-text-muted: var(--text-muted);
+  --checkout-field-bg: var(--muted-field-bg);
+  --checkout-field-color: var(--text-strong);
+  --checkout-primary-bg: var(--accent-strong);
+  --checkout-primary-color: var(--accent-contrast);
+  --checkout-secondary-bg: transparent;
+  --checkout-secondary-color: var(--text-strong);
+
+  --account-shell-bg: var(--background);
+  --account-sidebar-bg: var(--surface);
+  --account-sidebar-border: var(--border-soft);
+  --account-group-bg: var(--surface-soft);
+  --account-group-border: var(--border-soft);
+  --account-item-bg: var(--surface);
+  --account-item-bg-active: var(--surface-soft);
+  --account-item-border: var(--border-soft);
+  --account-item-border-active: var(--accent);
+  --account-text-strong: var(--text-strong);
+  --account-text-muted: var(--text-muted);
+  --account-text-soft: color-mix(in srgb, var(--foreground) 74%, transparent);
+  --account-text-faint: color-mix(in srgb, var(--foreground) 54%, transparent);
+
+  --select-bg: var(--muted-field-bg);
+  --select-color: var(--text-strong);
+  --select-border: var(--border-soft);
+  --select-border-focus: var(--accent);
+  --select-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  --select-arrow-color: var(--accent);
+}
+
+@keyframes theme-urban-ambient-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.theme-urban h1,
+.theme-urban h2,
+.theme-urban h3,
+.theme-urban .theme-brand {
+  font-family: var(--font-body, "Arial Black", "Impact", sans-serif);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.theme-urban .theme-brand {
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.theme-urban .product-card-title {
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.theme-urban .product-card-kicker {
+  letter-spacing: 0.22em;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  opacity: 0.56;
+}
+
+.theme-urban .theme-hover-lift:hover {
+  box-shadow: 0 16px 40px rgba(0,0,0,0.36);
+  border-color: var(--accent);
+}
+
+.theme-urban .theme-button:hover {
+  background: var(--accent) !important;
+  color: var(--accent-contrast) !important;
+  border-color: var(--accent-strong) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.3);
+}
+
+.theme-urban .theme-editorial-panel {
+  background: linear-gradient(135deg, rgba(10,10,10,0.18), rgba(20,20,20,0.1));
+  --editorial-pill-bg: rgba(0,0,0,0.56);
+}
+
+.theme-urban .checkout-select-card:hover {
+  border-color: var(--accent) !important;
+}
+
+.theme-urban .checkout-select-card[data-active="true"] {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface)) !important;
+  border-color: var(--accent) !important;
+}

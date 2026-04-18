@@ -1,4 +1,5 @@
 import "./(store)/globals.css";
+import "@/shared/styles/base.css";
 import { AuthProvider } from "@/context/auth-context";
 import { CartProvider } from "@/context/cart-context";
 import { Cormorant_Garamond, Manrope } from "next/font/google";

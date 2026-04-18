@@ -7,17 +7,20 @@ export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeL
   const layoutConfig = mergeThemeLayout("mimaria", themeLayout);
   const columns = layoutConfig.footer?.columns ?? [];
   return (
-    <footer
-      className="theme-footer-shell"
+    <>
+      <footer
+      className="theme-footer-shell mimaria-footer-shell"
       style={{
         background:
           "linear-gradient(180deg, var(--page-panel-strong-bg) 0%, var(--page-shell-bg) 100%)",
         color: "var(--theme-colors-text-strong)",
         borderTop: "1px solid var(--theme-colors-border)",
+        width: "100%",
+        overflowX: "clip",
       }}
     >
       <div
-        className="theme-footer-grid"
+        className="theme-footer-grid mimaria-footer-grid"
         style={{
           maxWidth: "var(--store-wide-max)",
           margin: "0 auto",
@@ -27,7 +30,10 @@ export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeL
           gap: 24,
         }}
       >
-        <div className="theme-footer-brand" style={{ display: "grid", gap: 14 }}>
+        <div
+          className="theme-footer-brand mimaria-footer-brand"
+          style={{ display: "grid", gap: 14, minWidth: 0 }}
+        >
           <div style={{ display: "inline-flex", alignItems: "center", gap: 14 }}>
             <div
               style={{
@@ -78,7 +84,41 @@ export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeL
           <FooterColumn key={column.title} title={column.title} links={column.links} />
         ))}
       </div>
-    </footer>
+      </footer>
+
+      <style jsx>{`
+        .mimaria-footer-shell {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: clip;
+        }
+
+        .mimaria-footer-grid {
+          width: 100%;
+        }
+
+        .mimaria-footer-brand,
+        .mimaria-footer-grid :global(.theme-footer-column) {
+          min-width: 0;
+        }
+
+        @media (max-width: 920px) {
+          .mimaria-footer-grid {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+            gap: 28px 20px !important;
+            padding: 48px 20px 56px !important;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .mimaria-footer-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 24px !important;
+            padding: 36px 18px 42px !important;
+          }
+        }
+      `}</style>
+    </>
   );
 }
 

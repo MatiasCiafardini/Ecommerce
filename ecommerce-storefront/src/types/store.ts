@@ -9,9 +9,13 @@ export type StoreVariant = {
   Size?: string | null;
   Color?: string | null;
   weight?: number | null;
+  weightGrams?: number | null;
   width?: number | null;
+  packageWidthCm?: number | null;
   height?: number | null;
+  packageHeightCm?: number | null;
   length?: number | null;
+  packageLengthCm?: number | null;
   inventories?: StoreInventory[];
   pricing?: {
     basePrice: number;
@@ -52,6 +56,10 @@ export type StoreProduct = {
   title: string;
   description?: string | null;
   price?: number | string | null;
+  weightGrams?: number | null;
+  packageWidthCm?: number | null;
+  packageHeightCm?: number | null;
+  packageLengthCm?: number | null;
   images?: StoreProductImage[];
   variants?: StoreVariant[];
   categories?: StoreProductCategoryLink[];

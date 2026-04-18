@@ -62,10 +62,32 @@ const formatMeasure = (value?: number | string | null, suffix = "cm") => {
   const parsedValue = parseMeasureValue(value);
 
   if (parsedValue === null) {
-    return "No especificado";
+    return null;
   }
 
   return `${parsedValue} ${suffix}`;
+};
+
+const formatWeightMeasure = ({
+  weightGrams,
+  weightKg,
+}: {
+  weightGrams?: number | string | null;
+  weightKg?: number | string | null;
+}) => {
+  const parsedWeightGrams = parseMeasureValue(weightGrams);
+
+  if (parsedWeightGrams !== null) {
+    return `${parsedWeightGrams} g`;
+  }
+
+  const parsedWeightKg = parseMeasureValue(weightKg);
+
+  if (parsedWeightKg !== null) {
+    return `${parsedWeightKg} kg`;
+  }
+
+  return null;
 };
 
 const formatVariantTitle = (variant?: StoreVariant | null) => {
@@ -94,12 +116,17 @@ const resolvePromotionalPrice = (
 
   if (pricing.promotionType === "percentage") {
     return roundCurrency(
-      Math.max(basePrice * (1 - Number(pricing.discountPercentage ?? 0) / 100), 0),
+      Math.max(
+        basePrice * (1 - Number(pricing.discountPercentage ?? 0) / 100),
+        0,
+      ),
     );
   }
 
   if (pricing.promotionType === "fixed_amount") {
-    return roundCurrency(Math.max(basePrice - Number(pricing.discountAmount ?? 0), 0));
+    return roundCurrency(
+      Math.max(basePrice - Number(pricing.discountAmount ?? 0), 0),
+    );
   }
 
   return roundCurrency(basePrice);
@@ -158,6 +185,16 @@ export default function ProductView({
   const dynamicOptions = useMemo(
     () => normalizeProductOptions(productOptions),
     [productOptions],
+  );
+  const informationalOptions = useMemo(
+    () =>
+      dynamicOptions.filter((option) => {
+        const normalizedName = option.name.trim().toLowerCase();
+        return !["color", "colour", "talle", "talla", "size"].includes(
+          normalizedName,
+        );
+      }),
+    [dynamicOptions],
   );
   const primaryCategoryName = product.categories?.[0]?.category?.name ?? null;
 
@@ -244,10 +281,9 @@ export default function ProductView({
   const findFirstVariantForColor = (color: string) =>
     inStockVariants.find((variant) => variant.Color === color) ?? null;
 
-  const image =
-    resolveAssetUrl(
-      productImages[selectedImageIndex]?.url ?? productImages[0]?.url ?? null,
-    );
+  const image = resolveAssetUrl(
+    productImages[selectedImageIndex]?.url ?? productImages[0]?.url ?? null,
+  );
 
   const currentPrice = roundCurrency(
     selectedVariant?.price ??
@@ -257,7 +293,21 @@ export default function ProductView({
       0,
   );
   const activePricing = selectedVariant?.pricing ?? product.pricing;
-  const currentFinalPrice = resolvePromotionalPrice(currentPrice, activePricing);
+  const currentFinalPrice = resolvePromotionalPrice(
+    currentPrice,
+    activePricing,
+  );
+  const transferPrice =
+    currentFinalPrice > 0 && bankTransferDiscountPercentage > 0
+      ? roundCurrency(
+          Math.max(
+            currentFinalPrice * (1 - bankTransferDiscountPercentage / 100),
+            0,
+          ),
+        )
+      : null;
+  const installmentPrice =
+    currentFinalPrice > 0 ? roundCurrency(currentFinalPrice / 3) : null;
 
   const hasStock = inStockVariants.length > 0;
   const selectedVariantStock = selectedVariant
@@ -286,6 +336,41 @@ export default function ProductView({
       : quantityInCart > 0 && remainingUnits === 0
         ? "Ya agregaste las ultimas unidades disponibles de esta variante."
         : null;
+  const productDetails = [
+    {
+      label: "Peso",
+      value: formatWeightMeasure({
+        weightGrams: selectedVariant?.weightGrams ?? product.weightGrams,
+        weightKg: selectedVariant?.weight,
+      }),
+    },
+    {
+      label: "Ancho",
+      value: formatMeasure(
+        selectedVariant?.packageWidthCm ??
+          selectedVariant?.width ??
+          product.packageWidthCm,
+      ),
+    },
+    {
+      label: "Alto",
+      value: formatMeasure(
+        selectedVariant?.packageHeightCm ??
+          selectedVariant?.height ??
+          product.packageHeightCm,
+      ),
+    },
+    {
+      label: "Largo",
+      value: formatMeasure(
+        selectedVariant?.packageLengthCm ??
+          selectedVariant?.length ??
+          product.packageLengthCm,
+      ),
+    },
+  ].filter((item): item is { label: string; value: string } =>
+    Boolean(item.value),
+  );
 
   const handleAddToCart = async () => {
     if (!selectedVariant) return;
@@ -381,7 +466,11 @@ export default function ProductView({
               onMouseLeave={scheduleGalleryUiHide}
               onFocusCapture={revealGalleryUi}
               onBlurCapture={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                if (
+                  !event.currentTarget.contains(
+                    event.relatedTarget as Node | null,
+                  )
+                ) {
                   scheduleGalleryUiHide();
                 }
               }}
@@ -397,7 +486,9 @@ export default function ProductView({
                     width: "100%",
                     height: "100%",
                     display: "block",
-                    ...getProductImageTransform(productImages[selectedImageIndex] ?? productImages[0]),
+                    ...getProductImageTransform(
+                      productImages[selectedImageIndex] ?? productImages[0],
+                    ),
                     background: "#ffffff",
                   }}
                 />
@@ -468,11 +559,17 @@ export default function ProductView({
                       </svg>
                     </span>
                   </button>
-                  <div className="gallery-hover-ui gallery-hover-up" style={galleryCounterStyle}>
+                  <div
+                    className="gallery-hover-ui gallery-hover-up"
+                    style={galleryCounterStyle}
+                  >
                     {selectedImageIndex + 1} / {productImages.length}
                   </div>
 
-                  <div className="gallery-hover-ui gallery-hover-up" style={thumbnailDockStyle}>
+                  <div
+                    className="gallery-hover-ui gallery-hover-up"
+                    style={thumbnailDockStyle}
+                  >
                     {productImages.map((productImage, index) => {
                       const isActive = index === selectedImageIndex;
 
@@ -482,10 +579,16 @@ export default function ProductView({
                           type="button"
                           onClick={() => setSelectedImageIndex(index)}
                           aria-label={`Ver imagen ${index + 1}`}
-                          style={{ ...thumbnailButtonStyle(isActive), position: "relative" }}
+                          style={{
+                            ...thumbnailButtonStyle(isActive),
+                            position: "relative",
+                          }}
                         >
                           <Image
-                            src={resolveAssetUrl(productImage.url) ?? productImage.url}
+                            src={
+                              resolveAssetUrl(productImage.url) ??
+                              productImage.url
+                            }
                             alt={`${product.title} vista ${index + 1}`}
                             fill
                             unoptimized
@@ -525,23 +628,55 @@ export default function ProductView({
                   fontSize: 12,
                 }}
               >
-                {primaryCategoryName ?? (isMiMaria ? "Coleccion Mi Maria" : "Coleccion")}
+                {primaryCategoryName ??
+                  (isMiMaria ? "Coleccion Mi Maria" : "Coleccion")}
               </p>
 
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "space-between",
                   alignItems: "flex-start",
-                  gap: 12,
+                  gap: 10,
+                  flexWrap: "wrap",
                   marginBottom: 12,
                 }}
               >
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    minWidth: 0,
+                  }}
+                >
                   {stockUrgencyMessage ? (
                     <span style={urgencyChipStyle}>{stockUrgencyMessage}</span>
                   ) : null}
                 </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 14,
+                  marginBottom: 14,
+                }}
+              >
+                <h1
+                  style={{
+                    fontSize: "clamp(2.2rem, 4.4vw, 4.5rem)",
+                    lineHeight: 0.95,
+                    margin: 0,
+                    letterSpacing: isMiMaria ? "-0.04em" : "-0.05em",
+                    color: "var(--text-strong)",
+                    flex: "1 1 auto",
+                    minWidth: 0,
+                  }}
+                >
+                  {product.title}
+                </h1>
                 {isAdmin ? (
                   <Link
                     href={`/account?section=admin-products&productId=${product.id}`}
@@ -554,24 +689,10 @@ export default function ProductView({
                 ) : null}
               </div>
 
-              <h1
-                style={{
-                  fontSize: "clamp(2.4rem, 5vw, 4.5rem)",
-                  lineHeight: 0.95,
-                  margin: "0 0 14px",
-                  letterSpacing: isMiMaria ? "-0.04em" : "-0.05em",
-                  color: "var(--text-strong)",
-                }}
-              >
-                {product.title}
-              </h1>
-
               <p
                 style={{
                   margin: "0 0 14px",
-                  color: hasStock
-                    ? "var(--text-muted)"
-                    : "var(--text-muted)",
+                  color: hasStock ? "var(--text-muted)" : "var(--text-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.16em",
                   fontSize: 12,
@@ -585,7 +706,14 @@ export default function ProductView({
               <div style={{ display: "grid", gap: 8 }}>
                 {activePricing?.hasActivePromotion ? (
                   <>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 10,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <span
                         style={{
                           padding: "7px 10px",
@@ -601,7 +729,9 @@ export default function ProductView({
                         -{activePricing.discountPercentage}%
                       </span>
                       {activePricing.promotionLabel ? (
-                        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                        <span
+                          style={{ color: "var(--text-muted)", fontSize: 14 }}
+                        >
                           {activePricing.promotionLabel}
                         </span>
                       ) : null}
@@ -619,14 +749,45 @@ export default function ProductView({
                 ) : null}
                 <p
                   style={{
-                    fontSize: "28px",
-                    fontWeight: "bold",
+                    fontSize:
+                      transferPrice !== null
+                        ? "clamp(1.65rem, 3.5vw, 2.7rem)"
+                        : "clamp(1.8rem, 3.8vw, 2.95rem)",
+                    lineHeight: 0.98,
+                    letterSpacing: "-0.04em",
+                    fontWeight: 700,
                     margin: 0,
                     color: "var(--text-strong)",
                   }}
                 >
                   {formatCurrency(currentFinalPrice)}
                 </p>
+                {transferPrice !== null ? (
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "var(--text-strong)",
+                      fontSize: "clamp(1.12rem, 2.2vw, 1.75rem)",
+                      lineHeight: 1.08,
+                      letterSpacing: "-0.02em",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {formatCurrency(transferPrice)} con transferencia
+                  </p>
+                ) : null}
+                {installmentPrice !== null ? (
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "var(--text-muted)",
+                      fontSize: 16,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    3 cuotas sin interes de {formatCurrency(installmentPrice)}
+                  </p>
+                ) : null}
               </div>
               {selectedVariant && remainingUnits === 0 ? (
                 <p
@@ -871,57 +1032,45 @@ export default function ProductView({
             </p>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {[
-              {
-                label: "Peso",
-                value: formatMeasure(selectedVariant?.weight, "kg"),
-              },
-              { label: "Ancho", value: formatMeasure(selectedVariant?.width) },
-              {
-                label: "Alto",
-                value: formatMeasure(selectedVariant?.height),
-              },
-              {
-                label: "Largo",
-                value: formatMeasure(selectedVariant?.length),
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                style={{
-                  borderRadius: 22,
-                  border: "1px solid var(--border-soft)",
-                  background: "var(--block-card-bg)",
-                  padding: 18,
-                  display: "grid",
-                  gap: 6,
-                }}
-              >
-                <span
+          {productDetails.length > 0 ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 12,
+              }}
+            >
+              {productDetails.map((item) => (
+                <div
+                  key={item.label}
                   style={{
-                    textTransform: "uppercase",
-                    letterSpacing: "0.14em",
-                    fontSize: 11,
-                    color: "var(--text-muted)",
+                    borderRadius: 22,
+                    border: "1px solid var(--border-soft)",
+                    background: "var(--block-card-bg)",
+                    padding: 18,
+                    display: "grid",
+                    gap: 6,
                   }}
                 >
-                  {item.label}
-                </span>
-                <strong style={{ color: "var(--text-strong)", fontSize: 18 }}>
-                  {item.value}
-                </strong>
-              </div>
-            ))}
-          </div>
+                  <span
+                    style={{
+                      textTransform: "uppercase",
+                      letterSpacing: "0.14em",
+                      fontSize: 11,
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {item.label}
+                  </span>
+                  <strong style={{ color: "var(--text-strong)", fontSize: 18 }}>
+                    {item.value}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
-          {dynamicOptions.length > 0 ? (
+          {informationalOptions.length > 0 ? (
             <div
               style={{
                 display: "grid",
@@ -956,7 +1105,7 @@ export default function ProductView({
                     gap: 14,
                   }}
                 >
-                  {dynamicOptions.map((option) => (
+                  {informationalOptions.map((option) => (
                     <div
                       key={option.id}
                       style={{
@@ -1047,7 +1196,9 @@ export default function ProductView({
                   color: "var(--text-muted)",
                 }}
               >
-                {isMiMaria ? "Tambien puede gustarte" : "Productos relacionados"}
+                {isMiMaria
+                  ? "Tambien puede gustarte"
+                  : "Productos relacionados"}
               </span>
               <h2
                 style={{
@@ -1065,7 +1216,8 @@ export default function ProductView({
             <div
               className="layout-product-grid"
               style={{
-                gridTemplateColumns: "repeat(auto-fit, var(--product-card-width))",
+                gridTemplateColumns:
+                  "repeat(auto-fit, var(--product-card-width))",
                 justifyContent: "center",
               }}
             >
@@ -1073,7 +1225,9 @@ export default function ProductView({
                 <ProductCard
                   key={relatedProduct.id}
                   product={relatedProduct}
-                  bankTransferDiscountPercentage={bankTransferDiscountPercentage}
+                  bankTransferDiscountPercentage={
+                    bankTransferDiscountPercentage
+                  }
                 />
               ))}
             </div>
@@ -1265,7 +1419,8 @@ const urgencyChipStyle: React.CSSProperties = {
   alignItems: "center",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid color-mix(in srgb, var(--accent-strong) 28%, var(--border-soft))",
+  border:
+    "1px solid color-mix(in srgb, var(--accent-strong) 28%, var(--border-soft))",
   background: "color-mix(in srgb, var(--accent) 10%, var(--page-panel-bg))",
   color: "var(--accent-strong)",
   fontSize: 12,
@@ -1301,6 +1456,7 @@ const adminEditButtonStyle: React.CSSProperties = {
   width: 40,
   height: 40,
   padding: 0,
+  marginTop: 4,
   borderRadius: 999,
   border: "1px solid var(--border-soft)",
   background: "var(--block-card-bg)",
@@ -1456,7 +1612,8 @@ const cartPromptEyebrowStyle: React.CSSProperties = {
   width: "fit-content",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid color-mix(in srgb, var(--accent-strong) 28%, var(--border-soft))",
+  border:
+    "1px solid color-mix(in srgb, var(--accent-strong) 28%, var(--border-soft))",
   background: "color-mix(in srgb, var(--accent) 10%, var(--page-panel-bg))",
   color: "var(--accent-strong)",
   fontSize: 11,

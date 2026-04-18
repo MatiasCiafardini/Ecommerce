@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"c:\\\\Users\\\\mat_i\\\\OneDrive\\\\Documentos\\\\trabajos\\\\eCommerce\\\\ecommerce-storefront\\\\src\\\\components\\\\store\" -name \"*.tsx\" -exec basename {} \\\\;)",
+      "Bash(xargs grep *)"
+    ]
+  }
+}

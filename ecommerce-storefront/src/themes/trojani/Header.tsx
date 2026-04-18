@@ -1,5 +1,6 @@
 "use client";
 
+import "./styles/index.css";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -15,6 +16,10 @@ const navLinkStyle = {
   padding: "10px 0",
   position: "relative",
   fontSize: 17,
+  fontFamily: 'var(--font-body, "Helvetica Neue", Helvetica, Arial, sans-serif)',
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  fontWeight: 500,
 } as const;
 
 export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
@@ -384,8 +389,8 @@ const iconBadgeStyle = {
   height: 20,
   padding: "0 5px",
   borderRadius: 999,
-  background: "#f7f1e8",
-  color: "#0b0b0b",
+  background: "var(--header-action-badge-bg)",
+  color: "var(--header-action-badge-color)",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -399,8 +404,8 @@ const iconBadgeStyle = {
 const sessionPlaceholderStyle = {
   padding: "10px 14px",
   borderRadius: 999,
-  border: "1px solid var(--header-action-border)",
-  background: "var(--header-action-bg)",
+  border: "1px solid var(--theme-colors-border)",
+  background: "var(--page-panel-bg)",
   color: "var(--theme-colors-text-muted)",
   letterSpacing: "0.08em",
   textTransform: "uppercase",
@@ -412,9 +417,13 @@ const mobileNavLinkStyle = {
   textDecoration: "none",
   padding: "14px 16px",
   borderRadius: 18,
-  border: "1px solid var(--header-action-border)",
-  background: "var(--header-action-bg)",
+  border: "1px solid var(--theme-colors-border)",
+  background: "var(--page-panel-bg)",
   fontSize: 16,
+  fontFamily: 'var(--font-body, "Helvetica Neue", Helvetica, Arial, sans-serif)',
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  fontWeight: 500,
 } as const;
 
 const mobileSessionPlaceholderStyle = {

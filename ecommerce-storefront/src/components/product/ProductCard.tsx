@@ -19,7 +19,9 @@ export default function ProductCard({
       ? resolveAssetUrl(product.images[0].url)
       : null;
 
-  const fallbackPrice = Number(product.variants?.[0]?.price ?? product.price ?? 0);
+  const fallbackPrice = Number(
+    product.variants?.[0]?.price ?? product.price ?? 0,
+  );
   const hasPromotion = Boolean(product.pricing?.hasActivePromotion);
   const displayPrice = hasPromotion
     ? roundCurrency(product.pricing?.finalPrice ?? fallbackPrice)
@@ -30,7 +32,10 @@ export default function ProductCard({
   const transferPrice =
     displayPrice > 0 && bankTransferDiscountPercentage > 0
       ? roundCurrency(
-          Math.max(displayPrice * (1 - bankTransferDiscountPercentage / 100), 0),
+          Math.max(
+            displayPrice * (1 - bankTransferDiscountPercentage / 100),
+            0,
+          ),
         )
       : null;
   const installmentPrice =
@@ -82,7 +87,8 @@ export default function ProductCard({
               borderRadius: 0,
               background:
                 "color-mix(in srgb, var(--paper, #fffdf9) 84%, var(--accent, #8f7868) 16%)",
-              border: "1px solid color-mix(in srgb, var(--border-soft, rgba(0,0,0,0.12)) 68%, var(--accent, #8f7868) 32%)",
+              border:
+                "1px solid color-mix(in srgb, var(--border-soft, rgba(0,0,0,0.12)) 68%, var(--accent, #8f7868) 32%)",
               boxShadow: "0 10px 24px rgba(56, 34, 24, 0.08)",
               color: "var(--text-strong, #6a5247)",
               letterSpacing: "0.08em",
@@ -160,9 +166,10 @@ export default function ProductCard({
                 style={{
                   margin: 0,
                   color: "var(--text-strong)",
-                  fontSize: 13,
-                  lineHeight: 1.1,
-                  fontWeight: 700,
+                  fontSize: 22,
+                  lineHeight: 1.04,
+                  letterSpacing: "-0.04em",
+                  fontWeight: 800,
                 }}
               >
                 {formatCurrency(basePrice)}
@@ -172,9 +179,10 @@ export default function ProductCard({
                 style={{
                   margin: 0,
                   color: "var(--text-strong)",
-                  fontSize: 13,
-                  lineHeight: 1.1,
-                  fontWeight: 700,
+                  fontSize: 22,
+                  lineHeight: 1.04,
+                  letterSpacing: "-0.04em",
+                  fontWeight: 800,
                 }}
               >
                 {formatCurrency(displayPrice)}
@@ -186,15 +194,12 @@ export default function ProductCard({
                 style={{
                   margin: 0,
                   color: "var(--text-strong)",
-                  fontSize: 22,
-                  lineHeight: 1.04,
-                  letterSpacing: "-0.04em",
-                  fontWeight: 800,
+                  fontSize: 13,
+                  lineHeight: 1.1,
+                  fontWeight: 700,
                 }}
               >
-                {formatCurrency(transferPrice)} con
-                <br />
-                Transferencia
+                {formatCurrency(transferPrice)} con transferencia
               </p>
             ) : null}
             {installmentPrice !== null ? (
@@ -212,7 +217,10 @@ export default function ProductCard({
             ) : null}
           </div>
         ) : (
-          <p className="product-card-price" style={{ margin: 0, color: "var(--text-muted)" }}>
+          <p
+            className="product-card-price"
+            style={{ margin: 0, color: "var(--text-muted)" }}
+          >
             Consultar precio
           </p>
         )}

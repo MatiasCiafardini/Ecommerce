@@ -15,6 +15,7 @@ export type StorefrontThemeLayout = {
   header?: {
     brandLabel?: string;
     primaryLinks?: StorefrontNavLink[];
+    announcementText?: string;
   };
   footer?: {
     brandTitle?: string;

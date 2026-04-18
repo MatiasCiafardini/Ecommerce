@@ -1,0 +1,172 @@
+/* =============================================================================
+   THEME: CLEAN WHITE
+   Blanco puro, espacio máximo, tipografía fina. Sin decoración.
+   Identidad: minimalismo absoluto, lujo discreto, premium moderno.
+   ============================================================================= */
+
+.theme-clean-white {
+  --background: var(--theme-colors-background);
+  --foreground: var(--theme-colors-text);
+  --surface: var(--theme-colors-background-soft);
+  --surface-soft: var(--theme-colors-background-elevated);
+  --border-soft: var(--theme-colors-border);
+  --border-strong: var(--theme-colors-border-strong);
+  --paper: var(--theme-colors-paper);
+  --paper-muted: var(--theme-colors-paper-muted);
+  --text-strong: var(--theme-colors-text-strong);
+  --text-muted: var(--theme-colors-text-muted);
+  --accent: var(--theme-colors-accent);
+  --accent-strong: var(--theme-colors-accent-strong);
+  --accent-contrast: var(--theme-colors-accent-contrast);
+
+  color-scheme: light;
+
+  --page-shell-bg: var(--background);
+  --page-panel-bg: var(--surface);
+  --page-panel-strong-bg: var(--surface-soft);
+  --muted-field-bg: var(--surface);
+  --muted-field-color: var(--text-strong);
+  --ghost-chip-border: var(--border-soft);
+  --ghost-chip-active-border: var(--accent);
+  --ghost-chip-bg: transparent;
+  --ghost-chip-active-bg: color-mix(in srgb, var(--accent) 8%, transparent);
+  --ghost-chip-color: var(--text-strong);
+
+  --store-shell-bg: var(--background);
+  --store-content-bg: transparent;
+  --block-section-bg: transparent;
+  --block-card-bg: var(--surface);
+  --block-panel-bg: var(--surface);
+  --testimonial-card-bg: var(--surface);
+  --testimonial-card-featured-bg: var(--surface-soft);
+  --newsletter-shell-bg: var(--surface-soft);
+  --newsletter-input-bg: var(--background);
+  --product-media-fallback: var(--surface);
+  --category-image-overlay: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--background) 20%, transparent)
+  );
+
+  --theme-hover-translate-y: -2px;
+  --theme-hover-shadow: 0 8px 28px rgba(0,0,0,0.08);
+  --theme-hover-border: var(--border-strong);
+  --theme-ambient-animation: none;
+  --theme-float-animation: none;
+  --theme-pulse-animation: none;
+
+  --header-action-bg: var(--surface);
+  --header-action-bg-active: var(--surface-soft);
+  --header-action-border: var(--border-soft);
+  --header-action-border-active: var(--accent);
+  --header-action-color: var(--theme-colors-text-strong);
+  --header-action-badge-bg: var(--theme-colors-text-strong);
+  --header-action-badge-color: var(--background);
+
+  --notification-overlay-bg: rgba(255,255,255,0.6);
+  --notification-panel-bg: var(--background);
+  --notification-panel-mobile-bg: var(--background);
+  --notification-panel-border: var(--border-soft);
+  --notification-panel-shadow: 0 16px 60px rgba(0,0,0,0.1);
+  --notification-header-bg: var(--surface);
+  --notification-header-border: var(--border-soft);
+  --notification-card-bg: var(--surface);
+  --notification-card-border: var(--border-soft);
+  --notification-empty-bg: var(--surface);
+  --notification-empty-border: var(--border-strong);
+  --notification-text-strong: var(--text-strong);
+  --notification-text-muted: var(--text-muted);
+  --notification-text-soft: var(--foreground);
+  --notification-text-faint: color-mix(in srgb, var(--foreground) 60%, transparent);
+
+  --checkout-panel-bg: var(--page-panel-bg);
+  --checkout-panel-strong-bg: var(--page-panel-strong-bg);
+  --checkout-card-bg: var(--background);
+  --checkout-card-alt-bg: var(--surface);
+  --checkout-border: var(--border-soft);
+  --checkout-border-strong: var(--border-strong);
+  --checkout-text-strong: var(--text-strong);
+  --checkout-text-muted: var(--text-muted);
+  --checkout-field-bg: var(--surface);
+  --checkout-field-color: var(--text-strong);
+  --checkout-primary-bg: var(--text-strong);
+  --checkout-primary-color: var(--background);
+  --checkout-secondary-bg: transparent;
+  --checkout-secondary-color: var(--text-strong);
+
+  --account-shell-bg: var(--background);
+  --account-sidebar-bg: var(--surface);
+  --account-sidebar-border: var(--border-soft);
+  --account-group-bg: var(--surface-soft);
+  --account-group-border: var(--border-soft);
+  --account-item-bg: var(--background);
+  --account-item-bg-active: var(--surface);
+  --account-item-border: var(--border-soft);
+  --account-item-border-active: var(--text-strong);
+  --account-text-strong: var(--text-strong);
+  --account-text-muted: var(--text-muted);
+  --account-text-soft: color-mix(in srgb, var(--foreground) 70%, transparent);
+  --account-text-faint: color-mix(in srgb, var(--foreground) 48%, transparent);
+
+  --select-bg: var(--surface);
+  --select-color: var(--text-strong);
+  --select-border: var(--border-soft);
+  --select-border-focus: var(--text-strong);
+  --select-shadow-focus: 0 0 0 2px color-mix(in srgb, var(--text-strong) 12%, transparent);
+  --select-arrow-color: var(--text-strong);
+}
+
+.theme-clean-white * {
+  color: inherit;
+}
+
+.theme-clean-white h1,
+.theme-clean-white h2,
+.theme-clean-white h3 {
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+
+.theme-clean-white .theme-brand {
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.theme-clean-white .product-card-title {
+  font-weight: 400;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+}
+
+.theme-clean-white .product-card-kicker {
+  letter-spacing: 0.22em;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.45;
+}
+
+.theme-clean-white .theme-hover-lift:hover {
+  box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+  border-color: var(--border-strong);
+}
+
+.theme-clean-white .theme-button:hover {
+  background: var(--text-strong) !important;
+  color: var(--background) !important;
+  border-color: var(--text-strong) !important;
+}
+
+.theme-clean-white .theme-editorial-panel {
+  background: transparent;
+  --editorial-pill-bg: rgba(255,255,255,0.8);
+}
+
+.theme-clean-white .checkout-select-card:hover {
+  border-color: var(--text-strong) !important;
+}
+
+.theme-clean-white .checkout-select-card[data-active="true"] {
+  background: var(--surface-soft) !important;
+  border-color: var(--text-strong) !important;
+}
