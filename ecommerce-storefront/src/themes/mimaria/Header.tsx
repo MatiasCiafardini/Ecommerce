@@ -3,7 +3,6 @@
 import "./styles/index.css";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
 import { useAuth } from "@/context/auth-context";
@@ -18,9 +17,8 @@ export default function Header({
 }: {
   themeLayout?: StorefrontThemeLayout;
 }) {
-  const { user, logout, authUiLocked } = useAuth();
+  const { user, authUiLocked } = useAuth();
   const { cart } = useCart();
-  const router = useRouter();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const manualSalesEnabled = Boolean(
     user?.role &&
@@ -116,15 +114,6 @@ export default function Header({
       cancelled = true;
     };
   }, []);
-
-  const handleLogout = () => {
-    setCategoriesOpen(false);
-    setMenuOpen(false);
-    setMenuEntered(false);
-    setMenuMounted(false);
-    logout();
-    router.push("/");
-  };
 
   const openMenu = () => {
     if (closeTimerRef.current) {
@@ -294,6 +283,7 @@ export default function Header({
           >
             <NotificationsMenu mobileSheet={isMobile} />
 
+          {user ? (
             <Link
               href="/account"
               aria-label="Mi cuenta"
@@ -302,6 +292,7 @@ export default function Header({
             >
               <AccountIcon />
             </Link>
+          ) : null}
 
             <Link
               href="/cart"
@@ -327,26 +318,19 @@ export default function Header({
                   Ingresar
                 </Link>
               )
-            ) : authUiLocked ? (
-              <span style={placeholderStyle}>Cargando...</span>
-            ) : user ? (
-              <>
-                {manualSalesEnabled ? (
-                  <Link href="/manual-sales" style={utilityLinkStyle}>
-                    Venta manual
-                  </Link>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  style={sessionButtonStyle}
-                >
-                  Salir
-                </button>
-              </>
-            ) : (
-              <Link href="/login" style={sessionButtonStyle}>
-                Ingresar
+          ) : authUiLocked ? (
+            <span style={placeholderStyle}>Cargando...</span>
+          ) : user ? (
+            <>
+              {manualSalesEnabled ? (
+                <Link href="/manual-sales" style={utilityLinkStyle}>
+                  Venta manual
+                </Link>
+              ) : null}
+            </>
+          ) : (
+            <Link href="/login" style={sessionButtonStyle}>
+              Ingresar
               </Link>
             )}
           </div>
@@ -501,14 +485,6 @@ export default function Header({
                 >
                   Mi cuenta
                 </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="mimaria-menu-secondary"
-                  style={drawerSecondaryButtonStyle}
-                >
-                  Salir
-                </button>
               </>
             ) : (
               <>
@@ -748,15 +724,6 @@ const drawerSecondaryLinkStyle = {
   padding: "12px 0",
   fontSize: 17,
   lineHeight: 1.35,
-} as const;
-
-const drawerSecondaryButtonStyle = {
-  ...drawerSecondaryLinkStyle,
-  border: "none",
-  background: "transparent",
-  cursor: "pointer",
-  fontFamily: "inherit",
-  textAlign: "left",
 } as const;
 
 const menuCloseButtonStyle = {
