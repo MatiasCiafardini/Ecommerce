@@ -158,6 +158,7 @@ export default function Header({
   };
 
   const topLevelLinks = [
+    { href: "/", label: "Inicio" },
     { href: "/product", label: "Catalogo" },
     { href: "/category/ofertas", label: "Ofertas" },
     { href: "/quienes-somos", label: "Informacion" },
@@ -381,11 +382,14 @@ export default function Header({
               background: "rgba(255, 251, 246, 0.98)",
               borderRight: "1px solid rgba(183,146,98,0.16)",
               boxShadow: "0 26px 70px rgba(110,84,53,0.16)",
-              padding: isMobile ? "22px 24px 28px" : "36px 28px 32px",
+              padding: isMobile
+                ? "max(22px, env(safe-area-inset-top)) 24px calc(44px + env(safe-area-inset-bottom))"
+                : "36px 28px 32px",
               display: "grid",
               alignContent: "start",
               gap: 10,
               overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div
@@ -404,7 +408,7 @@ export default function Header({
               </button>
             </div>
 
-            {topLevelLinks.slice(0, 2).map((link) => (
+            {topLevelLinks.slice(0, 3).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -428,7 +432,11 @@ export default function Header({
             </button>
 
             {categoriesOpen ? (
-              <div style={drawerSubmenuStyle}>
+              <div
+                className="mimaria-menu-submenu"
+                data-scrollable={categories.length > 16 ? "true" : "false"}
+                style={drawerSubmenuStyle}
+              >
                 {categories.length > 0 ? (
                   categories.map((category) => (
                     <Link
@@ -449,7 +457,7 @@ export default function Header({
               </div>
             ) : null}
 
-            {topLevelLinks.slice(2).map((link) => (
+            {topLevelLinks.slice(3).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -592,9 +600,9 @@ function AccountIcon() {
 const navMenuButtonStyle = {
   appearance: "none",
   border: "none",
-  background: "transparent",
+  background: "rgba(255, 249, 241, 0.18)",
   color: "var(--theme-colors-accent-contrast)",
-  padding: 0,
+  padding: "10px 14px",
   fontSize: 14,
   fontFamily: "inherit",
   letterSpacing: "0.18em",
@@ -603,6 +611,8 @@ const navMenuButtonStyle = {
   alignItems: "center",
   justifyContent: "center",
   cursor: "pointer",
+  borderRadius: 10,
+  minHeight: 42,
 } as const;
 
 const utilityLinkStyle = {
@@ -700,8 +710,9 @@ const drawerToggleStyle = {
 
 const drawerSubmenuStyle = {
   display: "grid",
-  gap: 4,
-  padding: "2px 0 8px 18px",
+  gap: 2,
+  padding: "0 0 4px 18px",
+  minWidth: 0,
 } as const;
 
 const drawerSubmenuLinkStyle = {
