@@ -465,9 +465,9 @@
   }
 
   .theme-mimaria .mimaria-menu-drawer {
-    transition:
-      opacity 240ms ease-out !important,
-      transform 320ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+    transition-property: opacity, transform !important;
+    transition-duration: 240ms, 320ms !important;
+    transition-timing-function: ease-out, cubic-bezier(0.22, 1, 0.36, 1) !important;
   }
 }
 
