@@ -26,7 +26,7 @@ export default function Header({
     user.storeFeatures?.manualSalesEnabled,
   );
 
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuMounted, setMenuMounted] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
@@ -191,13 +191,15 @@ export default function Header({
             margin: "0 auto",
             padding: "18px 20px",
             position: "relative",
-            minHeight: isMobile ? undefined : 84,
-            display: isMobile ? undefined : "grid",
-            gridTemplateColumns: isMobile ? undefined : "minmax(0, 1fr) auto",
-            alignItems: isMobile ? undefined : "center",
+            minHeight: isMobile ? 78 : 84,
+            display: "grid",
+            gridTemplateColumns: isMobile
+              ? "auto 1fr auto"
+              : "minmax(0, 1fr) auto",
+            alignItems: "center",
           }}
         >
-          {!isMobile ? (
+          {isMobile === false ? (
             <nav
               className="layout-header-nav"
               style={{
@@ -216,7 +218,7 @@ export default function Header({
             </nav>
           ) : null}
 
-          {isMobile ? (
+          {isMobile === true ? (
             <button
               type="button"
               onClick={handleMenuToggle}
@@ -226,7 +228,7 @@ export default function Header({
             </button>
           ) : null}
 
-          {!isMobile ? (
+          {isMobile === false ? (
             <Link
               href="/"
               className="theme-brand mimaria-header-logo"
@@ -277,23 +279,28 @@ export default function Header({
           <div
             className="layout-header-actions"
             style={{
-              marginLeft: "auto",
-              justifyContent: isMobile ? undefined : "flex-end",
+              marginLeft: isMobile ? 0 : "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              justifyContent: "flex-end",
               paddingLeft: isMobile ? undefined : 180,
+              justifySelf: isMobile ? "end" : undefined,
+              width: isMobile ? "fit-content" : undefined,
             }}
           >
             <NotificationsMenu mobileSheet={isMobile} />
 
-          {user ? (
-            <Link
-              href="/account"
-              aria-label="Mi cuenta"
-              title="Mi cuenta"
-              style={iconActionStyle}
-            >
-              <AccountIcon />
-            </Link>
-          ) : null}
+            {isMobile === false && user ? (
+              <Link
+                href="/account"
+                aria-label="Mi cuenta"
+                title="Mi cuenta"
+                style={iconActionStyle}
+              >
+                <AccountIcon />
+              </Link>
+            ) : null}
 
             <Link
               href="/cart"
@@ -307,33 +314,23 @@ export default function Header({
               ) : null}
             </Link>
 
-            {isMobile ? (
+            {isMobile === true ? null : isMobile === false ? (
               authUiLocked ? (
                 <span style={placeholderStyle}>Cargando...</span>
               ) : user ? (
-                <Link href="/account" style={sessionButtonStyle}>
-                  Mi cuenta
-                </Link>
+                <>
+                  {manualSalesEnabled ? (
+                    <Link href="/manual-sales" style={utilityLinkStyle}>
+                      Venta manual
+                    </Link>
+                  ) : null}
+                </>
               ) : (
                 <Link href="/login" style={sessionButtonStyle}>
                   Ingresar
                 </Link>
               )
-          ) : authUiLocked ? (
-            <span style={placeholderStyle}>Cargando...</span>
-          ) : user ? (
-            <>
-              {manualSalesEnabled ? (
-                <Link href="/manual-sales" style={utilityLinkStyle}>
-                  Venta manual
-                </Link>
-              ) : null}
-            </>
-          ) : (
-            <Link href="/login" style={sessionButtonStyle}>
-              Ingresar
-              </Link>
-            )}
+            ) : null}
           </div>
         </div>
 
