@@ -21,6 +21,21 @@ function normalizeHost(rawHost?: string | string[] | null) {
   return withoutPath.replace(/\.$/, '');
 }
 
+function canonicalizeHost(rawHost?: string | string[] | null) {
+  const normalizedHost = normalizeHost(rawHost);
+  const hostWithoutPort = normalizedHost.replace(/:\d+$/, '');
+  const canonicalHostWithoutPort = hostWithoutPort.startsWith('www.')
+    ? hostWithoutPort.slice(4)
+    : hostWithoutPort;
+  const portMatch = normalizedHost.match(/:(\d+)$/);
+
+  if (!portMatch) {
+    return canonicalHostWithoutPort;
+  }
+
+  return `${canonicalHostWithoutPort}:${portMatch[1]}`;
+}
+
 function isWebhookPath(path: string) {
   return (
     path.startsWith('/api/payments/webhook') ||
@@ -144,14 +159,25 @@ export class StoreMiddleware implements NestMiddleware {
 
   private findStoreByHost(host: string) {
     const normalizedHost = normalizeHost(host);
+    const canonicalHost = canonicalizeHost(host);
     const hostWithoutPort = normalizedHost.replace(/:\d+$/, '');
+    const canonicalHostWithoutPort = canonicalHost.replace(/:\d+$/, '');
+    const candidates = [
+      canonicalHostWithoutPort,
+      canonicalHost,
+      hostWithoutPort,
+      normalizedHost,
+      canonicalHostWithoutPort ? `www.${canonicalHostWithoutPort}` : '',
+    ].filter(Boolean);
 
     return this.prisma.store.findFirst({
       where: {
-        OR:
-          hostWithoutPort !== normalizedHost
-            ? [{ domain: normalizedHost }, { domain: hostWithoutPort }]
-            : [{ domain: normalizedHost }],
+        domain: {
+          in: [...new Set(candidates)],
+        },
+      },
+      orderBy: {
+        domain: 'asc',
       },
       select: {
         id: true,

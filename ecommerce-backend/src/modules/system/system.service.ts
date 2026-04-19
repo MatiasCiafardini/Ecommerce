@@ -192,12 +192,16 @@ const systemStoreUserSelect = {
 } satisfies Prisma.UserSelect;
 
 function normalizeDomain(value: string) {
-  return value
+  const normalizedDomain = value
     .trim()
     .toLowerCase()
     .replace(/^[a-z]+:\/\//i, '')
     .split('/')[0]
     .replace(/\.$/, '');
+
+  return normalizedDomain.startsWith('www.')
+    ? normalizedDomain.slice(4)
+    : normalizedDomain;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -1349,7 +1353,7 @@ export class SystemService {
     return {
       id: store.id,
       name: store.name,
-      domain: store.domain,
+      domain: normalizeDomain(store.domain),
       createdAt: store.createdAt,
       owner,
       adminCount: store.users.length,

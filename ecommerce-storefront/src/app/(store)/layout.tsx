@@ -10,7 +10,15 @@ const themeFavicons: Record<string, string> = {
 export async function generateMetadata(): Promise<Metadata> {
   const config = await getTenantConfig();
   const icon = themeFavicons[config.theme];
-  return icon ? { icons: { icon } } : {};
+  return icon
+    ? {
+        icons: {
+          icon,
+          shortcut: icon,
+          apple: icon,
+        },
+      }
+    : {};
 }
 
 export default async function StoreLayout({

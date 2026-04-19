@@ -1,5 +1,8 @@
-const mapEmbedUrl =
-  "https://www.google.com/maps?q=Trojani&ll=-34.2476164,-59.4730172&z=17&output=embed";
+const storeAddress =
+  "Alsina 317, B2760 San Antonio de Areco, Provincia de Buenos Aires";
+const mapsQuery = encodeURIComponent(storeAddress);
+const mapEmbedUrl = `https://www.google.com/maps?q=${mapsQuery}&z=17&output=embed`;
+const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
 export default function QuienesSomosPage() {
   return (
@@ -179,10 +182,10 @@ export default function QuienesSomosPage() {
                   lineHeight: 1.75,
                 }}
               >
-                Pinto 690, Pergamino, Buenos Aires.
+                {storeAddress}.
               </p>
               <a
-                href="https://www.google.com/maps/place/Trojani/@-34.2476164,-59.4755921,17z/data=!3m1!4b1!4m6!3m5!1s0x95bbeb1c4ebb3e5d:0x1b47d9cff76c5744!8m2!3d-34.2476164!4d-59.4730172!16s%2Fg%2F11rgby0f4s?entry=ttu&g_ep=EgoyMDI2MDQxNS4wIKXMDSoASAFQAw%3D%3D"
+                href={mapsUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="theme-button"
