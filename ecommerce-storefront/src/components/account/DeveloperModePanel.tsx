@@ -157,8 +157,9 @@ type FieldDefinition =
   | { key: string; label: string; type: "products" | "image" };
 
 type CategoryImageStripItem = {
-  categorySlug?: string;
+  title?: string;
   image?: string;
+  categorySlugs?: string[];
 };
 
 const blockLabels: Record<string, string> = {
@@ -535,7 +536,7 @@ const blockDefaultProps: Record<string, Record<string, unknown>> = {
     animationPreset: "soft",
   },
   category_image_strip: {
-    items: [{ categorySlug: "", image: "" }],
+    items: [{ title: "", image: "", categorySlugs: [] }],
     animationPreset: "soft",
   },
   carousel: {
@@ -1413,7 +1414,7 @@ export default function DeveloperModePanel({
   const updateCategoryImageStripItem = (
     itemIndex: number,
     fieldKey: keyof CategoryImageStripItem,
-    value: string,
+    value: string | string[],
   ) => {
     if (!activeBlock) {
       return;
@@ -1648,8 +1649,9 @@ export default function DeveloperModePanel({
 
     const items = [...getCategoryImageStripItems()];
     items.push({
-      categorySlug: "",
+      title: "",
       image: "",
+      categorySlugs: [],
     });
     updateField("items", items);
   };
@@ -1664,6 +1666,19 @@ export default function DeveloperModePanel({
       "items",
       items.filter((_, index) => index !== itemIndex),
     );
+  };
+
+  const toggleCategoryImageStripCategory = (itemIndex: number, categorySlug: string) => {
+    const items = [...getCategoryImageStripItems()];
+    const currentItem = items[itemIndex] ?? {};
+    const currentSlugs = Array.isArray(currentItem.categorySlugs)
+      ? currentItem.categorySlugs.map((slug) => String(slug))
+      : [];
+    const nextSlugs = currentSlugs.includes(categorySlug)
+      ? currentSlugs.filter((slug) => slug !== categorySlug)
+      : [...currentSlugs, categorySlug];
+
+    updateCategoryImageStripItem(itemIndex, "categorySlugs", nextSlugs);
   };
 
   const resetToDefaults = () => {
@@ -3378,7 +3393,10 @@ export default function DeveloperModePanel({
                         <div style={{ display: "grid", gap: 12 }}>
                           {getCategoryImageStripItems().map((item, itemIndex) => {
                             const imageUrl = String(item.image ?? "");
-                            const selectedCategory = String(item.categorySlug ?? "");
+                            const title = String(item.title ?? "");
+                            const selectedCategories = Array.isArray(item.categorySlugs)
+                              ? item.categorySlugs.map((slug) => String(slug))
+                              : [];
 
                             return (
                               <div key={itemIndex} style={slideCardStyle}>
@@ -3394,21 +3412,37 @@ export default function DeveloperModePanel({
                                 </div>
 
                                 <div style={{ display: "grid", gap: 8 }}>
-                                  <label style={labelStyle}>Categoria</label>
-                                  <select
-                                    value={selectedCategory}
+                                  <label style={labelStyle}>Nombre</label>
+                                  <input
+                                    value={title}
                                     onChange={(event) =>
-                                      updateCategoryImageStripItem(itemIndex, "categorySlug", event.target.value)
+                                      updateCategoryImageStripItem(itemIndex, "title", event.target.value)
                                     }
                                     style={inputStyle}
-                                  >
-                                    <option value="">Seleccionar categoria</option>
-                                    {categories.map((category) => (
-                                      <option key={category.id} value={category.slug}>
-                                        {category.name} ({category.slug})
-                                      </option>
-                                    ))}
-                                  </select>
+                                    placeholder="Ejemplo: Abrigos"
+                                  />
+                                </div>
+
+                                <div style={{ display: "grid", gap: 8 }}>
+                                  <label style={labelStyle}>Categorias que abre</label>
+                                  <div style={productPickerStyle}>
+                                    {categories.map((category) => {
+                                      const checked = selectedCategories.includes(category.slug);
+
+                                      return (
+                                        <label key={category.id} style={productChipStyle(checked)}>
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() =>
+                                              toggleCategoryImageStripCategory(itemIndex, category.slug)
+                                            }
+                                          />
+                                          <span>{category.name}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
 
                                 <div style={assetActionsStyle}>

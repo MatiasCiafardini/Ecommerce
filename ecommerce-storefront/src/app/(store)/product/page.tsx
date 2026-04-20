@@ -11,11 +11,21 @@ const hiddenCatalogCategorySlugs = new Set(["sale", "gift-cards"]);
 type ProductsPageProps = {
   searchParams?: Promise<{
     category?: string;
+    categories?: string;
   }>;
 };
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialCategories = (
+    resolvedSearchParams?.categories
+      ? resolvedSearchParams.categories.split(",")
+      : resolvedSearchParams?.category
+        ? [resolvedSearchParams.category]
+        : []
+  )
+    .map((category) => category.trim().toLowerCase())
+    .filter(Boolean);
   const [products, storeOptions, config, bankTransferDiscountPercentage] = await Promise.all([
     getProducts(),
     getStoreProductOptions(),
@@ -34,7 +44,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       products={catalogProducts}
       storeOptions={storeOptions}
       storeId={config.storeId}
-      initialCategory={resolvedSearchParams?.category}
+      initialCategories={initialCategories}
       bankTransferDiscountPercentage={bankTransferDiscountPercentage}
     />
   );

@@ -1,11 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { getCategories } from "@/services/categories.service";
 import { resolveAssetUrl } from "@/lib/asset-url";
 
 type CategoryImageStripItem = {
-  categorySlug?: string;
+  title?: string;
   image?: string;
+  categorySlugs?: string[];
 };
 
 type Props = {
@@ -13,44 +13,40 @@ type Props = {
 };
 
 type ResolvedStripItem = {
-  slug: string;
-  name: string;
+  title: string;
   image: string;
+  categorySlugs: string[];
 };
 
-function formatCategoryName(slug: string) {
-  return slug
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
+export default function CategoryImageStrip({ items }: Props) {
+  const resolvedItems: ResolvedStripItem[] = Array.isArray(items)
+    ? items
+        .map((item) => {
+          const title = String(item?.title ?? "").trim();
+          const image = String(item?.image ?? "").trim();
+          const categorySlugs = Array.isArray(item?.categorySlugs)
+            ? item.categorySlugs
+                .map((slug) => String(slug).trim().toLowerCase())
+                .filter(Boolean)
+            : [];
 
-export default async function CategoryImageStrip({ items }: Props) {
-  const configuredItems = Array.isArray(items)
-    ? items.filter(
-        (item): item is CategoryImageStripItem =>
-          Boolean(item && typeof item === "object" && item.categorySlug && item.image),
-      )
+          return {
+            title,
+            image,
+            categorySlugs,
+          };
+        })
+        .filter(
+          (item) =>
+            Boolean(item.title) &&
+            Boolean(item.image) &&
+            item.categorySlugs.length > 0,
+        )
     : [];
 
-  if (configuredItems.length === 0) {
+  if (resolvedItems.length === 0) {
     return null;
   }
-
-  const categories = await getCategories();
-  const categoriesBySlug = new Map(categories.map((category) => [category.slug, category]));
-
-  const resolvedItems: ResolvedStripItem[] = configuredItems.map((item) => {
-    const slug = String(item.categorySlug ?? "").trim();
-    const category = categoriesBySlug.get(slug);
-
-    return {
-      slug,
-      name: category?.name?.trim() || formatCategoryName(slug),
-      image: String(item.image ?? "").trim(),
-    };
-  });
 
   const desktopSizes = `${Math.max(100 / resolvedItems.length, 20).toFixed(0)}vw`;
 
@@ -72,12 +68,13 @@ export default async function CategoryImageStrip({ items }: Props) {
       >
         {resolvedItems.map((item, index) => {
           const src = resolveAssetUrl(item.image) ?? item.image;
+          const href = `/product?categories=${encodeURIComponent(item.categorySlugs.join(","))}`;
 
           return (
             <Link
-              key={`${item.slug}-${index}`}
-              href={`/category/${item.slug}`}
-              aria-label={`Ir a la categoria ${item.name}`}
+              key={`${item.title}-${index}`}
+              href={href}
+              aria-label={`Ir al catalogo filtrado por ${item.title}`}
               style={{
                 position: "relative",
                 display: "block",
@@ -87,11 +84,12 @@ export default async function CategoryImageStrip({ items }: Props) {
                 overflow: "hidden",
                 textDecoration: "none",
                 lineHeight: 0,
+                color: "white",
               }}
             >
               <Image
                 src={src}
-                alt={item.name}
+                alt={item.title}
                 fill
                 unoptimized
                 sizes={`(max-width: 768px) 100vw, ${desktopSizes}`}
@@ -100,6 +98,36 @@ export default async function CategoryImageStrip({ items }: Props) {
                   objectPosition: "center center",
                 }}
               />
+
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.18) 48%, rgba(0,0,0,0.32) 100%)",
+                }}
+              />
+
+              <div
+                style={{
+                  position: "absolute",
+                  inset: "auto 24px 24px 24px",
+                  display: "grid",
+                  gap: 6,
+                  zIndex: 1,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "clamp(1.6rem, 2.5vw, 2.6rem)",
+                    fontWeight: 700,
+                    letterSpacing: "-0.04em",
+                    lineHeight: 1,
+                  }}
+                >
+                  {item.title}
+                </span>
+              </div>
             </Link>
           );
         })}

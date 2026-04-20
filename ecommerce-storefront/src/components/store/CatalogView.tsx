@@ -14,7 +14,7 @@ type CatalogViewProps = {
   products: StoreProduct[];
   storeOptions: StoreProductOption[];
   storeId?: number;
-  initialCategory?: string;
+  initialCategories?: string[];
   bankTransferDiscountPercentage?: number;
 };
 
@@ -90,7 +90,7 @@ export default function CatalogView({
   products,
   storeOptions,
   storeId,
-  initialCategory,
+  initialCategories,
   bankTransferDiscountPercentage = 0,
 }: CatalogViewProps) {
   const isMiMaria = storeId === 5;
@@ -138,9 +138,13 @@ export default function CatalogView({
     [storeOptions],
   );
 
-  const normalizedInitialCategory = initialCategory?.trim().toLowerCase() ?? "";
+  const normalizedInitialCategories = Array.isArray(initialCategories)
+    ? initialCategories
+        .map((category) => category.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    normalizedInitialCategory ? [normalizedInitialCategory] : [],
+    normalizedInitialCategories,
   );
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedOptionValues, setSelectedOptionValues] = useState<
