@@ -72,7 +72,7 @@ export default function QuienesSomosPage() {
                   color: "var(--text-muted)",
                 }}
               >
-                Universo Trojani
+                Nuestra historia
               </span>
               <p
                 style={{
@@ -82,9 +82,7 @@ export default function QuienesSomosPage() {
                   lineHeight: 1.18,
                 }}
               >
-                Una propuesta pensada para vestir todos los dias con identidad,
-                materiales nobles y una seleccion curada de prendas que se
-                sienten actuales.
+                Una década dándole forma al estilo masculino
               </p>
             </div>
 
@@ -97,9 +95,9 @@ export default function QuienesSomosPage() {
                   maxWidth: 720,
                 }}
               >
-                En Trojani trabajamos una mirada clara sobre el vestir diario:
-                siluetas limpias, prendas combinables y una construccion visual
-                que busca equilibrio entre presencia, comodidad y caracter.
+                En Trojani no creemos en las soluciones mágicas ni en las modas
+                pasajeras que duran un suspiro. Creemos en el trabajo constante,
+                en la evolución y, sobre todo, en la ropa que habla por vos.
               </p>
               <p
                 style={{
@@ -109,11 +107,55 @@ export default function QuienesSomosPage() {
                   maxWidth: 720,
                 }}
               >
-                La tienda esta pensada como una extension de esa identidad. Un
-                espacio donde la experiencia de marca, la seleccion del
-                producto y el trato cercano conviven para que descubrir la
-                coleccion se sienta simple, prolijo y natural.
+                Nacimos con una idea clara: simplificar el guardarropa del
+                hombre moderno sin perder ni un gramo de actitud. Hoy, con casi
+                10 años de trayectoria, esa idea se convirtió en una realidad
+                sólida. Caminamos junto a vos durante una década, aprendiendo
+                qué es lo que realmente buscás cuando elegís una prenda: calidad
+                que se banca el uso, un calce que no falla y ese diseño que te
+                hace sentir seguro en cualquier lugar.
               </p>
+            </div>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              <span
+                style={{
+                  textTransform: "uppercase",
+                  letterSpacing: "0.16em",
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                }}
+              >
+                Trayectoria que genera confianza
+              </span>
+              <div style={{ display: "grid", gap: 14 }}>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--text-muted)",
+                    lineHeight: 1.85,
+                    maxWidth: 720,
+                  }}
+                >
+                  Llegar a una década de historia no es cuestión de suerte. Es
+                  el resultado de una obsesión por los detalles que mantenemos
+                  desde el primer día. Durante estos años, perfeccionamos
+                  nuestras molderías, seleccionamos las mejores materias primas
+                  y construimos una comunidad que nos elige una y otra vez.
+                </p>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--text-muted)",
+                    lineHeight: 1.85,
+                    maxWidth: 720,
+                  }}
+                >
+                  Esa es nuestra mayor medalla: la confianza de saber que cuando
+                  comprás en Trojani, te llevás una prenda respaldada por años
+                  de experiencia y compromiso con el buen vestir.
+                </p>
+              </div>
             </div>
           </article>
 

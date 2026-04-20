@@ -293,6 +293,46 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                 </Link>
               )}
             </div>
+
+            {user && user.role && user.role !== "CUSTOMER" ? (
+              <>
+                <div
+                  style={{
+                    height: 1,
+                    background: "var(--header-action-border)",
+                  }}
+                />
+                <div style={{ display: "grid", gap: 10 }}>
+                  <span
+                    style={{
+                      textTransform: "uppercase",
+                      letterSpacing: "0.2em",
+                      fontSize: 11,
+                      color: "var(--theme-colors-text-muted)",
+                    }}
+                  >
+                    Administración
+                  </span>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {[
+                      { href: "/account?section=admin-products", label: "Productos" },
+                      { href: "/account?section=admin-orders", label: "Pedidos" },
+                      { href: "/account?section=admin-customers", label: "Clientes" },
+                      { href: "/account?section=admin-promotions", label: "Promociones" },
+                    ].map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMenuOpen(false)}
+                        style={mobileAdminLinkStyle}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
         </>
       ) : null}
@@ -431,4 +471,10 @@ const mobileSessionPlaceholderStyle = {
   textTransform: "uppercase",
   letterSpacing: "0.08em",
   fontSize: 11,
+} as const;
+
+const mobileAdminLinkStyle = {
+  ...mobileNavLinkStyle,
+  background: "color-mix(in srgb, var(--page-panel-bg) 60%, var(--page-shell-bg))",
+  fontSize: 14,
 } as const;

@@ -209,7 +209,7 @@ const defaultImageLayout = (position = 0): ImageLayoutState => ({
   zoom: 1,
 });
 
-const MAX_IMAGE_UPLOAD_BYTES = 1.5 * 1024 * 1024;
+const MAX_IMAGE_UPLOAD_BYTES = 900 * 1024;
 const MAX_IMAGE_DIMENSION = 1400;
 const QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
 const IMAGE_UPLOAD_CONCURRENCY = 2;
@@ -1924,7 +1924,7 @@ function AdminProductsSection({
 
       xhr.onload = () => {
         if (xhr.status === 413) {
-          reject(new Error(`${fileEntry.name} es demasiado grande para subir. Máximo 8 MB.`));
+          reject(new Error(`${fileEntry.name} superó el límite del servidor. Intentá con una imagen más pequeña.`));
           return;
         }
 

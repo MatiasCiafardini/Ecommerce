@@ -1,3 +1,7 @@
+"use client";
+
+import { useAuth } from "@/context/auth-context";
+
 export default function StoreShell({
   themeName,
   children,
@@ -5,10 +9,13 @@ export default function StoreShell({
   themeName?: string | null;
   children: React.ReactNode;
 }) {
+  const { user } = useAuth();
+  const isAdmin = Boolean(user?.role && user.role !== "CUSTOMER");
+
   return (
     <div data-store-shell style={{ minHeight: "100vh" }}>
       <main data-store-content>{children}</main>
-      {themeName === "trojani" ? <WhatsAppFloatingButton /> : null}
+      {themeName === "trojani" && !isAdmin ? <WhatsAppFloatingButton /> : null}
     </div>
   );
 }
