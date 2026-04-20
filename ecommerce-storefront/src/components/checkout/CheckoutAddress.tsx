@@ -40,6 +40,7 @@ export default function CheckoutAddress({
     lastName: user?.lastName ?? "",
     address1: "",
     city: "Buenos Aires",
+    state: "Buenos Aires",
     zip: "",
     country: "Argentina",
   });
@@ -186,7 +187,7 @@ export default function CheckoutAddress({
                   >
                     {addr.address1}
                     <br />
-                    {addr.city}, {addr.country}
+                    {[addr.city, addr.state, addr.country].filter(Boolean).join(", ")}
                     <br />
                     CP {addr.zip}
                   </p>
@@ -256,6 +257,15 @@ export default function CheckoutAddress({
             style={fieldStyle}
           />
           <input
+            placeholder="Provincia"
+            value={form.state}
+            onChange={(e) => setForm({ ...form, state: e.target.value })}
+            style={fieldStyle}
+          />
+        </div>
+
+        <div className="layout-form-two">
+          <input
             placeholder="Codigo postal"
             value={form.zip}
             onChange={(e) => setForm({ ...form, zip: e.target.value })}
@@ -272,7 +282,7 @@ export default function CheckoutAddress({
 
         <button
           onClick={saveAddress}
-          disabled={saving}
+          disabled={saving || !form.state.trim()}
           style={{
             border: "1px solid var(--checkout-border)",
             borderRadius: 999,
@@ -286,19 +296,28 @@ export default function CheckoutAddress({
         </button>
 
         <button
-          disabled={!selected}
+          disabled={!selected || !selected.state?.trim()}
           onClick={() => selected && onNext(selected)}
           style={{
             border: "none",
             borderRadius: 999,
-            background: selected ? "var(--checkout-primary-bg)" : "var(--checkout-card-alt-bg)",
-            color: selected ? "var(--checkout-primary-color)" : "var(--checkout-text-muted)",
+            background:
+              selected && selected.state?.trim()
+                ? "var(--checkout-primary-bg)"
+                : "var(--checkout-card-alt-bg)",
+            color:
+              selected && selected.state?.trim()
+                ? "var(--checkout-primary-color)"
+                : "var(--checkout-text-muted)",
             padding: "15px 18px",
             fontWeight: 700,
-            cursor: selected ? "pointer" : "not-allowed",
+            cursor:
+              selected && selected.state?.trim() ? "pointer" : "not-allowed",
           }}
         >
-          Continuar con esta direccion
+          {selected && !selected.state?.trim()
+            ? "Completa la provincia para continuar"
+            : "Continuar con esta direccion"}
         </button>
       </aside>
     </section>

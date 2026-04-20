@@ -22,6 +22,7 @@ type AddressForm = {
   lastName: string;
   address1: string;
   city: string;
+  state: string;
   zip: string;
   country: string;
 };
@@ -73,6 +74,7 @@ export default function AddressSection({ user }: { user: User }) {
       lastName: user.lastName ?? "",
       address1: "",
       city: "Buenos Aires",
+      state: "Buenos Aires",
       zip: "",
       country: "Argentina",
     });
@@ -114,14 +116,15 @@ export default function AddressSection({ user }: { user: User }) {
   const startEdit = (address: Address) => {
     setEditingId(address.id);
     setIsCreating(false);
-    setForm({
-      firstName: address.firstName,
-      lastName: address.lastName,
-      address1: address.address1,
-      city: address.city,
-      zip: address.zip,
-      country: address.country,
-    });
+      setForm({
+        firstName: address.firstName,
+        lastName: address.lastName,
+        address1: address.address1,
+        city: address.city,
+        state: address.state ?? "",
+        zip: address.zip,
+        country: address.country,
+      });
   };
 
   const startCreate = () => {
@@ -132,6 +135,7 @@ export default function AddressSection({ user }: { user: User }) {
       lastName: user.lastName ?? "",
       address1: "",
       city: "Buenos Aires",
+      state: "Buenos Aires",
       zip: "",
       country: "Argentina",
     });
@@ -326,7 +330,7 @@ export default function AddressSection({ user }: { user: User }) {
                     >
                       {address.address1}
                       <br />
-                      {address.city}, {address.country}
+                      {[address.city, address.state, address.country].filter(Boolean).join(", ")}
                       <br />
                       CP {address.zip}
                     </p>
@@ -434,6 +438,15 @@ export default function AddressSection({ user }: { user: User }) {
                 style={fieldStyle}
               />
               <input
+                placeholder="Provincia"
+                value={form.state}
+                onChange={(e) => setForm({ ...form, state: e.target.value })}
+                style={fieldStyle}
+              />
+            </div>
+
+            <div className="layout-form-two">
+              <input
                 placeholder="Codigo postal"
                 value={form.zip}
                 onChange={(e) => setForm({ ...form, zip: e.target.value })}
@@ -451,7 +464,7 @@ export default function AddressSection({ user }: { user: User }) {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button
                 onClick={saveAddress}
-                disabled={saving}
+                disabled={saving || !form.state.trim()}
                 style={{
                   flex: 1,
                   minWidth: 180,

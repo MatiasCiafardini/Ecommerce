@@ -629,12 +629,18 @@ export class OrdersService {
 
       if (status === 'shipped' && requiresShipping) {
         if (!order.shipment) {
-          throw new BadRequestException(
-            'Shipment must exist before dispatching this order',
-          );
+          this.buildShippingAddress(order);
+
+          if (!order.shippingPostalCodeSnapshot?.trim()) {
+            throw new BadRequestException(
+              'Shipping postal code snapshot is required before dispatching this order',
+            );
+          }
+
+          shouldProvisionShipment = true;
         }
 
-        if (this.requiresManualTrackingForDispatch(order)) {
+        if (order.shipment && this.requiresManualTrackingForDispatch(order)) {
           if (!order.shipment.carrier?.trim()) {
             throw new BadRequestException(
               'Carrier is required before dispatching this order',
@@ -1527,11 +1533,15 @@ export class OrdersService {
 
   private requiresManualTrackingForDispatch(order: {
     shippingMethod?: string | null;
+    shippingProvider?: string | null;
     shipment?: {
+      provider?: string | null;
       carrier?: string | null;
     } | null;
   }) {
     const shippingMethod = order.shippingMethod?.trim().toLowerCase() ?? '';
+    const shippingProvider = order.shippingProvider?.trim().toLowerCase() ?? '';
+    const shipmentProvider = order.shipment?.provider?.trim().toLowerCase() ?? '';
 
     if (
       shippingMethod.includes('coordinar') ||
@@ -1541,7 +1551,16 @@ export class OrdersService {
       return false;
     }
 
-    return true;
+    if (
+      shippingProvider === 'correo-argentino' ||
+      shippingProvider === 'enviopack' ||
+      shipmentProvider === 'correo-argentino' ||
+      shipmentProvider === 'enviopack'
+    ) {
+      return false;
+    }
+
+    return shippingProvider === 'manual' || shipmentProvider === 'manual' || !shipmentProvider;
   }
 
   private async findOrderForReceipt(options: {
