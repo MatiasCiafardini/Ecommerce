@@ -33,8 +33,9 @@ export class TrackingSyncService {
     for (const shipment of shipments) {
       try {
         const resolvedProvider =
-          await this.providerConfigService.resolveProviderForStore(
+          await this.providerConfigService.resolveProviderForCapability(
             shipment.storeId,
+            'track',
             {
               providerCode: shipment.provider,
               providerConfigId: (shipment as any).providerConfigId,

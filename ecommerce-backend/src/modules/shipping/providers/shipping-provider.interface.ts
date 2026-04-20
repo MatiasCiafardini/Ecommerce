@@ -78,6 +78,12 @@ export type ResolvedShippingProviderConfig = {
   source: 'store' | 'env';
 };
 
+export type ShippingProviderCapability =
+  | 'quote'
+  | 'createShipment'
+  | 'track'
+  | 'label';
+
 export type ShippingProviderContext = {
   storeId?: number;
   config?: ResolvedShippingProviderConfig | null;

@@ -565,11 +565,18 @@ export class CorreoArgentinoProvider implements ShippingProvider {
       this.bool(envMetadata.testing) ??
       this.bool(process.env.CORREO_ARGENTINO_TESTING) ??
       true;
+    const requestedMode = this.text(storeConfig?.mode).toUpperCase();
+    const envMode =
+      typeof envMetadata.mode === 'string'
+        ? envMetadata.mode.toUpperCase()
+        : '';
     const mode =
-      (this.text(storeConfig?.mode).toUpperCase() as 'MICORREO' | 'PAQAR_API') ||
-      (typeof envMetadata.mode === 'string'
-        ? (envMetadata.mode.toUpperCase() as 'MICORREO' | 'PAQAR_API')
-        : undefined) ||
+      ((requestedMode === 'MICORREO' || requestedMode === 'PAQAR_API'
+        ? requestedMode
+        : '') as 'MICORREO' | 'PAQAR_API') ||
+      ((envMode === 'MICORREO' || envMode === 'PAQAR_API'
+        ? envMode
+        : '') as 'MICORREO' | 'PAQAR_API') ||
       ((process.env.CORREO_ARGENTINO_MODE || 'MICORREO')
         .trim()
         .toUpperCase() as 'MICORREO' | 'PAQAR_API');

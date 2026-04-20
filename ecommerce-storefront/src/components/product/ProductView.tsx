@@ -483,6 +483,7 @@ export default function ProductView({
                   src={image}
                   alt={product.title}
                   fill
+                  unoptimized
                   sizes="(max-width: 900px) 100vw, 56vw"
                   style={{
                     width: "100%",
@@ -593,6 +594,7 @@ export default function ProductView({
                             }
                             alt={`${product.title} vista ${index + 1}`}
                             fill
+                            unoptimized
                             sizes="88px"
                             style={{
                               ...thumbnailImageStyle,

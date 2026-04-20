@@ -578,6 +578,7 @@ export default function CheckoutReview({
                       alt={item.name}
                       width={88}
                       height={110}
+                      unoptimized
                       style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "center center", padding: 8 }}
                     />
                   ) : (

@@ -135,6 +135,7 @@ export default function ProductCard({
             src={imageUrl}
             alt={product.title}
             fill
+            unoptimized
             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
             style={{
               position: "absolute",

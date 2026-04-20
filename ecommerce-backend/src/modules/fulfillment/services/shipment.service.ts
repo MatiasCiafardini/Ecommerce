@@ -40,9 +40,13 @@ export class ShipmentService {
     }
 
     const resolvedProvider =
-      await this.providerConfigService.resolveProviderForStore(storeId, {
-        providerCode: dto.provider,
-      });
+      await this.providerConfigService.resolveProviderForCapability(
+        storeId,
+        'createShipment',
+        {
+          providerCode: dto.provider,
+        },
+      );
 
     const packageCalculation =
       resolvedProvider.provider.providerCode === 'manual'
@@ -102,10 +106,14 @@ export class ShipmentService {
     }
 
     const resolvedProvider =
-      await this.providerConfigService.resolveProviderForStore(storeId, {
-        providerCode: order.shippingProvider,
-        providerConfigId: order.shippingProviderConfigId,
-      });
+      await this.providerConfigService.resolveProviderForCapability(
+        storeId,
+        'createShipment',
+        {
+          providerCode: order.shippingProvider,
+          providerConfigId: order.shippingProviderConfigId,
+        },
+      );
 
     const packageCalculation = this.packageCalculator.calculateFromItems(
       order.items as any,
@@ -344,9 +352,13 @@ export class ShipmentService {
     }
 
     const senderConfig =
-      await this.providerConfigService.resolveProviderForStore(storeId, {
-        providerCode: 'manual',
-      });
+      await this.providerConfigService.resolveProviderForCapability(
+        storeId,
+        'label',
+        {
+          providerCode: 'manual',
+        },
+      );
     const senderMetadata =
       (senderConfig.config?.metadata as Record<string, unknown> | null) ?? {};
     const senderAddress =
@@ -652,10 +664,14 @@ export class ShipmentService {
     }
 
     const resolvedProvider =
-      await this.providerConfigService.resolveProviderForStore(storeId, {
-        providerCode: shipment.provider,
-        providerConfigId: (shipment as any).providerConfigId,
-      });
+      await this.providerConfigService.resolveProviderForCapability(
+        storeId,
+        'track',
+        {
+          providerCode: shipment.provider,
+          providerConfigId: (shipment as any).providerConfigId,
+        },
+      );
 
     const provider = resolvedProvider.provider;
     if (!provider.getShipmentDetail && !provider.getTracking) {
@@ -1659,9 +1675,13 @@ export class ShipmentService {
   private async getSenderDetails(storeId: number, fallbackName: string) {
     try {
       const senderConfig =
-        await this.providerConfigService.resolveProviderForStore(storeId, {
-          providerCode: 'manual',
-        });
+        await this.providerConfigService.resolveProviderForCapability(
+          storeId,
+          'label',
+          {
+            providerCode: 'manual',
+          },
+        );
       const metadata =
         (senderConfig.config?.metadata as Record<string, unknown> | null) ?? {};
       const originAddress =

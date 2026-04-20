@@ -3,17 +3,22 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShippingProvidersRegistryService } from './services/shipping-providers-registry.service';
 import { ShippingQuotesService } from './services/shipping-quotes.service';
 import { StoreShippingProviderConfigService } from './services/store-shipping-provider-config.service';
-import { ShippingRate } from './providers/shipping-provider.interface';
+import {
+  ShippingRate,
+} from './providers/shipping-provider.interface';
 import { ShippingPackageCalculatorService } from './services/shipping-package-calculator.service';
 
 @Injectable()
 export class ShippingService {
+  private readonly logger = new Logger(ShippingService.name);
+
   constructor(
     private prisma: PrismaService,
     private providersRegistry: ShippingProvidersRegistryService,
@@ -69,7 +74,10 @@ export class ShippingService {
       value += Number(item.variant.price) * item.quantity;
     }
     const resolvedProvider =
-      await this.providerConfigService.resolveProviderForStore(storeId);
+      await this.providerConfigService.resolveProviderForCapability(
+        storeId,
+        'quote',
+      );
     const fallbackWeightKg = cart.items.reduce((sum, item) => {
       const variantWeightGrams = Number(item.variant.weightGrams ?? 0);
       const productWeightGrams = Number(item.variant.product?.weightGrams ?? 0);
@@ -107,6 +115,11 @@ export class ShippingService {
         : undefined,
       ...(destination ?? {}),
     };
+    this.logger.log(
+      `Checkout shipping quote provider=${resolvedProvider.provider.providerCode} capability=quote postalCode=${postalCode} weight=${request.weight} package=${JSON.stringify(
+        request.package ?? null,
+      )}`,
+    );
     const manualProvider = this.providersRegistry.getProvider('manual');
 
     const pickupRates = (
@@ -189,9 +202,13 @@ export class ShippingService {
     await this.ensureCustomer(storeId, customerId);
 
     const resolvedProvider =
-      await this.providerConfigService.resolveProviderForStore(storeId, {
+      await this.providerConfigService.resolveProviderForCapability(
+        storeId,
+        'quote',
+        {
         providerCode: input.provider,
-      });
+        },
+      );
 
     if (!resolvedProvider.provider.getAgencies) {
       throw new BadRequestException(

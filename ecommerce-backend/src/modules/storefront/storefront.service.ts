@@ -331,9 +331,13 @@ export class StorefrontService {
 
   async testAdminCorreoArgentinoConfig(storeId: number) {
     const config =
-      await this.storeShippingProviderConfigService.resolveProviderForStore(storeId, {
-        providerCode: 'correo-argentino',
-      });
+      await this.storeShippingProviderConfigService.resolveProviderForCapability(
+        storeId,
+        'quote',
+        {
+          providerCode: 'correo-argentino',
+        },
+      );
 
     if (!config.provider.testConnection) {
       return {

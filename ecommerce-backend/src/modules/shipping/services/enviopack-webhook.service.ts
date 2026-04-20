@@ -95,8 +95,9 @@ export class EnvioPackWebhookService {
     }
 
     const resolvedProvider =
-      await this.providerConfigService.resolveProviderForStore(
+      await this.providerConfigService.resolveProviderForCapability(
         localShipment.storeId,
+        'track',
         {
           providerCode: localShipment.provider,
           providerConfigId: (localShipment as any).providerConfigId,

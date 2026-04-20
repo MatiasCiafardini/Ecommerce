@@ -524,6 +524,7 @@ function CartPageInner() {
                         alt={item.name}
                         width={116}
                         height={145}
+                        unoptimized
                         style={{
                           width: "100%",
                           height: "100%",
@@ -761,4 +762,3 @@ const quantityButtonStyle: React.CSSProperties = {
   color: "var(--text-strong)",
   cursor: "pointer",
 };
-

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -8,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
   ResolvedShippingProviderConfig,
+  ShippingProviderCapability,
   ShippingProvider,
   ShippingProviderContext,
 } from '../providers/shipping-provider.interface';
@@ -35,6 +37,8 @@ type ProviderConfigInput = {
 
 @Injectable()
 export class StoreShippingProviderConfigService {
+  private readonly logger = new Logger(StoreShippingProviderConfigService.name);
+
   constructor(
     private prisma: PrismaService,
     private registry: ShippingProvidersRegistryService,
@@ -246,6 +250,23 @@ export class StoreShippingProviderConfigService {
     providerCode: string;
     config: ResolvedShippingProviderConfig | null;
     context: ShippingProviderContext;
+      source: 'store' | 'env';
+  }> {
+    return this.resolveProviderForCapability(storeId, 'quote', options);
+  }
+
+  async resolveProviderForCapability(
+    storeId: number,
+    capability: ShippingProviderCapability,
+    options?: {
+      providerCode?: string | null;
+      providerConfigId?: string | null;
+    },
+  ): Promise<{
+    provider: ShippingProvider;
+    providerCode: string;
+    config: ResolvedShippingProviderConfig | null;
+    context: ShippingProviderContext;
     source: 'store' | 'env';
   }> {
     const providerCode = options?.providerCode?.trim().toLowerCase() || null;
@@ -300,14 +321,22 @@ export class StoreShippingProviderConfigService {
 
     if (configRecord) {
       const provider = this.registry.getProvider(configRecord.provider);
+      const normalizedConfig = this.normalizeConfigForCapability(
+        capability,
+        this.mapConfig(configRecord),
+      );
+
+      this.logger.log(
+        `Resolved shipping provider capability=${capability} provider=${provider.providerCode} source=store mode=${normalizedConfig?.mode ?? 'DEFAULT'}`,
+      );
 
       return {
         provider,
         providerCode: provider.providerCode,
-        config: this.mapConfig(configRecord),
+        config: normalizedConfig,
         context: {
           storeId,
-          config: this.mapConfig(configRecord),
+          config: normalizedConfig,
         },
         source: 'store',
       };
@@ -317,24 +346,24 @@ export class StoreShippingProviderConfigService {
       (requestedProviderIsRegistered ? providerCode : null) ||
       this.getGlobalFallbackProviderCode();
     const provider = this.registry.getProvider(fallbackCode);
+    const envConfig = requestedProviderIsRegistered
+      ? this.normalizeConfigForCapability(capability, {
+          provider: provider.providerCode,
+          source: 'env',
+        })
+      : null;
+
+    this.logger.log(
+      `Resolved shipping provider capability=${capability} provider=${provider.providerCode} source=env mode=${envConfig?.mode ?? 'DEFAULT'}`,
+    );
 
     return {
       provider,
       providerCode: provider.providerCode,
-      config: requestedProviderIsRegistered
-        ? {
-            provider: provider.providerCode,
-            source: 'env',
-          }
-        : null,
+      config: envConfig,
       context: {
         storeId,
-        config: requestedProviderIsRegistered
-          ? {
-              provider: provider.providerCode,
-              source: 'env',
-            }
-          : null,
+        config: envConfig,
       },
       source: 'env',
     };
@@ -373,9 +402,13 @@ export class StoreShippingProviderConfigService {
   ) {
     await this.findOne(storeId, id);
 
-    const resolvedProvider = await this.resolveProviderForStore(storeId, {
-      providerConfigId: id,
-    });
+    const resolvedProvider = await this.resolveProviderForCapability(
+      storeId,
+      'quote',
+      {
+        providerConfigId: id,
+      },
+    );
 
     if (!resolvedProvider.provider.getAgencies) {
       throw new BadRequestException(
@@ -480,5 +513,122 @@ export class StoreShippingProviderConfigService {
 
   private sanitizeRecordForOutput(record: ProviderConfigRecord) {
     return record;
+  }
+
+  private normalizeConfigForCapability(
+    capability: ShippingProviderCapability,
+    config: ResolvedShippingProviderConfig | null,
+  ) {
+    if (!config || config.provider !== 'correo-argentino') {
+      return config;
+    }
+
+    if (capability === 'label') {
+      return {
+        ...config,
+        mode:
+          this.pickMode(config.mode) ||
+          (this.hasPaqArLabelConfig(config) ? 'PAQAR_API' : 'MICORREO'),
+      };
+    }
+
+    const normalized = {
+      ...config,
+      mode: 'MICORREO',
+    } satisfies ResolvedShippingProviderConfig;
+
+    if (!this.hasMiCorreoConfig(normalized)) {
+      throw new BadRequestException(
+        'MiCorreo no esta configurado para esta tienda',
+      );
+    }
+
+    return normalized;
+  }
+
+  private hasMiCorreoConfig(config: ResolvedShippingProviderConfig) {
+    const metadata =
+      config.metadata && typeof config.metadata === 'object'
+        ? (config.metadata as Record<string, unknown>)
+        : {};
+
+    const apiUsername =
+      this.pickString(metadata.apiUsername) ||
+      process.env.CORREO_ARGENTINO_API_USERNAME?.trim() ||
+      '';
+    const apiPassword =
+      this.pickString(metadata.apiPassword) ||
+      process.env.CORREO_ARGENTINO_API_PASSWORD?.trim() ||
+      '';
+    const customerId =
+      this.pickString(metadata.customerId) ||
+      process.env.CORREO_ARGENTINO_CUSTOMER_ID?.trim() ||
+      '';
+    const customerEmail =
+      this.pickString(config.email) ||
+      this.pickString(metadata.customerEmail) ||
+      this.pickString(metadata.email) ||
+      process.env.CORREO_ARGENTINO_EMAIL?.trim() ||
+      '';
+    const customerPassword =
+      this.pickString(config.password) ||
+      this.pickString(metadata.customerPassword) ||
+      this.pickString(metadata.password) ||
+      process.env.CORREO_ARGENTINO_PASSWORD?.trim() ||
+      '';
+    const originAddress =
+      metadata.originAddress && typeof metadata.originAddress === 'object'
+        ? (metadata.originAddress as Record<string, unknown>)
+        : {};
+    const originPostalCode = this.pickString(originAddress.postalCode);
+
+    return Boolean(
+      apiUsername &&
+        apiPassword &&
+        originPostalCode &&
+        (customerId || (customerEmail && customerPassword)),
+    );
+  }
+
+  private hasPaqArLabelConfig(config: ResolvedShippingProviderConfig) {
+    const metadata =
+      config.metadata && typeof config.metadata === 'object'
+        ? (config.metadata as Record<string, unknown>)
+        : {};
+    const paqAr =
+      metadata.paqAr && typeof metadata.paqAr === 'object'
+        ? (metadata.paqAr as Record<string, unknown>)
+        : {};
+
+    const apiBaseUrl =
+      this.pickString(paqAr.apiBaseUrl) ||
+      process.env.CORREO_ARGENTINO_PAQAR_API_BASE_URL?.trim() ||
+      '';
+    const agreement =
+      this.pickString(config.agreement) ||
+      this.pickString(paqAr.agreement) ||
+      process.env.CORREO_ARGENTINO_PAQAR_AGREEMENT?.trim() ||
+      process.env.CORREO_ARGENTINO_AGREEMENT?.trim() ||
+      '';
+    const apiKey =
+      this.pickString(config.apiKey) ||
+      this.pickString(paqAr.apiKey) ||
+      process.env.CORREO_ARGENTINO_PAQAR_API_KEY?.trim() ||
+      process.env.CORREO_ARGENTINO_API_KEY?.trim() ||
+      '';
+
+    return Boolean(apiBaseUrl && agreement && apiKey);
+  }
+
+  private pickMode(value?: string | null) {
+    const normalized = this.pickString(value).toUpperCase();
+    if (normalized === 'MICORREO' || normalized === 'PAQAR_API') {
+      return normalized;
+    }
+    return '';
+  }
+
+  private pickString(value: unknown) {
+    return typeof value === 'string' && value.trim() ? value.trim() : '';
   }
 }
