@@ -36,7 +36,7 @@ export default async function ProductGrid({
     <section
       className="theme-block-section theme-block-section--product-grid"
       style={{
-        padding: "84px 20px",
+        padding: "0 20px",
       }}
     >
       <div style={{ maxWidth: "var(--store-wide-max)", margin: "0 auto" }}>

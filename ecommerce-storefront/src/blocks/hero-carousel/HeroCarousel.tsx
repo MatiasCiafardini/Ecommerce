@@ -243,7 +243,7 @@ export default function HeroCarousel({
                     position: "relative",
                     zIndex: 2,
                     minHeight: "clamp(460px, 62vh, 600px)",
-                    padding: "var(--hero-carousel-content-padding, 48px 20px 84px)",
+                    padding: "var(--hero-carousel-content-padding, 48px 20px 0)",
                     display: "grid",
                     alignItems: "end",
                   }}

@@ -52,7 +52,7 @@ export default function Benefits({
   return (
     <section
       className="theme-block-section theme-block-section--benefits"
-      style={{ padding: "84px 20px" }}
+      style={{ padding: "0 20px" }}
     >
       <div
         style={{
