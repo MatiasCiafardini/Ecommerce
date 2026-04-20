@@ -142,6 +142,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               top: 65,
               left: 16,
               right: 16,
+              bottom: 16,
+              maxHeight: "calc(100dvh - 81px)",
               zIndex: 40,
               background: "#ffffff",
               border: "1px solid rgba(0,0,0,0.07)",
@@ -149,6 +151,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               padding: "24px 20px",
               display: "grid",
               gap: 4,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             {primaryLinks.map((link) => (

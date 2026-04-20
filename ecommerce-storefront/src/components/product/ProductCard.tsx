@@ -8,11 +8,13 @@ import { getCatalogImageTransform } from "@/lib/product-image-layout";
 type Props = {
   product: StoreProduct;
   bankTransferDiscountPercentage?: number;
+  storeId?: number;
 };
 
 export default function ProductCard({
   product,
   bankTransferDiscountPercentage = 0,
+  storeId,
 }: Props) {
   const imageUrl =
     product.images && product.images.length > 0
@@ -39,8 +41,9 @@ export default function ProductCard({
           ),
         )
       : null;
+  const showInstallments = storeId !== 3;
   const installmentPrice =
-    displayPrice > 0 ? roundCurrency(displayPrice / 3) : null;
+    showInstallments && displayPrice > 0 ? roundCurrency(displayPrice / 3) : null;
 
   return (
     <Link
@@ -178,6 +181,9 @@ export default function ProductCard({
             letterSpacing: "0.1em",
             textTransform: "uppercase",
             fontWeight: 400,
+            display: "block",
+            overflow: "visible",
+            WebkitLineClamp: "unset",
           }}
         >
           {product.title}

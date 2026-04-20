@@ -306,8 +306,11 @@ export default function ProductView({
           ),
         )
       : null;
+  const showInstallments = storeId !== 3;
   const installmentPrice =
-    currentFinalPrice > 0 ? roundCurrency(currentFinalPrice / 3) : null;
+    showInstallments && currentFinalPrice > 0
+      ? roundCurrency(currentFinalPrice / 3)
+      : null;
 
   const hasStock = inStockVariants.length > 0;
   const selectedVariantStock = selectedVariant
@@ -1223,6 +1226,7 @@ export default function ProductView({
                 <ProductCard
                   key={relatedProduct.id}
                   product={relatedProduct}
+                  storeId={storeId}
                   bankTransferDiscountPercentage={
                     bankTransferDiscountPercentage
                   }

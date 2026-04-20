@@ -207,6 +207,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               top: 82,
               left: 16,
               right: 16,
+              bottom: 16,
+              maxHeight: "calc(100dvh - 98px)",
               zIndex: 40,
               borderRadius: 0,
               border: "1px solid var(--theme-colors-border)",
@@ -215,6 +217,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               padding: 20,
               display: "grid",
               gap: 18,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "grid", gap: 10 }}>

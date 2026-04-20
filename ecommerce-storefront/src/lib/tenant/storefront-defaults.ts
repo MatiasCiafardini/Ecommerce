@@ -554,7 +554,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
         {
           type: "banner",
           props: {
-            text: "Hasta 3 cuotas sin interes en seleccionados y envios a todo el pais",
+            text: "Envios a todo el pais y beneficios exclusivos en la tienda",
             backgroundColor: "#ffffff",
             textColor: "#000000",
             animationPreset: "none",

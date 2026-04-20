@@ -141,6 +141,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               top: 80,
               left: 14,
               right: 14,
+              bottom: 14,
+              maxHeight: "calc(100dvh - 94px)",
               zIndex: 40,
               background: "var(--theme-colors-background-elevated)",
               border: "1px solid rgba(200,180,140,0.14)",
@@ -148,6 +150,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               padding: 22,
               display: "grid",
               gap: 16,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "grid", gap: 8 }}>

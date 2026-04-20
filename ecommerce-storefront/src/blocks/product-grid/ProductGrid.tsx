@@ -2,6 +2,7 @@ import { getProducts } from "@/services/products.service";
 import { getBankTransferDiscountPercentage } from "@/services/payment-config.service";
 import ProductCard from "@/components/product/ProductCard";
 import StaggerReveal from "@/components/motion/StaggerReveal";
+import { getTenantConfig } from "@/lib/tenant/get-tenant";
 import { StoreProduct } from "@/types/store";
 
 type Props = {
@@ -27,9 +28,10 @@ export default async function ProductGrid({
 }: Props) {
   const normalizedColumns = Number.isFinite(columns) ? Math.max(0, Math.floor(columns)) : 4;
   const shouldRenderProducts = normalizedColumns > 0;
-  const [products, bankTransferDiscountPercentage] = await Promise.all([
+  const [products, bankTransferDiscountPercentage, config] = await Promise.all([
     shouldRenderProducts ? getProducts({ category, limit, productIds }) : Promise.resolve([]),
     getBankTransferDiscountPercentage(),
+    getTenantConfig(),
   ]);
 
   return (
@@ -52,6 +54,7 @@ export default async function ProductGrid({
               <StaggerReveal key={product.id} delayMs={index * 90}>
                 <ProductCard
                   product={product}
+                  storeId={config.storeId}
                   bankTransferDiscountPercentage={bankTransferDiscountPercentage}
                 />
               </StaggerReveal>

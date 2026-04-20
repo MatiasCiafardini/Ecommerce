@@ -65,6 +65,7 @@ export default async function CategoryPage({ params }: Props) {
             <ProductCard
               key={product.id}
               product={product}
+              storeId={config.storeId}
               bankTransferDiscountPercentage={bankTransferDiscountPercentage}
             />
           ))}

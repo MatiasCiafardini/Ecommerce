@@ -87,18 +87,13 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
     window.localStorage.setItem("account-sidebar-collapsed", String(sidebarCollapsed));
   }, [isNarrowViewport, sidebarCollapsed]);
 
-  useEffect(() => {
-    if (isNarrowViewport && sidebarCollapsed) {
-      setSidebarCollapsed(false);
-    }
-  }, [isNarrowViewport, sidebarCollapsed]);
-
   const handleLogout = () => {
     logout();
     router.push("/");
   };
 
   const shouldCollapseSidebar = sidebarCollapsed && !isNarrowViewport;
+  const showSidebar = !isNarrowViewport;
 
   return (
     <section
@@ -137,16 +132,17 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
         <div
           className="layout-two-col"
           style={{
-            gridTemplateColumns: shouldCollapseSidebar
-              ? "92px minmax(0, 1fr)"
-              : isNarrowViewport
-                ? "1fr"
+            gridTemplateColumns: !showSidebar
+              ? "1fr"
+              : shouldCollapseSidebar
+                ? "92px minmax(0, 1fr)"
                 : "minmax(320px, 0.34fr) minmax(0, 1fr)",
             gap: isCompactViewport ? 16 : 24,
             alignItems: "stretch",
             transition: "grid-template-columns 240ms var(--ease-theme)",
           }}
         >
+          {showSidebar ? (
           <aside
             className="layout-sidebar"
             onClick={shouldCollapseSidebar ? () => setSidebarCollapsed(false) : undefined}
@@ -282,6 +278,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
               </div>
             )}
           </aside>
+          ) : null}
 
           <div
             style={{ display: "grid", gap: isCompactViewport ? 18 : 24, minWidth: 0, alignSelf: "start" }}

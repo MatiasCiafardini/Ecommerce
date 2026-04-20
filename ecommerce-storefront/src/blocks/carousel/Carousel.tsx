@@ -2,6 +2,7 @@ import { getProducts } from "@/services/products.service";
 import { getBankTransferDiscountPercentage } from "@/services/payment-config.service";
 import ProductCard from "@/components/product/ProductCard";
 import StaggerReveal from "@/components/motion/StaggerReveal";
+import { getTenantConfig } from "@/lib/tenant/get-tenant";
 import { StoreProduct } from "@/types/store";
 
 type Props = {
@@ -15,9 +16,10 @@ export default async function Carousel({
   limit = 6,
   productIds,
 }: Props) {
-  const [products, bankTransferDiscountPercentage] = await Promise.all([
+  const [products, bankTransferDiscountPercentage, config] = await Promise.all([
     getProducts({ limit, productIds }),
     getBankTransferDiscountPercentage(),
+    getTenantConfig(),
   ]);
 
   return (
@@ -56,6 +58,7 @@ export default async function Carousel({
               <StaggerReveal delayMs={index * 90}>
                 <ProductCard
                   product={product}
+                  storeId={config.storeId}
                   bankTransferDiscountPercentage={bankTransferDiscountPercentage}
                 />
               </StaggerReveal>

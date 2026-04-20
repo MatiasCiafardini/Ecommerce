@@ -308,13 +308,13 @@ export default function CatalogView({
 
   const desktopCatalogMetrics = filtersOpen
     ? {
-        cardWidth: "258px",
-        cardHeight: "390px",
-        mediaHeight: "264px",
-        copyMinHeight: "126px",
-        gap: 20,
-        columns: "repeat(3, minmax(0, var(--product-card-width)))",
-      }
+          cardWidth: "258px",
+         cardHeight: "430px",
+         mediaHeight: "250px",
+         copyMinHeight: "168px",
+         gap: 20,
+         columns: "repeat(3, minmax(0, var(--product-card-width)))",
+       }
     : {
         cardWidth: "272px",
         cardHeight: "472px",
@@ -693,6 +693,7 @@ export default function CatalogView({
                     <ProductCard
                       key={product.id}
                       product={product}
+                      storeId={storeId}
                       bankTransferDiscountPercentage={
                         bankTransferDiscountPercentage
                       }

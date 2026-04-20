@@ -133,12 +133,16 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               top: 62,
               left: 0,
               right: 0,
+              bottom: 0,
+              maxHeight: "calc(100dvh - 62px)",
               zIndex: 40,
               background: "var(--theme-colors-background)",
               borderBottom: "2px solid var(--theme-colors-accent)",
               padding: "20px 24px",
               display: "grid",
               gap: 0,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             {primaryLinks.map((link) => (
