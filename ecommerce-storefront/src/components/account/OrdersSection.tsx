@@ -257,7 +257,7 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
 
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <button
-                    onClick={() => openReceipt(order.id)}
+                    onClick={() => void openReceipt(order.id)}
                     style={{
                       borderRadius: 999,
                       border: "1px solid var(--border-soft)",

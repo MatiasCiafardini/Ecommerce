@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { api, apiBlob } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
+import { downloadBlobFile } from "@/lib/download";
 import AdminOrderShipmentPanel from "./AdminOrderShipmentPanel";
 import {
   hasOrderShippingSnapshot,
@@ -111,6 +112,42 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     }
   };
 
+  const downloadOrderReceipt = async () => {
+    if (!order) return;
+
+    try {
+      setError("");
+      const blob = await apiBlob(`/orders/${order.id}/receipt.pdf`);
+      downloadBlobFile(blob, `comprobante-pedido-${order.id}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo descargar el comprobante.");
+    }
+  };
+
+  const downloadShipmentLabel = async () => {
+    if (!order?.shipment) return;
+
+    try {
+      setError("");
+      const blob = await apiBlob(`/admin/shipments/${order.shipment.id}/label.pdf`);
+      downloadBlobFile(blob, `etiqueta-envio-${order.id}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo descargar la etiqueta.");
+    }
+  };
+
+  const downloadShipmentReceipt = async () => {
+    if (!order?.shipment) return;
+
+    try {
+      setError("");
+      const blob = await apiBlob(`/admin/shipments/${order.shipment.id}/receipt.pdf`);
+      downloadBlobFile(blob, `comprobante-envio-${order.id}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo descargar el comprobante de envio.");
+    }
+  };
+
   if (loading) {
     return <section style={panelStyle}><StateCard label="Cargando detalle operativo..." /></section>;
   }
@@ -131,9 +168,6 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
   const shippingAddressLines = orderShippingAddressLines(order);
   const pickupOrder = isPickupOrder(order);
   const showManualDispatchPanel = !pickupOrder && Boolean(order.shipment);
-  const canPrintShipping = Boolean(
-    shippingAddressLines.length > 0 || order.shipment?.trackingNumber,
-  );
   const hasShippingContext =
     !pickupOrder &&
     Boolean(
@@ -492,10 +526,15 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                 </div>
               ) : null}
               <div style={rowWrapStyle}>
-                {order.shipment?.labelUrl ? (
-                  <a href={order.shipment.labelUrl} target="_blank" rel="noreferrer" style={primaryLinkStyle}>
-                    Descargar etiqueta
-                  </a>
+                {order.shipment ? (
+                  <button type="button" onClick={() => void downloadShipmentLabel()} style={primaryButtonStyle}>
+                    Descargar etiqueta PDF
+                  </button>
+                ) : null}
+                {order.shipment ? (
+                  <button type="button" onClick={() => void downloadShipmentReceipt()} style={secondaryButtonStyle}>
+                    Descargar comprobante PDF
+                  </button>
                 ) : null}
                 {order.shipment?.trackingUrl ? (
                   <a href={order.shipment.trackingUrl} target="_blank" rel="noreferrer" style={primaryLinkStyle}>
@@ -504,16 +543,10 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => void downloadOrderReceipt()}
                   style={secondaryButtonStyle}
-                  disabled={!canPrintShipping}
-                  title={
-                    canPrintShipping
-                      ? "Imprimir esta vista con foco logistico"
-                      : "Faltan datos logisticos para una etiqueta util"
-                  }
                 >
-                  Imprimir shipping
+                  Descargar comprobante de pedido
                 </button>
               </div>
             </section>

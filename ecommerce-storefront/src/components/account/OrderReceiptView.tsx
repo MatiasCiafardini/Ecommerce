@@ -31,14 +31,6 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
     loadOrder();
   }, [orderId]);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      window.print();
-    }, 300);
-
-    return () => window.clearTimeout(timeout);
-  }, []);
-
   if (loading) {
     return <div style={{ padding: 32 }}>Cargando comprobante...</div>;
   }
@@ -82,7 +74,7 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
             }}
           >
             <button
-              onClick={() => window.print()}
+              onClick={() => void openReceipt(order.id)}
               style={{
                 border: "none",
                 borderRadius: 999,
@@ -93,11 +85,11 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
                 cursor: "pointer",
               }}
             >
-              Imprimir / guardar PDF
+              Descargar PDF
             </button>
 
             <button
-              onClick={() => openReceipt(order.id)}
+              onClick={() => window.close()}
               style={{
                 borderRadius: 999,
                 border: "1px solid rgba(17,17,17,0.14)",
@@ -107,7 +99,7 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
                 cursor: "pointer",
               }}
             >
-              Abrir en otra pestaña
+              Cerrar ventana
             </button>
           </div>
 

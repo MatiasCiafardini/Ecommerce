@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, apiText } from "@/lib/api";
+import { api, apiBlob } from "@/lib/api";
+import { downloadBlobFile } from "@/lib/download";
 import { isPickupOrder, type CustomerOrder } from "./order-utils";
 
 type Props = {
@@ -135,23 +136,23 @@ export default function AdminOrderShipmentPanel({
     }
   };
 
-  const printLabel = async () => {
+  const downloadLabel = async () => {
     try {
       onError("");
-      const html = await apiText(`/admin/shipments/${order.shipment!.id}/label`);
-      const printWindow = window.open("", "_blank", "noopener,noreferrer,width=980,height=760");
-
-      if (!printWindow) {
-        throw new Error("No se pudo abrir la ventana de impresion.");
-      }
-
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      window.setTimeout(() => printWindow.print(), 250);
+      const blob = await apiBlob(`/admin/shipments/${order.shipment!.id}/label.pdf`);
+      downloadBlobFile(blob, `etiqueta-envio-${order.id}.pdf`);
     } catch (error) {
-      onError(getErrorMessage(error, "No se pudo imprimir la etiqueta."));
+      onError(getErrorMessage(error, "No se pudo descargar la etiqueta."));
+    }
+  };
+
+  const downloadReceipt = async () => {
+    try {
+      onError("");
+      const blob = await apiBlob(`/admin/shipments/${order.shipment!.id}/receipt.pdf`);
+      downloadBlobFile(blob, `comprobante-envio-${order.id}.pdf`);
+    } catch (error) {
+      onError(getErrorMessage(error, "No se pudo descargar el comprobante."));
     }
   };
 
@@ -243,8 +244,11 @@ export default function AdminOrderShipmentPanel({
         <button type="button" onClick={() => void saveShipment()} disabled={saving} style={secondaryButtonStyle}>
           {saving ? "Guardando..." : "Guardar datos"}
         </button>
-        <button type="button" onClick={() => void printLabel()} style={secondaryButtonStyle}>
-          Imprimir etiqueta
+        <button type="button" onClick={() => void downloadLabel()} style={secondaryButtonStyle}>
+          Descargar etiqueta PDF
+        </button>
+        <button type="button" onClick={() => void downloadReceipt()} style={secondaryButtonStyle}>
+          Descargar comprobante PDF
         </button>
         {order.status === "packed" ? (
           <button

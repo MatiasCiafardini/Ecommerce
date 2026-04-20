@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SimplePdfDocument } from '../../common/utils/pdf-document';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateManualSaleDto } from './dto/create-manual-sale.dto';
 import { UpdateManualSaleDto } from './dto/update-manual-sale.dto';
@@ -1089,6 +1090,31 @@ export class OrdersService {
     return this.withCancellationRequests(order);
   }
 
+  async getAdminReceiptPdf(orderId: number, storeId: number) {
+    const order = await this.findOrderForReceipt({
+      orderId,
+      storeId,
+    });
+
+    return {
+      filename: `comprobante-pedido-${order.id}.pdf`,
+      pdf: this.renderOrderReceiptPdf(order),
+    };
+  }
+
+  async getCustomerReceiptPdf(orderId: number, storeId: number, customerId: number) {
+    const order = await this.findOrderForReceipt({
+      orderId,
+      storeId,
+      customerId,
+    });
+
+    return {
+      filename: `comprobante-pedido-${order.id}.pdf`,
+      pdf: this.renderOrderReceiptPdf(order),
+    };
+  }
+
   async cancelMine(orderId: number, storeId: number, customerId: number) {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
@@ -1514,6 +1540,196 @@ export class OrdersService {
     return true;
   }
 
+  private async findOrderForReceipt(options: {
+    orderId: number;
+    storeId: number;
+    customerId?: number;
+  }) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: options.orderId,
+        storeId: options.storeId,
+        ...(options.customerId ? { customerId: options.customerId } : {}),
+      },
+      include: {
+        store: true,
+        customer: {
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+        shipment: {
+          include: {
+            trackingEvents: true,
+          },
+        },
+        payments: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    return order;
+  }
+
+  private renderOrderReceiptPdf(
+    order: Awaited<ReturnType<OrdersService['findOrderForReceipt']>>,
+  ) {
+    const pdf = new SimplePdfDocument();
+    const margin = 42;
+    const pageWidth = pdf.getPageWidth();
+    const contentWidth = pageWidth - margin * 2;
+    let cursorY = 800;
+
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: 'COMPROBANTE DE COMPRA',
+      size: 24,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 22;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: order.store.name,
+      size: 13,
+      font: 'Helvetica-Bold',
+    });
+    pdf.drawText({
+      x: pageWidth - 200,
+      y: cursorY,
+      text: `Pedido #${order.id}`,
+      size: 12,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 18;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: `Fecha ${new Date(order.createdAt).toLocaleString('es-AR')} · Estado ${order.status}`,
+      size: 10,
+    });
+    pdf.drawLine({
+      x1: margin,
+      y1: cursorY - 12,
+      x2: pageWidth - margin,
+      y2: cursorY - 12,
+      lineWidth: 1,
+    });
+
+    cursorY -= 40;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: 'CLIENTE Y ENTREGA',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 20;
+    cursorY = pdf.drawWrappedText({
+      x: margin,
+      y: cursorY,
+      text: [
+        `Cliente: ${this.orderCustomerLabel(order)}`,
+        `Email: ${order.customerEmailSnapshot || order.customer?.email || 'No informado'}`,
+        `Telefono: ${order.shippingPhoneSnapshot || order.customerPhoneSnapshot || order.customer?.phone || 'No informado'}`,
+        `Entrega: ${order.shippingMethod || 'A confirmar'}`,
+        `Direccion: ${
+          [
+            order.shippingAddress1Snapshot,
+            order.shippingAddress2Snapshot,
+            order.shippingCitySnapshot,
+            order.shippingStateSnapshot,
+            order.shippingPostalCodeSnapshot,
+            order.shippingCountrySnapshot,
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'No informada'
+        }`,
+        `Tracking: ${order.shipment?.trackingNumber || 'Pendiente'}`,
+      ].join('\n'),
+      maxWidth: contentWidth,
+      size: 12,
+      lineHeight: 17,
+    });
+
+    cursorY -= 18;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: 'PRODUCTOS',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 22;
+
+    order.items.forEach((item, index) => {
+      if (cursorY < 120) {
+        pdf.addPage();
+        cursorY = 800;
+      }
+
+      cursorY = pdf.drawWrappedText({
+        x: margin,
+        y: cursorY,
+        text: `${index + 1}. ${item.quantity} x ${item.variant.product.title} · SKU ${
+          item.variant.sku || 'Sin SKU'
+        } · Unitario ${this.formatMoney(item.price)} · Subtotal ${this.formatMoney(
+          Number(item.price) * item.quantity,
+        )}`,
+        maxWidth: contentWidth,
+        size: 11,
+        lineHeight: 16,
+      });
+      cursorY -= 6;
+    });
+
+    if (cursorY < 170) {
+      pdf.addPage();
+      cursorY = 800;
+    }
+
+    pdf.drawLine({
+      x1: margin,
+      y1: cursorY,
+      x2: pageWidth - margin,
+      y2: cursorY,
+      lineWidth: 1,
+    });
+    cursorY -= 22;
+    pdf.drawWrappedText({
+      x: margin,
+      y: cursorY,
+      text: [
+        `Subtotal: ${this.formatMoney(order.subtotal)}`,
+        `Descuento: ${this.formatMoney(order.discountAmount)}`,
+        `Envio: ${this.formatMoney(order.shippingCost)}`,
+        `Total: ${this.formatMoney(order.total)}`,
+      ].join('\n'),
+      maxWidth: contentWidth,
+      size: 12,
+      lineHeight: 18,
+      font: 'Helvetica-Bold',
+    });
+
+    return pdf.save();
+  }
+
   private orderInclude() {
     return {
       customer: {
@@ -1733,7 +1949,11 @@ export class OrdersService {
     return normalized;
   }
 
-  private formatMoney(value: { toNumber(): number } | number) {
+  private formatMoney(value: { toNumber(): number } | number | null | undefined) {
+    if (value === null || value === undefined) {
+      return 'No informado';
+    }
+
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS',

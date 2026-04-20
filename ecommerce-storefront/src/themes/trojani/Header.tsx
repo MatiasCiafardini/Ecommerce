@@ -319,10 +319,14 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                   </span>
                   <div style={{ display: "grid", gap: 8 }}>
                     {[
+                      { href: "/account?section=admin-overview", label: "Resumen" },
+                      { href: "/account?section=admin-accounting", label: "Contabilidad" },
                       { href: "/account?section=admin-products", label: "Productos" },
+                      { href: "/account?section=admin-promotions", label: "Promociones" },
                       { href: "/account?section=admin-orders", label: "Pedidos" },
                       { href: "/account?section=admin-customers", label: "Clientes" },
-                      { href: "/account?section=admin-promotions", label: "Promociones" },
+                      { href: "/account?section=admin-shipments", label: "Envios" },
+                      { href: "/account?section=admin-returns", label: "Devoluciones" },
                     ].map((item) => (
                       <Link
                         key={item.href}

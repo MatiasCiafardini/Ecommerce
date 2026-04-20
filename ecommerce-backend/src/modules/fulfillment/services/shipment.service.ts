@@ -5,6 +5,8 @@ import {
   NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
+import axios from 'axios';
+import { SimplePdfDocument } from '../../../common/utils/pdf-document';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateShipmentDto } from '../dto/create-shipment.dto';
 import { UpdateManualShipmentDto } from '../dto/update-manual-shipment.dto';
@@ -594,6 +596,24 @@ export class ShipmentService {
 </body>
 </html>`;
   }
+  async getLabelPdf(storeId: number, shipmentId: string) {
+    const shipment = await this.getShipmentDocumentContext(storeId, shipmentId);
+    const carrierPdf = await this.downloadExternalPdf(shipment.labelUrl);
+
+    return {
+      filename: `etiqueta-envio-${shipment.orderId}.pdf`,
+      pdf: carrierPdf ?? (await this.renderInternalLabelPdf(storeId, shipment)),
+    };
+  }
+
+  async getReceiptPdf(storeId: number, shipmentId: string) {
+    const shipment = await this.getShipmentDocumentContext(storeId, shipmentId);
+
+    return {
+      filename: `comprobante-envio-${shipment.orderId}.pdf`,
+      pdf: this.renderShipmentReceiptPdf(shipment),
+    };
+  }
 
   private async findOrderForShipment(storeId: number, orderId: number) {
     const order = await this.prisma.order.findFirst({
@@ -978,6 +998,477 @@ export class ShipmentService {
       height: heights.length ? heights.reduce((sum, value) => sum + value, 0) : undefined,
       length: lengths.length ? Math.max(...lengths) : undefined,
     };
+  }
+
+  private async getShipmentDocumentContext(storeId: number, shipmentId: string) {
+    const shipment = await this.prisma.shipment.findFirst({
+      where: {
+        id: shipmentId,
+        storeId,
+      },
+      include: {
+        store: true,
+        order: {
+          include: {
+            items: {
+              include: {
+                variant: {
+                  include: {
+                    product: true,
+                  },
+                },
+              },
+            },
+            payments: true,
+          },
+        },
+      },
+    });
+
+    if (!shipment) {
+      throw new NotFoundException('Shipment not found');
+    }
+
+    return shipment;
+  }
+
+  private async downloadExternalPdf(url?: string | null) {
+    if (!url?.trim()) {
+      return null;
+    }
+
+    try {
+      const response = await axios.get<ArrayBuffer>(url, {
+        responseType: 'arraybuffer',
+        timeout: 20_000,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+      const pdf = Buffer.from(response.data);
+      const contentType = String(response.headers['content-type'] ?? '').toLowerCase();
+
+      if (contentType.includes('pdf') || pdf.subarray(0, 4).toString('ascii') === '%PDF') {
+        return pdf;
+      }
+
+      this.logger.warn(`Shipment label URL did not return a PDF: ${url}`);
+      return null;
+    } catch (error) {
+      this.logger.warn(
+        `Could not download external shipment label from ${url}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+      return null;
+    }
+  }
+
+  private async renderInternalLabelPdf(
+    storeId: number,
+    shipment: Awaited<ReturnType<ShipmentService['getShipmentDocumentContext']>>,
+  ) {
+    const sender = await this.getSenderDetails(storeId, shipment.store.name);
+    const pdf = new SimplePdfDocument();
+    const margin = 42;
+    const pageWidth = pdf.getPageWidth();
+    const contentWidth = pageWidth - margin * 2;
+    let cursorY = 800;
+
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: 'ETIQUETA DE ENVIO',
+      size: 24,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 20;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: sender.name,
+      size: 14,
+      font: 'Helvetica-Bold',
+    });
+    pdf.drawText({
+      x: pageWidth - 190,
+      y: cursorY,
+      text: `Pedido #${shipment.orderId}`,
+      size: 12,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 18;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: `Envio ${shipment.id.slice(0, 8).toUpperCase()} · ${new Date(shipment.createdAt).toLocaleDateString('es-AR')}`,
+      size: 10,
+    });
+    pdf.drawLine({
+      x1: margin,
+      y1: cursorY - 12,
+      x2: pageWidth - margin,
+      y2: cursorY - 12,
+      lineWidth: 1,
+    });
+
+    cursorY -= 42;
+    pdf.drawRect({
+      x: margin,
+      y: cursorY - 160,
+      width: contentWidth,
+      height: 160,
+      lineWidth: 1.4,
+    });
+    pdf.drawText({
+      x: margin + 16,
+      y: cursorY - 24,
+      text: 'DESTINATARIO',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    pdf.drawText({
+      x: margin + 16,
+      y: cursorY - 52,
+      text: this.getShipmentRecipientName(shipment.order),
+      size: 20,
+      font: 'Helvetica-Bold',
+    });
+
+    let destinationY = cursorY - 78;
+    destinationY = pdf.drawWrappedText({
+      x: margin + 16,
+      y: destinationY,
+      text: shipment.shippingAddress,
+      maxWidth: contentWidth - 32,
+      size: 13,
+      lineHeight: 18,
+    });
+    destinationY = pdf.drawWrappedText({
+      x: margin + 16,
+      y: destinationY - 4,
+      text: this.getShipmentDestinationLine(shipment),
+      maxWidth: contentWidth - 32,
+      size: 12,
+      lineHeight: 17,
+    });
+    pdf.drawWrappedText({
+      x: margin + 16,
+      y: destinationY - 4,
+      text: `Telefono: ${shipment.order.shippingPhoneSnapshot || shipment.order.customerPhoneSnapshot || 'No informado'}`,
+      maxWidth: contentWidth - 32,
+      size: 11,
+      lineHeight: 16,
+    });
+
+    cursorY -= 188;
+    const columnGap = 16;
+    const columnWidth = (contentWidth - columnGap) / 2;
+    const boxHeight = 148;
+
+    pdf.drawRect({
+      x: margin,
+      y: cursorY - boxHeight,
+      width: columnWidth,
+      height: boxHeight,
+    });
+    pdf.drawRect({
+      x: margin + columnWidth + columnGap,
+      y: cursorY - boxHeight,
+      width: columnWidth,
+      height: boxHeight,
+    });
+
+    pdf.drawText({
+      x: margin + 14,
+      y: cursorY - 22,
+      text: 'REMITENTE',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    pdf.drawWrappedText({
+      x: margin + 14,
+      y: cursorY - 44,
+      text: `${sender.name}\n${sender.addressLine || 'Direccion no configurada'}\n${sender.locationLine || 'Localidad no configurada'}\n${sender.phone ? `Telefono: ${sender.phone}` : ''}`,
+      maxWidth: columnWidth - 28,
+      size: 11,
+      lineHeight: 16,
+    });
+
+    const metaX = margin + columnWidth + columnGap + 14;
+    pdf.drawText({
+      x: metaX,
+      y: cursorY - 22,
+      text: 'DATOS OPERATIVOS',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    pdf.drawWrappedText({
+      x: metaX,
+      y: cursorY - 44,
+      text: [
+        `Carrier: ${shipment.carrier || 'A definir'}`,
+        `Metodo: ${shipment.method || shipment.order.shippingMethod || 'Envio'}`,
+        `Tracking: ${shipment.trackingNumber || 'Pendiente'}`,
+        `Codigo postal: ${shipment.postalCode || shipment.order.shippingPostalCodeSnapshot || 'No informado'}`,
+        `Peso: ${shipment.weight ? `${shipment.weight.toFixed(2)} kg` : 'A definir'}`,
+      ].join('\n'),
+      maxWidth: columnWidth - 28,
+      size: 11,
+      lineHeight: 16,
+    });
+
+    cursorY -= boxHeight + 26;
+    pdf.drawRect({
+      x: margin,
+      y: cursorY - 78,
+      width: contentWidth,
+      height: 78,
+    });
+    pdf.drawText({
+      x: margin + 16,
+      y: cursorY - 24,
+      text: 'TRACKING',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    pdf.drawText({
+      x: margin + 16,
+      y: cursorY - 56,
+      text: shipment.trackingNumber || 'SIN TRACKING',
+      size: 22,
+      font: 'Helvetica-Bold',
+    });
+
+    return pdf.save();
+  }
+
+  private renderShipmentReceiptPdf(
+    shipment: Awaited<ReturnType<ShipmentService['getShipmentDocumentContext']>>,
+  ) {
+    const pdf = new SimplePdfDocument();
+    const margin = 42;
+    const pageWidth = pdf.getPageWidth();
+    const contentWidth = pageWidth - margin * 2;
+    let cursorY = 800;
+
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: 'COMPROBANTE DE DESPACHO',
+      size: 24,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 22;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: shipment.store.name,
+      size: 13,
+      font: 'Helvetica-Bold',
+    });
+    pdf.drawText({
+      x: pageWidth - 200,
+      y: cursorY,
+      text: `Pedido #${shipment.orderId}`,
+      size: 12,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 18;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: `Generado ${new Date().toLocaleString('es-AR')}`,
+      size: 10,
+    });
+    pdf.drawLine({
+      x1: margin,
+      y1: cursorY - 12,
+      x2: pageWidth - margin,
+      y2: cursorY - 12,
+      lineWidth: 1,
+    });
+
+    cursorY -= 40;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: 'DESTINATARIO',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 20;
+    pdf.drawWrappedText({
+      x: margin,
+      y: cursorY,
+      text: [
+        this.getShipmentRecipientName(shipment.order),
+        shipment.shippingAddress,
+        this.getShipmentDestinationLine(shipment),
+      ].join('\n'),
+      maxWidth: contentWidth,
+      size: 12,
+      lineHeight: 18,
+    });
+
+    cursorY -= 72;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: 'DETALLE DEL ENVIO',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 20;
+    cursorY = pdf.drawWrappedText({
+      x: margin,
+      y: cursorY,
+      text: [
+        `Shipment: ${shipment.id}`,
+        `Carrier: ${shipment.carrier || 'A definir'}`,
+        `Metodo: ${shipment.method || shipment.order.shippingMethod || 'Envio'}`,
+        `Tracking: ${shipment.trackingNumber || 'Pendiente'}`,
+        `Estado: ${shipment.status.replaceAll('_', ' ')}`,
+        `Costo: ${shipment.cost ? this.formatMoney(shipment.cost) : 'No informado'}`,
+      ].join('\n'),
+      maxWidth: contentWidth,
+      size: 12,
+      lineHeight: 17,
+    });
+
+    cursorY -= 20;
+    pdf.drawText({
+      x: margin,
+      y: cursorY,
+      text: 'PRODUCTOS',
+      size: 10,
+      font: 'Helvetica-Bold',
+    });
+    cursorY -= 22;
+
+    shipment.order.items.forEach((item, index) => {
+      const sku = item.variant.sku || 'Sin SKU';
+      const line = `${index + 1}. ${item.quantity} x ${item.variant.product.title} · SKU ${sku}`;
+      cursorY = pdf.drawWrappedText({
+        x: margin,
+        y: cursorY,
+        text: line,
+        maxWidth: contentWidth,
+        size: 11,
+        lineHeight: 16,
+      });
+      cursorY -= 4;
+    });
+
+    cursorY -= 10;
+    pdf.drawLine({
+      x1: margin,
+      y1: cursorY,
+      x2: pageWidth - margin,
+      y2: cursorY,
+      lineWidth: 1,
+    });
+    cursorY -= 20;
+    pdf.drawWrappedText({
+      x: margin,
+      y: cursorY,
+      text: [
+        `Subtotal: ${this.formatMoney(shipment.order.subtotal)}`,
+        `Descuento: ${this.formatMoney(shipment.order.discountAmount)}`,
+        `Envio: ${this.formatMoney(shipment.order.shippingCost)}`,
+        `Total: ${this.formatMoney(shipment.order.total)}`,
+      ].join('\n'),
+      maxWidth: contentWidth,
+      size: 12,
+      lineHeight: 17,
+      font: 'Helvetica-Bold',
+    });
+
+    return pdf.save();
+  }
+
+  private async getSenderDetails(storeId: number, fallbackName: string) {
+    try {
+      const senderConfig =
+        await this.providerConfigService.resolveProviderForStore(storeId, {
+          providerCode: 'manual',
+        });
+      const metadata =
+        (senderConfig.config?.metadata as Record<string, unknown> | null) ?? {};
+      const originAddress =
+        metadata.originAddress &&
+        typeof metadata.originAddress === 'object'
+          ? (metadata.originAddress as Record<string, unknown>)
+          : {};
+
+      return {
+        name:
+          senderConfig.config?.senderName ||
+          senderConfig.config?.companyName ||
+          fallbackName,
+        addressLine: this.buildAddressLine(originAddress),
+        locationLine: [
+          this.pickRecordString(originAddress, 'city'),
+          this.pickRecordString(originAddress, 'state') ||
+            this.pickRecordString(originAddress, 'provinceCode'),
+          this.pickRecordString(originAddress, 'postalCode'),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        phone: senderConfig.config?.senderPhone || '',
+      };
+    } catch {
+      return {
+        name: fallbackName,
+        addressLine: '',
+        locationLine: '',
+        phone: '',
+      };
+    }
+  }
+
+  private getShipmentRecipientName(order: {
+    shippingFirstNameSnapshot?: string | null;
+    shippingLastNameSnapshot?: string | null;
+    customerFirstNameSnapshot?: string | null;
+    customerLastNameSnapshot?: string | null;
+  }) {
+    return (
+      [
+        order.shippingFirstNameSnapshot || order.customerFirstNameSnapshot,
+        order.shippingLastNameSnapshot || order.customerLastNameSnapshot,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || 'Cliente'
+    );
+  }
+
+  private getShipmentDestinationLine(
+    shipment: Awaited<ReturnType<ShipmentService['getShipmentDocumentContext']>>,
+  ) {
+    return [
+      shipment.order.shippingCitySnapshot,
+      shipment.order.shippingStateSnapshot,
+      shipment.order.shippingCountrySnapshot,
+      shipment.order.shippingPostalCodeSnapshot
+        ? `CP ${shipment.order.shippingPostalCodeSnapshot}`
+        : shipment.postalCode
+          ? `CP ${shipment.postalCode}`
+          : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  private formatMoney(value: { toNumber(): number } | number | null | undefined) {
+    if (value === null || value === undefined) {
+      return 'No informado';
+    }
+
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 2,
+    }).format(Number(value));
   }
 
   private buildAddressLine(address: Record<string, unknown>) {

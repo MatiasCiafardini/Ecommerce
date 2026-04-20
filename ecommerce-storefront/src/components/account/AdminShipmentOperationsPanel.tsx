@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, apiText } from "@/lib/api";
+import { api, apiBlob } from "@/lib/api";
+import { downloadBlobFile } from "@/lib/download";
 import { orderCustomerName, orderStatusLabel, type CustomerOrder } from "./order-utils";
 import type { AdminShipment } from "./admin-types";
 
@@ -137,22 +138,21 @@ export default function AdminShipmentOperationsPanel({
     }
   };
 
-  const printLabel = async () => {
+  const downloadLabel = async () => {
     try {
-      const html = await apiText(`/admin/shipments/${shipment.id}/label`);
-      const printWindow = window.open("", "_blank", "noopener,noreferrer,width=980,height=760");
-
-      if (!printWindow) {
-        throw new Error("No se pudo abrir la ventana de impresion.");
-      }
-
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      window.setTimeout(() => printWindow.print(), 250);
+      const blob = await apiBlob(`/admin/shipments/${shipment.id}/label.pdf`);
+      downloadBlobFile(blob, `etiqueta-envio-${shipment.orderId}.pdf`);
     } catch (error) {
-      onError(getErrorMessage(error, "No se pudo imprimir la etiqueta."));
+      onError(getErrorMessage(error, "No se pudo descargar la etiqueta."));
+    }
+  };
+
+  const downloadReceipt = async () => {
+    try {
+      const blob = await apiBlob(`/admin/shipments/${shipment.id}/receipt.pdf`);
+      downloadBlobFile(blob, `comprobante-envio-${shipment.orderId}.pdf`);
+    } catch (error) {
+      onError(getErrorMessage(error, "No se pudo descargar el comprobante."));
     }
   };
 
@@ -188,8 +188,11 @@ export default function AdminShipmentOperationsPanel({
               Abrir tracking
             </a>
           ) : null}
-          <button type="button" onClick={() => void printLabel()} style={primaryButtonStyle}>
-            Imprimir etiqueta
+          <button type="button" onClick={() => void downloadLabel()} style={primaryButtonStyle}>
+            Descargar etiqueta PDF
+          </button>
+          <button type="button" onClick={() => void downloadReceipt()} style={secondaryButtonStyle}>
+            Descargar comprobante PDF
           </button>
         </div>
       </div>

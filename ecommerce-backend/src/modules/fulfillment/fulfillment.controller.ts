@@ -5,10 +5,12 @@ import {
   Get,
   Param,
   Req,
+  Res,
   UseGuards,
   Patch,
   Header,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { FulfillmentService } from './fulfillment.service';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
@@ -55,5 +57,25 @@ export class FulfillmentController {
   @Header('Content-Type', 'text/html; charset=utf-8')
   async getPrintableLabel(@Req() req, @Param('id') id: string) {
     return this.fulfillmentService.getPrintableLabel(req.storeId, id);
+  }
+
+  @Get(':id/label.pdf')
+  async downloadLabelPdf(@Req() req, @Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    const document = await this.fulfillmentService.getLabelPdf(req.storeId, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
+    return document.pdf;
+  }
+
+  @Get(':id/receipt.pdf')
+  async downloadReceiptPdf(
+    @Req() req,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const document = await this.fulfillmentService.getReceiptPdf(req.storeId, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
+    return document.pdf;
   }
 }

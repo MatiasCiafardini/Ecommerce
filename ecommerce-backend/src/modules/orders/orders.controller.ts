@@ -86,6 +86,18 @@ export class OrdersController {
     return this.ordersService.findOne(Number(id), req.storeId);
   }
 
+  @Get(':id/receipt.pdf')
+  async downloadReceiptPdf(
+    @Param('id') id: string,
+    @Req() req,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const document = await this.ordersService.getAdminReceiptPdf(Number(id), req.storeId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
+    return document.pdf;
+  }
+
   @Get('cancellation-requests/list')
   findCancellationRequests(@Req() req) {
     return this.ordersService.findCancellationRequests(req.storeId);

@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrdersService } from './orders.service';
 import { RequestCancellationDto } from './dto/request-cancellation.dto';
@@ -25,6 +26,22 @@ export class CustomerOrdersController {
   @Get(':id')
   findOneMine(@Param('id') id: string, @Req() req) {
     return this.ordersService.findOneMine(Number(id), req.storeId, req.user.sub);
+  }
+
+  @Get(':id/receipt.pdf')
+  async downloadReceiptPdf(
+    @Param('id') id: string,
+    @Req() req,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const document = await this.ordersService.getCustomerReceiptPdf(
+      Number(id),
+      req.storeId,
+      req.user.sub,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
+    return document.pdf;
   }
 
   @Post(':id/cancel')

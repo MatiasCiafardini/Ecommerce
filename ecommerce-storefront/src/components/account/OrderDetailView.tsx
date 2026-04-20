@@ -297,7 +297,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
               Volver al historial
             </Link>
             <button
-              onClick={() => openReceipt(order.id)}
+              onClick={() => void openReceipt(order.id)}
               style={{
                 border: "none",
                 borderRadius: 999,

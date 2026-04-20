@@ -1,3 +1,5 @@
+import { apiBlob } from "@/lib/api";
+import { downloadBlobFile } from "@/lib/download";
 import { formatCurrency } from "@/lib/currency";
 
 export type CustomerOrder = {
@@ -377,9 +379,10 @@ export const shipmentTimeline = (order: CustomerOrder) => {
   ];
 };
 
-export const openReceipt = (orderId: number) => {
+export const openReceipt = async (orderId: number) => {
   if (typeof window === "undefined") return;
-  window.open(`/account/orders/${orderId}/receipt`, "_blank", "noopener,noreferrer");
+  const blob = await apiBlob(`/customers/me/orders/${orderId}/receipt.pdf`);
+  downloadBlobFile(blob, `comprobante-pedido-${orderId}.pdf`);
 };
 
 export const canCustomerCancelOrder = (order: CustomerOrder) =>

@@ -1009,7 +1009,7 @@ export default function CheckoutReview({
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button
                 type="button"
-                onClick={() => openReceipt(completedOrder.id)}
+                onClick={() => void openReceipt(completedOrder.id)}
                 style={
                   useDarkCompletionPopup
                     ? {

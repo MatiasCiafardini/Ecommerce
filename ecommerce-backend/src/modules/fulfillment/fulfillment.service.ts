@@ -43,4 +43,12 @@ export class FulfillmentService {
   async getPrintableLabel(storeId: number | string, shipmentId: string) {
     return this.shipmentService.getPrintableLabel(Number(storeId), shipmentId);
   }
+
+  async getLabelPdf(storeId: number | string, shipmentId: string) {
+    return this.shipmentService.getLabelPdf(Number(storeId), shipmentId);
+  }
+
+  async getReceiptPdf(storeId: number | string, shipmentId: string) {
+    return this.shipmentService.getReceiptPdf(Number(storeId), shipmentId);
+  }
 }
