@@ -57,4 +57,25 @@ export class CreatePaymentDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Comprobante en base64 para fallback sin multipart',
+  })
+  @IsOptional()
+  @IsString()
+  proofBase64?: string;
+
+  @ApiPropertyOptional({
+    description: 'Nombre original del comprobante enviado por fallback',
+  })
+  @IsOptional()
+  @IsString()
+  proofFilename?: string;
+
+  @ApiPropertyOptional({
+    description: 'Mime type del comprobante enviado por fallback',
+  })
+  @IsOptional()
+  @IsString()
+  proofMimeType?: string;
 }

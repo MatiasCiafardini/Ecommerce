@@ -137,6 +137,23 @@ const buildXhrErrorMessage = (status: number, statusText: string, responseText: 
   return `${fallback}. Response body: ${responseText}`;
 };
 
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string" && reader.result.trim()) {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("No pudimos leer el comprobante seleccionado."));
+    };
+    reader.onerror = () => {
+      reject(new Error("No pudimos leer el comprobante seleccionado."));
+    };
+    reader.readAsDataURL(file);
+  });
+
 export default function CheckoutReview({
   cart,
   cartId,
@@ -415,6 +432,30 @@ export default function CheckoutReview({
       request.send(formData);
     });
 
+  const uploadBankTransferProofFallback = async (
+    orderId: number,
+    file: File,
+    reference: string,
+    notes: string,
+    idempotencyKey: string,
+  ) => {
+    const proofDataUrl = await readFileAsDataUrl(file);
+
+    await api(`/store/payments/${orderId}/bank-transfer`, {
+      method: "POST",
+      body: JSON.stringify({
+        provider: "bank_transfer",
+        method: "bank_transfer",
+        reference,
+        notes,
+        idempotencyKey,
+        proofBase64: proofDataUrl,
+        proofFilename: file.name,
+        proofMimeType: file.type || undefined,
+      }),
+    });
+  };
+
   const loadCompletedOrderWithFallback = async (orderId: number) => {
     try {
       await Promise.race([
@@ -538,6 +579,7 @@ export default function CheckoutReview({
       setLoading(true);
       setCheckoutError(null);
       const order = await ensureOrderForPayment();
+      const paymentIdempotencyKey = `bank-transfer:${order.id}`;
 
       if (isBankTransfer && transferProofFile) {
         const formData = new FormData();
@@ -546,9 +588,34 @@ export default function CheckoutReview({
         formData.append("method", "bank_transfer");
         formData.append("reference", transferReference);
         formData.append("notes", transferNotes);
-        formData.append("idempotencyKey", crypto.randomUUID());
+        formData.append("idempotencyKey", paymentIdempotencyKey);
 
-        await uploadBankTransferProof(order.id, formData);
+        try {
+          await uploadBankTransferProof(order.id, formData);
+        } catch (error) {
+          const message = error instanceof Error ? error.message.toLowerCase() : "";
+          const shouldTryJsonFallback =
+            message.includes("demoro demasiado") ||
+            message.includes("conexion") ||
+            message.includes("network") ||
+            message.includes("failed to fetch") ||
+            message.includes("status 413") ||
+            message.includes("status 502") ||
+            message.includes("status 503") ||
+            message.includes("status 504");
+
+          if (!shouldTryJsonFallback) {
+            throw error;
+          }
+
+          await uploadBankTransferProofFallback(
+            order.id,
+            transferProofFile,
+            transferReference,
+            transferNotes,
+            paymentIdempotencyKey,
+          );
+        }
       }
 
       if (isCashPayment) {

@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { access } from 'fs/promises';
+import { access, writeFile } from 'fs/promises';
 import { basename, extname, join } from 'path';
 import { OrderStatus, Prisma } from '@prisma/client';
 
@@ -17,10 +17,24 @@ import { ReviewPaymentDto } from './dto/review-payment.dto';
 import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
 import { runtimeConfig } from '../../config/runtime-config';
 import { privateUploadsDir, uploadsDir } from '../../common/uploads';
+import { ShipmentService } from '../fulfillment/services/shipment.service';
 
 type Requester = { sub: number; role?: string };
 type UploadedTransferProof = { filename: string; originalname: string };
+type PersistedTransferProof = { filename: string; originalname: string };
 const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'STAFF']);
+const TRANSFER_PROOF_MAX_BYTES = 5 * 1024 * 1024;
+const allowedTransferProofExtensions = new Set(['.pdf', '.png', '.jpg', '.jpeg']);
+const allowedTransferProofMimeTypes = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+]);
+const transferProofMimeToExtension: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+};
 
 @Injectable()
 export class PaymentsService {
@@ -28,6 +42,7 @@ export class PaymentsService {
     private prisma: PrismaService,
     private mercadopago: MercadoPagoProvider,
     private inventoryLockService: InventoryLockService,
+    private shipmentService: ShipmentService,
   ) {}
 
   async createPayment(
@@ -146,12 +161,7 @@ export class PaymentsService {
       return existingPayment;
     }
 
-    if (!file?.filename) {
-      throw new BadRequestException(
-        'Transfer proof is required for bank transfer payments',
-      );
-    }
-
+    const proof = await this.resolveTransferProofFile(dto, file);
     const order = await this.getOrderForPayment(storeId, orderId, requester);
 
     return this.prisma.payment.create({
@@ -163,8 +173,8 @@ export class PaymentsService {
         status: 'pending',
         amount: order.total,
         reference: dto.reference?.trim() || null,
-        proofUrl: `/private-uploads/${file.filename}`,
-        proofFilename: file.originalname,
+        proofUrl: `/private-uploads/${proof.filename}`,
+        proofFilename: proof.originalname,
         notes: dto.notes?.trim() || null,
         idempotencyKey,
         metadata: {
@@ -352,6 +362,87 @@ export class PaymentsService {
     return normalizedKey;
   }
 
+  private async resolveTransferProofFile(
+    dto: CreatePaymentDto,
+    file?: UploadedTransferProof,
+  ): Promise<PersistedTransferProof> {
+    if (file?.filename) {
+      return {
+        filename: file.filename,
+        originalname: file.originalname,
+      };
+    }
+
+    const inlineProof = await this.persistInlineTransferProof(dto);
+    if (inlineProof) {
+      return inlineProof;
+    }
+
+    throw new BadRequestException(
+      'Transfer proof is required for bank transfer payments',
+    );
+  }
+
+  private async persistInlineTransferProof(
+    dto: CreatePaymentDto,
+  ): Promise<PersistedTransferProof | null> {
+    const rawProof = dto.proofBase64?.trim();
+    if (!rawProof) {
+      return null;
+    }
+
+    const parsedDataUrl = rawProof.match(/^data:([^;]+);base64,(.+)$/i);
+    const normalizedBase64 = (parsedDataUrl?.[2] ?? rawProof).replace(/\s+/g, '');
+    const proofMimeType = (
+      dto.proofMimeType?.trim().toLowerCase() ??
+      parsedDataUrl?.[1]?.trim().toLowerCase() ??
+      ''
+    );
+    const providedFilename = dto.proofFilename?.trim() || 'transfer-proof';
+    const providedExtension = extname(providedFilename).toLowerCase();
+    const resolvedExtension =
+      providedExtension || transferProofMimeToExtension[proofMimeType] || '';
+
+    if (!proofMimeType || !allowedTransferProofMimeTypes.has(proofMimeType)) {
+      throw new BadRequestException(
+        'Only PDF, PNG, JPG and JPEG transfer proofs are supported',
+      );
+    }
+
+    if (!resolvedExtension || !allowedTransferProofExtensions.has(resolvedExtension)) {
+      throw new BadRequestException(
+        'Only PDF, PNG, JPG and JPEG transfer proofs are supported',
+      );
+    }
+
+    let buffer: Buffer;
+
+    try {
+      buffer = Buffer.from(normalizedBase64, 'base64');
+    } catch {
+      throw new BadRequestException('Transfer proof payload is not valid base64');
+    }
+
+    if (!buffer.length) {
+      throw new BadRequestException('Transfer proof payload is empty');
+    }
+
+    if (buffer.length > TRANSFER_PROOF_MAX_BYTES) {
+      throw new BadRequestException('Transfer proof exceeds the 5 MB size limit');
+    }
+
+    const filename = `transfer-${Date.now()}-${Math.round(Math.random() * 1e9)}${resolvedExtension}`;
+    await writeFile(join(privateUploadsDir, filename), buffer);
+
+    return {
+      filename,
+      originalname:
+        providedExtension
+          ? providedFilename
+          : `${providedFilename}${resolvedExtension}`,
+    };
+  }
+
   private async findExistingPayment(storeId: number, idempotencyKey: string) {
     return this.prisma.payment.findFirst({
       where: {
@@ -443,6 +534,9 @@ export class PaymentsService {
   }
 
   private async finalizeApprovedOrder(orderId: number) {
+    let shouldProvisionShipment = false;
+    let orderStoreId: number | null = null;
+
     await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -473,7 +567,37 @@ export class PaymentsService {
           },
         });
       }
+
+      orderStoreId = order.storeId;
+      shouldProvisionShipment =
+        !order.shipment && this.requiresShipmentOnPaymentApproval(order);
     });
+
+    if (shouldProvisionShipment && orderStoreId) {
+      try {
+        await this.shipmentService.createOrderShipment(orderStoreId, orderId);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown shipment provisioning error';
+        console.error(
+          `[PaymentsService] Approved order ${orderId} could not auto-provision shipment: ${message}`,
+        );
+      }
+    }
+  }
+
+  private requiresShipmentOnPaymentApproval(order: {
+    shippingProvider?: string | null;
+    shippingMethod?: string | null;
+  }) {
+    const shippingProvider = order.shippingProvider?.trim().toLowerCase() ?? '';
+    const shippingMethod = order.shippingMethod?.trim().toLowerCase() ?? '';
+
+    return !(
+      shippingProvider === 'store' ||
+      shippingMethod.includes('retiro') ||
+      shippingMethod.includes('pickup')
+    );
   }
 
   private buildMercadoPagoMetadata(input: {

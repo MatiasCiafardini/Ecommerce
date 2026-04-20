@@ -611,12 +611,16 @@ export class OrdersService {
 
       const requiresShipping = !isPickupOrder;
 
-      if (status === 'packed' && requiresShipping && !order.shipment) {
+      if (
+        (status === 'processing' || status === 'packed') &&
+        requiresShipping &&
+        !order.shipment
+      ) {
         this.buildShippingAddress(order);
 
         if (!order.shippingPostalCodeSnapshot?.trim()) {
           throw new BadRequestException(
-            'Shipping postal code snapshot is required before packing this order',
+            'Shipping postal code snapshot is required before preparing this order',
           );
         }
 

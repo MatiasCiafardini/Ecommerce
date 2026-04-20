@@ -60,7 +60,7 @@ export class PaymentsController {
 
   @UseGuards(JwtAuthGuard)
   @Post('store/payments/:orderId/bank-transfer')
-  @ApiConsumes('multipart/form-data')
+  @ApiConsumes('multipart/form-data', 'application/json')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({

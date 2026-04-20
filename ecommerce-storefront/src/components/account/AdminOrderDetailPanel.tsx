@@ -188,6 +188,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       ? orderDeliveryLabel(order)
       : "Entrega a confirmar";
   const trackingSummary = order.shipment?.trackingNumber ?? "Se cargara al despachar";
+  const shipmentProvisionPending = hasShippingContext && !pickupOrder && !order.shipment;
 
   const detailTabs: DetailTab[] = [
     { id: "customer", label: "Cliente", hint: "Contacto y datos comerciales" },
@@ -523,6 +524,13 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
               {!hasOrderShippingSnapshot(order) ? (
                 <div style={warningCardStyle}>
                   La direccion de checkout no se esta persistiendo en la orden. Para ticket de shipping real, conviene guardar una foto de entrega al momento de compra.
+                </div>
+              ) : null}
+              {shipmentProvisionPending ? (
+                <div style={warningCardStyle}>
+                  {order.shippingProvider?.trim().toLowerCase() === "correo-argentino"
+                    ? `Todavia no se genero el envio en Correo Argentino. El tracking y la etiqueta aparecen cuando el pedido entra en la etapa de despacho. Estado actual: ${orderStatusLabel(order.status)}.`
+                    : `Todavia no se genero el shipment logistico para este pedido. El tracking y la etiqueta se cargan cuando el pedido entra en la etapa de despacho. Estado actual: ${orderStatusLabel(order.status)}.`}
                 </div>
               ) : null}
               <div style={rowWrapStyle}>
