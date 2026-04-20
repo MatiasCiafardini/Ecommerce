@@ -162,6 +162,103 @@ type CategoryImageStripItem = {
   categorySlugs?: string[];
 };
 
+const MAX_ADMIN_ASSET_UPLOAD_BYTES = 900 * 1024;
+const MAX_ADMIN_ASSET_DIMENSION = 1600;
+const ADMIN_ASSET_QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
+
+async function loadImageElement(file: File) {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new window.Image();
+      element.onload = () => resolve(element);
+      element.onerror = () =>
+        reject(new Error(`No se pudo procesar la imagen ${file.name}.`));
+      element.src = objectUrl;
+    });
+
+    return image;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  quality: number,
+  mimeType = "image/jpeg",
+) {
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), mimeType, quality);
+  });
+}
+
+function renameFileExtension(name: string, ext: string) {
+  return name.replace(/\.[^.]+$/u, "") + ext;
+}
+
+async function optimizeAdminAssetForUpload(file: File) {
+  if (
+    file.size <= MAX_ADMIN_ASSET_UPLOAD_BYTES &&
+    /image\/(jpe?g|webp)/i.test(file.type)
+  ) {
+    return file;
+  }
+
+  const image = await loadImageElement(file);
+  const longestSide = Math.max(image.width, image.height);
+  const scale =
+    longestSide > MAX_ADMIN_ASSET_DIMENSION
+      ? MAX_ADMIN_ASSET_DIMENSION / longestSide
+      : 1;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("No se pudo preparar la imagen para subir.");
+  }
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const testBlob = await canvasToBlob(canvas, 0.85, "image/webp");
+  const outputMime = testBlob?.type === "image/webp" ? "image/webp" : "image/jpeg";
+  const outputExt = outputMime === "image/webp" ? ".webp" : ".jpg";
+
+  if (
+    testBlob &&
+    testBlob.type === outputMime &&
+    testBlob.size <= MAX_ADMIN_ASSET_UPLOAD_BYTES
+  ) {
+    return new File([testBlob], renameFileExtension(file.name, outputExt), {
+      type: outputMime,
+      lastModified: Date.now(),
+    });
+  }
+
+  for (const quality of ADMIN_ASSET_QUALITY_STEPS) {
+    const blob = await canvasToBlob(canvas, quality, outputMime);
+    if (!blob) {
+      continue;
+    }
+
+    if (
+      blob.size <= MAX_ADMIN_ASSET_UPLOAD_BYTES ||
+      quality === ADMIN_ASSET_QUALITY_STEPS.at(-1)
+    ) {
+      return new File([blob], renameFileExtension(file.name, outputExt), {
+        type: outputMime,
+        lastModified: Date.now(),
+      });
+    }
+  }
+
+  throw new Error(`No se pudo reducir el peso de ${file.name}.`);
+}
+
 const blockLabels: Record<string, string> = {
   hero: "Hero",
   hero_carousel: "Hero Carousel",
@@ -1539,19 +1636,34 @@ export default function DeveloperModePanel({
   };
 
   const uploadAsset = async (file: File) => {
+    const optimizedFile = await optimizeAdminAssetForUpload(file);
     const formData = new FormData();
-    formData.append("file", file);
-    const response = await api("/store/admin/assets/upload", {
-      method: "POST",
-      body: formData,
-    });
-    const uploadedUrl = typeof response?.url === "string" ? response.url : "";
+    formData.append("file", optimizedFile);
 
-    if (!uploadedUrl) {
-      throw new Error("No se recibio la URL del asset subido.");
+    try {
+      const response = await api("/store/admin/assets/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const uploadedUrl = typeof response?.url === "string" ? response.url : "";
+
+      if (!uploadedUrl) {
+        throw new Error("No se recibio la URL del asset subido.");
+      }
+
+      return uploadedUrl;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo subir la imagen.";
+
+      if (message.includes("status 413")) {
+        throw new Error(
+          "La imagen sigue siendo demasiado pesada para el servidor incluso despues de optimizarla. Prueba con una imagen mas liviana.",
+        );
+      }
+
+      throw error;
     }
-
-    return uploadedUrl;
   };
 
   const uploadFieldAsset = async (fieldKey: string, file?: File | null) => {
