@@ -112,6 +112,9 @@ type DiscountPreview = {
 
 const CHECKOUT_UPLOAD_TIMEOUT_MS = 60_000;
 const CHECKOUT_ORDER_LOAD_TIMEOUT_MS = 15_000;
+const MAX_TRANSFER_PROOF_UPLOAD_BYTES = 850 * 1024;
+const MAX_TRANSFER_PROOF_DIMENSION = 1600;
+const TRANSFER_PROOF_QUALITY_STEPS = [0.82, 0.72, 0.62, 0.52, 0.42];
 
 const buildXhrErrorMessage = (status: number, statusText: string, responseText: string) => {
   const fallback = `API request failed with status ${status} ${statusText}`.trim();
@@ -153,6 +156,113 @@ const readFileAsDataUrl = (file: File) =>
     };
     reader.readAsDataURL(file);
   });
+
+const renameFileExtension = (name: string, ext: string) =>
+  name.replace(/\.[^.]+$/u, "") + ext;
+
+const loadImageElement = async (file: File) => {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new window.Image();
+      element.onload = () => resolve(element);
+      element.onerror = () =>
+        reject(new Error(`No se pudo procesar la imagen ${file.name}.`));
+      element.src = objectUrl;
+    });
+
+    return image;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
+const canvasToBlob = async (
+  canvas: HTMLCanvasElement,
+  quality: number,
+  mimeType = "image/jpeg",
+) =>
+  new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), mimeType, quality);
+  });
+
+const optimizeTransferProofForUpload = async (file: File) => {
+  if (!/^image\//i.test(file.type)) {
+    if (file.size > MAX_TRANSFER_PROOF_UPLOAD_BYTES) {
+      throw new Error(
+        "El comprobante PDF es demasiado pesado para el servidor. Prueba con un PDF mas liviano o una captura JPG/PNG.",
+      );
+    }
+
+    return file;
+  }
+
+  if (
+    file.size <= MAX_TRANSFER_PROOF_UPLOAD_BYTES &&
+    /image\/(jpe?g|png|webp)/i.test(file.type)
+  ) {
+    return file;
+  }
+
+  const image = await loadImageElement(file);
+  const longestSide = Math.max(image.width, image.height);
+  const scale =
+    longestSide > MAX_TRANSFER_PROOF_DIMENSION
+      ? MAX_TRANSFER_PROOF_DIMENSION / longestSide
+      : 1;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("No se pudo preparar el comprobante para subir.");
+  }
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const testWebpBlob = await canvasToBlob(canvas, 0.82, "image/webp");
+  const outputMime = testWebpBlob?.type === "image/webp" ? "image/webp" : "image/jpeg";
+  const outputExt = outputMime === "image/webp" ? ".webp" : ".jpg";
+
+  if (
+    testWebpBlob &&
+    testWebpBlob.type === outputMime &&
+    testWebpBlob.size <= MAX_TRANSFER_PROOF_UPLOAD_BYTES
+  ) {
+    return new File([testWebpBlob], renameFileExtension(file.name, outputExt), {
+      type: outputMime,
+      lastModified: Date.now(),
+    });
+  }
+
+  for (const quality of TRANSFER_PROOF_QUALITY_STEPS) {
+    const blob = await canvasToBlob(canvas, quality, outputMime);
+    if (!blob) {
+      continue;
+    }
+
+    if (
+      blob.size <= MAX_TRANSFER_PROOF_UPLOAD_BYTES ||
+      quality === TRANSFER_PROOF_QUALITY_STEPS.at(-1)
+    ) {
+      if (blob.size > MAX_TRANSFER_PROOF_UPLOAD_BYTES) {
+        throw new Error(
+          "No pudimos reducir lo suficiente el peso del comprobante. Prueba con una imagen mas liviana.",
+        );
+      }
+
+      return new File([blob], renameFileExtension(file.name, outputExt), {
+        type: outputMime,
+        lastModified: Date.now(),
+      });
+    }
+  }
+
+  throw new Error(`No se pudo reducir el peso de ${file.name}.`);
+};
 
 export default function CheckoutReview({
   cart,
@@ -582,8 +692,10 @@ export default function CheckoutReview({
       const paymentIdempotencyKey = `bank-transfer:${order.id}`;
 
       if (isBankTransfer && transferProofFile) {
+        const optimizedTransferProof =
+          await optimizeTransferProofForUpload(transferProofFile);
         const formData = new FormData();
-        formData.append("file", transferProofFile);
+        formData.append("file", optimizedTransferProof);
         formData.append("provider", "bank_transfer");
         formData.append("method", "bank_transfer");
         formData.append("reference", transferReference);
@@ -610,7 +722,7 @@ export default function CheckoutReview({
 
           await uploadBankTransferProofFallback(
             order.id,
-            transferProofFile,
+            optimizedTransferProof,
             transferReference,
             transferNotes,
             paymentIdempotencyKey,
