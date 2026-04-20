@@ -90,6 +90,8 @@ export default function AdminShipmentOperationsPanel({
   const trackingRequired = requiresTrackingForShipment(shipment);
   const hasCarrier = Boolean(manualForm.carrier.trim());
   const hasTracking = Boolean(manualForm.trackingNumber.trim());
+  const canOpenRealLabel = Boolean(shipment.labelUrl || shipment.trackingNumber);
+  const providerCode = shipment.provider?.trim().toLowerCase() ?? "";
 
   const saveManualShipment = async () => {
     if (trackingRequired && !manualForm.carrier.trim()) {
@@ -212,13 +214,25 @@ export default function AdminShipmentOperationsPanel({
           >
             {refreshingShipment ? "Sincronizando..." : "Refrescar tracking"}
           </button>
-          <button type="button" onClick={() => void downloadLabel()} style={primaryButtonStyle}>
+          <button
+            type="button"
+            onClick={() => void downloadLabel()}
+            style={primaryButtonStyle}
+            disabled={!canOpenRealLabel}
+          >
             Ver etiqueta PDF
           </button>
           <button type="button" onClick={() => void downloadReceipt()} style={secondaryButtonStyle}>
             Ver comprobante PDF
           </button>
         </div>
+        {!canOpenRealLabel ? (
+          <div style={hintCardStyle}>
+            {providerCode === "correo-argentino"
+              ? "Correo Argentino todavia no devolvio un rotulo real para este envio. Primero debe existir tracking real o un labelUrl/documento provisto por el carrier."
+              : "Todavia no hay una etiqueta real disponible para este envio."}
+          </div>
+        ) : null}
       </div>
 
       <div style={detailCardStyle}>

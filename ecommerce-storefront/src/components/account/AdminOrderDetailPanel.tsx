@@ -189,6 +189,9 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       : "Entrega a confirmar";
   const trackingSummary = order.shipment?.trackingNumber ?? "Se cargara al despachar";
   const shipmentProvisionPending = hasShippingContext && !pickupOrder && !order.shipment;
+  const canOpenRealShipmentLabel = Boolean(
+    order.shipment?.labelUrl || order.shipment?.trackingNumber,
+  );
 
   const detailTabs: DetailTab[] = [
     { id: "customer", label: "Cliente", hint: "Contacto y datos comerciales" },
@@ -533,9 +536,21 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                     : `Todavia no se genero el shipment logistico para este pedido. El tracking y la etiqueta se cargan cuando el pedido entra en la etapa de despacho. Estado actual: ${orderStatusLabel(order.status)}.`}
                 </div>
               ) : null}
+              {order.shipment && !canOpenRealShipmentLabel ? (
+                <div style={warningCardStyle}>
+                  {order.shippingProvider?.trim().toLowerCase() === "correo-argentino"
+                    ? "El shipment ya existe, pero Correo Argentino todavia no devolvio un tracking o un rotulo real. Sin ese dato no se puede abrir una etiqueta oficial."
+                    : "El shipment existe, pero todavia no hay una etiqueta real disponible."}
+                </div>
+              ) : null}
               <div style={rowWrapStyle}>
                 {order.shipment ? (
-                  <button type="button" onClick={() => void downloadShipmentLabel()} style={primaryButtonStyle}>
+                  <button
+                    type="button"
+                    onClick={() => void downloadShipmentLabel()}
+                    style={primaryButtonStyle}
+                    disabled={!canOpenRealShipmentLabel}
+                  >
                     Descargar etiqueta PDF
                   </button>
                 ) : null}
