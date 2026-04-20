@@ -209,18 +209,14 @@ const defaultImageLayout = (position = 0): ImageLayoutState => ({
   zoom: 1,
 });
 
-const MAX_IMAGE_UPLOAD_BYTES = 4.5 * 1024 * 1024;
-const MAX_IMAGE_DIMENSION = 2000;
-const JPEG_QUALITY_STEPS = [0.86, 0.78, 0.7, 0.6, 0.5];
+const MAX_IMAGE_UPLOAD_BYTES = 1.5 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1400;
+const QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
 const IMAGE_UPLOAD_CONCURRENCY = 2;
 
 const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
 };
-
-function renameFileWithJpegExtension(name: string) {
-  return name.replace(/\.[^.]+$/u, "") + ".jpg";
-}
 
 function createUploadImageId() {
   return `upload-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
@@ -244,23 +240,24 @@ async function loadImageElement(file: File) {
   }
 }
 
-async function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
+async function canvasToBlob(canvas: HTMLCanvasElement, quality: number, mimeType = "image/jpeg") {
   return new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
+    canvas.toBlob((blob) => resolve(blob), mimeType, quality);
   });
 }
 
+function renameFileExtension(name: string, ext: string) {
+  return name.replace(/\.[^.]+$/u, "") + ext;
+}
+
 async function optimizeImageForUpload(file: File) {
-  if (file.size <= MAX_IMAGE_UPLOAD_BYTES && /image\/jpe?g/i.test(file.type)) {
+  if (file.size <= MAX_IMAGE_UPLOAD_BYTES && /image\/(jpe?g|webp)/i.test(file.type)) {
     return file;
   }
 
   const image = await loadImageElement(file);
   const longestSide = Math.max(image.width, image.height);
-  const scale =
-    longestSide > MAX_IMAGE_DIMENSION
-      ? MAX_IMAGE_DIMENSION / longestSide
-      : 1;
+  const scale = longestSide > MAX_IMAGE_DIMENSION ? MAX_IMAGE_DIMENSION / longestSide : 1;
 
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(image.width * scale));
@@ -273,15 +270,26 @@ async function optimizeImageForUpload(file: File) {
 
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-  for (const quality of JPEG_QUALITY_STEPS) {
-    const blob = await canvasToBlob(canvas, quality);
-    if (!blob) {
-      continue;
-    }
+  // Detect WebP encoding support (unavailable only on very old browsers)
+  const testBlob = await canvasToBlob(canvas, 0.85, "image/webp");
+  const outputMime = testBlob?.type === "image/webp" ? "image/webp" : "image/jpeg";
+  const outputExt = outputMime === "image/webp" ? ".webp" : ".jpg";
 
-    if (blob.size <= MAX_IMAGE_UPLOAD_BYTES || quality === JPEG_QUALITY_STEPS.at(-1)) {
-      return new File([blob], renameFileWithJpegExtension(file.name), {
-        type: "image/jpeg",
+  // Reuse the test blob if it already fits
+  if (testBlob && testBlob.type === outputMime && testBlob.size <= MAX_IMAGE_UPLOAD_BYTES) {
+    return new File([testBlob], renameFileExtension(file.name, outputExt), {
+      type: outputMime,
+      lastModified: Date.now(),
+    });
+  }
+
+  for (const quality of QUALITY_STEPS) {
+    const blob = await canvasToBlob(canvas, quality, outputMime);
+    if (!blob) continue;
+
+    if (blob.size <= MAX_IMAGE_UPLOAD_BYTES || quality === QUALITY_STEPS.at(-1)) {
+      return new File([blob], renameFileExtension(file.name, outputExt), {
+        type: outputMime,
         lastModified: Date.now(),
       });
     }
@@ -1887,6 +1895,7 @@ function AdminProductsSection({
 
       xhr.open("POST", `/api/proxy/products/${productId}/images/upload`);
       xhr.withCredentials = true;
+      xhr.timeout = 90_000;
       xhr.setRequestHeader("x-store-id", String(storeId));
       xhr.setRequestHeader("x-store-host", host);
 
@@ -1906,12 +1915,31 @@ function AdminProductsSection({
       };
 
       xhr.onerror = () => {
-        reject(new Error(`No se pudo subir la imagen ${fileEntry.name}.`));
+        reject(new Error(`Sin conexión al subir ${fileEntry.name}. Revisá tu red y reintentá.`));
+      };
+
+      xhr.ontimeout = () => {
+        reject(new Error(`${fileEntry.name} tardó demasiado en subir. Intentá de nuevo con mejor señal.`));
       };
 
       xhr.onload = () => {
+        if (xhr.status === 413) {
+          reject(new Error(`${fileEntry.name} es demasiado grande para subir. Máximo 8 MB.`));
+          return;
+        }
+
         if (xhr.status < 200 || xhr.status >= 300) {
-          reject(new Error(xhr.responseText || `Upload failed with status ${xhr.status}`));
+          let errorMessage = `Error al subir ${fileEntry.name} (código ${xhr.status}).`;
+          try {
+            const parsed = JSON.parse(xhr.responseText) as { message?: string | string[] };
+            const msg = Array.isArray(parsed.message)
+              ? parsed.message.join(", ")
+              : parsed.message;
+            if (msg) errorMessage = msg;
+          } catch {
+            // Response is not JSON (e.g. nginx HTML error) — use the generic message
+          }
+          reject(new Error(errorMessage));
           return;
         }
 

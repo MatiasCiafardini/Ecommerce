@@ -73,7 +73,6 @@ export default function CategoryCarouselClient({ categories }: Props) {
                   src={resolveAssetUrl(cat.imageUrl) ?? cat.imageUrl}
                   alt={cat.name}
                   fill
-                  unoptimized
                   sizes="(max-width: 768px) 82vw, 340px"
                   style={{
                     objectFit: "cover",

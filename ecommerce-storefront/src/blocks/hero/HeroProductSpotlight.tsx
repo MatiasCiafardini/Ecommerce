@@ -99,7 +99,6 @@ export default function HeroProductSpotlight({ products }: Props) {
             src={imageUrl}
             alt={product.title}
             fill
-            unoptimized
             sizes="(max-width: 900px) 100vw, 50vw"
             style={{
               position: "absolute",

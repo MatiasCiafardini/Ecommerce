@@ -261,7 +261,6 @@ export default function Header({
                 alt="Logo Mi Maria Indumentaria"
                 width={88}
                 height={88}
-                unoptimized
                 style={{
                   width: "100%",
                   height: "100%",

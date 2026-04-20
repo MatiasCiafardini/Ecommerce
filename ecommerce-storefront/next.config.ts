@@ -10,26 +10,39 @@ function normalizeApiUrl(rawUrl?: string) {
   return value.replace(/\/+$/, "");
 }
 
+const FALLBACK_API_HOSTNAME = "api.estudiosmc.cloud";
+
 const remotePatterns = (() => {
+  const patterns: { protocol: "http" | "https"; hostname: string; port: string; pathname: string }[] = [];
+
   const apiUrl = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
-
-  if (!apiUrl) {
-    return [];
-  }
-
-  try {
-    const parsed = new URL(apiUrl);
-    return [
-      {
+  if (apiUrl) {
+    try {
+      const parsed = new URL(apiUrl);
+      patterns.push({
         protocol: parsed.protocol.replace(":", "") as "http" | "https",
         hostname: parsed.hostname,
         port: parsed.port,
         pathname: "/uploads/**",
-      },
-    ];
-  } catch {
-    return [];
+      });
+    } catch {
+      // ignore malformed URL
+    }
   }
+
+  // Always include the production API host so optimization works even when
+  // NEXT_PUBLIC_API_URL is not explicitly set in the environment.
+  const alreadyIncluded = patterns.some((p) => p.hostname === FALLBACK_API_HOSTNAME);
+  if (!alreadyIncluded) {
+    patterns.push({
+      protocol: "https",
+      hostname: FALLBACK_API_HOSTNAME,
+      port: "",
+      pathname: "/uploads/**",
+    });
+  }
+
+  return patterns;
 })();
 
 const nextConfig: NextConfig = {

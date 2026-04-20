@@ -524,7 +524,6 @@ function CartPageInner() {
                         alt={item.name}
                         width={116}
                         height={145}
-                        unoptimized
                         style={{
                           width: "100%",
                           height: "100%",

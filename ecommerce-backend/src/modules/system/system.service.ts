@@ -1215,9 +1215,9 @@ export class SystemService {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 60s;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
+        proxy_read_timeout 90s;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 120s;
     }
 }`;
 

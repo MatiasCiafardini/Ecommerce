@@ -102,7 +102,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
             width={112}
             height={32}
             priority
-            unoptimized
             style={{
               width: isMobile ? 88 : 112,
               height: "auto",

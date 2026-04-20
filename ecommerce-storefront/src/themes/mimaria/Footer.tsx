@@ -52,7 +52,6 @@ export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeL
                 alt="Mi Maria Indumentaria"
                 width={40}
                 height={40}
-                unoptimized
                 style={{ width: "auto", height: "auto", maxWidth: "76%", maxHeight: "76%" }}
               />
             </div>

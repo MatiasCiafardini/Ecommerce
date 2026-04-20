@@ -188,7 +188,7 @@ export default function BoutiqueHero({
                     src={image}
                     alt="Seleccion boutique Mi Maria"
                     fill
-                    unoptimized
+                    sizes="100vw"
                     style={{
                       objectFit: "cover",
                       objectPosition: "center",
@@ -221,7 +221,6 @@ export default function BoutiqueHero({
                     alt="Mi Maria Indumentaria"
                     width={260}
                     height={260}
-                    unoptimized
                     style={{
                       position: "relative",
                       zIndex: 1,

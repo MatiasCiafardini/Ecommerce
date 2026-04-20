@@ -121,7 +121,6 @@ export default async function CategoryGrid({
                       src={resolveAssetUrl(cat.imageUrl) ?? cat.imageUrl}
                       alt={cat.name}
                       fill
-                      unoptimized
                       sizes="(max-width: 768px) 100vw, 33vw"
                       style={{
                         objectFit: "contain",

@@ -44,7 +44,6 @@ export default function MilashoesHero({
               alt="Coleccion de Mila Shoes"
               fill
               priority
-              unoptimized
               sizes="(max-width: 960px) 100vw, 50vw"
               style={{ objectFit: "cover", objectPosition: "center" }}
             />
