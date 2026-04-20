@@ -90,12 +90,12 @@ export class OrdersController {
   async downloadReceiptPdf(
     @Param('id') id: string,
     @Req() req,
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
   ) {
     const document = await this.ordersService.getAdminReceiptPdf(Number(id), req.storeId);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
-    return document.pdf;
+    res.setHeader('Content-Disposition', `inline; filename="${document.filename}"`);
+    return res.send(document.pdf);
   }
 
   @Get('cancellation-requests/list')

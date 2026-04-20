@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { api, apiBlob } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
-import { downloadBlobFile } from "@/lib/download";
+import { openBlobFile } from "@/lib/download";
 import AdminOrderShipmentPanel from "./AdminOrderShipmentPanel";
 import {
   hasOrderShippingSnapshot,
@@ -118,7 +118,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     try {
       setError("");
       const blob = await apiBlob(`/orders/${order.id}/receipt.pdf`);
-      downloadBlobFile(blob, `comprobante-pedido-${order.id}.pdf`);
+      openBlobFile(blob);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo descargar el comprobante.");
     }
@@ -130,7 +130,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     try {
       setError("");
       const blob = await apiBlob(`/admin/shipments/${order.shipment.id}/label.pdf`);
-      downloadBlobFile(blob, `etiqueta-envio-${order.id}.pdf`);
+      openBlobFile(blob);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo descargar la etiqueta.");
     }
@@ -142,7 +142,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     try {
       setError("");
       const blob = await apiBlob(`/admin/shipments/${order.shipment.id}/receipt.pdf`);
-      downloadBlobFile(blob, `comprobante-envio-${order.id}.pdf`);
+      openBlobFile(blob);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo descargar el comprobante de envio.");
     }

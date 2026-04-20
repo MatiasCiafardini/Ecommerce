@@ -1,10 +1,19 @@
-export const downloadBlobFile = (blob: Blob, filename: string) => {
+const openWindowFromUrl = (url: string) => {
+  const popup = window.open(url, "_blank", "noopener,noreferrer");
+
+  if (!popup) {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+};
+
+export const openBlobFile = (blob: Blob) => {
   const objectUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectUrl;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+  openWindowFromUrl(objectUrl);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 };

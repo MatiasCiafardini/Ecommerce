@@ -60,22 +60,22 @@ export class FulfillmentController {
   }
 
   @Get(':id/label.pdf')
-  async downloadLabelPdf(@Req() req, @Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+  async downloadLabelPdf(@Req() req, @Param('id') id: string, @Res() res: Response) {
     const document = await this.fulfillmentService.getLabelPdf(req.storeId, id);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
-    return document.pdf;
+    res.setHeader('Content-Disposition', `inline; filename="${document.filename}"`);
+    return res.send(document.pdf);
   }
 
   @Get(':id/receipt.pdf')
   async downloadReceiptPdf(
     @Req() req,
     @Param('id') id: string,
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
   ) {
     const document = await this.fulfillmentService.getReceiptPdf(req.storeId, id);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
-    return document.pdf;
+    res.setHeader('Content-Disposition', `inline; filename="${document.filename}"`);
+    return res.send(document.pdf);
   }
 }

@@ -32,7 +32,7 @@ export class CustomerOrdersController {
   async downloadReceiptPdf(
     @Param('id') id: string,
     @Req() req,
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
   ) {
     const document = await this.ordersService.getCustomerReceiptPdf(
       Number(id),
@@ -40,8 +40,8 @@ export class CustomerOrdersController {
       req.user.sub,
     );
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
-    return document.pdf;
+    res.setHeader('Content-Disposition', `inline; filename="${document.filename}"`);
+    return res.send(document.pdf);
   }
 
   @Post(':id/cancel')

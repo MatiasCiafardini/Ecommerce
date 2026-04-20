@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, apiBlob } from "@/lib/api";
-import { downloadBlobFile } from "@/lib/download";
+import { openBlobFile } from "@/lib/download";
 import { orderCustomerName, orderStatusLabel, type CustomerOrder } from "./order-utils";
 import type { AdminShipment } from "./admin-types";
 
@@ -141,7 +141,7 @@ export default function AdminShipmentOperationsPanel({
   const downloadLabel = async () => {
     try {
       const blob = await apiBlob(`/admin/shipments/${shipment.id}/label.pdf`);
-      downloadBlobFile(blob, `etiqueta-envio-${shipment.orderId}.pdf`);
+      openBlobFile(blob);
     } catch (error) {
       onError(getErrorMessage(error, "No se pudo descargar la etiqueta."));
     }
@@ -150,7 +150,7 @@ export default function AdminShipmentOperationsPanel({
   const downloadReceipt = async () => {
     try {
       const blob = await apiBlob(`/admin/shipments/${shipment.id}/receipt.pdf`);
-      downloadBlobFile(blob, `comprobante-envio-${shipment.orderId}.pdf`);
+      openBlobFile(blob);
     } catch (error) {
       onError(getErrorMessage(error, "No se pudo descargar el comprobante."));
     }
