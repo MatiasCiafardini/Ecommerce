@@ -1,11 +1,17 @@
+import Image from "next/image";
+import { resolveAssetUrl } from "@/lib/asset-url";
+
 type BenefitItem = {
   title: string;
   description: string;
   icon?: string;
+  iconImage?: string;
 };
 
 type Props = {
   title?: string;
+  eyebrow?: string;
+  styleVariant?: "cards" | "plain";
   items?: BenefitItem[];
 };
 
@@ -34,9 +40,12 @@ const defaultItems: BenefitItem[] = [
 
 export default function Benefits({
   title = "Una experiencia pensada para vos",
+  eyebrow = "Confianza y cercania",
+  styleVariant = "cards",
   items = defaultItems,
 }: Props) {
   const safeItems = items.length > 0 ? items : defaultItems;
+  const isPlain = styleVariant === "plain";
 
   return (
     <section
@@ -60,7 +69,7 @@ export default function Benefits({
               fontSize: 12,
             }}
           >
-            Confianza y cercania
+            {eyebrow}
           </span>
           <h2
             style={{
@@ -77,40 +86,52 @@ export default function Benefits({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 18,
+            gridTemplateColumns: isPlain
+              ? "repeat(auto-fit, minmax(260px, 1fr))"
+              : "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: isPlain ? 36 : 18,
           }}
         >
           {safeItems.map((item) => (
             <article
               key={item.title}
-              className="theme-hover-lift theme-block-card"
+              className={isPlain ? undefined : "theme-hover-lift theme-block-card"}
               style={{
                 display: "grid",
                 gap: 16,
-                padding: 24,
-                border: "1px solid var(--border-soft)",
-                borderRadius: "var(--theme-radius-card)",
-                minHeight: 220,
+                padding: isPlain ? "8px 4px" : 24,
+                border: isPlain ? "none" : "1px solid var(--border-soft)",
+                borderRadius: isPlain ? 0 : "var(--theme-radius-card)",
+                minHeight: isPlain ? 0 : 220,
+                justifyItems: isPlain ? "center" : "start",
+                textAlign: isPlain ? "center" : "left",
               }}
             >
               <div
                 style={{
                   width: 52,
                   height: 52,
-                  borderRadius: 18,
-                  border: "1px solid var(--border-soft)",
-                  background: "rgba(255,255,255,0.58)",
+                  borderRadius: isPlain ? 0 : 18,
+                  border: isPlain ? "none" : "1px solid var(--border-soft)",
+                  background: isPlain ? "transparent" : "rgba(255,255,255,0.58)",
                   display: "grid",
                   placeItems: "center",
-                  color: "var(--accent-strong)",
+                  color: "var(--text-strong)",
                 }}
               >
-                <BenefitIcon icon={item.icon} />
+                <BenefitIcon icon={item.icon} iconImage={item.iconImage} title={item.title} />
               </div>
 
               <div style={{ display: "grid", gap: 8 }}>
-                <h3 style={{ margin: 0, fontSize: 24, color: "var(--text-strong)" }}>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: isPlain ? 16 : 24,
+                    color: "var(--text-strong)",
+                    textTransform: isPlain ? "uppercase" : "none",
+                    letterSpacing: isPlain ? "0.14em" : "normal",
+                  }}
+                >
                   {item.title}
                 </h3>
                 <p style={{ margin: 0, lineHeight: 1.8, color: "var(--text-muted)" }}>
@@ -125,7 +146,30 @@ export default function Benefits({
   );
 }
 
-function BenefitIcon({ icon }: { icon?: string }) {
+function BenefitIcon({
+  icon,
+  iconImage,
+  title,
+}: {
+  icon?: string;
+  iconImage?: string;
+  title: string;
+}) {
+  if (iconImage) {
+    const src = resolveAssetUrl(iconImage) ?? iconImage;
+
+    return (
+      <Image
+        src={src}
+        alt={title}
+        width={28}
+        height={28}
+        unoptimized
+        style={{ width: 28, height: 28, objectFit: "contain" }}
+      />
+    );
+  }
+
   if (icon === "truck") {
     return (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -155,8 +199,38 @@ function BenefitIcon({ icon }: { icon?: string }) {
     );
   }
 
+  if (icon === "card") {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="6" width="18" height="12" rx="2" />
+        <path d="M3 10h18" />
+        <path d="M7 15h3" />
+      </svg>
+    );
+  }
+
+  if (icon === "box") {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+        <path d="m12 12 8-4.5" />
+        <path d="M12 12 4 7.5" />
+        <path d="M12 12v9" />
+      </svg>
+    );
+  }
+
+  if (icon === "bag") {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6 8h12l-1 11H7L6 8Z" />
+        <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+      </svg>
+    );
+  }
+
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 3 4 7v5c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V7z" />
       <path d="m9.5 12 1.8 1.8 3.2-3.6" />
     </svg>

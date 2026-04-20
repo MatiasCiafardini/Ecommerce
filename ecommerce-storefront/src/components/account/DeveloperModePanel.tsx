@@ -162,6 +162,13 @@ type CategoryImageStripItem = {
   categorySlugs?: string[];
 };
 
+type BenefitEditorItem = {
+  title?: string;
+  description?: string;
+  icon?: string;
+  iconImage?: string;
+};
+
 const MAX_ADMIN_ASSET_UPLOAD_BYTES = 900 * 1024;
 const MAX_ADMIN_ASSET_DIMENSION = 1600;
 const ADMIN_ASSET_QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
@@ -278,6 +285,21 @@ const animationOptions = [
   { label: "Entrada por defecto", value: "" },
   { label: "Suave", value: "soft" },
   { label: "Sin animacion", value: "none" },
+];
+
+const benefitsStyleOptions = [
+  { label: "Cards", value: "cards" },
+  { label: "Plano", value: "plain" },
+];
+
+const benefitsIconOptions = [
+  { label: "Shield", value: "shield" },
+  { label: "Truck", value: "truck" },
+  { label: "Heart", value: "heart" },
+  { label: "Spark", value: "spark" },
+  { label: "Card", value: "card" },
+  { label: "Box", value: "box" },
+  { label: "Bag", value: "bag" },
 ];
 
 type ThemePaletteField = {
@@ -555,6 +577,9 @@ const blockFieldMap: Record<string, FieldDefinition[]> = {
   ],
   benefits: [
     { key: "title", label: "Titulo", type: "text" },
+    { key: "eyebrow", label: "Eyebrow", type: "text" },
+    { key: "styleVariant", label: "Estilo", type: "select", options: benefitsStyleOptions },
+    { key: "animationPreset", label: "Animacion", type: "select", options: animationOptions },
   ],
 };
 
@@ -644,6 +669,34 @@ const blockDefaultProps: Record<string, Record<string, unknown>> = {
   },
   benefits: {
     title: "Una experiencia pensada para vos",
+    eyebrow: "Confianza y cercania",
+    styleVariant: "cards",
+    items: [
+      {
+        title: "Compra segura",
+        description: "Procesos simples y pagos cuidados para comprar con confianza.",
+        icon: "shield",
+        iconImage: "",
+      },
+      {
+        title: "Envios a todo el pais",
+        description: "Recibi tus prendas donde estes, con seguimiento de tu pedido.",
+        icon: "truck",
+        iconImage: "",
+      },
+      {
+        title: "Atencion personalizada",
+        description: "Te acompanamos para elegir talles, looks y combinaciones.",
+        icon: "heart",
+        iconImage: "",
+      },
+      {
+        title: "Novedades constantes",
+        description: "Ingresos nuevos y seleccion curada durante toda la temporada.",
+        icon: "spark",
+        iconImage: "",
+      },
+    ],
   },
   testimonials: {
     animationPreset: "soft",
@@ -1791,6 +1844,80 @@ export default function DeveloperModePanel({
       : [...currentSlugs, categorySlug];
 
     updateCategoryImageStripItem(itemIndex, "categorySlugs", nextSlugs);
+  };
+
+  const getBenefitItems = (): BenefitEditorItem[] => {
+    if (!activeBlock || !Array.isArray(activeBlock.props?.items)) {
+      return [];
+    }
+
+    return activeBlock.props.items.map((item) =>
+      item && typeof item === "object" ? (item as BenefitEditorItem) : {},
+    );
+  };
+
+  const updateBenefitItem = (
+    itemIndex: number,
+    fieldKey: keyof BenefitEditorItem,
+    value: string,
+  ) => {
+    if (!activeBlock) {
+      return;
+    }
+
+    const items = [...getBenefitItems()];
+    const currentItem = items[itemIndex] ?? {};
+    items[itemIndex] = {
+      ...currentItem,
+      [fieldKey]: value,
+    };
+    updateField("items", items);
+  };
+
+  const addBenefitItem = () => {
+    if (!activeBlock) {
+      return;
+    }
+
+    const items = [...getBenefitItems()];
+    items.push({
+      title: "",
+      description: "",
+      icon: "shield",
+      iconImage: "",
+    });
+    updateField("items", items);
+  };
+
+  const removeBenefitItem = (itemIndex: number) => {
+    if (!activeBlock) {
+      return;
+    }
+
+    const items = [...getBenefitItems()];
+    updateField(
+      "items",
+      items.filter((_, index) => index !== itemIndex),
+    );
+  };
+
+  const uploadBenefitIconAsset = async (itemIndex: number, file?: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    try {
+      setUploadingKey(`benefit-icon:${itemIndex}`);
+      setError("");
+      setSuccess("");
+      const uploadedUrl = await uploadAsset(file);
+      updateBenefitItem(itemIndex, "iconImage", uploadedUrl);
+      setSuccess("Icono subido correctamente.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir el icono.");
+    } finally {
+      setUploadingKey(null);
+    }
   };
 
   const resetToDefaults = () => {
@@ -3593,6 +3720,113 @@ export default function DeveloperModePanel({
                                       height={720}
                                       unoptimized
                                       style={assetPreviewImageStyle}
+                                    />
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {activeBlock.type === "benefits" ? (
+                      <div style={{ display: "grid", gap: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                          <div style={{ display: "grid", gap: 4 }}>
+                            <label style={labelStyle}>Cards del bloque</label>
+                            <p style={hintStyle}>
+                              Puedes definir manualmente el contenido, la cantidad y el icono de cada card.
+                            </p>
+                          </div>
+                          <button type="button" onClick={addBenefitItem} style={secondaryButtonStyle}>
+                            Agregar card
+                          </button>
+                        </div>
+
+                        <div style={{ display: "grid", gap: 12 }}>
+                          {getBenefitItems().map((item, itemIndex) => {
+                            const iconImage = String(item.iconImage ?? "");
+                            const icon = String(item.icon ?? "shield");
+
+                            return (
+                              <div key={itemIndex} style={slideCardStyle}>
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                                  <strong>Card {itemIndex + 1}</strong>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeBenefitItem(itemIndex)}
+                                    style={dangerButtonStyle}
+                                  >
+                                    Quitar
+                                  </button>
+                                </div>
+
+                                <input
+                                  value={String(item.title ?? "")}
+                                  onChange={(event) => updateBenefitItem(itemIndex, "title", event.target.value)}
+                                  placeholder="Titulo"
+                                  style={inputStyle}
+                                />
+
+                                <textarea
+                                  value={String(item.description ?? "")}
+                                  onChange={(event) =>
+                                    updateBenefitItem(itemIndex, "description", event.target.value)
+                                  }
+                                  placeholder="Descripcion"
+                                  style={textareaStyle}
+                                  rows={3}
+                                />
+
+                                <div style={{ display: "grid", gap: 8 }}>
+                                  <label style={labelStyle}>Icono predeterminado</label>
+                                  <select
+                                    value={icon}
+                                    onChange={(event) => updateBenefitItem(itemIndex, "icon", event.target.value)}
+                                    style={inputStyle}
+                                  >
+                                    {benefitsIconOptions.map((option) => (
+                                      <option key={option.value} value={option.value}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div style={assetActionsStyle}>
+                                  <label style={uploadButtonStyle}>
+                                    <input
+                                      type="file"
+                                      accept="image/png,image/jpeg,image/webp"
+                                      style={{ display: "none" }}
+                                      onChange={(event) => {
+                                        void uploadBenefitIconAsset(itemIndex, event.target.files?.[0] ?? null);
+                                        event.currentTarget.value = "";
+                                      }}
+                                    />
+                                    {uploadingKey === `benefit-icon:${itemIndex}` ? "Subiendo..." : "Subir icono"}
+                                  </label>
+                                  {iconImage ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => updateBenefitItem(itemIndex, "iconImage", "")}
+                                      style={dangerButtonStyle}
+                                    >
+                                      Quitar icono subido
+                                    </button>
+                                  ) : null}
+                                </div>
+
+                                {iconImage ? (
+                                  <div style={assetPreviewCardStyle}>
+                                    <Image
+                                      src={resolveAssetUrl(iconImage) ?? iconImage}
+                                      alt={`Icono ${itemIndex + 1}`}
+                                      width={120}
+                                      height={120}
+                                      unoptimized
+                                      style={{ ...assetPreviewImageStyle, maxWidth: 80, margin: "0 auto" }}
                                     />
                                   </div>
                                 ) : null}

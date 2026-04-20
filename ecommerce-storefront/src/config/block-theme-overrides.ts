@@ -22,6 +22,12 @@ export const blockThemeOverrides: Record<
         editorialTitle: "Editorial street energy",
       },
     },
+    benefits: {
+      defaultProps: {
+        styleVariant: "plain",
+        animationPreset: "none",
+      },
+    },
   },
   fashion: {
     product_grid: {
