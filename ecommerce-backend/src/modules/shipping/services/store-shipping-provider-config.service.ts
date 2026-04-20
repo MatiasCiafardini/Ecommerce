@@ -475,32 +475,10 @@ export class StoreShippingProviderConfigService {
     provider: string,
     input: ProviderConfigInput,
   ): ProviderConfigInput {
-    if (provider !== 'correo-argentino') {
-      return input;
-    }
-
-    return {
-      ...input,
-      email: null,
-      password: null,
-      agreement: null,
-      apiKey: null,
-      secretKey: null,
-    };
+    return input;
   }
 
   private sanitizeRecordForOutput(record: ProviderConfigRecord) {
-    if (record.provider !== 'correo-argentino') {
-      return record;
-    }
-
-    return {
-      ...record,
-      email: null,
-      password: null,
-      agreement: null,
-      apiKey: null,
-      secretKey: null,
-    };
+    return record;
   }
 }

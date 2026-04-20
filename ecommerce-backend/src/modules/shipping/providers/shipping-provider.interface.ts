@@ -139,6 +139,14 @@ export type ProviderShipment = {
   trackingUrl?: string | null;
   labelUrl?: string | null;
   labelFormat?: string | null;
+  labelDocument?: {
+    url?: string | null;
+    fileBase64?: string | null;
+    fileName?: string | null;
+    mimeType?: string | null;
+    format?: string | null;
+    source?: string | null;
+  } | null;
   status?: string | null;
   cost?: number | null;
   conditionCode?: string | null;

@@ -69,6 +69,7 @@ export default function AdminShipmentOperationsPanel({
 }: Props) {
   const [savingManualUpdate, setSavingManualUpdate] = useState(false);
   const [savingTracking, setSavingTracking] = useState(false);
+  const [refreshingShipment, setRefreshingShipment] = useState(false);
   const [manualForm, setManualForm] = useState<ManualShipmentFormState>(emptyManualShipmentForm);
   const [trackingForm, setTrackingForm] = useState({
     status: "in_transit",
@@ -143,7 +144,7 @@ export default function AdminShipmentOperationsPanel({
       const blob = await apiBlob(`/admin/shipments/${shipment.id}/label.pdf`);
       openBlobFile(blob);
     } catch (error) {
-      onError(getErrorMessage(error, "No se pudo descargar la etiqueta."));
+      onError(getErrorMessage(error, "No se pudo abrir la etiqueta real del envio."));
     }
   };
 
@@ -153,6 +154,21 @@ export default function AdminShipmentOperationsPanel({
       openBlobFile(blob);
     } catch (error) {
       onError(getErrorMessage(error, "No se pudo descargar el comprobante."));
+    }
+  };
+
+  const refreshShipment = async () => {
+    try {
+      setRefreshingShipment(true);
+      await api(`/admin/shipments/${shipment.id}/refresh`, {
+        method: "POST",
+      });
+      await onUpdated();
+      onSuccess("Envio sincronizado con el carrier.");
+    } catch (error) {
+      onError(getErrorMessage(error, "No se pudo refrescar el envio desde el carrier."));
+    } finally {
+      setRefreshingShipment(false);
     }
   };
 
@@ -188,11 +204,19 @@ export default function AdminShipmentOperationsPanel({
               Abrir tracking
             </a>
           ) : null}
+          <button
+            type="button"
+            onClick={() => void refreshShipment()}
+            style={secondaryButtonStyle}
+            disabled={refreshingShipment}
+          >
+            {refreshingShipment ? "Sincronizando..." : "Refrescar tracking"}
+          </button>
           <button type="button" onClick={() => void downloadLabel()} style={primaryButtonStyle}>
-            Descargar etiqueta PDF
+            Ver etiqueta PDF
           </button>
           <button type="button" onClick={() => void downloadReceipt()} style={secondaryButtonStyle}>
-            Descargar comprobante PDF
+            Ver comprobante PDF
           </button>
         </div>
       </div>

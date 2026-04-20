@@ -40,6 +40,13 @@ export class FulfillmentService {
     );
   }
 
+  async refreshShipment(storeId: number | string, shipmentId: string) {
+    return this.shipmentService.refreshShipmentFromProvider(
+      Number(storeId),
+      shipmentId,
+    );
+  }
+
   async getPrintableLabel(storeId: number | string, shipmentId: string) {
     return this.shipmentService.getPrintableLabel(Number(storeId), shipmentId);
   }

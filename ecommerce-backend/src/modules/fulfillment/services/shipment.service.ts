@@ -597,12 +597,33 @@ export class ShipmentService {
 </html>`;
   }
   async getLabelPdf(storeId: number, shipmentId: string) {
+    const refreshedShipment = await this.refreshShipmentFromProvider(
+      storeId,
+      shipmentId,
+    );
     const shipment = await this.getShipmentDocumentContext(storeId, shipmentId);
-    const carrierPdf = await this.downloadExternalPdf(shipment.labelUrl);
+    const providerPayload =
+      refreshedShipment?.providerPayload ?? shipment.providerPayload ?? null;
+    const embeddedLabelPdf = this.getEmbeddedLabelPdf(providerPayload);
+    const carrierPdf =
+      embeddedLabelPdf ?? (await this.downloadExternalPdf(shipment.labelUrl));
+
+    if (carrierPdf) {
+      return {
+        filename: this.getCarrierLabelFilename(shipment, providerPayload),
+        pdf: carrierPdf,
+      };
+    }
+
+    if (shipment.provider !== 'manual' && shipment.provider !== 'mock') {
+      throw new BadRequestException(
+        'No hay un rotulo real disponible para este envio. Revisa tracking, credenciales y respuesta del carrier antes de imprimir.',
+      );
+    }
 
     return {
       filename: `etiqueta-envio-${shipment.orderId}.pdf`,
-      pdf: carrierPdf ?? (await this.renderInternalLabelPdf(storeId, shipment)),
+      pdf: await this.renderInternalLabelPdf(storeId, shipment),
     };
   }
 
@@ -613,6 +634,115 @@ export class ShipmentService {
       filename: `comprobante-envio-${shipment.orderId}.pdf`,
       pdf: this.renderShipmentReceiptPdf(shipment),
     };
+  }
+
+  async refreshShipmentFromProvider(storeId: number, shipmentId: string) {
+    const shipment = await this.prisma.shipment.findFirst({
+      where: {
+        id: shipmentId,
+        storeId,
+      },
+      include: {
+        trackingEvents: true,
+      },
+    });
+
+    if (!shipment) {
+      throw new NotFoundException('Shipment not found');
+    }
+
+    const resolvedProvider =
+      await this.providerConfigService.resolveProviderForStore(storeId, {
+        providerCode: shipment.provider,
+        providerConfigId: (shipment as any).providerConfigId,
+      });
+
+    const provider = resolvedProvider.provider;
+    if (!provider.getShipmentDetail && !provider.getTracking) {
+      return shipment;
+    }
+
+    const shipmentReference =
+      (shipment as any).externalShipmentId || shipment.trackingNumber;
+    if (!shipmentReference) {
+      return shipment;
+    }
+
+    let providerShipment: ProviderShipment | null = null;
+    if (provider.getShipmentDetail) {
+      providerShipment = await provider.getShipmentDetail(
+        shipmentReference,
+        resolvedProvider.context,
+      );
+    } else if (provider.getTracking) {
+      const events = await provider.getTracking(
+        {
+          externalShipmentId: (shipment as any).externalShipmentId,
+          trackingNumber: shipment.trackingNumber,
+        },
+        resolvedProvider.context,
+      );
+      providerShipment = {
+        provider: shipment.provider,
+        method: shipment.method,
+        carrier: shipment.carrier,
+        externalShipmentId: (shipment as any).externalShipmentId,
+        trackingNumber: shipment.trackingNumber,
+        trackingUrl: shipment.trackingUrl,
+        labelUrl: shipment.labelUrl,
+        labelFormat: shipment.labelFormat,
+        status: shipment.status,
+        payload: shipment.providerPayload,
+        events,
+      };
+    }
+
+    if (!providerShipment) {
+      return shipment;
+    }
+
+    const mergedPayload = this.mergeProviderPayload(
+      shipment.providerPayload,
+      providerShipment.payload,
+      providerShipment.labelDocument,
+    );
+
+    const updated = await this.prisma.shipment.update({
+      where: { id: shipment.id },
+      data: {
+        externalShipmentId:
+          providerShipment.externalShipmentId ??
+          (shipment as any).externalShipmentId,
+        trackingNumber: providerShipment.trackingNumber ?? shipment.trackingNumber,
+        trackingUrl: providerShipment.trackingUrl ?? shipment.trackingUrl,
+        labelUrl: providerShipment.labelUrl ?? shipment.labelUrl,
+        labelFormat: providerShipment.labelFormat ?? shipment.labelFormat,
+        status: providerShipment.status
+          ? this.normalizeShipmentStatus(providerShipment.status)
+          : shipment.status,
+        conditionCode:
+          providerShipment.conditionCode ?? shipment.conditionCode ?? null,
+        providerPayload: mergedPayload as any,
+      },
+      include: {
+        trackingEvents: true,
+      },
+    });
+
+    await this.syncTrackingEvents(
+      shipment.id,
+      shipment.trackingEvents,
+      providerShipment.events ?? [],
+    );
+
+    if (providerShipment.status === 'delivered') {
+      await this.prisma.order.update({
+        where: { id: shipment.orderId },
+        data: { status: 'delivered' },
+      });
+    }
+
+    return updated;
   }
 
   private async findOrderForShipment(storeId: number, orderId: number) {
@@ -688,7 +818,7 @@ export class ShipmentService {
     try {
       return await provider.createShipment!(request, context);
     } catch (error) {
-      if (error instanceof NotImplementedException || error instanceof Error) {
+      if (error instanceof NotImplementedException) {
         this.logger.warn(
           `Provider ${provider.providerCode} failed or is not implemented for live shipment creation, using local fallback`,
         );
@@ -838,7 +968,11 @@ export class ShipmentService {
         labelFormat: data.providerShipment.labelFormat ?? null,
         cost: data.providerShipment.cost ?? null,
         conditionCode: data.providerShipment.conditionCode ?? null,
-        providerPayload: data.providerShipment.payload as any,
+        providerPayload: this.mergeProviderPayload(
+          null,
+          data.providerShipment.payload,
+          data.providerShipment.labelDocument,
+        ) as any,
         providerConfigId: data.providerConfigId ?? null,
         internalNotes: null,
         weight: data.weight,
@@ -1030,6 +1164,143 @@ export class ShipmentService {
     }
 
     return shipment;
+  }
+
+  private async syncTrackingEvents(
+    shipmentId: string,
+    existingEvents: Array<{
+      status: string;
+      description?: string | null;
+      location?: string | null;
+      createdAt: Date;
+    }>,
+    providerEvents: Array<{
+      status: string;
+      description?: string | null;
+      location?: string | null;
+      occurredAt?: string | Date | null;
+    }>,
+  ) {
+    const existingKeys = new Set(
+      existingEvents.map((event) =>
+        [
+          event.status,
+          event.description || '',
+          event.location || '',
+          event.createdAt?.toISOString?.() || '',
+        ].join('|'),
+      ),
+    );
+
+    for (const event of providerEvents) {
+      const eventDate = event.occurredAt ? new Date(event.occurredAt) : null;
+      const key = [
+        this.normalizeShipmentStatus(event.status),
+        event.description || '',
+        event.location || '',
+        eventDate?.toISOString?.() || '',
+      ].join('|');
+
+      if (existingKeys.has(key)) {
+        continue;
+      }
+
+      await this.prisma.shipmentTrackingEvent.create({
+        data: {
+          shipmentId,
+          status: this.normalizeShipmentStatus(event.status),
+          description: event.description,
+          location: event.location,
+          createdAt: eventDate || undefined,
+        },
+      });
+      existingKeys.add(key);
+    }
+  }
+
+  private mergeProviderPayload(
+    currentPayload: unknown,
+    nextPayload: unknown,
+    labelDocument?: ProviderShipment['labelDocument'] | null,
+  ) {
+    const current =
+      currentPayload && typeof currentPayload === 'object'
+        ? (currentPayload as Record<string, unknown>)
+        : {};
+    const next =
+      nextPayload && typeof nextPayload === 'object'
+        ? (nextPayload as Record<string, unknown>)
+        : {};
+
+    return {
+      ...current,
+      ...next,
+      labelDocument:
+        labelDocument ??
+        (next.labelDocument as Record<string, unknown> | undefined) ??
+        (current.labelDocument as Record<string, unknown> | undefined) ??
+        null,
+    };
+  }
+
+  private getEmbeddedLabelPdf(payload: unknown) {
+    const labelDocument = this.getLabelDocumentFromPayload(payload);
+    const fileBase64 =
+      typeof labelDocument?.fileBase64 === 'string'
+        ? labelDocument.fileBase64.trim()
+        : '';
+
+    if (!fileBase64) {
+      return null;
+    }
+
+    try {
+      const pdf = Buffer.from(fileBase64, 'base64');
+      return pdf.subarray(0, 4).toString('ascii') === '%PDF' ? pdf : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private getLabelDocumentFromPayload(payload: unknown) {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const record = payload as Record<string, unknown>;
+    const direct =
+      record.labelDocument && typeof record.labelDocument === 'object'
+        ? (record.labelDocument as Record<string, unknown>)
+        : null;
+    if (direct) {
+      return direct;
+    }
+
+    const nestedPayload =
+      record.detailPayload && typeof record.detailPayload === 'object'
+        ? (record.detailPayload as Record<string, unknown>)
+        : null;
+    if (
+      nestedPayload?.labelDocument &&
+      typeof nestedPayload.labelDocument === 'object'
+    ) {
+      return nestedPayload.labelDocument as Record<string, unknown>;
+    }
+
+    return null;
+  }
+
+  private getCarrierLabelFilename(
+    shipment: Awaited<ReturnType<ShipmentService['getShipmentDocumentContext']>>,
+    payload: unknown,
+  ) {
+    const labelDocument = this.getLabelDocumentFromPayload(payload);
+    const filename =
+      typeof labelDocument?.fileName === 'string'
+        ? labelDocument.fileName.trim()
+        : '';
+
+    return filename || `etiqueta-envio-${shipment.orderId}.pdf`;
   }
 
   private async downloadExternalPdf(url?: string | null) {

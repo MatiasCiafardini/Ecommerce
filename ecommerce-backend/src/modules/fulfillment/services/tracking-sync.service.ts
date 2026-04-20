@@ -3,6 +3,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { Cron } from '@nestjs/schedule';
 import { TrackingService } from './tracking.service';
 import { StoreShippingProviderConfigService } from '../../shipping/services/store-shipping-provider-config.service';
+import { ShipmentService } from './shipment.service';
 
 @Injectable()
 export class TrackingSyncService {
@@ -12,6 +13,7 @@ export class TrackingSyncService {
     private prisma: PrismaService,
     private trackingService: TrackingService,
     private providerConfigService: StoreShippingProviderConfigService,
+    private shipmentService: ShipmentService,
   ) {}
 
   @Cron('*/5 * * * *')
@@ -48,34 +50,16 @@ export class TrackingSyncService {
           (providerMetadata?.autoTrackingEnabled !== false &&
             resolvedProvider.provider.providerCode !== 'manual');
 
-        const providerEvents = autoTrackingEnabled && resolvedProvider.provider.getTracking
-          ? await resolvedProvider.provider.getTracking({
-              externalShipmentId: (shipment as any).externalShipmentId,
-              trackingNumber: shipment.trackingNumber,
-            }, resolvedProvider.context)
-          : [];
-
-        if (providerEvents.length > 0) {
-          const latestEvent = providerEvents.at(-1);
-
-          if (
-            latestEvent &&
-            latestEvent.status &&
-            latestEvent.status !== shipment.status
-          ) {
-            await this.trackingService.addTrackingEvent(shipment.storeId, {
-              shipmentId: shipment.id,
-              status: latestEvent.status as any,
-              description:
-                latestEvent.description || 'Automatic tracking update',
-              location: latestEvent.location || undefined,
-            });
-
-            this.logger.log(
-              `Shipment ${shipment.id} updated to ${latestEvent.status}`,
-            );
-          }
-
+        if (
+          autoTrackingEnabled &&
+          (resolvedProvider.provider.getTracking ||
+            resolvedProvider.provider.getShipmentDetail)
+        ) {
+          await this.shipmentService.refreshShipmentFromProvider(
+            shipment.storeId,
+            shipment.id,
+          );
+          this.logger.log(`Shipment ${shipment.id} refreshed from provider`);
           continue;
         }
 

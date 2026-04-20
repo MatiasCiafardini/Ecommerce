@@ -53,6 +53,11 @@ export class FulfillmentController {
     return this.fulfillmentService.updateManualShipment(req.storeId, id, dto);
   }
 
+  @Post(':id/refresh')
+  refreshShipment(@Req() req, @Param('id') id: string) {
+    return this.fulfillmentService.refreshShipment(req.storeId, id);
+  }
+
   @Get(':id/label')
   @Header('Content-Type', 'text/html; charset=utf-8')
   async getPrintableLabel(@Req() req, @Param('id') id: string) {
