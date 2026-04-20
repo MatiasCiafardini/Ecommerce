@@ -33,6 +33,13 @@ const ALLOWED_MIMETYPES = new Set([
   'image/webp',
 ]);
 
+interface UploadedImageFile {
+  filename: string;
+  mimetype: string;
+  path: string;
+  size: number;
+}
+
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
 @ApiTags('Product Images')
@@ -84,7 +91,7 @@ export class ProductImagesController {
   async upload(
     @Param('productId') productId: string,
     @Body() dto: UploadProductImageDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedImageFile,
     @Req() req,
   ) {
     const productIdNum = Number(productId);
