@@ -47,6 +47,7 @@ export default function AddressSection({ user }: { user: User }) {
     lastName: user.lastName ?? "",
     address1: "",
     city: "Buenos Aires",
+    state: "Buenos Aires",
     zip: "",
     country: "Argentina",
   });
