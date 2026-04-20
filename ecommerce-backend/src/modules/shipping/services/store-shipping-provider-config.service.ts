@@ -523,12 +523,13 @@ export class StoreShippingProviderConfigService {
       return config;
     }
 
-    if (capability === 'label') {
+    if (
+      ['createShipment', 'track', 'label'].includes(capability) &&
+      this.hasPaqArLabelConfig(config)
+    ) {
       return {
         ...config,
-        mode:
-          this.pickMode(config.mode) ||
-          (this.hasPaqArLabelConfig(config) ? 'PAQAR_API' : 'MICORREO'),
+        mode: 'PAQAR_API',
       };
     }
 

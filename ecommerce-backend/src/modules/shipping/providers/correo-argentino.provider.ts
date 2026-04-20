@@ -248,6 +248,9 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     context?: ShippingProviderContext,
   ): Promise<ProviderShipment> {
     const config = this.getConfig(context?.config);
+    if (config.mode === 'PAQAR_API') {
+      return this.createPaqArShipment(data, config);
+    }
     this.ensureMiCorreoMode(config, 'crear envios');
     const token = await this.getAccessToken(config);
     const customerId = await this.getCustomerId(config, token);
@@ -308,6 +311,11 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     data: ShipmentTrackingSnapshot,
     context?: ShippingProviderContext,
   ): Promise<ProviderTrackingEvent[]> {
+    const config = this.getConfig(context?.config);
+    if (config.mode === 'PAQAR_API') {
+      const detail = await this.getPaqArShipmentDetailFromSnapshot(data, config);
+      return detail.events ?? [];
+    }
     const detail = await this.getShipmentDetailFromSnapshot(data, context);
     return detail.events ?? [];
   }
@@ -316,6 +324,13 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     shipmentId: string,
     context?: ShippingProviderContext,
   ): Promise<ProviderShipment> {
+    const config = this.getConfig(context?.config);
+    if (config.mode === 'PAQAR_API') {
+      return this.getPaqArShipmentDetailFromSnapshot(
+        { externalShipmentId: shipmentId, trackingNumber: shipmentId },
+        config,
+      );
+    }
     return this.getShipmentDetailFromSnapshot(
       { externalShipmentId: shipmentId },
       context,
@@ -485,6 +500,70 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     };
   }
 
+  private async createPaqArShipment(
+    data: ShipmentProvisionRequest,
+    config: RuntimeConfig,
+  ): Promise<ProviderShipment> {
+    if (!this.canUsePaqArLabels(config)) {
+      throw new ServiceUnavailableException(
+        'Correo Argentino PAQ.AR requiere agreement, apiKey y paqarApiBaseUrl para crear envios.',
+      );
+    }
+
+    const url = this.url(config.paqarApiBaseUrl, '/orders');
+    const payload = this.buildPaqArOrderPayload(data, config);
+
+    this.logRequest('POST', url, payload);
+
+    try {
+      const response = await axios.post(url, payload, {
+        headers: this.paqArHeaders(config),
+        timeout: 30_000,
+      });
+
+      this.logResponse('POST', url, response.status, response.data);
+
+      const trackingNumber =
+        this.extractTrackingNumber(response.data) ||
+        this.text(response.data?.trackingNumber);
+      const externalShipmentId =
+        this.extractShipmentReference(response.data) || trackingNumber || null;
+      const labelDocument = trackingNumber
+        ? await this.fetchPaqArLabelDocument(trackingNumber, config)
+        : null;
+
+      return {
+        provider: this.providerCode,
+        method: data.method,
+        carrier: data.carrierName || 'Correo Argentino',
+        externalShipmentId,
+        trackingNumber,
+        trackingUrl: trackingNumber
+          ? this.trackingUrl(trackingNumber, config)
+          : null,
+        labelUrl: labelDocument?.url ?? null,
+        labelFormat: labelDocument?.format ?? null,
+        labelDocument,
+        status: 'created',
+        cost: data.value,
+        conditionCode: null,
+        payload: {
+          paqArRequest: payload,
+          paqArResponse: response.data,
+          labelDocument,
+        },
+        events: [
+          {
+            status: 'created',
+            description: 'Shipment creado correctamente en Correo Argentino PAQ.AR.',
+          },
+        ],
+      };
+    } catch (error) {
+      this.fail(error, 'Error creating shipment in Correo Argentino PAQ.AR');
+    }
+  }
+
   private async getShipmentDetailFromSnapshot(
     data: ShipmentTrackingSnapshot,
     context?: ShippingProviderContext,
@@ -594,6 +673,100 @@ export class CorreoArgentinoProvider implements ShippingProvider {
       },
       events,
     };
+  }
+
+  private async getPaqArShipmentDetailFromSnapshot(
+    data: ShipmentTrackingSnapshot,
+    config: RuntimeConfig,
+  ): Promise<ProviderShipment> {
+    if (!this.canUsePaqArLabels(config)) {
+      return {
+        provider: this.providerCode,
+        method: 'Correo Argentino',
+        carrier: 'Correo Argentino',
+        externalShipmentId: this.text(data.externalShipmentId) || null,
+        trackingNumber: this.text(data.trackingNumber) || null,
+        trackingUrl: this.text(data.trackingNumber)
+          ? this.trackingUrl(this.text(data.trackingNumber), config)
+          : null,
+        labelUrl: null,
+        labelFormat: null,
+        labelDocument: null,
+        status: 'created',
+        conditionCode: null,
+        payload: null,
+        events: [],
+      };
+    }
+
+    const trackingNumber =
+      this.text(data.trackingNumber) || this.text(data.externalShipmentId);
+
+    if (!trackingNumber) {
+      return {
+        provider: this.providerCode,
+        method: 'Correo Argentino',
+        carrier: 'Correo Argentino',
+        events: [],
+      };
+    }
+
+    const url = this.url(config.paqarApiBaseUrl, '/tracking');
+    const body = [{ trackingNumber }];
+    const params = config.paqarSellerId
+      ? { extClient: config.paqarSellerId }
+      : undefined;
+
+    this.logRequest('GET', url, { params, body });
+
+    try {
+      const response = await axios.request({
+        url,
+        method: 'GET',
+        headers: this.paqArHeaders(config),
+        params,
+        data: body,
+        timeout: 30_000,
+      });
+
+      this.logResponse('GET', url, response.status, response.data);
+
+      const entry = Array.isArray(response.data)
+        ? response.data.find(
+            (item) => this.text(item?.trackingNumber) === trackingNumber,
+          ) || response.data[0] || {}
+        : response.data || {};
+      const resolvedTrackingNumber =
+        this.extractTrackingNumber(entry) || trackingNumber;
+      const labelDocument = await this.fetchPaqArLabelDocument(
+        resolvedTrackingNumber,
+        config,
+      );
+      const events = this.mapTrackingEvents(entry);
+
+      return {
+        provider: this.providerCode,
+        method: 'Correo Argentino',
+        carrier: 'Correo Argentino',
+        externalShipmentId:
+          this.extractShipmentReference(entry) || resolvedTrackingNumber,
+        trackingNumber: resolvedTrackingNumber,
+        trackingUrl: this.trackingUrl(resolvedTrackingNumber, config),
+        labelUrl: labelDocument?.url ?? null,
+        labelFormat: labelDocument?.format ?? null,
+        labelDocument,
+        status: events.at(-1)?.status || 'created',
+        conditionCode: events.at(-1)?.description || null,
+        payload: {
+          trackingRequest: { params, body },
+          trackingResponse: response.data,
+          labelDocument,
+        },
+        events,
+      };
+    } catch (error) {
+      this.fail(error, 'Error fetching tracking from Correo Argentino PAQ.AR');
+    }
   }
 
   private getConfig(
@@ -931,6 +1104,106 @@ export class CorreoArgentinoProvider implements ShippingProvider {
           ) || null,
         postalCode: this.text(origin.postalCode) || null,
       },
+    };
+  }
+
+  private buildPaqArOrderPayload(
+    data: ShipmentProvisionRequest,
+    config: RuntimeConfig,
+  ) {
+    const sender = this.sender(config);
+    const recipient = this.recipient(data);
+    const shipping = this.shippingPayload(data, config);
+    const senderPhone = this.splitPhone(config.senderPhone);
+    const recipientPhone = this.splitPhone(data.recipient.phone);
+    const deliveryType =
+      shipping.deliveryType === 'S' ? 'branchDelivery' : 'homeDelivery';
+
+    return {
+      ...(config.paqarSellerId ? { sellerId: config.paqarSellerId } : {}),
+      order: {
+        senderData: {
+          id: config.customerId || undefined,
+          businessName:
+            config.companyName || config.senderName || 'Tienda online',
+          areaCodePhone: senderPhone.areaCode,
+          phoneNumber: senderPhone.phoneNumber,
+          areaCodeCellphone: senderPhone.areaCode,
+          cellphoneNumber: senderPhone.phoneNumber,
+          email: config.senderEmail || 'no-reply@example.com',
+          observation: `Pedido ${data.orderId}`,
+          address: this.buildPaqArAddress(
+            sender.originAddress.streetName,
+            sender.originAddress.streetNumber,
+            sender.originAddress.city,
+            sender.originAddress.provinceCode,
+            sender.originAddress.postalCode,
+            sender.originAddress.floor,
+            sender.originAddress.apartment,
+          ),
+        },
+        shippingData: {
+          name: recipient.name,
+          areaCodePhone: recipientPhone.areaCode,
+          phoneNumber: recipientPhone.phoneNumber,
+          areaCodeCellphone: recipientPhone.areaCode,
+          cellphoneNumber: recipientPhone.phoneNumber,
+          email: recipient.email || 'no-reply@example.com',
+          observation: `Pedido ${data.orderId}`,
+          address: this.buildPaqArAddress(
+            shipping.address.streetName,
+            shipping.address.streetNumber,
+            shipping.address.city,
+            shipping.address.provinceCode,
+            shipping.address.postalCode,
+            shipping.address.floor,
+            shipping.address.apartment,
+          ),
+        },
+        parcels: [
+          {
+            dimensions: {
+              height: String(shipping.height),
+              width: String(shipping.width),
+              depth: String(shipping.length),
+            },
+            productWeight: String(shipping.weight),
+            productCategory: this.text(data.serviceCode) || 'mercaderia',
+            declaredValue: String(
+              Number(data.value.toFixed ? data.value.toFixed(2) : data.value),
+            ),
+          },
+        ],
+        deliveryType,
+        agencyId:
+          deliveryType === 'homeDelivery' ? '' : this.text(shipping.agency),
+        saleDate: this.paqArSaleDate(),
+        shipmentClientId: this.externalOrderId(data),
+        serviceType: this.cut(
+          this.text(data.serviceCode) || config.productType || 'CP',
+          2,
+        ),
+      },
+    };
+  }
+
+  private buildPaqArAddress(
+    streetName: string | null,
+    streetNumber: string | null,
+    city: string | null,
+    state: string | null,
+    zipCode: string | null,
+    floor?: string | null,
+    department?: string | null,
+  ) {
+    return {
+      streetName: streetName || 'Sin calle',
+      streetNumber: streetNumber || '0',
+      cityName: city || 'Sin ciudad',
+      floor: floor || '',
+      department: department || '',
+      state: state || '',
+      zipCode: zipCode || '',
     };
   }
 
@@ -1500,6 +1773,27 @@ export class CorreoArgentinoProvider implements ShippingProvider {
 
   private digits(value?: string | null) {
     return (value || '').replace(/\D+/g, '');
+  }
+
+  private splitPhone(value?: string | null) {
+    const digits = this.digits(value);
+    if (!digits) {
+      return { areaCode: '', phoneNumber: '' };
+    }
+
+    if (digits.length <= 8) {
+      return { areaCode: '', phoneNumber: digits };
+    }
+
+    return {
+      areaCode: digits.slice(0, digits.length - 8),
+      phoneNumber: digits.slice(-8),
+    };
+  }
+
+  private paqArSaleDate() {
+    const date = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    return date.toISOString().replace('Z', '-03:00');
   }
 
   private cut(value: string, length: number) {
