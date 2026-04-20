@@ -53,6 +53,7 @@ export type CustomerOrder = {
   shipment?: {
     id?: string;
     status: string;
+    provider?: string | null;
     carrier?: string | null;
     externalShipmentId?: string | null;
     trackingUrl?: string | null;
