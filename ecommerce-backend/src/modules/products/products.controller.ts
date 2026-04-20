@@ -12,6 +12,7 @@ import {
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 
@@ -28,6 +29,11 @@ export class ProductsController {
     return this.productsService.create(dto, req.storeId);
   }
 
+  @Post('save-complete')
+  createComplete(@Body() dto: SaveProductCompleteDto, @Req() req) {
+    return this.productsService.saveComplete(undefined, dto, req.storeId);
+  }
+
   @Get()
   findAll(@Req() req) {
     return this.productsService.findAll(req.storeId);
@@ -36,6 +42,15 @@ export class ProductsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateProductDto, @Req() req) {
     return this.productsService.update(Number(id), dto, req.storeId);
+  }
+
+  @Patch(':id/save-complete')
+  updateComplete(
+    @Param('id') id: string,
+    @Body() dto: SaveProductCompleteDto,
+    @Req() req,
+  ) {
+    return this.productsService.saveComplete(Number(id), dto, req.storeId);
   }
 
   @Delete(':id')

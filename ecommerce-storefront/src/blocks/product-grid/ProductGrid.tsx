@@ -31,7 +31,6 @@ export default async function ProductGrid({
     shouldRenderProducts ? getProducts({ category, limit, productIds }) : Promise.resolve([]),
     getBankTransferDiscountPercentage(),
   ]);
-  const featurePanelHeight = "clamp(260px, 30vw, 340px)";
 
   return (
     <section
@@ -41,110 +40,6 @@ export default async function ProductGrid({
       }}
     >
       <div style={{ maxWidth: "var(--store-wide-max)", margin: "0 auto" }}>
-        {title && (
-          <div
-            className="layout-feature-split"
-            style={{
-              marginBottom: 28,
-            }}
-          >
-            <div
-              className="theme-block-panel"
-              style={{
-                borderRadius: "var(--theme-radius-panel)",
-                border: "1px solid var(--border-soft)",
-                padding: "28px",
-                display: "grid",
-                alignContent: "end",
-                minHeight: featurePanelHeight,
-                height: featurePanelHeight,
-              }}
-            >
-              <span
-                style={{
-                  color: "var(--text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.18em",
-                  fontSize: 12,
-                  marginBottom: 14,
-                }}
-              >
-                {eyebrow}
-              </span>
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: "clamp(1.8rem, 3vw, 3rem)",
-                  textTransform: "uppercase",
-                  letterSpacing: "-0.04em",
-                  color: "var(--text-strong)",
-                }}
-              >
-                {title}
-              </h2>
-            </div>
-
-            <div
-              className="theme-hover-lift theme-ambient-pan theme-editorial-panel"
-              style={{
-                minHeight: featurePanelHeight,
-                height: featurePanelHeight,
-                borderRadius: "var(--theme-radius-panel)",
-                border: "1px solid var(--border-soft)",
-                backgroundSize: "cover, cover, cover, cover",
-                backgroundPosition: "center, center, center, center",
-                overflow: "hidden",
-                position: "relative",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background: "var(--editorial-panel-overlay)",
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  left: 24,
-                  bottom: 22,
-                  display: "grid",
-                  gap: 8,
-                }}
-              >
-                <span
-                  className="feature-kicker"
-                  style={{
-                    display: "inline-flex",
-                    width: "fit-content",
-                    padding: "8px 12px",
-                    borderRadius: "var(--theme-radius-pill)",
-                    border: "1px solid var(--border-soft)",
-                    background: "var(--editorial-pill-bg)",
-                    color: "var(--text-strong)",
-                    letterSpacing: "0.18em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {editorialLabel}
-                </span>
-                <strong
-                  className="feature-title"
-                  style={{
-                    color: "var(--text-strong)",
-                    textTransform: "uppercase",
-                    letterSpacing: "-0.03em",
-                    textShadow: "var(--editorial-title-shadow)",
-                  }}
-                >
-                  {editorialTitle}
-                </strong>
-              </div>
-            </div>
-          </div>
-        )}
-
         {shouldRenderProducts ? (
           <div
             className="layout-product-grid"

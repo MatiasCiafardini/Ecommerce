@@ -697,7 +697,6 @@ function AdminProductsSection({
   const [variantDraft, setVariantDraft] =
     useState<EditableVariant>(emptyVariant());
   const [variants, setVariants] = useState<EditableVariant[]>([]);
-  const [loadedVariants, setLoadedVariants] = useState<EditableVariant[]>([]);
   const uploadImagesRef = useRef<UploadImage[]>([]);
 
   const stackedSectionStyle: React.CSSProperties = {
@@ -1008,7 +1007,6 @@ function AdminProductsSection({
     setVariantDraftInitialState(null);
     setPendingVariantSwitch(null);
     setVariants([]);
-    setLoadedVariants([]);
   };
 
   const toggleCategory = (categoryId: number) => {
@@ -1705,7 +1703,6 @@ function AdminProductsSection({
           : [];
 
         setVariants(safeVariants);
-        setLoadedVariants(safeVariants);
         clearVariantDraft();
         setActiveTab("create");
 
@@ -1725,34 +1722,6 @@ function AdminProductsSection({
     },
     [imageFiles],
   );
-
-  const syncCategories = async (
-    productId: number,
-    currentProduct: Product | undefined,
-  ) => {
-    const currentCategoryIds = (currentProduct?.categories ?? []).map(
-      (entry) => entry.category.id,
-    );
-    const categoriesToAdd = selectedCategoryIds.filter(
-      (id) => !currentCategoryIds.includes(id),
-    );
-    const categoriesToRemove = currentCategoryIds.filter(
-      (id) => !selectedCategoryIds.includes(id),
-    );
-
-    await Promise.all([
-      ...categoriesToAdd.map((categoryId) =>
-        api(`/products/${productId}/categories/${categoryId}`, {
-          method: "POST",
-        }),
-      ),
-      ...categoriesToRemove.map((categoryId) =>
-        api(`/products/${productId}/categories/${categoryId}`, {
-          method: "DELETE",
-        }),
-      ),
-    ]);
-  };
 
   const syncImages = async (productId: number) => {
     const imagesToRemove = originalImageIds.filter(
@@ -1857,14 +1826,8 @@ function AdminProductsSection({
     );
   };
 
-  const syncOptionValues = async (productId: number) => {
-    const loadedLookup = new Map(
-      loadedOptionValues.map((entry) => [
-        `${entry.productOptionId}:${entry.value.trim().toLowerCase()}`,
-        entry,
-      ]),
-    );
-    const selectedEntries = Object.entries(selectedOptionValues)
+  const buildOptionValuesToPersist = () =>
+    Object.entries(selectedOptionValues)
       .flatMap(([optionIdRaw, values]) =>
         values.map((value) => ({
           productOptionId: Number(optionIdRaw),
@@ -1873,124 +1836,37 @@ function AdminProductsSection({
       )
       .filter((entry) => entry.value);
 
-    const selectedKeys = new Set(
-      selectedEntries.map(
-        (entry) => `${entry.productOptionId}:${entry.value.toLowerCase()}`,
-      ),
-    );
-
-    const valuesToDelete = loadedOptionValues.filter(
-      (entry) =>
-        !selectedKeys.has(
-          `${entry.productOptionId}:${entry.value.trim().toLowerCase()}`,
-        ),
-    );
-
-    await Promise.all(
-      valuesToDelete.map((entry) =>
-        api(`/products/${productId}/option-values/${entry.id}`, {
-          method: "DELETE",
-        }),
-      ),
-    );
-
-    for (const entry of selectedEntries) {
-      if (
-        loadedLookup.has(
-          `${entry.productOptionId}:${entry.value.toLowerCase()}`,
-        )
-      ) {
-        continue;
-      }
-
-      await api(`/products/${productId}/option-values`, {
-        method: "POST",
-        body: JSON.stringify(entry),
-      });
-    }
-  };
-
-  const syncVariants = async (
-    productId: number,
-    variantsToSync: EditableVariant[],
-  ) => {
-    const loadedVariantIds = new Set(
-      loadedVariants
-        .map((variant) => variant.id)
-        .filter((id): id is number => Boolean(id)),
-    );
-    const currentVariantIds = new Set(
-      variantsToSync
-        .map((variant) => variant.id)
-        .filter((id): id is number => Boolean(id)),
-    );
-
-    await Promise.all(
-      [...loadedVariantIds]
-        .filter((variantId) => !currentVariantIds.has(variantId))
-        .map((variantId) =>
-          api(`/variants/${variantId}`, { method: "DELETE" }),
-        ),
-    );
-
-    for (const variant of variantsToSync) {
-      const inventoryQuantity = variant.inventoryQuantity.trim()
+  const buildCompleteProductPayload = (variantsToSync: EditableVariant[]) => ({
+    title: form.title.trim(),
+    description: form.description.trim() || null,
+    published: form.published,
+    weightGrams: form.weightGrams.trim() ? Number(form.weightGrams) : null,
+    packageHeightCm: form.packageHeightCm.trim()
+      ? Number(form.packageHeightCm)
+      : null,
+    packageWidthCm: form.packageWidthCm.trim()
+      ? Number(form.packageWidthCm)
+      : null,
+    packageLengthCm: form.packageLengthCm.trim()
+      ? Number(form.packageLengthCm)
+      : null,
+    categoryIds: selectedCategoryIds,
+    optionValues: buildOptionValuesToPersist(),
+    variants: variantsToSync.map((variant) => ({
+      ...(variant.id ? { id: variant.id } : {}),
+      sku: variant.sku.trim(),
+      price: Number(variant.price),
+      Size: variant.Size.trim() || null,
+      Color: variant.Color.trim() || null,
+      inventoryQuantity: variant.inventoryQuantity.trim()
         ? Number(variant.inventoryQuantity)
-        : 0;
-
-      const createPayload = {
-        sku: variant.sku.trim(),
-        price: Number(variant.price),
-        Size: variant.Size.trim() || undefined,
-        Color: variant.Color.trim() || undefined,
-        inventoryQuantity,
-        weightGrams: variant.weight.trim()
-          ? Number(variant.weight)
-          : undefined,
-        packageWidthCm: variant.width.trim()
-          ? Number(variant.width)
-          : undefined,
-        packageHeightCm: variant.height.trim()
-          ? Number(variant.height)
-          : undefined,
-        packageLengthCm: variant.length.trim()
-          ? Number(variant.length)
-          : undefined,
-      };
-
-      const updatePayload = {
-        sku: variant.sku.trim(),
-        price: Number(variant.price),
-        Size: variant.Size.trim() || null,
-        Color: variant.Color.trim() || null,
-        inventoryQuantity,
-        weightGrams: variant.weight.trim()
-          ? Number(variant.weight)
-          : null,
-        packageWidthCm: variant.width.trim()
-          ? Number(variant.width)
-          : null,
-        packageHeightCm: variant.height.trim()
-          ? Number(variant.height)
-          : null,
-        packageLengthCm: variant.length.trim()
-          ? Number(variant.length)
-          : null,
-      };
-
-      if (variant.id) {
-        await api(`/variants/${variant.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(updatePayload),
-        });
-      } else {
-        await api("/variants", {
-          method: "POST",
-          body: JSON.stringify({ ...createPayload, productId }),
-        });
-      }
-    }
-  };
+        : 0,
+      weightGrams: variant.weight.trim() ? Number(variant.weight) : null,
+      packageWidthCm: variant.width.trim() ? Number(variant.width) : null,
+      packageHeightCm: variant.height.trim() ? Number(variant.height) : null,
+      packageLengthCm: variant.length.trim() ? Number(variant.length) : null,
+    })),
+  });
 
   const saveProduct = async (autoGenerateSkus = false) => {
     if (saving) {
@@ -2011,9 +1887,6 @@ function AdminProductsSection({
       setDuplicateSkuPrompt(null);
 
       const wasEditing = editingProductId;
-      let currentProduct = products.find(
-        (product) => product.id === editingProductId,
-      );
       const baseVariantsToSync = buildVariantsToPersist();
 
       if (
@@ -2030,62 +1903,36 @@ function AdminProductsSection({
         ? generateAutomaticSkus(baseVariantsToSync)
         : baseVariantsToSync;
 
-      if (editingProductId) {
-        await api(`/products/${editingProductId}`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            title: form.title.trim(),
-            description: form.description.trim(),
-            published: form.published,
-            weightGrams: form.weightGrams.trim()
-              ? Number(form.weightGrams)
-              : undefined,
-            packageHeightCm: form.packageHeightCm.trim()
-              ? Number(form.packageHeightCm)
-              : undefined,
-            packageWidthCm: form.packageWidthCm.trim()
-              ? Number(form.packageWidthCm)
-              : undefined,
-            packageLengthCm: form.packageLengthCm.trim()
-              ? Number(form.packageLengthCm)
-              : undefined,
-          }),
-        });
-      } else {
-        const created = await api("/products", {
-          method: "POST",
-          body: JSON.stringify({
-            title: form.title.trim(),
-            description: form.description.trim() || undefined,
-            published: form.published,
-            weightGrams: form.weightGrams.trim()
-              ? Number(form.weightGrams)
-              : undefined,
-            packageHeightCm: form.packageHeightCm.trim()
-              ? Number(form.packageHeightCm)
-              : undefined,
-            packageWidthCm: form.packageWidthCm.trim()
-              ? Number(form.packageWidthCm)
-              : undefined,
-            packageLengthCm: form.packageLengthCm.trim()
-              ? Number(form.packageLengthCm)
-              : undefined,
-          }),
-        });
+      const savedProduct = editingProductId
+        ? await api(`/products/${editingProductId}/save-complete`, {
+            method: "PATCH",
+            body: JSON.stringify(buildCompleteProductPayload(variantsToSync)),
+          })
+        : await api("/products/save-complete", {
+            method: "POST",
+            body: JSON.stringify(buildCompleteProductPayload(variantsToSync)),
+          });
 
-        productId = created.id;
-        currentProduct = created;
-        setEditingProductId(created.id);
-      }
+      productId = savedProduct?.id ?? productId;
 
       if (!productId) {
         throw new Error("Producto no encontrado");
       }
 
-      await syncCategories(productId, currentProduct);
-      await syncImages(productId);
-      await syncOptionValues(productId);
-      await syncVariants(productId, variantsToSync);
+      if (!wasEditing && savedProduct?.id) {
+        setEditingProductId(savedProduct.id);
+      }
+
+      let imageSyncError = "";
+
+      try {
+        await syncImages(productId);
+      } catch (imageError) {
+        imageSyncError =
+          imageError instanceof Error
+            ? imageError.message
+            : "Las imagenes no se pudieron sincronizar.";
+      }
 
       const nextProducts = await loadData();
       if (activeTab === "stock") {
@@ -2098,6 +1945,17 @@ function AdminProductsSection({
       } else {
         resetForm();
       }
+
+      if (imageSyncError) {
+        setError(imageSyncError);
+        setSuccess(
+          wasEditing
+            ? "El producto se actualizo, pero algunas imagenes no se pudieron guardar."
+            : "El producto se creo, pero algunas imagenes no se pudieron guardar.",
+        );
+        return;
+      }
+
       setSuccess(
         wasEditing
           ? "Producto actualizado desde el formulario principal."
