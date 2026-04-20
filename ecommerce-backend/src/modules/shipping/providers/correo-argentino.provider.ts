@@ -419,15 +419,21 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     duplicateImport: boolean,
   ): Promise<ProviderShipment> {
     let detail: ProviderShipment | null = null;
+    const importedShipmentId = this.extractShipmentReference(importResponse);
+    const importedTrackingNumber = this.extractTrackingNumber(importResponse);
+    const remoteLookupId = importedShipmentId || extOrderId;
 
     try {
       detail = await this.getShipmentDetailFromSnapshot(
-        { externalShipmentId: extOrderId },
+        {
+          externalShipmentId: remoteLookupId,
+          trackingNumber: importedTrackingNumber || undefined,
+        },
         context,
       );
     } catch (error) {
       this.logger.warn(
-        `Correo Argentino import ${extOrderId} created but detail refresh failed: ${
+        `Correo Argentino import ${remoteLookupId} created but detail refresh failed: ${
           error instanceof Error ? error.message : 'unknown error'
         }`,
       );
@@ -445,12 +451,11 @@ export class CorreoArgentinoProvider implements ShippingProvider {
       provider: this.providerCode,
       method: data.method,
       carrier: data.carrierName || 'Correo Argentino',
-      externalShipmentId: detail?.externalShipmentId || extOrderId,
-      trackingNumber,
-      trackingUrl: this.trackingUrl(
-        trackingNumber || extOrderId,
-        config,
-      ),
+      externalShipmentId: detail?.externalShipmentId || importedShipmentId || extOrderId,
+      trackingNumber: trackingNumber || importedTrackingNumber || null,
+      trackingUrl: trackingNumber
+        ? this.trackingUrl(trackingNumber, config)
+        : null,
       labelUrl: labelDocument?.url ?? detail?.labelUrl ?? null,
       labelFormat:
         labelDocument?.format ??
@@ -503,28 +508,62 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     const params = { shippingId };
     this.logRequest('GET', url, params);
 
-    const response = await axios
-      .get(url, {
+    let response;
+
+    try {
+      response = await axios.get(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         params,
         timeout: 20_000,
-      })
-      .catch((error) =>
-        this.fail(
-          error,
-          'Error fetching tracking from Correo Argentino MiCorreo',
-        ),
+      });
+    } catch (error) {
+      if (
+        axios.isAxiosError(error) &&
+        error.response?.status === 500 &&
+        !this.text(data.trackingNumber)
+      ) {
+        this.logger.warn(
+          `Correo Argentino tracking lookup for ${shippingId} returned HTTP 500 before a real tracking number was assigned. Keeping shipment in created state.`,
+        );
+
+        return {
+          provider: this.providerCode,
+          method: 'Correo Argentino',
+          carrier: 'Correo Argentino',
+          externalShipmentId: this.text(data.externalShipmentId) || shippingId,
+          trackingNumber: null,
+          trackingUrl: null,
+          labelUrl: null,
+          labelFormat: null,
+          labelDocument: null,
+          status: 'created',
+          conditionCode: null,
+          payload: {
+            trackingRequest: params,
+            trackingResponse: error.response?.data ?? null,
+          },
+          events: [],
+        };
+      }
+
+      this.fail(
+        error,
+        'Error fetching tracking from Correo Argentino MiCorreo',
       );
+    }
 
     this.logResponse('GET', url, response.status, response.data);
 
     const entry = Array.isArray(response.data)
       ? response.data[0] || {}
       : response.data || {};
-    const trackingNumber = this.text(entry.trackingNumber) || shippingId;
+    const trackingNumber =
+      this.extractTrackingNumber(entry) ||
+      this.text(data.trackingNumber) ||
+      null;
     const labelDocument =
       this.extractLabelDocument(entry) ??
       this.extractLabelDocument(response.data) ??
@@ -537,9 +576,12 @@ export class CorreoArgentinoProvider implements ShippingProvider {
       provider: this.providerCode,
       method: 'Correo Argentino',
       carrier: 'Correo Argentino',
-      externalShipmentId: this.text(entry.id) || this.text(data.externalShipmentId) || shippingId,
+      externalShipmentId:
+        this.extractShipmentReference(entry) ||
+        this.text(data.externalShipmentId) ||
+        shippingId,
       trackingNumber,
-      trackingUrl: this.trackingUrl(trackingNumber, config),
+      trackingUrl: trackingNumber ? this.trackingUrl(trackingNumber, config) : null,
       labelUrl: labelDocument?.url ?? null,
       labelFormat: labelDocument?.format ?? null,
       labelDocument,
@@ -1106,6 +1148,65 @@ export class CorreoArgentinoProvider implements ShippingProvider {
       format,
       source: 'correo-argentino-response',
     };
+  }
+
+  private extractShipmentReference(source: unknown): string | null {
+    if (!source) {
+      return null;
+    }
+
+    if (Array.isArray(source)) {
+      for (const item of source) {
+        const match = this.extractShipmentReference(item);
+        if (match) {
+          return match;
+        }
+      }
+      return null;
+    }
+
+    if (typeof source !== 'object') {
+      return null;
+    }
+
+    const record = source as Record<string, unknown>;
+
+    return (
+      this.text(record.externalShipmentId) ||
+      this.text(record.shippingId) ||
+      this.text(record.id) ||
+      this.text(record.envioId) ||
+      null
+    );
+  }
+
+  private extractTrackingNumber(source: unknown): string | null {
+    if (!source) {
+      return null;
+    }
+
+    if (Array.isArray(source)) {
+      for (const item of source) {
+        const match = this.extractTrackingNumber(item);
+        if (match) {
+          return match;
+        }
+      }
+      return null;
+    }
+
+    if (typeof source !== 'object') {
+      return null;
+    }
+
+    const record = source as Record<string, unknown>;
+
+    return (
+      this.text(record.trackingNumber) ||
+      this.text(record.tracking) ||
+      this.text(record.numeroEnvio) ||
+      null
+    );
   }
 
   private findRecordWithLabel(source: unknown): Record<string, unknown> | null {
