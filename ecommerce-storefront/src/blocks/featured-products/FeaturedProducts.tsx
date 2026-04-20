@@ -26,7 +26,7 @@ export default async function FeaturedProducts({
     <section
       className="theme-block-section theme-block-section--featured"
       style={{
-        padding: "0 20px",
+        padding: "20px 20px",
       }}
     >
       <div style={{ maxWidth: "var(--store-wide-max)", margin: "0 auto" }}>

@@ -18,7 +18,7 @@ export default function Testimonials() {
     <section
       className="theme-block-section theme-block-section--testimonials"
       style={{
-        padding: "0 20px",
+        padding: "20px 20px",
       }}
     >
       <div style={{ maxWidth: "var(--store-reading-max)", margin: "0 auto" }}>

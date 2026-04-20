@@ -24,7 +24,7 @@ export default async function Carousel({
     <section
       className="theme-block-section theme-block-section--carousel"
       style={{
-        padding: "0 20px",
+        padding: "20px 20px",
       }}
     >
       <div style={{ maxWidth: "var(--store-wide-max)", margin: "0 auto" }}>

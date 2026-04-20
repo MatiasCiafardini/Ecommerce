@@ -13,7 +13,7 @@ export default function Newsletter({
     <section
       className="theme-block-section theme-block-section--newsletter"
       style={{
-        padding: "0 20px",
+        padding: "20px 20px",
       }}
     >
       <div

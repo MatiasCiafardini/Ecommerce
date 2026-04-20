@@ -47,7 +47,7 @@ export default async function Hero({
           resolvedImage
             ? `linear-gradient(135deg, ${imageOverlayStart}, ${imageOverlayEnd}), url(${resolvedImage}), ${urbanSkyline}`
             : `linear-gradient(135deg, ${backgroundColor} 0%, ${isLightText ? "#f3dfcf" : "#232323"} 48%, ${endGradientColor} 100%), ${urbanSkyline}`,
-        padding: "88px 20px 0",
+        padding: "88px 20px 20px",
         color: textColor,
         backgroundSize: "cover",
         backgroundPosition: "center",
