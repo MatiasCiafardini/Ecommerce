@@ -39,7 +39,17 @@ const carrierSuggestions = [
 
 const requiresTracking = (order: CustomerOrder) => {
   if (isPickupOrder(order)) return false;
+  const provider = order.shippingProvider?.trim().toLowerCase() ?? "";
+  const shipmentProvider = order.shipment?.provider?.trim().toLowerCase() ?? "";
   const method = order.shippingMethod?.trim().toLowerCase() ?? "";
+  if (
+    provider === "correo-argentino" ||
+    provider === "enviopack" ||
+    shipmentProvider === "correo-argentino" ||
+    shipmentProvider === "enviopack"
+  ) {
+    return false;
+  }
   return !method.includes("coordinar");
 };
 
@@ -51,6 +61,7 @@ export default function AdminOrderShipmentPanel({
   const [form, setForm] = useState<ShipmentFormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [dispatching, setDispatching] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     setForm({
@@ -69,6 +80,9 @@ export default function AdminOrderShipmentPanel({
   const hasCarrier = Boolean(form.carrier.trim());
   const hasTracking = Boolean(form.trackingNumber.trim());
   const dispatchReady = !trackingRequired || (hasCarrier && hasTracking);
+  const providerCode = order.shippingProvider?.trim().toLowerCase() ?? "";
+  const automaticCarrier =
+    providerCode === "correo-argentino" || providerCode === "enviopack";
 
   const saveShipment = async () => {
     try {
@@ -133,6 +147,22 @@ export default function AdminOrderShipmentPanel({
       onError(getErrorMessage(error, "No se pudo despachar el pedido."));
     } finally {
       setDispatching(false);
+    }
+  };
+
+  const refreshShipment = async () => {
+    try {
+      setRefreshing(true);
+      onError("");
+      await api(`/admin/shipments/${order.shipment!.id}/refresh`, {
+        method: "POST",
+      });
+      const updated = await api(`/orders/${order.id}`);
+      onOrderUpdated(updated as CustomerOrder);
+    } catch (error) {
+      onError(getErrorMessage(error, "No se pudo sincronizar el shipment con el carrier."));
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -235,15 +265,22 @@ export default function AdminOrderShipmentPanel({
       </div>
 
       <div style={hintCardStyle}>
-        {trackingRequired
-          ? "Si este pedido sale por correo o transporte, el tracking se vuelve obligatorio antes de marcarlo como despachado."
-          : "Este metodo no exige tracking obligatorio, pero podes dejar carrier, link y observaciones."}
+        {automaticCarrier
+          ? "Este envio usa integracion carrier. El tracking y la etiqueta deben llegar desde la API de Correo/transportista; no hace falta cargarlos manualmente."
+          : trackingRequired
+            ? "Si este pedido sale por correo o transporte, el tracking se vuelve obligatorio antes de marcarlo como despachado."
+            : "Este metodo no exige tracking obligatorio, pero podes dejar carrier, link y observaciones."}
       </div>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button type="button" onClick={() => void saveShipment()} disabled={saving} style={secondaryButtonStyle}>
           {saving ? "Guardando..." : "Guardar datos"}
         </button>
+        {automaticCarrier ? (
+          <button type="button" onClick={() => void refreshShipment()} disabled={refreshing} style={secondaryButtonStyle}>
+            {refreshing ? "Sincronizando..." : "Refrescar carrier"}
+          </button>
+        ) : null}
         <button type="button" onClick={() => void downloadLabel()} style={secondaryButtonStyle}>
           Descargar etiqueta PDF
         </button>
