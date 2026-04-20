@@ -57,6 +57,9 @@ export class ProductImagesController {
 
         callback(null, true);
       },
+      limits: {
+        fileSize: 8 * 1024 * 1024,
+      },
     }),
   )
   upload(

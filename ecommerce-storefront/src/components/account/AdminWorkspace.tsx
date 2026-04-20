@@ -205,9 +205,81 @@ const defaultImageLayout = (position = 0): ImageLayoutState => ({
   zoom: 1,
 });
 
+const MAX_IMAGE_UPLOAD_BYTES = 4.5 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 2000;
+const JPEG_QUALITY_STEPS = [0.86, 0.78, 0.7, 0.6, 0.5];
+
 const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
 };
+
+function renameFileWithJpegExtension(name: string) {
+  return name.replace(/\.[^.]+$/u, "") + ".jpg";
+}
+
+async function loadImageElement(file: File) {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new window.Image();
+      element.onload = () => resolve(element);
+      element.onerror = () =>
+        reject(new Error(`No se pudo procesar la imagen ${file.name}.`));
+      element.src = objectUrl;
+    });
+
+    return image;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
+  });
+}
+
+async function optimizeImageForUpload(file: File) {
+  if (file.size <= MAX_IMAGE_UPLOAD_BYTES && /image\/jpe?g/i.test(file.type)) {
+    return file;
+  }
+
+  const image = await loadImageElement(file);
+  const longestSide = Math.max(image.width, image.height);
+  const scale =
+    longestSide > MAX_IMAGE_DIMENSION
+      ? MAX_IMAGE_DIMENSION / longestSide
+      : 1;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("No se pudo preparar la imagen para subir.");
+  }
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  for (const quality of JPEG_QUALITY_STEPS) {
+    const blob = await canvasToBlob(canvas, quality);
+    if (!blob) {
+      continue;
+    }
+
+    if (blob.size <= MAX_IMAGE_UPLOAD_BYTES || quality === JPEG_QUALITY_STEPS.at(-1)) {
+      return new File([blob], renameFileWithJpegExtension(file.name), {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      });
+    }
+  }
+
+  throw new Error(`No se pudo reducir el peso de ${file.name}.`);
+}
 
 function scopeCategoriesToActiveStore(items: Category[]) {
   const storeId = (() => {
@@ -1763,8 +1835,23 @@ function AdminProductsSection({
     }
   };
 
-  const appendImageFiles = (files: File[]) => {
+  const appendImageFiles = async (files: File[]) => {
     if (files.length === 0) {
+      return;
+    }
+
+    let preparedFiles: File[];
+
+    try {
+      preparedFiles = await Promise.all(
+        files.map((file) => optimizeImageForUpload(file)),
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron preparar las imagenes para subir.",
+      );
       return;
     }
 
@@ -1773,7 +1860,9 @@ function AdminProductsSection({
         0,
         10 - existingImages.length - current.length,
       );
-      const nextFiles = files.slice(0, availableSlots).map((file, index) => ({
+      const nextFiles = preparedFiles
+        .slice(0, availableSlots)
+        .map((file, index) => ({
         file,
         name: file.name,
         previewUrl: URL.createObjectURL(file),
@@ -2225,7 +2314,7 @@ function AdminProductsSection({
               accept="image/*"
               multiple
               onChange={(event) => {
-                appendImageFiles(Array.from(event.target.files ?? []));
+                void appendImageFiles(Array.from(event.target.files ?? []));
                 event.currentTarget.value = "";
               }}
               style={fieldStyle}
