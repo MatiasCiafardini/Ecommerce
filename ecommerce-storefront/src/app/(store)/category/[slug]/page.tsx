@@ -2,6 +2,7 @@ import { getProducts } from "@/services/products.service";
 import { getBankTransferDiscountPercentage } from "@/services/payment-config.service";
 import ProductCard from "@/components/product/ProductCard";
 import { getTenantConfig } from "@/lib/tenant/get-tenant";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,11 @@ export default async function CategoryPage({ params }: Props) {
     getTenantConfig(),
     getBankTransferDiscountPercentage(),
   ]);
+
+  if (slug === "gift-cards" && products.length === 1) {
+    redirect(`/product/${products[0].slug}`);
+  }
+
   const categoryTitle = slug
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))

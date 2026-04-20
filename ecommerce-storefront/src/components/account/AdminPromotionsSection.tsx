@@ -39,7 +39,7 @@ type ProductOption = {
 };
 
 type DiscountScope = "order" | "product" | "category" | "variant" | "option" | "option_value";
-type DiscountType = "percentage" | "fixed_amount" | "free_shipping";
+type DiscountType = "percentage" | "fixed_amount" | "free_shipping" | "buy_x_get_y";
 type ScopeOption = {
   id: DiscountScope;
   label: string;
@@ -90,6 +90,8 @@ const initialForm = {
   endsAt: "",
   couponCode: "",
   couponUsageLimit: "",
+  buyQuantity: "3",
+  getQuantity: "1",
 };
 
 function scopeCategoriesToActiveStore(items: Category[]) {
@@ -178,6 +180,11 @@ export default function AdminPromotionsSection() {
     }
 
     if (form.scope !== "order" && form.type === "free_shipping") {
+      setForm((current) => ({ ...current, type: "percentage" }));
+    }
+
+    // buy_x_get_y solo es válido para scope=category
+    if (form.scope !== "category" && form.type === "buy_x_get_y") {
       setForm((current) => ({ ...current, type: "percentage" }));
     }
   }, [form.scope, form.automatic, form.type]);
@@ -296,8 +303,13 @@ export default function AdminPromotionsSection() {
         automatic: form.scope === "order" ? form.automatic : true,
       };
 
-      if (form.type !== "free_shipping") {
+      if (form.type !== "free_shipping" && form.type !== "buy_x_get_y") {
         payload.value = Number(form.value);
+      }
+
+      if (form.type === "buy_x_get_y") {
+        payload.buyQuantity = Number(form.buyQuantity);
+        payload.getQuantity = Number(form.getQuantity);
       }
 
       if (form.minimumAmount.trim()) {
@@ -366,7 +378,7 @@ export default function AdminPromotionsSection() {
   };
 
   const resetForm = () => {
-    setForm(initialForm);
+    setForm({ ...initialForm });
     setEditingPromotionId(null);
     setSelectedProductIds([]);
     setSelectedCategoryIds([]);
@@ -388,7 +400,9 @@ export default function AdminPromotionsSection() {
       scope: promotion.scope,
       type: promotion.type,
       value:
-        promotion.type === "free_shipping" ? "0" : String(Number(promotion.value ?? 0)),
+        promotion.type === "free_shipping" || promotion.type === "buy_x_get_y"
+          ? "0"
+          : String(Number(promotion.value ?? 0)),
       minimumAmount:
         promotion.minimumAmount === null || promotion.minimumAmount === undefined
           ? ""
@@ -402,6 +416,8 @@ export default function AdminPromotionsSection() {
         promotion.coupons?.[0]?.usageLimit === undefined
           ? ""
           : String(promotion.coupons[0].usageLimit),
+      buyQuantity: promotion.buyQuantity != null ? String(promotion.buyQuantity) : "3",
+      getQuantity: promotion.getQuantity != null ? String(promotion.getQuantity) : "1",
     });
     setSelectedProductIds((promotion.productTargets ?? []).map((target) => target.productId));
     setSelectedCategoryIds((promotion.categoryTargets ?? []).map((target) => target.categoryId));
@@ -468,33 +484,14 @@ export default function AdminPromotionsSection() {
             </button>
           </div>
 
-          <div style={gridTwoStyle}>
-            <Field label="Nombre de la promoción">
-              <input
-                value={form.name}
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                placeholder="Ej. Remeras Mid Season"
-                style={fieldStyle}
-              />
-            </Field>
-
-            <Field label="Tipo de descuento">
-              <select
-                value={form.type}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    type: event.target.value as DiscountType,
-                  }))
-                }
-                style={fieldStyle}
-              >
-                <option value="percentage">Porcentaje</option>
-                <option value="fixed_amount">Monto fijo</option>
-                {form.scope === "order" ? <option value="free_shipping">Envío gratis</option> : null}
-              </select>
-            </Field>
-          </div>
+          <Field label="Nombre de la promoción">
+            <input
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              placeholder="Ej. Remeras Mid Season"
+              style={fieldStyle}
+            />
+          </Field>
 
           <div style={scopeGridStyle}>
             {scopeOptions.map((scope) => {
@@ -513,8 +510,38 @@ export default function AdminPromotionsSection() {
             })}
           </div>
 
+          <Field label="Tipo de descuento">
+            <select
+              title="Tipo de descuento"
+              value={form.type}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  type: event.target.value as DiscountType,
+                }))
+              }
+              style={fieldStyle}
+            >
+              <option value="percentage">Porcentaje</option>
+              <option value="fixed_amount">Monto fijo</option>
+              {form.scope === "order" ? <option value="free_shipping">Envío gratis</option> : null}
+              {form.scope === "category" ? <option value="buy_x_get_y">Llevá 3 pagá 2 (3×2)</option> : null}
+            </select>
+          </Field>
+
           <div style={gridThreeStyle}>
-            {form.type !== "free_shipping" ? (
+            {form.type === "buy_x_get_y" ? (
+              <Field label="Comprá">
+                <input
+                  type="number"
+                  min={2}
+                  value={form.buyQuantity}
+                  onChange={(event) => setForm((current) => ({ ...current, buyQuantity: event.target.value }))}
+                  placeholder="3"
+                  style={fieldStyle}
+                />
+              </Field>
+            ) : form.type !== "free_shipping" ? (
               <Field label={form.type === "percentage" ? "Valor (%)" : "Valor fijo"}>
                 <input
                   value={form.value}
@@ -529,16 +556,29 @@ export default function AdminPromotionsSection() {
               </Field>
             )}
 
-            <Field label="Mínimo de compra">
-              <input
-                value={form.minimumAmount}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, minimumAmount: event.target.value }))
-                }
-                placeholder="Opcional"
-                style={fieldStyle}
-              />
-            </Field>
+            {form.type === "buy_x_get_y" ? (
+              <Field label="Llevá (gratis)">
+                <input
+                  type="number"
+                  min={1}
+                  value={form.getQuantity}
+                  onChange={(event) => setForm((current) => ({ ...current, getQuantity: event.target.value }))}
+                  placeholder="1"
+                  style={fieldStyle}
+                />
+              </Field>
+            ) : (
+              <Field label="Mínimo de compra">
+                <input
+                  value={form.minimumAmount}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, minimumAmount: event.target.value }))
+                  }
+                  placeholder="Opcional"
+                  style={fieldStyle}
+                />
+              </Field>
+            )}
 
             {false ? <Field label="Modo">
               <div style={toggleRowStyle}>
@@ -795,7 +835,9 @@ export default function AdminPromotionsSection() {
                     ? `${form.value || 0}% off`
                     : form.type === "fixed_amount"
                       ? `${money(Number(form.value || 0))} off`
-                      : "Envío gratis"
+                      : form.type === "buy_x_get_y"
+                        ? `Comprá ${form.buyQuantity || 3}, llevá ${Number(form.buyQuantity || 3) - Number(form.getQuantity || 1)} pagando`
+                        : "Envío gratis"
                 }
               />
               <SummaryItem label="Alcance" value={scopeOptions.find((scope) => scope.id === form.scope)?.label ?? form.scope} />
@@ -967,6 +1009,12 @@ function labelType(promotion: AdminPromotion) {
     return `${money(Number(promotion.value ?? 0))} off`;
   }
 
+  if (promotion.type === "buy_x_get_y") {
+    const buy = promotion.buyQuantity ?? 3;
+    const get = promotion.getQuantity ?? 1;
+    return `${buy}×${buy - get} (llevá ${buy - get} pagando)`;
+  }
+
   return "Envío gratis";
 }
 
@@ -1047,6 +1095,17 @@ function canSubmit(
   optionValues: Record<number, string[]>,
 ) {
   if (!form.name.trim()) return false;
+
+  if (form.type === "buy_x_get_y") {
+    const buy = Number(form.buyQuantity);
+    const get = Number(form.getQuantity);
+    if (!Number.isFinite(buy) || buy < 2) return false;
+    if (!Number.isFinite(get) || get < 1) return false;
+    if (get >= buy) return false;
+    if (categoryIds.length === 0) return false;
+    return true;
+  }
+
   if (
     form.type !== "free_shipping" &&
     (!form.value.trim() || !Number.isFinite(Number(form.value)))

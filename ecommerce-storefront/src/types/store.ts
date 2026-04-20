@@ -25,8 +25,10 @@ export type StoreVariant = {
     hasActivePromotion: boolean;
     promotionLabel?: string | null;
     pricingDiscountId?: number | null;
-    promotionType?: "percentage" | "fixed_amount" | "free_shipping" | null;
+    promotionType?: "percentage" | "fixed_amount" | "free_shipping" | "buy_x_get_y" | null;
     promotionValue?: number | null;
+    hasBuyXGetYPromotion?: boolean;
+    buyXGetYLabel?: string | null;
   };
 };
 
@@ -71,8 +73,10 @@ export type StoreProduct = {
     hasActivePromotion: boolean;
     promotionLabel?: string | null;
     pricingDiscountId?: number | null;
-    promotionType?: "percentage" | "fixed_amount" | "free_shipping" | null;
+    promotionType?: "percentage" | "fixed_amount" | "free_shipping" | "buy_x_get_y" | null;
     promotionValue?: number | null;
+    hasBuyXGetYPromotion?: boolean;
+    buyXGetYLabel?: string | null;
   };
 };
 

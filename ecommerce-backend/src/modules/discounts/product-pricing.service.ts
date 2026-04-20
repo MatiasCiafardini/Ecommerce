@@ -25,6 +25,8 @@ type ProductPricingDetails = {
   pricingDiscountId: number | null;
   promotionType: DiscountType | null;
   promotionValue: number | null;
+  hasBuyXGetYPromotion: boolean;
+  buyXGetYLabel: string | null;
 };
 
 type ScopedDiscount = Prisma.DiscountGetPayload<{
@@ -36,6 +38,14 @@ type ScopedDiscount = Prisma.DiscountGetPayload<{
     optionValueTargets: true;
   };
 }>;
+
+type CartItemDiscountBreakdown = {
+  variantId: number;
+  quantity: number;
+  unitPrice: number;
+  itemScopedDiscountPerUnit: number;
+  buyXGetYDiscountTotal: number;
+};
 
 @Injectable()
 export class ProductPricingService {
@@ -102,6 +112,7 @@ export class ProductPricingService {
         baseSubtotal: 0,
         itemScopedDiscountAmount: 0,
         discountedSubtotal: 0,
+        itemBreakdown: [] as CartItemDiscountBreakdown[],
       };
     }
 
@@ -114,11 +125,17 @@ export class ProductPricingService {
 
     const scopedDiscounts = await this.getActiveScopedDiscounts(storeId, products);
 
-    let baseSubtotal = 0;
-    let itemScopedDiscountAmount = 0;
+    // Separar descuentos normales de buy_x_get_y para procesarlos correctamente
+    const regularDiscounts = scopedDiscounts.filter(
+      (d) => d.type !== DiscountType.buy_x_get_y,
+    );
+    const buyXGetYDiscounts = scopedDiscounts.filter(
+      (d) => d.type === DiscountType.buy_x_get_y,
+    );
 
+    // Calcular descuentos regulares por item (percentage/fixed_amount)
+    const regularDiscountByVariant = new Map<number, number>();
     for (const item of items) {
-      const unitPrice = Number(item.variant.price ?? 0);
       const pricing = this.resolvePricingForVariant(
         {
           id: item.variant.product.id,
@@ -126,13 +143,46 @@ export class ProductPricingService {
           optionValues: item.variant.product.optionValues ?? [],
         },
         { id: item.variant.id, price: item.variant.price },
-        scopedDiscounts,
+        regularDiscounts,
+      );
+      regularDiscountByVariant.set(item.variant.id, pricing.discountAmount);
+    }
+
+    // Calcular descuentos buy_x_get_y agrupados por categoría
+    const buyXGetYDiscountByVariant = this.calculateBuyXGetYDiscounts(
+      items,
+      buyXGetYDiscounts,
+    );
+
+    let baseSubtotal = 0;
+    let itemScopedDiscountAmount = 0;
+    const itemBreakdown: CartItemDiscountBreakdown[] = [];
+
+    for (const item of items) {
+      const unitPrice = roundCurrency(Number(item.variant.price ?? 0));
+      const regularDiscountPerUnit = regularDiscountByVariant.get(item.variant.id) ?? 0;
+      const buyXGetYDiscountForItem = buyXGetYDiscountByVariant.get(item.variant.id) ?? 0;
+
+      // Aplicar el mayor entre descuento regular (total de la línea) y buy_x_get_y
+      const regularLineDiscount = roundCurrency(regularDiscountPerUnit * item.quantity);
+      const effectiveLineDiscount = roundCurrency(
+        Math.max(regularLineDiscount, buyXGetYDiscountForItem),
       );
 
       baseSubtotal = roundCurrency(baseSubtotal + unitPrice * item.quantity);
       itemScopedDiscountAmount = roundCurrency(
-        itemScopedDiscountAmount + pricing.discountAmount * item.quantity,
+        itemScopedDiscountAmount + effectiveLineDiscount,
       );
+
+      itemBreakdown.push({
+        variantId: item.variant.id,
+        quantity: item.quantity,
+        unitPrice,
+        itemScopedDiscountPerUnit: effectiveLineDiscount > 0
+          ? roundCurrency(effectiveLineDiscount / item.quantity)
+          : 0,
+        buyXGetYDiscountTotal: buyXGetYDiscountForItem,
+      });
     }
 
     return {
@@ -141,7 +191,101 @@ export class ProductPricingService {
       discountedSubtotal: roundCurrency(
         Math.max(baseSubtotal - itemScopedDiscountAmount, 0),
       ),
+      itemBreakdown,
     };
+  }
+
+  /**
+   * Calcula la bonificación buy_x_get_y por categoría.
+   *
+   * Algoritmo:
+   * 1. Por cada descuento buy_x_get_y, filtra los items del carrito cuyos productos
+   *    pertenezcan a alguna de las categorías target del descuento.
+   * 2. Expande los items en unidades individuales (quantity=3 → 3 entradas).
+   * 3. Ordena las unidades por precio ascendente.
+   * 4. Por cada grupo de `buyQuantity` unidades, bonifica las `getQuantity` más baratas.
+   * 5. Distribuye el descuento total de vuelta a los CartItems originales
+   *    priorizando los de menor precio.
+   *
+   * La distribución al item original se hace para preservar el contrato de
+   * `itemBreakdown` sin romper la firma pública de `resolveCartItemDiscounts`.
+   */
+  private calculateBuyXGetYDiscounts(
+    items: Array<{
+      quantity: number;
+      variant: {
+        id: number;
+        price: Prisma.Decimal | number | string;
+        product: {
+          id: number;
+          categories?: Array<{ category: { id: number } }>;
+        };
+      };
+    }>,
+    buyXGetYDiscounts: ScopedDiscount[],
+  ): Map<number, number> {
+    // variantId → totalDiscountAmount
+    const result = new Map<number, number>();
+
+    for (const discount of buyXGetYDiscounts) {
+      const buyQty = discount.buyQuantity ?? 3;
+      const getQty = discount.getQuantity ?? 1;
+      const targetCategoryIds = new Set(
+        discount.categoryTargets.map((t) => t.categoryId),
+      );
+
+      // Filtrar items elegibles (productos de la categoría)
+      const eligibleItems = items.filter((item) =>
+        (item.variant.product.categories ?? []).some((c) =>
+          targetCategoryIds.has(c.category.id),
+        ),
+      );
+
+      if (eligibleItems.length === 0) continue;
+
+      // Expandir a unidades individuales: { variantId, price }
+      type Unit = { variantId: number; price: number };
+      const units: Unit[] = [];
+      for (const item of eligibleItems) {
+        const price = roundCurrency(Number(item.variant.price ?? 0));
+        for (let i = 0; i < item.quantity; i++) {
+          units.push({ variantId: item.variant.id, price });
+        }
+      }
+
+      // Ordenar ascendente (la más barata primero)
+      units.sort((a, b) => a.price - b.price);
+
+      const totalUnits = units.length;
+      const groupCount = Math.floor(totalUnits / buyQty);
+
+      if (groupCount === 0) continue;
+
+      // Por cada grupo de `buyQty`, las primeras `getQty` unidades (más baratas) son bonificadas
+      // Tras ordenar ASC y tomar grupos de `buyQty`, la unidad bonificada es la [0..getQty-1]
+      // de cada grupo (que son las más baratas del grupo porque el array está ordenado ASC
+      // y tomamos grupos consecutivos)
+      const bonusDiscountByVariant = new Map<number, number>();
+
+      for (let g = 0; g < groupCount; g++) {
+        const groupStart = g * buyQty;
+        // Las primeras `getQty` del grupo son las más baratas → se bonifican
+        for (let b = 0; b < getQty; b++) {
+          const unit = units[groupStart + b];
+          bonusDiscountByVariant.set(
+            unit.variantId,
+            roundCurrency((bonusDiscountByVariant.get(unit.variantId) ?? 0) + unit.price),
+          );
+        }
+      }
+
+      // Acumular en el resultado final (puede haber múltiples descuentos buy_x_get_y activos)
+      for (const [variantId, amount] of bonusDiscountByVariant) {
+        result.set(variantId, roundCurrency((result.get(variantId) ?? 0) + amount));
+      }
+    }
+
+    return result;
   }
 
   private async getActiveScopedDiscounts(
@@ -343,6 +487,21 @@ export class ProductPricingService {
       }
     }
 
+    // Detectar si hay una promo buy_x_get_y activa para alguna categoría del producto
+    // (no afecta el precio de lista, solo sirve para mostrar el badge en catálogo)
+    let hasBuyXGetYPromotion = false;
+    let buyXGetYLabel: string | null = null;
+
+    for (const discount of scopedDiscounts) {
+      if (discount.type !== DiscountType.buy_x_get_y) continue;
+      if (discount.scope !== DiscountScope.category) continue;
+      if (discount.categoryTargets.some((t) => categoryIds.has(t.categoryId))) {
+        hasBuyXGetYPromotion = true;
+        buyXGetYLabel = discount.name;
+        break;
+      }
+    }
+
     const roundedDiscountAmount = roundCurrency(bestDiscountAmount);
     const finalPrice = roundCurrency(Math.max(basePrice - roundedDiscountAmount, 0));
     const discountPercentage =
@@ -358,6 +517,8 @@ export class ProductPricingService {
       pricingDiscountId: bestDiscountId,
       promotionType: bestType,
       promotionValue: bestValue,
+      hasBuyXGetYPromotion,
+      buyXGetYLabel,
     };
   }
 
@@ -372,6 +533,8 @@ export class ProductPricingService {
       pricingDiscountId: null,
       promotionType: null,
       promotionValue: null,
+      hasBuyXGetYPromotion: false,
+      buyXGetYLabel: null,
     };
   }
 

@@ -23,6 +23,7 @@ export default function ProductCard({
     product.variants?.[0]?.price ?? product.price ?? 0,
   );
   const hasPromotion = Boolean(product.pricing?.hasActivePromotion);
+  const hasBuyXGetY = Boolean(product.pricing?.hasBuyXGetYPromotion);
   const displayPrice = hasPromotion
     ? roundCurrency(product.pricing?.finalPrice ?? fallbackPrice)
     : roundCurrency(fallbackPrice);
@@ -99,6 +100,30 @@ export default function ProductCard({
             }}
           >
             -{product.pricing?.discountPercentage}%
+          </span>
+        ) : hasBuyXGetY ? (
+          <span
+            style={{
+              position: "absolute",
+              top: 14,
+              left: 14,
+              zIndex: 2,
+              padding: "8px 12px",
+              borderRadius: 0,
+              background:
+                "color-mix(in srgb, var(--paper, #fffdf9) 84%, var(--accent, #8f7868) 16%)",
+              border:
+                "1px solid color-mix(in srgb, var(--border-soft, rgba(0,0,0,0.12)) 68%, var(--accent, #8f7868) 32%)",
+              boxShadow: "0 10px 24px rgba(56, 34, 24, 0.08)",
+              color: "var(--text-strong, #6a5247)",
+              letterSpacing: "0.08em",
+              fontSize: 12,
+              fontWeight: 700,
+              lineHeight: 1,
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            3×2
           </span>
         ) : null}
 

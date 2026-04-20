@@ -105,4 +105,16 @@ export class CreateDiscountDto {
   @ValidateNested({ each: true })
   @Type(() => DiscountOptionValueTargetDto)
   optionValueTargets?: DiscountOptionValueTargetDto[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(2)
+  buyQuantity?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  getQuantity?: number;
 }

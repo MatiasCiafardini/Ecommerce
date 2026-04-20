@@ -27,11 +27,13 @@ export class DiscountsService {
           name: dto.name,
           scope: normalized.scope,
           type: dto.type,
-          value: dto.value,
+          value: dto.type === DiscountType.buy_x_get_y ? null : dto.value,
           minimumAmount: dto.minimumAmount,
           automatic: normalized.automatic,
           startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
           endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
+          buyQuantity: normalized.buyQuantity ?? null,
+          getQuantity: normalized.getQuantity ?? null,
         },
       });
 
@@ -110,11 +112,17 @@ export class DiscountsService {
           name: dto.name,
           scope: normalized.scope,
           type: dto.type,
-          value: dto.type === DiscountType.free_shipping ? null : dto.value,
+          value:
+            dto.type === DiscountType.free_shipping ||
+            dto.type === DiscountType.buy_x_get_y
+              ? null
+              : dto.value,
           minimumAmount: dto.minimumAmount ?? null,
           automatic: normalized.automatic,
           startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
           endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
+          buyQuantity: normalized.buyQuantity ?? null,
+          getQuantity: normalized.getQuantity ?? null,
         },
       });
 
@@ -600,6 +608,32 @@ export class DiscountsService {
       throw new BadRequestException('Free shipping discounts must be order-scoped');
     }
 
+    if (dto.type === DiscountType.buy_x_get_y) {
+      if (scope !== DiscountScope.category) {
+        throw new BadRequestException(
+          'buy_x_get_y discounts must be category-scoped',
+        );
+      }
+
+      if (!dto.buyQuantity || dto.buyQuantity < 2) {
+        throw new BadRequestException(
+          'buy_x_get_y discounts require buyQuantity >= 2',
+        );
+      }
+
+      if (!dto.getQuantity || dto.getQuantity < 1) {
+        throw new BadRequestException(
+          'buy_x_get_y discounts require getQuantity >= 1',
+        );
+      }
+
+      if (dto.getQuantity >= dto.buyQuantity) {
+        throw new BadRequestException(
+          'getQuantity must be less than buyQuantity',
+        );
+      }
+    }
+
     if (productIds.length > 0) {
       const productCount = await this.prisma.product.count({
         where: {
@@ -680,6 +714,8 @@ export class DiscountsService {
       variantIds,
       optionIds,
       optionValueTargets,
+      buyQuantity: dto.buyQuantity ?? null,
+      getQuantity: dto.getQuantity ?? null,
     };
   }
 

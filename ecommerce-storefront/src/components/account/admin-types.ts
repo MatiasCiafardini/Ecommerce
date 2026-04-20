@@ -135,13 +135,15 @@ export type AdminPromotion = {
   id: number;
   name: string;
   scope: "order" | "product" | "category" | "variant" | "option" | "option_value";
-  type: "percentage" | "fixed_amount" | "free_shipping";
+  type: "percentage" | "fixed_amount" | "free_shipping" | "buy_x_get_y";
   value?: number | null;
   minimumAmount?: number | null;
   automatic: boolean;
   startsAt?: string | null;
   endsAt?: string | null;
   createdAt: string;
+  buyQuantity?: number | null;
+  getQuantity?: number | null;
   coupons?: Array<{
     id: number;
     code: string;

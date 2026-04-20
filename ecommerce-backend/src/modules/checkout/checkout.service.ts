@@ -110,9 +110,14 @@ export class CheckoutService {
       baseSubtotal: subtotal,
       itemScopedDiscountAmount,
       discountedSubtotal,
+      itemBreakdown,
     } = await this.productPricingService.resolveCartItemDiscounts(
       storeId,
       cart.items,
+    );
+
+    const discountByVariantId = new Map(
+      itemBreakdown.map((b) => [b.variantId, b.itemScopedDiscountPerUnit]),
     );
 
     for (const item of cart.items) {
@@ -253,6 +258,7 @@ export class CheckoutService {
             variantId: item.variantId,
             quantity: item.quantity,
             price: Number(item.variant.price),
+            discountAmount: discountByVariantId.get(item.variantId) ?? 0,
           },
         });
       }

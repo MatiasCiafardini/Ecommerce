@@ -9,6 +9,7 @@ import Testimonials from "@/blocks/testimonials/Testimonials";
 import HeroCarousel from "@/blocks/hero-carousel/HeroCarousel";
 import Benefits from "@/blocks/benefits/Benefits";
 import BoutiqueHero from "@/blocks/boutique-hero/BoutiqueHero";
+import CategoryImageStrip from "@/blocks/category-image-strip/CategoryImageStrip";
 import { blockThemeOverrides } from "@/config/block-theme-overrides";
 import type { ThemeBlockDefinition } from "@/types/block";
 
@@ -19,6 +20,7 @@ export const defaultBlockRegistry = {
   product_grid: ProductGrid,
   carousel: Carousel,
   category_grid: CategoryGrid,
+  category_image_strip: CategoryImageStrip,
   featured_products: FeaturedProducts,
   newsletter: Newsletter,
   banner: Banner,

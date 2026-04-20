@@ -156,12 +156,18 @@ type FieldDefinition =
   | { key: string; label: string; type: "select"; options: Array<{ label: string; value: string }> }
   | { key: string; label: string; type: "products" | "image" };
 
+type CategoryImageStripItem = {
+  categorySlug?: string;
+  image?: string;
+};
+
 const blockLabels: Record<string, string> = {
   hero: "Hero",
   hero_carousel: "Hero Carousel",
   product_grid: "Product Grid",
   carousel: "Carousel",
   category_grid: "Category Grid",
+  category_image_strip: "Category Image Strip",
   featured_products: "Featured Products",
   newsletter: "Newsletter",
   banner: "Banner",
@@ -431,6 +437,9 @@ const blockFieldMap: Record<string, FieldDefinition[]> = {
     { key: "columns", label: "Columnas", type: "number" },
     { key: "animationPreset", label: "Animacion", type: "select", options: animationOptions },
   ],
+  category_image_strip: [
+    { key: "animationPreset", label: "Animacion", type: "select", options: animationOptions },
+  ],
   newsletter: [
     { key: "title", label: "Titulo", type: "text" },
     { key: "subtitle", label: "Subtitulo", type: "textarea" },
@@ -458,6 +467,7 @@ const availableBlockTypes = [
   "featured_products",
   "product_grid",
   "category_grid",
+  "category_image_strip",
   "carousel",
   "benefits",
   "testimonials",
@@ -522,6 +532,10 @@ const blockDefaultProps: Record<string, Record<string, unknown>> = {
     title: "Categorias",
     columns: 3,
     carousel: false,
+    animationPreset: "soft",
+  },
+  category_image_strip: {
+    items: [{ categorySlug: "", image: "" }],
     animationPreset: "soft",
   },
   carousel: {
@@ -1386,6 +1400,34 @@ export default function DeveloperModePanel({
     updateField("slides", slides);
   };
 
+  const getCategoryImageStripItems = (): CategoryImageStripItem[] => {
+    if (!activeBlock || !Array.isArray(activeBlock.props?.items)) {
+      return [];
+    }
+
+    return activeBlock.props.items.map((item) =>
+      item && typeof item === "object" ? (item as CategoryImageStripItem) : {},
+    );
+  };
+
+  const updateCategoryImageStripItem = (
+    itemIndex: number,
+    fieldKey: keyof CategoryImageStripItem,
+    value: string,
+  ) => {
+    if (!activeBlock) {
+      return;
+    }
+
+    const items = [...getCategoryImageStripItems()];
+    const currentItem = items[itemIndex] ?? {};
+    items[itemIndex] = {
+      ...currentItem,
+      [fieldKey]: value,
+    };
+    updateField("items", items);
+  };
+
   const reorderBlocks = (fromIndex: number, toIndex: number) => {
     if (!config || fromIndex === toIndex || fromIndex < 0 || toIndex < 0) {
       return;
@@ -1549,6 +1591,25 @@ export default function DeveloperModePanel({
     }
   };
 
+  const uploadCategoryImageStripAsset = async (itemIndex: number, file?: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    try {
+      setUploadingKey(`category-image-strip:${itemIndex}`);
+      setError("");
+      setSuccess("");
+      const uploadedUrl = await uploadAsset(file);
+      updateCategoryImageStripItem(itemIndex, "image", uploadedUrl);
+      setSuccess("Imagen de la categoria subida correctamente.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir la imagen de la categoria.");
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
   const addSlide = () => {
     if (!activeBlock) {
       return;
@@ -1577,6 +1638,31 @@ export default function DeveloperModePanel({
     updateField(
       "slides",
       slides.filter((_, index) => index !== slideIndex),
+    );
+  };
+
+  const addCategoryImageStripItem = () => {
+    if (!activeBlock) {
+      return;
+    }
+
+    const items = [...getCategoryImageStripItems()];
+    items.push({
+      categorySlug: "",
+      image: "",
+    });
+    updateField("items", items);
+  };
+
+  const removeCategoryImageStripItem = (itemIndex: number) => {
+    if (!activeBlock) {
+      return;
+    }
+
+    const items = [...getCategoryImageStripItems()];
+    updateField(
+      "items",
+      items.filter((_, index) => index !== itemIndex),
     );
   };
 
@@ -3268,6 +3354,102 @@ export default function DeveloperModePanel({
                                   style={textareaStyle}
                                   rows={3}
                                 />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {activeBlock.type === "category_image_strip" ? (
+                      <div style={{ display: "grid", gap: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                          <div style={{ display: "grid", gap: 4 }}>
+                            <label style={labelStyle}>Categorias del bloque</label>
+                            <p style={hintStyle}>
+                              La cantidad de imagenes se define por cuantas categorias agregues aqui.
+                            </p>
+                          </div>
+                          <button type="button" onClick={addCategoryImageStripItem} style={secondaryButtonStyle}>
+                            Agregar categoria
+                          </button>
+                        </div>
+
+                        <div style={{ display: "grid", gap: 12 }}>
+                          {getCategoryImageStripItems().map((item, itemIndex) => {
+                            const imageUrl = String(item.image ?? "");
+                            const selectedCategory = String(item.categorySlug ?? "");
+
+                            return (
+                              <div key={itemIndex} style={slideCardStyle}>
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                                  <strong>Categoria {itemIndex + 1}</strong>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeCategoryImageStripItem(itemIndex)}
+                                    style={dangerButtonStyle}
+                                  >
+                                    Quitar
+                                  </button>
+                                </div>
+
+                                <div style={{ display: "grid", gap: 8 }}>
+                                  <label style={labelStyle}>Categoria</label>
+                                  <select
+                                    value={selectedCategory}
+                                    onChange={(event) =>
+                                      updateCategoryImageStripItem(itemIndex, "categorySlug", event.target.value)
+                                    }
+                                    style={inputStyle}
+                                  >
+                                    <option value="">Seleccionar categoria</option>
+                                    {categories.map((category) => (
+                                      <option key={category.id} value={category.slug}>
+                                        {category.name} ({category.slug})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div style={assetActionsStyle}>
+                                  <label style={uploadButtonStyle}>
+                                    <input
+                                      type="file"
+                                      accept="image/png,image/jpeg,image/webp"
+                                      style={{ display: "none" }}
+                                      onChange={(event) => {
+                                        void uploadCategoryImageStripAsset(
+                                          itemIndex,
+                                          event.target.files?.[0] ?? null,
+                                        );
+                                        event.currentTarget.value = "";
+                                      }}
+                                    />
+                                    {uploadingKey === `category-image-strip:${itemIndex}` ? "Subiendo..." : "Subir imagen"}
+                                  </label>
+                                  {imageUrl ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => updateCategoryImageStripItem(itemIndex, "image", "")}
+                                      style={dangerButtonStyle}
+                                    >
+                                      Quitar imagen
+                                    </button>
+                                  ) : null}
+                                </div>
+
+                                {imageUrl ? (
+                                  <div style={assetPreviewCardStyle}>
+                                    <Image
+                                      src={resolveAssetUrl(imageUrl) ?? imageUrl}
+                                      alt={`Categoria ${itemIndex + 1}`}
+                                      width={1200}
+                                      height={720}
+                                      unoptimized
+                                      style={assetPreviewImageStyle}
+                                    />
+                                  </div>
+                                ) : null}
                               </div>
                             );
                           })}
