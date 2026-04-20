@@ -803,6 +803,7 @@ function AdminProductsSection({
   const [variants, setVariants] = useState<EditableVariant[]>([]);
   const uploadImagesRef = useRef<UploadImage[]>([]);
   const imageQueueRunningRef = useRef(false);
+  const imageDraftCreationRef = useRef(false);
 
   const stackedSectionStyle: React.CSSProperties = {
     ...tableSectionStyle,
@@ -1946,7 +1947,7 @@ function AdminProductsSection({
         return;
       }
 
-      const pendingUploads = uploadImagesRef.current
+      const pendingUploads = imageFiles
         .filter((entry) => entry.status === "pending" || entry.status === "error")
         .slice(0, 10);
 
@@ -2047,8 +2048,24 @@ function AdminProductsSection({
         setImageUploadProgress(null);
       }
     },
-    [existingImages.length],
+    [existingImages.length, imageFiles],
   );
+
+  useEffect(() => {
+    if (!editingProductId || saving || imageQueueRunningRef.current) {
+      return;
+    }
+
+    const hasQueuedUploads = imageFiles.some(
+      (entry) => entry.status === "pending" || entry.status === "error",
+    );
+
+    if (!hasQueuedUploads) {
+      return;
+    }
+
+    void processPendingImageUploads(editingProductId);
+  }, [editingProductId, imageFiles, processPendingImageUploads, saving]);
 
   const retryPendingImageUploads = async () => {
     if (!editingProductId) {
@@ -2099,6 +2116,10 @@ function AdminProductsSection({
 
       return [...current, ...nextFiles];
     });
+
+    if (!editingProductId) {
+      await ensureProductExistsForImageUploads();
+    }
   };
 
   const removeUploadImage = (index: number) => {
@@ -2187,6 +2208,67 @@ function AdminProductsSection({
       packageLengthCm: variant.length.trim() ? Number(variant.length) : null,
     })),
   });
+
+  const buildDraftProductPayload = useCallback(
+    () => ({
+      title: form.title.trim(),
+      description: form.description.trim() || undefined,
+      published: form.published,
+      weightGrams: form.weightGrams.trim() ? Number(form.weightGrams) : undefined,
+      packageHeightCm: form.packageHeightCm.trim()
+        ? Number(form.packageHeightCm)
+        : undefined,
+      packageWidthCm: form.packageWidthCm.trim()
+        ? Number(form.packageWidthCm)
+        : undefined,
+      packageLengthCm: form.packageLengthCm.trim()
+        ? Number(form.packageLengthCm)
+        : undefined,
+    }),
+    [form],
+  );
+
+  const ensureProductExistsForImageUploads = useCallback(async () => {
+    if (editingProductId) {
+      return editingProductId;
+    }
+
+    if (imageDraftCreationRef.current) {
+      return null;
+    }
+
+    if (!form.title.trim()) {
+      setError("Escribe primero el nombre del producto para subir imagenes.");
+      return null;
+    }
+
+    imageDraftCreationRef.current = true;
+
+    try {
+      const created = await api("/products", {
+        method: "POST",
+        body: JSON.stringify(buildDraftProductPayload()),
+      });
+      const nextProductId = Number(created?.id ?? 0);
+
+      if (!nextProductId) {
+        throw new Error("No se pudo preparar el producto para subir imagenes.");
+      }
+
+      setEditingProductId(nextProductId);
+      setSuccess("Producto borrador creado. Las imagenes se suben en segundo plano.");
+      return nextProductId;
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo preparar el producto para subir imagenes.",
+      );
+      return null;
+    } finally {
+      imageDraftCreationRef.current = false;
+    }
+  }, [editingProductId, form, buildDraftProductPayload]);
 
   const saveProduct = async (autoGenerateSkus = false) => {
     if (saving) {
@@ -3233,20 +3315,20 @@ function AdminProductsSection({
                   <article key={row.id} style={{ ...itemStyle, padding: isPhone ? 16 : 18 }}>
                     <div style={betweenStyle}>
                       <div>
-                        <strong style={{ display: "block", color: "#fff" }}>
+                        <strong style={{ display: "block", color: "#111" }}>
                           {row.title}
                         </strong>
-                        <span style={metaStyle}>/{row.slug}</span>
+                        <span style={{ ...metaStyle, color: "#111" }}>/{row.slug}</span>
                       </div>
-                      <strong style={{ color: row.totalStock <= 0 ? "#ff9f9f" : "#fff" }}>
+                      <strong style={{ color: row.totalStock <= 0 ? "#c73a3a" : "#111" }}>
                         {row.totalStock}
                       </strong>
                     </div>
                     <div style={{ display: "grid", gap: 6 }}>
-                      <span style={metaStyle}>
+                      <span style={{ ...metaStyle, color: "#111" }}>
                         {row.categories.join(", ") || "Sin categorias"}
                       </span>
-                      <span style={copyStyle}>
+                      <span style={{ ...copyStyle, color: "#111" }}>
                         {row.variantsCount} variantes ·{" "}
                         {row.lowStockVariants > 0
                           ? `${row.lowStockVariants} con stock bajo`
@@ -3268,7 +3350,7 @@ function AdminProductsSection({
                             )
                           }
                         />
-                        <span style={metaStyle}>
+                        <span style={{ ...metaStyle, color: "#111" }}>
                           {publishingProductIds.includes(row.id)
                             ? "Guardando..."
                             : row.published
@@ -3310,10 +3392,10 @@ function AdminProductsSection({
                     {filteredStockRows.map((row) => (
                       <tr key={row.id}>
                         <td style={tdStyle}>
-                          <strong style={{ display: "block", color: "#fff" }}>
+                          <strong style={{ display: "block", color: "#111" }}>
                             {row.title}
                           </strong>
-                          <span style={metaStyle}>/{row.slug}</span>
+                          <span style={{ ...metaStyle, color: "#111" }}>/{row.slug}</span>
                         </td>
                         <td style={tdStyle}>
                           {row.categories.join(", ") || "Sin categorias"}
@@ -3322,7 +3404,7 @@ function AdminProductsSection({
                         <td style={tdStyle}>
                           <strong
                             style={{
-                              color: row.totalStock <= 0 ? "#ff9f9f" : "#fff",
+                              color: row.totalStock <= 0 ? "#c73a3a" : "#111",
                             }}
                           >
                             {row.totalStock}
@@ -3348,7 +3430,7 @@ function AdminProductsSection({
                                 )
                               }
                             />
-                            <span style={metaStyle}>
+                            <span style={{ ...metaStyle, color: "#111" }}>
                               {publishingProductIds.includes(row.id)
                                 ? "Guardando..."
                                 : row.published
@@ -4172,9 +4254,9 @@ function AdminCategoriesManager() {
                     }}
                   />
                 ) : null}
-                <strong style={{ color: "#fff" }}>{category.name}</strong>
-                <span style={metaStyle}>/{category.slug}</span>
-                <span style={metaStyle}>
+                <strong style={{ color: "#111" }}>{category.name}</strong>
+                <span style={{ ...metaStyle, color: "#111" }}>/{category.slug}</span>
+                <span style={{ ...metaStyle, color: "#111" }}>
                   {category.imageUrl || "Sin imagen cargada"}
                 </span>
                 <div style={rowWrapStyle}>
