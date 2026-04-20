@@ -223,16 +223,12 @@ const optimizeTransferProofForUpload = async (file: File) => {
 
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-  const testWebpBlob = await canvasToBlob(canvas, 0.82, "image/webp");
-  const outputMime = testWebpBlob?.type === "image/webp" ? "image/webp" : "image/jpeg";
-  const outputExt = outputMime === "image/webp" ? ".webp" : ".jpg";
+  const outputMime = "image/jpeg";
+  const outputExt = ".jpg";
 
-  if (
-    testWebpBlob &&
-    testWebpBlob.type === outputMime &&
-    testWebpBlob.size <= MAX_TRANSFER_PROOF_UPLOAD_BYTES
-  ) {
-    return new File([testWebpBlob], renameFileExtension(file.name, outputExt), {
+  const firstJpegBlob = await canvasToBlob(canvas, 0.82, outputMime);
+  if (firstJpegBlob && firstJpegBlob.size <= MAX_TRANSFER_PROOF_UPLOAD_BYTES) {
+    return new File([firstJpegBlob], renameFileExtension(file.name, outputExt), {
       type: outputMime,
       lastModified: Date.now(),
     });
