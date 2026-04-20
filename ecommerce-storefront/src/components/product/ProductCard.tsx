@@ -165,10 +165,10 @@ export default function ProductCard({
           minHeight: "var(--product-card-copy-min-height)",
           display: "grid",
           alignContent: "start",
-          gap: 10,
+          gap: 8,
           position: "relative",
           zIndex: 1,
-          padding: "18px 18px 30px",
+          padding: "14px 14px 18px",
         }}
       >
         <h3
@@ -176,9 +176,9 @@ export default function ProductCard({
           style={{
             margin: 0,
             color: "var(--text-strong)",
-            fontSize: 13,
+            fontSize: 12,
             lineHeight: 1.2,
-            letterSpacing: "0.1em",
+            letterSpacing: "0.08em",
             textTransform: "uppercase",
             fontWeight: 400,
             display: "block",
@@ -196,7 +196,7 @@ export default function ProductCard({
                 style={{
                   margin: 0,
                   color: "var(--text-strong)",
-                  fontSize: 22,
+                  fontSize: 18,
                   lineHeight: 1.04,
                   letterSpacing: "-0.04em",
                   fontWeight: 800,
@@ -209,7 +209,7 @@ export default function ProductCard({
                 style={{
                   margin: 0,
                   color: "var(--text-strong)",
-                  fontSize: 22,
+                  fontSize: 18,
                   lineHeight: 1.04,
                   letterSpacing: "-0.04em",
                   fontWeight: 800,
@@ -224,7 +224,7 @@ export default function ProductCard({
                 style={{
                   margin: 0,
                   color: "var(--text-strong)",
-                  fontSize: 13,
+                  fontSize: 12,
                   lineHeight: 1.1,
                   fontWeight: 700,
                 }}
@@ -237,8 +237,8 @@ export default function ProductCard({
                 style={{
                   margin: 0,
                   color: "var(--text-muted)",
-                  fontSize: 11,
-                  lineHeight: 1.35,
+                  fontSize: 10,
+                  lineHeight: 1.3,
                   fontWeight: 400,
                 }}
               >

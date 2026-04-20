@@ -13,7 +13,11 @@ const openWindowFromUrl = (url: string) => {
 };
 
 export const openBlobFile = (blob: Blob) => {
-  const objectUrl = URL.createObjectURL(blob);
+  const normalizedBlob =
+    blob.type === "application/pdf"
+      ? blob
+      : new Blob([blob], { type: "application/pdf" });
+  const objectUrl = URL.createObjectURL(normalizedBlob);
   openWindowFromUrl(objectUrl);
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 };

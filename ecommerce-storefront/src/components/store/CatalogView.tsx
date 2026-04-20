@@ -324,14 +324,30 @@ export default function CatalogView({
         columns: "repeat(4, minmax(0, var(--product-card-width)))",
       };
 
+  const mobileCatalogMetrics = {
+    cardWidth: "minmax(0, 1fr)",
+    cardHeight: "342px",
+    mediaHeight: "218px",
+    copyMinHeight: "124px",
+    gap: 10,
+    columns: "repeat(2, minmax(0, 1fr))",
+  };
+
   return (
     <section
       style={{
         padding: "72px 20px",
         background: "var(--page-shell-bg)",
         overflowX: "clip",
-        ["--product-card-height" as string]: "700px",
-        ["--product-card-copy-min-height" as string]: "376px",
+        ["--product-card-height" as string]: isMobileLayout
+          ? mobileCatalogMetrics.cardHeight
+          : "700px",
+        ["--product-card-copy-min-height" as string]: isMobileLayout
+          ? mobileCatalogMetrics.copyMinHeight
+          : "376px",
+        ["--product-card-media-height" as string]: isMobileLayout
+          ? mobileCatalogMetrics.mediaHeight
+          : undefined,
       }}
     >
       <div
@@ -670,21 +686,21 @@ export default function CatalogView({
                   className="layout-product-grid"
                   style={{
                     ["--product-card-width" as string]: isMobileLayout
-                      ? undefined
+                      ? mobileCatalogMetrics.cardWidth
                       : desktopCatalogMetrics.cardWidth,
                     ["--product-card-height" as string]: isMobileLayout
-                      ? undefined
+                      ? mobileCatalogMetrics.cardHeight
                       : desktopCatalogMetrics.cardHeight,
                     ["--product-card-media-height" as string]: isMobileLayout
-                      ? undefined
+                      ? mobileCatalogMetrics.mediaHeight
                       : desktopCatalogMetrics.mediaHeight,
                     ["--product-card-copy-min-height" as string]: isMobileLayout
-                      ? undefined
+                      ? mobileCatalogMetrics.copyMinHeight
                       : desktopCatalogMetrics.copyMinHeight,
                     gridTemplateColumns: isMobileLayout
-                      ? "repeat(auto-fit, var(--product-card-width))"
+                      ? mobileCatalogMetrics.columns
                       : desktopCatalogMetrics.columns,
-                    gap: isMobileLayout ? 16 : desktopCatalogMetrics.gap,
+                    gap: isMobileLayout ? mobileCatalogMetrics.gap : desktopCatalogMetrics.gap,
                     width: "100%",
                     justifyContent: "center",
                   }}
