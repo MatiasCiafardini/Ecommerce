@@ -668,8 +668,8 @@ const blockDefaultProps: Record<string, Record<string, unknown>> = {
     animationPreset: "soft",
   },
   benefits: {
-    title: "Una experiencia pensada para vos",
-    eyebrow: "Confianza y cercania",
+    title: "",
+    eyebrow: "",
     styleVariant: "cards",
     items: [
       {

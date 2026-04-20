@@ -39,8 +39,8 @@ const defaultItems: BenefitItem[] = [
 ];
 
 export default function Benefits({
-  title = "Una experiencia pensada para vos",
-  eyebrow = "Confianza y cercania",
+  title = "",
+  eyebrow = "",
   styleVariant = "cards",
   items = defaultItems,
 }: Props) {
