@@ -46,6 +46,8 @@ export default function Benefits({
 }: Props) {
   const safeItems = items.length > 0 ? items : defaultItems;
   const isPlain = styleVariant === "plain";
+  const hasEyebrow = Boolean(eyebrow?.trim());
+  const hasTitle = Boolean(title?.trim());
 
   return (
     <section
@@ -57,31 +59,37 @@ export default function Benefits({
           maxWidth: "var(--theme-layout-max-width, 1280px)",
           margin: "0 auto",
           display: "grid",
-          gap: 30,
+          gap: hasEyebrow || hasTitle ? 30 : 0,
         }}
       >
-        <div style={{ display: "grid", gap: 10, maxWidth: 680 }}>
-          <span
-            style={{
-              color: "var(--text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.2em",
-              fontSize: 12,
-            }}
-          >
-            {eyebrow}
-          </span>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "clamp(2rem, 3.4vw, 3.4rem)",
-              letterSpacing: "-0.04em",
-              color: "var(--text-strong)",
-            }}
-          >
-            {title}
-          </h2>
-        </div>
+        {hasEyebrow || hasTitle ? (
+          <div style={{ display: "grid", gap: hasEyebrow && hasTitle ? 10 : 0, maxWidth: 680 }}>
+            {hasEyebrow ? (
+              <span
+                style={{
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.2em",
+                  fontSize: 12,
+                }}
+              >
+                {eyebrow}
+              </span>
+            ) : null}
+            {hasTitle ? (
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "clamp(2rem, 3.4vw, 3.4rem)",
+                  letterSpacing: "-0.04em",
+                  color: "var(--text-strong)",
+                }}
+              >
+                {title}
+              </h2>
+            ) : null}
+          </div>
+        ) : null}
 
         <div
           style={{
