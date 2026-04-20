@@ -880,14 +880,25 @@ export class OrdersService {
     };
   }
 
-  findOne(id: number, storeId: number) {
-    return this.prisma.order.findFirst({
+  async findOne(id: number, storeId: number) {
+    const order = await this.prisma.order.findFirst({
       where: {
         id,
         storeId,
       },
       include: this.orderInclude(),
-    }).then((order) => (order ? this.withCancellationRequests(order) : order));
+    });
+
+    if (!order) {
+      return order;
+    }
+
+    const synchronizedOrder = await this.refreshAutomaticShipmentIfNeeded(
+      storeId,
+      order,
+    );
+
+    return this.withCancellationRequests(synchronizedOrder);
   }
 
   findMine(storeId: number, customerId: number) {
@@ -1097,7 +1108,12 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    return this.withCancellationRequests(order);
+    const synchronizedOrder = await this.refreshAutomaticShipmentIfNeeded(
+      storeId,
+      order,
+    );
+
+    return this.withCancellationRequests(synchronizedOrder);
   }
 
   async getAdminReceiptPdf(orderId: number, storeId: number) {
@@ -1800,6 +1816,57 @@ export class OrdersService {
       refunds: true,
       cancellationRequest: true,
     };
+  }
+
+  private async refreshAutomaticShipmentIfNeeded<
+    T extends {
+      id: number;
+      shipment?: {
+        id: string;
+        provider?: string | null;
+        trackingNumber?: string | null;
+        labelUrl?: string | null;
+      } | null;
+    },
+  >(storeId: number, order: T): Promise<T> {
+    const shipment = order.shipment;
+
+    if (!shipment) {
+      return order;
+    }
+
+    const provider = shipment.provider?.trim().toLowerCase() ?? '';
+    if (!this.isAutomaticCarrierProvider(provider)) {
+      return order;
+    }
+
+    if (shipment.trackingNumber?.trim() || shipment.labelUrl?.trim()) {
+      return order;
+    }
+
+    try {
+      await this.shipmentService.refreshShipmentFromProvider(storeId, shipment.id);
+    } catch (error) {
+      console.warn(
+        `[OrdersService] Shipment refresh on order detail failed for order ${order.id}:`,
+        error instanceof Error ? error.message : error,
+      );
+      return order;
+    }
+
+    const refreshedOrder = await this.prisma.order.findFirst({
+      where: {
+        id: order.id,
+        storeId,
+      },
+      include: this.orderInclude(),
+    });
+
+    return (refreshedOrder ?? order) as T;
+  }
+
+  private isAutomaticCarrierProvider(provider: string) {
+    return provider === 'correo-argentino' || provider === 'enviopack';
   }
 
   private withCancellationRequests<
