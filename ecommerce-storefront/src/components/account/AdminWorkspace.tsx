@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, apiBlob } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
-import { getClientStoreId } from "@/lib/tenant/store-context";
+import { getClientStoreContext, getClientStoreId } from "@/lib/tenant/store-context";
 import {
   clampImageOffset,
   clampImageZoom,
@@ -109,9 +109,13 @@ type ImageLayoutState = {
 };
 
 type UploadImage = {
+  clientId: string;
   file: File;
   name: string;
   previewUrl: string;
+  status: "pending" | "uploading" | "error";
+  progress: number;
+  errorMessage?: string;
 } & ImageLayoutState;
 
 type ExistingProductImage = {
@@ -208,6 +212,7 @@ const defaultImageLayout = (position = 0): ImageLayoutState => ({
 const MAX_IMAGE_UPLOAD_BYTES = 4.5 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 2000;
 const JPEG_QUALITY_STEPS = [0.86, 0.78, 0.7, 0.6, 0.5];
+const IMAGE_UPLOAD_CONCURRENCY = 2;
 
 const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
@@ -215,6 +220,10 @@ const revokeUploadImages = (images: UploadImage[]) => {
 
 function renameFileWithJpegExtension(name: string) {
   return name.replace(/\.[^.]+$/u, "") + ".jpg";
+}
+
+function createUploadImageId() {
+  return `upload-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 }
 
 async function loadImageElement(file: File) {
@@ -279,6 +288,25 @@ async function optimizeImageForUpload(file: File) {
   }
 
   throw new Error(`No se pudo reducir el peso de ${file.name}.`);
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<void>,
+) {
+  const safeConcurrency = Math.max(1, Math.min(concurrency, items.length || 1));
+  let nextIndex = 0;
+
+  await Promise.all(
+    Array.from({ length: safeConcurrency }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        await worker(items[currentIndex], currentIndex);
+      }
+    }),
+  );
 }
 
 function scopeCategoriesToActiveStore(items: Category[]) {
@@ -708,6 +736,10 @@ function AdminProductsSection({
     [],
   );
   const [saving, setSaving] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState<{
+    total: number;
+    uploaded: number;
+  } | null>(null);
   const [loadingEditId, setLoadingEditId] = useState<number | null>(null);
   const [creatingOption, setCreatingOption] = useState(false);
   const [error, setError] = useState("");
@@ -770,6 +802,7 @@ function AdminProductsSection({
     useState<EditableVariant>(emptyVariant());
   const [variants, setVariants] = useState<EditableVariant[]>([]);
   const uploadImagesRef = useRef<UploadImage[]>([]);
+  const imageQueueRunningRef = useRef(false);
 
   const stackedSectionStyle: React.CSSProperties = {
     ...tableSectionStyle,
@@ -1055,6 +1088,18 @@ function AdminProductsSection({
     };
   }, [variants]);
 
+  const pendingImageCount = useMemo(
+    () =>
+      imageFiles.filter(
+        (entry) => entry.status === "pending" || entry.status === "error",
+      ).length,
+    [imageFiles],
+  );
+  const failedImageCount = useMemo(
+    () => imageFiles.filter((entry) => entry.status === "error").length,
+    [imageFiles],
+  );
+
   const resetForm = () => {
     revokeUploadImages(imageFiles);
     setEditingProductId(null);
@@ -1079,6 +1124,7 @@ function AdminProductsSection({
     setVariantDraftInitialState(null);
     setPendingVariantSwitch(null);
     setVariants([]);
+    setImageUploadProgress(null);
   };
 
   const toggleCategory = (categoryId: number) => {
@@ -1795,7 +1841,7 @@ function AdminProductsSection({
     [imageFiles],
   );
 
-  const syncImages = async (productId: number) => {
+  const syncExistingImages = async (productId: number) => {
     const imagesToRemove = originalImageIds.filter(
       (id) => !existingImages.some((image) => image.id === id),
     );
@@ -1820,19 +1866,198 @@ function AdminProductsSection({
       ),
     );
 
-    for (const [index, fileEntry] of imageFiles.slice(0, 10).entries()) {
+  };
+
+  const uploadImageWithProgress = (
+    productId: number,
+    fileEntry: UploadImage,
+    position: number,
+  ) =>
+    new Promise<ExistingProductImage>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const { host, storeId } = getClientStoreContext();
       const formData = new FormData();
+
       formData.append("file", fileEntry.file);
-      formData.append("position", String(existingImages.length + index));
+      formData.append("position", String(position));
       formData.append("offsetX", String(fileEntry.offsetX));
       formData.append("offsetY", String(fileEntry.offsetY));
       formData.append("zoom", String(fileEntry.zoom));
 
-      await api(`/products/${productId}/images/upload`, {
-        method: "POST",
-        body: formData,
+      xhr.open("POST", `/api/proxy/products/${productId}/images/upload`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader("x-store-id", String(storeId));
+      xhr.setRequestHeader("x-store-host", host);
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) {
+          return;
+        }
+
+        const progress = Math.max(5, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+        setImageFiles((current) =>
+          current.map((entry) =>
+            entry.clientId === fileEntry.clientId
+              ? { ...entry, progress }
+              : entry,
+          ),
+        );
+      };
+
+      xhr.onerror = () => {
+        reject(new Error(`No se pudo subir la imagen ${fileEntry.name}.`));
+      };
+
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error(xhr.responseText || `Upload failed with status ${xhr.status}`));
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(xhr.responseText) as {
+            id: number;
+            url: string;
+            position?: number;
+            offsetX?: number;
+            offsetY?: number;
+            zoom?: number;
+          };
+
+          resolve({
+            id: parsed.id,
+            url: parsed.url,
+            position: Number(parsed.position ?? position),
+            offsetX: Number(parsed.offsetX ?? fileEntry.offsetX),
+            offsetY: Number(parsed.offsetY ?? fileEntry.offsetY),
+            zoom: Number(parsed.zoom ?? fileEntry.zoom),
+          });
+        } catch {
+          reject(new Error(`La respuesta de ${fileEntry.name} no fue valida.`));
+        }
+      };
+
+      xhr.send(formData);
+    });
+
+  const processPendingImageUploads = useCallback(
+    async (productId: number) => {
+      if (imageQueueRunningRef.current) {
+        return;
+      }
+
+      const pendingUploads = uploadImagesRef.current
+        .filter((entry) => entry.status === "pending" || entry.status === "error")
+        .slice(0, 10);
+
+      if (pendingUploads.length === 0) {
+        setImageUploadProgress(null);
+        return;
+      }
+
+      imageQueueRunningRef.current = true;
+      let failedUploads = 0;
+      let uploadedCount = 0;
+      setImageUploadProgress({
+        total: pendingUploads.length,
+        uploaded: 0,
       });
+
+      try {
+        await runWithConcurrency(
+          pendingUploads,
+          IMAGE_UPLOAD_CONCURRENCY,
+          async (fileEntry, index) => {
+            const currentExistingCount = existingImages.length;
+
+            setImageFiles((current) =>
+              current.map((entry) =>
+                entry.clientId === fileEntry.clientId
+                  ? {
+                      ...entry,
+                      status: "uploading",
+                      progress: Math.max(entry.progress, 5),
+                      errorMessage: undefined,
+                    }
+                  : entry,
+              ),
+            );
+
+            try {
+              const uploadedImage = await uploadImageWithProgress(
+                productId,
+                fileEntry,
+                currentExistingCount + index,
+              );
+
+              setExistingImages((current) => [...current, uploadedImage]);
+              setOriginalImageIds((current) => [...current, uploadedImage.id]);
+              setImageFiles((current) => {
+                const target = current.find(
+                  (entry) => entry.clientId === fileEntry.clientId,
+                );
+                if (target) {
+                  URL.revokeObjectURL(target.previewUrl);
+                }
+
+                return current.filter(
+                  (entry) => entry.clientId !== fileEntry.clientId,
+                );
+              });
+              setImageUploadProgress((current) =>
+                current
+                  ? {
+                      ...current,
+                      uploaded: Math.min(current.total, current.uploaded + 1),
+                    }
+                  : current,
+              );
+              uploadedCount += 1;
+            } catch (error) {
+              failedUploads += 1;
+              setImageFiles((current) =>
+                current.map((entry) =>
+                  entry.clientId === fileEntry.clientId
+                    ? {
+                        ...entry,
+                        status: "error",
+                        progress: 0,
+                        errorMessage:
+                          error instanceof Error
+                            ? error.message
+                            : `No se pudo subir ${entry.name}.`,
+                      }
+                    : entry,
+                ),
+              );
+            }
+          },
+        );
+
+        if (failedUploads > 0) {
+          setError(
+            `Se subieron ${uploadedCount} imagen(es) y ${failedUploads} quedaron pendientes para reintentar.`,
+          );
+        } else {
+          setError("");
+          setSuccess("Las imagenes del producto ya quedaron sincronizadas.");
+        }
+      } finally {
+        imageQueueRunningRef.current = false;
+        setImageUploadProgress(null);
+      }
+    },
+    [existingImages.length],
+  );
+
+  const retryPendingImageUploads = async () => {
+    if (!editingProductId) {
+      setError("Guarda el producto primero para subir las imagenes.");
+      return;
     }
+
+    setError("");
+    await processPendingImageUploads(editingProductId);
   };
 
   const appendImageFiles = async (files: File[]) => {
@@ -1863,9 +2088,12 @@ function AdminProductsSection({
       const nextFiles = preparedFiles
         .slice(0, availableSlots)
         .map((file, index) => ({
+        clientId: createUploadImageId(),
         file,
         name: file.name,
         previewUrl: URL.createObjectURL(file),
+        status: "pending" as const,
+        progress: 0,
         ...defaultImageLayout(current.length + index),
       }));
 
@@ -1876,6 +2104,9 @@ function AdminProductsSection({
   const removeUploadImage = (index: number) => {
     setImageFiles((current) => {
       const target = current[index];
+      if (target?.status === "uploading") {
+        return current;
+      }
       if (target) {
         URL.revokeObjectURL(target.previewUrl);
       }
@@ -2013,9 +2244,10 @@ function AdminProductsSection({
       }
 
       let imageSyncError = "";
+      const hasPendingImageUploads = imageFiles.length > 0;
 
       try {
-        await syncImages(productId);
+        await syncExistingImages(productId);
       } catch (imageError) {
         imageSyncError =
           imageError instanceof Error
@@ -2029,9 +2261,9 @@ function AdminProductsSection({
       }
       const refreshedProduct = nextProducts.find((item) => item.id === productId);
 
-      if (wasEditing && refreshedProduct) {
+      if (wasEditing && refreshedProduct && !hasPendingImageUploads) {
         await hydrateFormFromProduct(refreshedProduct);
-      } else {
+      } else if (!hasPendingImageUploads) {
         resetForm();
       }
 
@@ -2041,6 +2273,20 @@ function AdminProductsSection({
           wasEditing
             ? "El producto se actualizo, pero algunas imagenes no se pudieron guardar."
             : "El producto se creo, pero algunas imagenes no se pudieron guardar.",
+        );
+        return;
+      }
+
+      if (hasPendingImageUploads) {
+        if (!wasEditing) {
+          setEditingProductId(productId);
+        }
+
+        void processPendingImageUploads(productId);
+        setSuccess(
+          wasEditing
+            ? "Producto actualizado. Las imagenes siguen subiendo en segundo plano."
+            : "Producto creado. Las imagenes siguen subiendo en segundo plano.",
         );
         return;
       }
@@ -2323,6 +2569,27 @@ function AdminProductsSection({
               Hasta 10 imagenes. Arrastra cada foto dentro del cuadro para
               definir exactamente como se vera en el catalogo.
             </span>
+            {imageFiles.length > 0 ? (
+              <div style={{ ...rowWrapStyle, alignItems: "center" }}>
+                <span style={metaStyle}>
+                  {imageUploadProgress
+                    ? `Subiendo ${imageUploadProgress.uploaded}/${imageUploadProgress.total} imagenes`
+                    : failedImageCount > 0
+                      ? `${failedImageCount} imagen(es) listas para reintentar`
+                      : `${pendingImageCount} imagen(es) pendientes de subida`}
+                </span>
+                {editingProductId && pendingImageCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void retryPendingImageUploads()}
+                    disabled={Boolean(imageUploadProgress)}
+                    style={secondaryButtonStyle}
+                  >
+                    {imageUploadProgress ? "Subiendo..." : "Subir pendientes"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <div style={{ ...rowWrapStyle, alignItems: "center" }}>
               <span style={metaStyle}>Cuadricula: {imageGridLines}</span>
               <button
@@ -2372,10 +2639,16 @@ function AdminProductsSection({
               <div style={responsiveImageEditorGridStyle}>
                 {imageFiles.map((entry, index) => (
                   <CatalogImageLayoutEditor
-                    key={`${entry.name}-${index}`}
+                    key={entry.clientId}
                     src={entry.previewUrl}
                     label={entry.name}
-                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB`}
+                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB · ${
+                      entry.status === "uploading"
+                        ? `Subiendo ${entry.progress}%`
+                        : entry.status === "error"
+                          ? entry.errorMessage ?? "Fallo la subida"
+                          : "Pendiente"
+                    }`}
                     value={entry}
                     gridLines={imageGridLines}
                     onChange={(nextLayout) =>
@@ -2716,7 +2989,9 @@ function AdminProductsSection({
                 style={primaryButtonStyle}
               >
                 {saving
-                  ? "Guardando..."
+                  ? imageUploadProgress
+                    ? `Subiendo imagenes ${imageUploadProgress.uploaded}/${imageUploadProgress.total}...`
+                    : "Guardando..."
                   : editingProductId
                     ? "Guardar cambios"
                     : "Crear producto completo"}
