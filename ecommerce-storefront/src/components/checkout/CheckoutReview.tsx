@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { CustomerOrder, money, openReceipt } from "@/components/account/order-utils";
 import MercadoPagoCardPayment from "@/components/checkout/MercadoPagoCardPayment";
 import { roundCurrency } from "@/lib/currency";
+import { getClientStoreContext } from "@/lib/tenant/store-context";
 
 type ShippingOption = {
   quoteId?: string;
@@ -108,6 +109,33 @@ type DiscountPreview = {
   paymentMethodDiscountAmount?: number;
   paymentMethodDiscountPercentage?: number;
 } | null;
+
+const CHECKOUT_UPLOAD_TIMEOUT_MS = 60_000;
+const CHECKOUT_ORDER_LOAD_TIMEOUT_MS = 15_000;
+
+const buildXhrErrorMessage = (status: number, statusText: string, responseText: string) => {
+  const fallback = `API request failed with status ${status} ${statusText}`.trim();
+
+  if (!responseText.trim()) {
+    return `${fallback}. Response body: <empty>`;
+  }
+
+  try {
+    const errorData = JSON.parse(responseText) as { message?: string | string[] };
+
+    if (Array.isArray(errorData.message)) {
+      return `${fallback}. Response body: ${errorData.message.join(", ")}`;
+    }
+
+    if (typeof errorData.message === "string" && errorData.message.trim()) {
+      return `${fallback}. Response body: ${errorData.message}`;
+    }
+  } catch {
+    // Fall back to the raw body below.
+  }
+
+  return `${fallback}. Response body: ${responseText}`;
+};
 
 export default function CheckoutReview({
   cart,
@@ -334,6 +362,84 @@ export default function CheckoutReview({
     setCompletedOrder(completed);
   };
 
+  const uploadBankTransferProof = (orderId: number, formData: FormData) =>
+    new Promise<void>((resolve, reject) => {
+      if (typeof window === "undefined") {
+        reject(new Error("El upload del comprobante solo puede ejecutarse en el navegador."));
+        return;
+      }
+
+      const { host, storeId } = getClientStoreContext();
+      const request = new XMLHttpRequest();
+      request.open("POST", `/api/proxy/store/payments/${orderId}/bank-transfer`);
+      request.withCredentials = true;
+      request.timeout = CHECKOUT_UPLOAD_TIMEOUT_MS;
+      request.setRequestHeader("x-store-id", String(storeId));
+      request.setRequestHeader("x-store-host", host);
+
+      request.onload = () => {
+        const responseText = request.responseText ?? "";
+
+        if (request.status >= 200 && request.status < 300) {
+          resolve();
+          return;
+        }
+
+        reject(
+          new Error(
+            buildXhrErrorMessage(
+              request.status,
+              request.statusText,
+              responseText,
+            ),
+          ),
+        );
+      };
+
+      request.onerror = () => {
+        reject(
+          new Error(
+            "No pudimos subir el comprobante de transferencia. Revisa tu conexion e intentalo nuevamente.",
+          ),
+        );
+      };
+
+      request.ontimeout = () => {
+        reject(
+          new Error(
+            "La carga del comprobante demoro demasiado. Si la orden ya se creo, la veras en tu cuenta; si no, vuelve a intentar con un archivo mas liviano.",
+          ),
+        );
+      };
+
+      request.send(formData);
+    });
+
+  const loadCompletedOrderWithFallback = async (orderId: number) => {
+    try {
+      await Promise.race([
+        loadCompletedOrder(orderId),
+        new Promise<never>((_, reject) =>
+          window.setTimeout(
+            () =>
+              reject(
+                new Error(
+                  "La compra se registro, pero tardamos demasiado en abrir el resumen final.",
+                ),
+              ),
+            CHECKOUT_ORDER_LOAD_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+
+      return true;
+    } catch {
+      setLoading(false);
+      goToOrderDetail(orderId);
+      return false;
+    }
+  };
+
   const resolveCheckoutError = (error: unknown): CheckoutErrorState => {
     const fallback = {
       title: "No pudimos cerrar la compra",
@@ -442,10 +548,7 @@ export default function CheckoutReview({
         formData.append("notes", transferNotes);
         formData.append("idempotencyKey", crypto.randomUUID());
 
-        await api(`/store/payments/${order.id}/bank-transfer`, {
-          method: "POST",
-          body: formData,
-        });
+        await uploadBankTransferProof(order.id, formData);
       }
 
       if (isCashPayment) {
@@ -460,7 +563,11 @@ export default function CheckoutReview({
       }
 
       setCompletedPaymentStatus("pending");
-      await loadCompletedOrder(order.id);
+      const loadedOrder = await loadCompletedOrderWithFallback(order.id);
+
+      if (!loadedOrder) {
+        return;
+      }
     } catch (error) {
       setCheckoutError(resolveCheckoutError(error));
     } finally {
