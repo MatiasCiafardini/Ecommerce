@@ -6,6 +6,7 @@ import { resolveAssetUrl } from "@/lib/asset-url";
 
 type HeroCarouselSlide = {
   image: string;
+  responsiveImage?: string;
   eyebrow?: string;
   title: string;
   subtitle?: string;
@@ -175,6 +176,9 @@ export default function HeroCarousel({
         >
           {renderedSlides.map((slide, index) => {
             const slideImage = resolveAssetUrl(slide.image) ?? slide.image;
+            const slideResponsiveImage = slide.responsiveImage
+              ? (resolveAssetUrl(slide.responsiveImage) ?? slide.responsiveImage)
+              : "";
             const isCenter = slide.align === "center";
             const hasSlideContent =
               hasTextContent(slide.eyebrow) ||
@@ -207,23 +211,27 @@ export default function HeroCarousel({
                     zIndex: 0,
                   }}
                 >
-                  {/* Decorative hero media renders more reliably as a plain image for local and uploaded assets. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    className="theme-hero-carousel-image"
-                    src={slideImage}
-                    alt=""
-                    loading={index === 0 ? "eager" : "lazy"}
-                    draggable={false}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      objectPosition: "var(--hero-carousel-image-position, center)",
-                      userSelect: "none",
-                      pointerEvents: "none",
-                    }}
-                  />
+                  <picture>
+                    {slideResponsiveImage ? (
+                      <source media="(max-width: 768px)" srcSet={slideResponsiveImage} />
+                    ) : null}
+                    {/* Decorative hero media renders more reliably as a plain image for local and uploaded assets. */}
+                    <img
+                      className="theme-hero-carousel-image"
+                      src={slideImage}
+                      alt=""
+                      loading={index === 0 ? "eager" : "lazy"}
+                      draggable={false}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        objectPosition: "var(--hero-carousel-image-position, center)",
+                        userSelect: "none",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </picture>
                 </div>
 
                 <div

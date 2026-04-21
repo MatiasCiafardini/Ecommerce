@@ -215,12 +215,13 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
   milashoes: {
     header: {
       brandLabel: "Mila Shoes",
+      announcementText: "ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES",
       primaryLinks: [
-        { href: "/", label: "Inicio" },
-        { href: "/product", label: "Coleccion" },
+        { href: "/product", label: "Shop" },
         { href: "/category/botas", label: "Botas" },
         { href: "/category/borcegos", label: "Borcegos" },
         { href: "/category/sneakers", label: "Sneakers" },
+        { href: "/quienes-somos", label: "Quienes somos" },
       ],
     },
     footer: {

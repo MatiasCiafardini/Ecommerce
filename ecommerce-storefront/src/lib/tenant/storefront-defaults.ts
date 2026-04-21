@@ -482,70 +482,27 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
         {
           type: "hero_carousel",
           props: {
-            buttonText: "Ver coleccion",
+            showContentCard: false,
+            buttonText: "Comprar ahora",
             buttonLink: "/product",
-            showContentCard: true,
             slides: [
               {
-                image: "/images/milashoes/hero-shoes.svg",
-                eyebrow: "Mila Shoes",
-                title: "Calzado limpio para todos los dias",
-                subtitle:
-                  "Siluetas claras, materiales nobles y una seleccion femenina para combinar sin esfuerzo.",
+                image: "/images/trojani/fondo_banner.png",
+                eyebrow: "Promocion",
+                title: "Hasta 50% de descuento",
+                subtitle: "Aprovecha las promociones destacadas.",
               },
               {
-                image: "/images/milashoes/products/sneaker-nube.svg",
-                eyebrow: "Nueva capsula",
-                title: "Sneakers livianos y versatiles",
-                subtitle:
-                  "Pares comodos con una estetica blanca, fresca y moderna.",
+                image: "/images/trojani/fondo_banner2.png",
+                eyebrow: "Nueva Coleccion",
+                title: "Elegancia femenina",
+                subtitle: "",
               },
               {
-                image: "/images/milashoes/products/bota-alba.svg",
-                eyebrow: "Coleccion blanca",
-                title: "Botas suaves con presencia",
-                subtitle:
-                  "Modelos pensados para elevar looks simples con una lectura premium.",
-              },
-            ],
-            animationPreset: "soft",
-          },
-        },
-        {
-          type: "featured_products",
-          props: {
-            title: "Favoritos de la semana",
-            limit: 4,
-            columns: 4,
-            animationPreset: "soft",
-          },
-        },
-        {
-          type: "category_grid",
-          props: {
-            title: "Explora por categoria",
-            columns: 3,
-            items: [
-              {
-                title: "Botas",
-                description:
-                  "Siluetas elegantes para sumar presencia sin perder comodidad.",
-                href: "/category/botas",
-                image: "/images/milashoes/categories/botas.svg",
-              },
-              {
-                title: "Borcegos",
-                description:
-                  "Modelos urbanos con estructura, textura y una impronta actual.",
-                href: "/category/borcegos",
-                image: "/images/milashoes/categories/borcegos.svg",
-              },
-              {
-                title: "Sneakers",
-                description:
-                  "Pares livianos y versatiles para acompanar todos los dias.",
-                href: "/category/sneakers",
-                image: "/images/milashoes/categories/sneakers.svg",
+                image: "/images/trojani/fondo_banner3.png",
+                eyebrow: "Nuevos ingresos",
+                title: "Lineas limpias para hoy",
+                subtitle: "Descubre lo nuevo de la temporada.",
               },
             ],
             animationPreset: "soft",
@@ -554,27 +511,66 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
         {
           type: "banner",
           props: {
-            text: "Envios a todo el pais y beneficios exclusivos en la tienda",
-            backgroundColor: "#ffffff",
-            textColor: "#000000",
+            text: "Drop nuevo activo, compra hoy y define tu entrega en el checkout",
+            backgroundColor: "#ddd4c7",
+            textColor: "#141414",
             animationPreset: "none",
+          },
+        },
+        {
+          type: "featured_products",
+          props: {
+            title: "Piezas clave para empezar el look",
+            columns: 3,
+            animationPreset: "soft",
           },
         },
         {
           type: "product_grid",
           props: {
-            title: "Nuevos ingresos",
+            title: "Lo nuevo que ya esta rotando",
             limit: 8,
             columns: 4,
             animationPreset: "soft",
           },
         },
+        { type: "testimonials", props: { animationPreset: "soft" } },
+        {
+          type: "carousel",
+          props: {
+            title: "Favoritos de la comunidad",
+            limit: 6,
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "category_image_strip",
+          props: {
+            items: [
+              {
+                title: "Botas",
+                image: "/images/milashoes/categories/botas.svg",
+                categorySlugs: ["botas"],
+              },
+              {
+                title: "Borcegos",
+                image: "/images/milashoes/categories/borcegos.svg",
+                categorySlugs: ["borcegos"],
+              },
+              {
+                title: "Sneakers",
+                image: "/images/milashoes/categories/sneakers.svg",
+                categorySlugs: ["sneakers"],
+              },
+            ],
+          },
+        },
         {
           type: "newsletter",
           props: {
-            title: "Recibi novedades de Mila Shoes",
+            title: "Entra al drop list",
             subtitle:
-              "Suscribite para enterarte de restocks, lanzamientos y pares pensados para tu rotacion diaria.",
+              "Recibi lanzamientos, reposiciones y descuentos antes que el resto.",
             animationPreset: "soft",
           },
         },

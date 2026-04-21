@@ -1,10 +1,14 @@
 /* =============================================================================
    THEME: MILASHOES
-   Blanco puro. Sin radius (0px). Sin animaciones. Ultra-clean.
-   Paleta: blanco / negro / acento tierra suave.
+   Minimalista. Blanco puro → gris clarito. Textos en negro.
    ============================================================================= */
 
 .theme-milashoes {
+  /* Layout */
+  --theme-layout-max-width: 1600px;
+  --store-section-max: 1520px;
+  --store-wide-max: 1680px;
+
   /* Semantic color mappings */
   --background: var(--theme-colors-background);
   --foreground: var(--theme-colors-text);
@@ -20,368 +24,258 @@
   --accent-strong: var(--theme-colors-accent-strong);
   --accent-contrast: var(--theme-colors-accent-contrast);
 
-  /* Page shells — todo blanco */
-  --page-shell-bg: #ffffff;
-  --store-shell-bg: #ffffff;
-  --store-content-bg: #ffffff;
-  --block-section-bg: #ffffff;
-  --page-panel-bg: #ffffff;
-  --page-panel-strong-bg: #ffffff;
-  --block-card-bg: #ffffff;
-  --block-panel-bg: #ffffff;
-  --newsletter-shell-bg: #ffffff;
-  --newsletter-input-bg: #ffffff;
-  --account-shell-bg: #ffffff;
-  --account-sidebar-bg: #ffffff;
-  --account-item-bg: #ffffff;
-  --account-item-bg-active: #f7f7f7;
-  --checkout-panel-bg: #ffffff;
-  --checkout-panel-strong-bg: #ffffff;
+  /* Page shells */
+  --page-shell-bg: #FFFFFF;
+  --store-shell-bg: #FFFFFF;
+  --store-content-bg: transparent;
+  --block-section-bg: transparent;
+  --page-panel-bg: #FFFFFF;
+  --page-panel-strong-bg: #F7F7F7;
+  --block-card-bg: #FFFFFF;
+  --block-panel-bg: #F7F7F7;
+  --testimonial-card-bg: #FFFFFF;
+  --testimonial-card-featured-bg: #F7F7F7;
+  --newsletter-shell-bg: #F7F7F7;
+  --newsletter-input-bg: #FFFFFF;
+  --product-media-fallback: #F7F7F7;
+  --muted-field-bg: #F7F7F7;
+  --muted-field-color: #000000;
+  --category-image-overlay: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.04),
+    rgba(0, 0, 0, 0.16)
+  );
 
   /* Chips */
-  --ghost-chip-active-bg: #f5f5f5;
+  --ghost-chip-border: #E8E8E8;
+  --ghost-chip-active-border: #D0D0D0;
+  --ghost-chip-bg: transparent;
+  --ghost-chip-active-bg: #F7F7F7;
+  --ghost-chip-color: #000000;
 
-  /* Hover/interaction */
-  --theme-hover-translate-y: -3px;
-  --theme-hover-shadow: 0 18px 36px rgba(0, 0, 0, 0.08);
-  --theme-hover-border: rgba(0, 0, 0, 0.12);
+  /* Hover */
+  --theme-hover-translate-y: -4px;
+  --theme-hover-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  --theme-hover-border: #D0D0D0;
 
-  /* Animations — disabled */
-  --theme-ambient-animation: none;
-  --theme-float-animation: none;
-  --theme-pulse-animation: none;
+  /* Animations — habilitadas */
+  --theme-ambient-animation: theme-milashoes-ambient-pan 22s linear infinite alternate;
+  --theme-float-animation: theme-milashoes-float 7s ease-in-out infinite alternate;
+  --theme-pulse-animation: theme-milashoes-pulse 6s ease-in-out infinite;
 
-  background: #ffffff;
-  color: #000000;
+  /* Header actions */
+  --header-action-bg: #FFFFFF;
+  --header-action-bg-active: #F7F7F7;
+  --header-action-border: #E8E8E8;
+  --header-action-border-active: #D0D0D0;
+  --header-action-color: #000000;
+  --header-action-badge-bg: #000000;
+  --header-action-badge-color: #FFFFFF;
+
+  /* Notifications */
+  --notification-overlay-bg: rgba(0, 0, 0, 0.16);
+  --notification-panel-bg: #FFFFFF;
+  --notification-panel-mobile-bg: #FFFFFF;
+  --notification-panel-border: #E8E8E8;
+  --notification-panel-shadow: 0 16px 48px rgba(0, 0, 0, 0.10);
+  --notification-header-bg: #F7F7F7;
+  --notification-header-border: #E8E8E8;
+  --notification-card-bg: #F7F7F7;
+  --notification-card-border: #E8E8E8;
+  --notification-empty-bg: #F7F7F7;
+  --notification-empty-border: #E8E8E8;
+  --notification-text-strong: #000000;
+  --notification-text-muted: #888888;
+  --notification-text-soft: #111111;
+  --notification-text-faint: rgba(0, 0, 0, 0.40);
+
+  /* Checkout */
+  --checkout-panel-bg: #FFFFFF;
+  --checkout-panel-strong-bg: #F7F7F7;
+  --checkout-card-bg: #F7F7F7;
+  --checkout-card-alt-bg: #EFEFEF;
+  --checkout-border: #E8E8E8;
+  --checkout-border-strong: #D0D0D0;
+  --checkout-text-strong: #000000;
+  --checkout-text-muted: #888888;
+  --checkout-field-bg: #F7F7F7;
+  --checkout-field-color: #000000;
+  --checkout-primary-bg: #000000;
+  --checkout-primary-color: #FFFFFF;
+  --checkout-secondary-bg: transparent;
+  --checkout-secondary-color: #000000;
+
+  /* Account */
+  --account-shell-bg: #FFFFFF;
+  --account-sidebar-bg: #FFFFFF;
+  --account-sidebar-border: #E8E8E8;
+  --account-group-bg: #F7F7F7;
+  --account-group-border: #E8E8E8;
+  --account-item-bg: #FFFFFF;
+  --account-item-bg-active: #F7F7F7;
+  --account-item-border: #E8E8E8;
+  --account-item-border-active: #D0D0D0;
+  --account-text-strong: #000000;
+  --account-text-muted: #888888;
+  --account-text-soft: rgba(0, 0, 0, 0.65);
+  --account-text-faint: rgba(0, 0, 0, 0.40);
+
+  /* Admin */
+  --admin-stat-bg: #FFFFFF;
+  --admin-overlay-bg: rgba(0, 0, 0, 0.14);
+  --admin-modal-shadow: 0 24px 56px rgba(0, 0, 0, 0.12);
+  --admin-preview-stage-bg: #F7F7F7;
+  --admin-preview-frame-border: #D0D0D0;
+  --admin-preview-gridline: #E8E8E8;
+  --admin-preview-guide-border: #D0D0D0;
+  --admin-preview-guide-bg: #F7F7F7;
+  --admin-status-idle-bg: #F7F7F7;
+  --admin-status-idle-border: #E8E8E8;
+  --admin-status-idle-color: #000000;
+  --admin-chip-bg: #FFFFFF;
+  --admin-chip-border: #E8E8E8;
+  --admin-chip-color: #000000;
+  --admin-chip-selected-bg: #F7F7F7;
+  --admin-chip-selected-border: #D0D0D0;
+  --admin-chip-selected-color: #000000;
+
+  /* Select */
+  --select-bg: #F7F7F7;
+  --select-color: #000000;
+  --select-border: #E8E8E8;
+  --select-border-focus: #D0D0D0;
+  --select-shadow-focus: 0 0 0 3px rgba(0, 0, 0, 0.06);
+  --select-arrow-color: #111111;
 }
 
-/* Milashoes: zero radius para todos los elementos visuales */
-.theme-milashoes .theme-block-card,
-.theme-milashoes .theme-block-panel,
-.theme-milashoes .theme-newsletter-shell,
-.theme-milashoes .theme-testimonial-card,
-.theme-milashoes .theme-product-card,
-.theme-milashoes .theme-category-card,
-.theme-milashoes .theme-category-media,
-.theme-milashoes .product-card-media,
-.theme-milashoes .product-card-copy,
-.theme-milashoes .theme-hero-carousel,
-.theme-milashoes .theme-hero-carousel-copy--card,
-.theme-milashoes .theme-hero-carousel-copy--editorial,
-.theme-milashoes .theme-milashoes-hero-copy,
-.theme-milashoes .theme-milashoes-hero-media-frame,
-.theme-milashoes .theme-button,
-.theme-milashoes button,
-.theme-milashoes input,
-.theme-milashoes select,
-.theme-milashoes textarea,
-.theme-milashoes .theme-select,
-.theme-milashoes .layout-header-actions a,
-.theme-milashoes .layout-header-actions button,
-.theme-milashoes .theme-hero-carousel [aria-label="Banner anterior"],
-.theme-milashoes .theme-hero-carousel [aria-label="Banner siguiente"],
-.theme-milashoes .theme-hero-carousel [aria-label*="Ir al slide"] {
-  border-radius: 0 !important;
-}
-
+/* Body */
 .theme-milashoes main {
-  background: #ffffff;
+  background: #FFFFFF;
 }
 
-.theme-milashoes .theme-brand {
-  letter-spacing: 0.18em;
-  font-weight: 600;
+/* Product cards — sin bordes */
+.theme-milashoes .theme-product-card {
+  background: #FFFFFF;
+  border: none !important;
+  box-shadow: none;
 }
 
-/* Milashoes: Hero personalizado */
-.theme-milashoes .theme-milashoes-hero {
-  padding: 24px 24px 16px;
+.theme-milashoes .theme-product-card:hover,
+.theme-milashoes .theme-hover-lift.theme-product-card,
+.theme-milashoes .theme-hover-lift.theme-product-card:hover {
+  border: none !important;
+  border-color: transparent !important;
 }
 
-.theme-milashoes .theme-milashoes-hero-shell {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  min-height: 580px;
-  overflow: hidden;
+.theme-milashoes .product-card-media {
+  background: #F7F7F7;
 }
 
-.theme-milashoes .theme-milashoes-hero-copy,
-.theme-milashoes .theme-milashoes-hero-media {
-  min-height: 520px;
+.theme-milashoes .product-card-copy {
+  background: #FFFFFF;
+  border-top: none !important;
 }
 
-.theme-milashoes .theme-milashoes-hero-copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 48px 40px;
-  gap: 24px;
-  background: #ffffff;
+/* Newsletter */
+.theme-milashoes .theme-newsletter-shell button.theme-button {
+  background: #000000 !important;
+  color: #FFFFFF !important;
+  border: none !important;
 }
 
-.theme-milashoes .theme-milashoes-hero-eyebrow {
-  font-size: 10px;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.48);
-  font-weight: 500;
+.theme-milashoes .theme-newsletter-shell button.theme-button:hover {
+  background: #333333 !important;
+  color: #FFFFFF !important;
 }
 
-.theme-milashoes .theme-milashoes-hero-copy h1 {
-  font-size: clamp(2.8rem, 5vw, 4.4rem);
-  font-weight: 700;
-  line-height: 0.94;
-  letter-spacing: -0.02em;
-  color: #000000;
-  max-width: 10ch;
+/* Editorial panel */
+.theme-milashoes .theme-editorial-panel {
+  background: linear-gradient(135deg, #F7F7F7 0%, #EFEFEF 100%);
+  --editorial-pill-bg: rgba(255, 255, 255, 0.92);
+  --editorial-title-shadow: none;
 }
 
-.theme-milashoes .theme-milashoes-hero-copy p {
-  font-size: 1rem;
-  line-height: 1.72;
-  color: rgba(0, 0, 0, 0.58);
-  max-width: 38ch;
+/* Category media */
+.theme-milashoes .theme-category-media[data-tone="soft"] {
+  background: linear-gradient(135deg, #EFEFEF 0%, #E4E4E4 100%);
 }
 
-.theme-milashoes .theme-milashoes-hero-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.theme-milashoes .theme-category-media[data-tone="warm"] {
+  background: linear-gradient(135deg, #F7F7F7 0%, #EFEFEF 100%);
 }
 
-.theme-milashoes .theme-milashoes-hero-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 28px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  border: 1px solid currentColor;
-  transition:
-    background 220ms,
-    color 220ms,
-    border-color 220ms;
-}
-
-.theme-milashoes .theme-milashoes-hero-note {
-  font-size: 0.78rem;
-  color: rgba(0, 0, 0, 0.36);
-  letter-spacing: 0.04em;
-}
-
-.theme-milashoes .theme-milashoes-hero-media-frame {
-  position: relative;
-  overflow: hidden;
-  min-height: 520px;
-  background: #f2ebe5;
-}
-
-/* Milashoes: block sections */
+/* Block sections */
 .theme-milashoes .theme-block-section--featured-products,
 .theme-milashoes .theme-block-section--product-grid,
-.theme-milashoes .theme-block-section--newsletter,
-.theme-milashoes .theme-block-section--featured,
-.theme-milashoes .theme-block-section--category,
-.theme-milashoes .theme-block-section--carousel,
-.theme-milashoes .theme-block-section--testimonials {
-  background: #ffffff;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+.theme-milashoes .theme-block-section--carousel {
+  background: #FFFFFF;
+}
+
+.theme-milashoes .theme-block-section--testimonials,
+.theme-milashoes .theme-block-section--newsletter {
+  background: #F7F7F7;
 }
 
 .theme-milashoes .theme-block-section--hero-carousel {
   padding: 0;
 }
 
-/* Milashoes: product card */
-.theme-milashoes .theme-product-card {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: none;
+/* Drawer overlay */
+.theme-milashoes .milashoes-menu-overlay {
+  opacity: 0;
+  transition: opacity 220ms ease-out;
 }
 
-.theme-milashoes .product-card-media {
-  background: #f7f7f5;
+.theme-milashoes .milashoes-menu-overlay[data-menu-state="open"] {
+  opacity: 1;
 }
 
-.theme-milashoes .product-card-copy {
-  background: #ffffff;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+/* Drawer slide-in */
+.theme-milashoes .milashoes-menu-drawer {
+  opacity: 0;
+  transform: translate3d(-28px, 0, 0);
+  height: 100dvh;
+  max-height: 100dvh;
+  overscroll-behavior: contain;
+  transition:
+    opacity 240ms ease-out,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
 }
 
-.theme-milashoes .theme-product-card,
-.theme-milashoes .theme-product-card .product-card-media,
-.theme-milashoes .theme-product-card .product-card-copy {
-  border-radius: 0 !important;
+.theme-milashoes .milashoes-menu-drawer[data-menu-state="open"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
 }
 
-.theme-milashoes .product-card-kicker {
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  color: rgba(0, 0, 0, 0.42);
-  text-transform: uppercase;
+/* Header layout */
+.theme-milashoes .layout-header-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
 }
 
-.theme-milashoes .product-card-title {
-  font-size: 1.08rem;
-  font-weight: 600;
-  color: #000000;
-  letter-spacing: -0.01em;
+/* Keyframes */
+@keyframes theme-milashoes-ambient-pan {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 4% 3%; }
 }
 
-.theme-milashoes .product-card-price {
-  font-size: 0.92rem;
-  color: rgba(0, 0, 0, 0.62);
+@keyframes theme-milashoes-float {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-6px); }
 }
 
-/* Milashoes: category block */
-.theme-milashoes .theme-block-section--category {
-  padding: 24px 24px 16px;
+@keyframes theme-milashoes-pulse {
+  0%, 100% { box-shadow: 0 12px 28px rgba(0, 0, 0, 0.06); }
+  50%       { box-shadow: 0 18px 36px rgba(0, 0, 0, 0.10); }
 }
 
-.theme-milashoes .theme-block-section--category > div {
-  gap: 12px;
-}
-
-.theme-milashoes .theme-block-section--category h2 {
-  font-size: clamp(1.4rem, 2.5vw, 2rem);
-  letter-spacing: -0.02em;
-  font-weight: 700;
-}
-
-.theme-milashoes .theme-category-card {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: none;
-  background: #ffffff;
-}
-
-.theme-milashoes .theme-category-media {
-  background: #f2ebe5;
-}
-
-.theme-milashoes .theme-category-card h3 {
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: #000000;
-}
-
-.theme-milashoes .theme-category-card p {
-  font-size: 0.78rem;
-  color: rgba(0, 0, 0, 0.52);
-}
-
-/* Milashoes: newsletter */
-.theme-milashoes .theme-block-section--newsletter [style*="background"] {
-  background: #f7f5f3 !important;
-}
-
-.theme-milashoes .theme-newsletter-shell,
-.theme-milashoes .theme-block-card,
-.theme-milashoes .theme-block-panel,
-.theme-milashoes .theme-testimonial-card {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.07);
-  box-shadow: none;
-}
-
-/* Milashoes: hero carousel */
-.theme-milashoes .theme-hero-carousel {
-  border-radius: 0 !important;
-  overflow: hidden;
-}
-
-.theme-milashoes .theme-hero-carousel-copy--card,
-.theme-milashoes .theme-hero-carousel-copy--editorial {
-  border-radius: 0 !important;
-}
-
-.theme-milashoes .theme-hero-carousel-image,
-.theme-milashoes .product-card-media img,
-.theme-milashoes .theme-category-media img {
-  border-radius: 0 !important;
-}
-
-.theme-milashoes .theme-hero-carousel-eyebrow,
-.theme-milashoes .theme-hero-carousel-subtitle,
-.theme-milashoes .theme-hero-carousel-title,
-.theme-milashoes .theme-hero-carousel-copy {
-  color: #ffffff;
-}
-
-.theme-milashoes .theme-hero-carousel-title {
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.theme-milashoes .theme-hero-carousel [aria-label="Banner anterior"],
-.theme-milashoes .theme-hero-carousel [aria-label="Banner siguiente"] {
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: #000000 !important;
-  border: none !important;
-}
-
-.theme-milashoes .theme-hero-carousel [aria-label*="Ir al slide"] {
-  background: rgba(255, 255, 255, 0.48) !important;
-}
-
-/* Milashoes: entire content/footer color lock */
-.theme-milashoes [data-store-content],
-.theme-milashoes footer,
-.theme-milashoes header {
-  background: #ffffff;
-  color: #000000;
-}
-
-/* Milashoes: banner section lock */
-.theme-milashoes .theme-block-section--banner,
-.theme-milashoes .theme-block-section--banner * {
-  color: #000000 !important;
-}
-
-/* Milashoes: responsive */
-@media (max-width: 960px) {
-  .theme-milashoes .theme-milashoes-hero-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .theme-milashoes .theme-milashoes-hero-copy,
-  .theme-milashoes .theme-milashoes-hero-media,
-  .theme-milashoes .theme-milashoes-hero-media-frame {
-    min-height: auto;
-  }
-
-  .theme-milashoes .theme-milashoes-hero-media-frame {
-    min-height: 420px;
-  }
-}
-
+/* Responsive */
 @media (max-width: 768px) {
-  .theme-milashoes .theme-milashoes-hero {
-    padding: 16px 16px 10px;
-  }
-
-  .theme-milashoes .theme-milashoes-hero-copy {
-    padding: 28px 22px;
-    gap: 16px;
-  }
-
-  .theme-milashoes .theme-milashoes-hero-copy h1 {
-    max-width: 9ch;
-    font-size: clamp(2.8rem, 13vw, 4.4rem);
-  }
-
-  .theme-milashoes .theme-milashoes-hero-copy p {
-    font-size: 0.96rem;
-    line-height: 1.72;
-  }
-
-  .theme-milashoes .theme-milashoes-hero-media-frame {
-    min-height: 360px;
-  }
-
-  .theme-milashoes .theme-block-section--category {
-    padding: 14px 16px 8px;
+  .theme-milashoes .layout-header-bar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
   }
 }

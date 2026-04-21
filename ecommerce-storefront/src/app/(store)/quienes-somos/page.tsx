@@ -1,7 +1,6 @@
-const storeAddress =
-  "Alsina 317, B2760 San Antonio de Areco, Provincia de Buenos Aires";
+const storeAddress = "Buenos Aires, Argentina";
 const mapsQuery = encodeURIComponent(storeAddress);
-const mapEmbedUrl = `https://www.google.com/maps?q=${mapsQuery}&z=17&output=embed`;
+const mapEmbedUrl = `https://www.google.com/maps?q=${mapsQuery}&z=14&output=embed`;
 const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
 export default function QuienesSomosPage() {
@@ -41,7 +40,7 @@ export default function QuienesSomosPage() {
               lineHeight: 0.95,
             }}
           >
-            Trojani
+            Mila Shoes
           </h1>
         </div>
 
@@ -82,7 +81,7 @@ export default function QuienesSomosPage() {
                   lineHeight: 1.18,
                 }}
               >
-                Una década dándole forma al estilo masculino
+                Calzado femenino con identidad propia
               </p>
             </div>
 
@@ -95,9 +94,7 @@ export default function QuienesSomosPage() {
                   maxWidth: 720,
                 }}
               >
-                En Trojani no creemos en las soluciones mágicas ni en las modas
-                pasajeras que duran un suspiro. Creemos en el trabajo constante,
-                en la evolución y, sobre todo, en la ropa que habla por vos.
+                En Mila Shoes creemos que el calzado es mucho más que un accesorio: es la base de cada look, la primera impresión y el detalle que completa una personalidad. Por eso, cada par que ofrecemos está pensado con cuidado, combinando comodidad real con una estética limpia y contemporánea.
               </p>
               <p
                 style={{
@@ -107,13 +104,7 @@ export default function QuienesSomosPage() {
                   maxWidth: 720,
                 }}
               >
-                Nacimos con una idea clara: simplificar el guardarropa del
-                hombre moderno sin perder ni un gramo de actitud. Hoy, con casi
-                10 años de trayectoria, esa idea se convirtió en una realidad
-                sólida. Caminamos junto a vos durante una década, aprendiendo
-                qué es lo que realmente buscás cuando elegís una prenda: calidad
-                que se banca el uso, un calce que no falla y ese diseño que te
-                hace sentir seguro en cualquier lugar.
+                Nacimos con una idea simple: llevar calzado de calidad a quienes buscan zapatos que duren, que se vean bien y que acompañen sin esfuerzo el ritmo del día a día. Seleccionamos cada modelo con criterio, priorizando materiales nobles, siluetas versátiles y terminaciones que marcan la diferencia.
               </p>
             </div>
 
@@ -126,7 +117,7 @@ export default function QuienesSomosPage() {
                   color: "var(--text-muted)",
                 }}
               >
-                Trayectoria que genera confianza
+                Nuestro compromiso
               </span>
               <div style={{ display: "grid", gap: 14 }}>
                 <p
@@ -137,11 +128,7 @@ export default function QuienesSomosPage() {
                     maxWidth: 720,
                   }}
                 >
-                  Llegar a una década de historia no es cuestión de suerte. Es
-                  el resultado de una obsesión por los detalles que mantenemos
-                  desde el primer día. Durante estos años, perfeccionamos
-                  nuestras molderías, seleccionamos las mejores materias primas
-                  y construimos una comunidad que nos elige una y otra vez.
+                  Trabajamos con proveedores de confianza y renovamos nuestra colección constantemente para que siempre encuentres algo nuevo. Botas, borcegos, sneakers y más: cada categoría tiene su identidad, pero todas comparten el mismo estándar de calidad que nos define.
                 </p>
                 <p
                   style={{
@@ -151,9 +138,7 @@ export default function QuienesSomosPage() {
                     maxWidth: 720,
                   }}
                 >
-                  Esa es nuestra mayor medalla: la confianza de saber que cuando
-                  comprás en Trojani, te llevás una prenda respaldada por años
-                  de experiencia y compromiso con el buen vestir.
+                  Nuestra mayor satisfacción es saber que cuando elegís un par de Mila Shoes, sabés exactamente lo que estás llevando: diseño, calidad y un estilo que no pasa de moda.
                 </p>
               </div>
             </div>
@@ -178,7 +163,7 @@ export default function QuienesSomosPage() {
             >
               <iframe
                 src={mapEmbedUrl}
-                title="Mapa del local Trojani"
+                title="Ubicacion Mila Shoes"
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 style={{
@@ -206,7 +191,7 @@ export default function QuienesSomosPage() {
                   color: "var(--text-muted)",
                 }}
               >
-                Local Trojani
+                Encontranos
               </span>
               <strong
                 style={{
@@ -215,7 +200,7 @@ export default function QuienesSomosPage() {
                   lineHeight: 1.15,
                 }}
               >
-                Venite a conocer el espacio
+                Veni a conocer nuestra tienda
               </strong>
               <p
                 style={{

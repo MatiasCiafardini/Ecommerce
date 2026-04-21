@@ -608,6 +608,7 @@ const blockDefaultProps: Record<string, Record<string, unknown>> = {
     slides: [
       {
         image: "",
+        responsiveImage: "",
         eyebrow: "Nuevo bloque",
         title: "Titulo del slide",
         subtitle: "Subtitulo del slide",
@@ -1738,20 +1739,34 @@ export default function DeveloperModePanel({
     }
   };
 
-  const uploadSlideAsset = async (slideIndex: number, file?: File | null) => {
+  const uploadSlideAsset = async (
+    slideIndex: number,
+    fieldKey: "image" | "responsiveImage",
+    file?: File | null,
+  ) => {
     if (!file) {
       return;
     }
 
     try {
-      setUploadingKey(`slide:${slideIndex}`);
+      setUploadingKey(`slide:${slideIndex}:${fieldKey}`);
       setError("");
       setSuccess("");
       const uploadedUrl = await uploadAsset(file);
-      updateSlide(slideIndex, "image", uploadedUrl);
-      setSuccess("Imagen del slide subida correctamente.");
+      updateSlide(slideIndex, fieldKey, uploadedUrl);
+      setSuccess(
+        fieldKey === "responsiveImage"
+          ? "Imagen responsive del slide subida correctamente."
+          : "Imagen del slide subida correctamente.",
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo subir la imagen del slide.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : fieldKey === "responsiveImage"
+            ? "No se pudo subir la imagen responsive del slide."
+            : "No se pudo subir la imagen del slide.",
+      );
     } finally {
       setUploadingKey(null);
     }
@@ -1786,6 +1801,7 @@ export default function DeveloperModePanel({
       : [];
     slides.push({
       image: "",
+      responsiveImage: "",
       eyebrow: "",
       title: "",
       subtitle: "",
@@ -3561,11 +3577,35 @@ export default function DeveloperModePanel({
                                       accept="image/png,image/jpeg,image/webp"
                                       style={{ display: "none" }}
                                       onChange={(event) => {
-                                        void uploadSlideAsset(slideIndex, event.target.files?.[0] ?? null);
+                                        void uploadSlideAsset(
+                                          slideIndex,
+                                          "image",
+                                          event.target.files?.[0] ?? null,
+                                        );
                                         event.currentTarget.value = "";
                                       }}
                                     />
-                                    {uploadingKey === `slide:${slideIndex}` ? "Subiendo..." : "Subir imagen"}
+                                    {uploadingKey === `slide:${slideIndex}:image`
+                                      ? "Subiendo..."
+                                      : "Subir imagen principal"}
+                                  </label>
+                                  <label style={uploadButtonStyle}>
+                                    <input
+                                      type="file"
+                                      accept="image/png,image/jpeg,image/webp"
+                                      style={{ display: "none" }}
+                                      onChange={(event) => {
+                                        void uploadSlideAsset(
+                                          slideIndex,
+                                          "responsiveImage",
+                                          event.target.files?.[0] ?? null,
+                                        );
+                                        event.currentTarget.value = "";
+                                      }}
+                                    />
+                                    {uploadingKey === `slide:${slideIndex}:responsiveImage`
+                                      ? "Subiendo..."
+                                      : "Subir imagen responsive"}
                                   </label>
                                   {String(safeSlide.image ?? "") ? (
                                     <button
@@ -3576,6 +3616,15 @@ export default function DeveloperModePanel({
                                       Quitar imagen
                                     </button>
                                   ) : null}
+                                  {String(safeSlide.responsiveImage ?? "") ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => updateSlide(slideIndex, "responsiveImage", "")}
+                                      style={dangerButtonStyle}
+                                    >
+                                      Quitar responsive
+                                    </button>
+                                  ) : null}
                                 </div>
                                 {String(safeSlide.image ?? "") ? (
                                   <div style={assetPreviewCardStyle}>
@@ -3584,6 +3633,22 @@ export default function DeveloperModePanel({
                                       alt={`Slide ${slideIndex + 1}`}
                                       width={1200}
                                       height={720}
+                                      unoptimized
+                                      style={assetPreviewImageStyle}
+                                    />
+                                  </div>
+                                ) : null}
+                                {String(safeSlide.responsiveImage ?? "") ? (
+                                  <div style={{ ...assetPreviewCardStyle, gap: 8 }}>
+                                    <span style={hintStyle}>Vista previa responsive</span>
+                                    <Image
+                                      src={
+                                        resolveAssetUrl(String(safeSlide.responsiveImage ?? "")) ??
+                                        String(safeSlide.responsiveImage ?? "")
+                                      }
+                                      alt={`Slide ${slideIndex + 1} responsive`}
+                                      width={720}
+                                      height={960}
                                       unoptimized
                                       style={assetPreviewImageStyle}
                                     />
