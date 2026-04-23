@@ -125,7 +125,16 @@ export default function Header({
 
   return (
     <>
-      <header style={{ position: "sticky", top: 0, zIndex: 30, background: "rgb(235, 235, 235)", borderBottom: "1px solid #D1D1D1" }}>
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 30,
+          background: "rgb(235, 235, 235)",
+          borderBottom: "1px solid rgba(31, 31, 31, 0.08)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
         <div
           className="layout-header-bar"
           style={{
@@ -214,15 +223,15 @@ export default function Header({
               bottom: 0,
               width: "min(88vw, 400px)",
               zIndex: 40,
-              background: "#F8F8F8",
-              borderRight: "1px solid #D1D1D1",
-              boxShadow: "4px 0 40px rgba(31,31,31,0.10)",
+              background: "linear-gradient(180deg, #FCFCFC 0%, #F4F4F4 100%)",
+              borderRight: "1px solid rgba(31, 31, 31, 0.06)",
+              boxShadow: "18px 0 48px rgba(31,31,31,0.10)",
               padding: isMobile
                 ? "max(22px, env(safe-area-inset-top)) 24px calc(44px + env(safe-area-inset-bottom))"
                 : "36px 28px 32px",
               display: "grid",
               alignContent: "start",
-              gap: 10,
+              gap: 4,
               overflowY: "auto",
               WebkitOverflowScrolling: "touch",
             }}
@@ -234,7 +243,13 @@ export default function Header({
             </div>
 
             {topLevelLinks.slice(0, 3).map((link) => (
-              <Link key={link.href} href={link.href} onClick={closeMenu} style={drawerLinkStyle}>
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={closeMenu}
+                className="milashoes-drawer-link"
+                style={drawerLinkStyle}
+              >
                 {link.label}
               </Link>
             ))}
@@ -243,6 +258,8 @@ export default function Header({
               type="button"
               onClick={() => setCategoriesOpen((c) => !c)}
               aria-expanded={categoriesOpen}
+              data-open={categoriesOpen ? "true" : "false"}
+              className="milashoes-drawer-link milashoes-drawer-toggle"
               style={drawerToggleStyle}
             >
               <span>Categorias</span>
@@ -250,10 +267,16 @@ export default function Header({
             </button>
 
             {categoriesOpen ? (
-              <div style={{ display: "grid", gap: 2, padding: "0 0 4px 18px" }}>
+              <div className="milashoes-drawer-submenu" style={{ display: "grid", gap: 2, padding: "6px 0 6px 18px" }}>
                 {categories.length > 0 ? (
                   categories.map((cat) => (
-                    <Link key={cat.id} href={`/category/${cat.slug}`} onClick={closeMenu} style={drawerSubLinkStyle}>
+                    <Link
+                      key={cat.id}
+                      href={`/category/${cat.slug}`}
+                      onClick={closeMenu}
+                      className="milashoes-drawer-sublink"
+                      style={drawerSubLinkStyle}
+                    >
                       {cat.name}
                     </Link>
                   ))
@@ -264,26 +287,66 @@ export default function Header({
             ) : null}
 
             {topLevelLinks.slice(3).map((link) => (
-              <Link key={link.href} href={link.href} onClick={closeMenu} style={drawerLinkStyle}>
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={closeMenu}
+                className="milashoes-drawer-link"
+                style={drawerLinkStyle}
+              >
                 {link.label}
               </Link>
             ))}
 
-            <div style={{ height: 1, background: "#D1D1D1", margin: "8px 0 4px" }} />
+            <div
+              style={{
+                height: 1,
+                background: "transparent",
+                margin: "6px 0 4px",
+              }}
+            />
 
             {authUiLocked ? (
               <span style={mutedStyle}>Cargando...</span>
             ) : user ? (
               <>
                 {manualSalesEnabled ? (
-                  <Link href="/manual-sales" onClick={closeMenu} style={drawerSecondaryStyle}>Venta manual</Link>
+                  <Link
+                    href="/manual-sales"
+                    onClick={closeMenu}
+                    className="milashoes-drawer-secondary"
+                    style={drawerSecondaryStyle}
+                  >
+                    Venta manual
+                  </Link>
                 ) : null}
-                <Link href="/account" onClick={closeMenu} style={drawerSecondaryStyle}>Mi cuenta</Link>
+                <Link
+                  href="/account"
+                  onClick={closeMenu}
+                  className="milashoes-drawer-secondary"
+                  style={drawerSecondaryStyle}
+                >
+                  Mi cuenta
+                </Link>
               </>
             ) : (
               <>
-                <Link href="/register" onClick={closeMenu} style={drawerSecondaryStyle}>Crear cuenta</Link>
-                <Link href="/login" onClick={closeMenu} style={drawerSecondaryStyle}>Iniciar sesion</Link>
+                <Link
+                  href="/register"
+                  onClick={closeMenu}
+                  className="milashoes-drawer-secondary"
+                  style={drawerSecondaryStyle}
+                >
+                  Crear cuenta
+                </Link>
+                <Link
+                  href="/login"
+                  onClick={closeMenu}
+                  className="milashoes-drawer-secondary"
+                  style={drawerSecondaryStyle}
+                >
+                  Iniciar sesion
+                </Link>
               </>
             )}
           </div>
@@ -328,8 +391,8 @@ function AccountIcon() {
 
 const menuButtonStyle = {
   appearance: "none" as const,
-  border: "1px solid #D1D1D1",
-  background: "#F2F2F2",
+  border: "1px solid rgba(31, 31, 31, 0.10)",
+  background: "rgba(255, 255, 255, 0.72)",
   color: "#1F1F1F",
   padding: "9px 16px",
   fontSize: 12,
@@ -339,7 +402,8 @@ const menuButtonStyle = {
   display: "inline-flex",
   alignItems: "center",
   cursor: "pointer",
-  borderRadius: 8,
+  borderRadius: 999,
+  boxShadow: "0 1px 0 rgba(255,255,255,0.7) inset",
 };
 
 const iconBtnStyle = {
@@ -348,12 +412,13 @@ const iconBtnStyle = {
   width: 44,
   height: 44,
   borderRadius: 999,
-  border: "1px solid #D1D1D1",
-  background: "#FFFFFF",
+  border: "1px solid rgba(31, 31, 31, 0.08)",
+  background: "rgba(255, 255, 255, 0.82)",
   display: "inline-flex" as const,
   alignItems: "center" as const,
   justifyContent: "center" as const,
   position: "relative" as const,
+  boxShadow: "0 1px 0 rgba(255,255,255,0.72) inset",
 };
 
 const badgeStyle = {
@@ -387,23 +452,27 @@ const loginBtnStyle = {
   height: 40,
   padding: "0 18px",
   borderRadius: 999,
-  border: "1px solid #1F1F1F",
-  background: "transparent",
+  border: "1px solid rgba(31, 31, 31, 0.14)",
+  background: "rgba(255,255,255,0.68)",
   color: "#1F1F1F",
   textDecoration: "none",
   fontSize: 13,
   letterSpacing: "0.08em",
   textTransform: "uppercase" as const,
   cursor: "pointer",
+  boxShadow: "0 1px 0 rgba(255,255,255,0.8) inset",
 };
 
 const drawerLinkStyle = {
   color: "#1F1F1F",
   textDecoration: "none",
-  padding: "12px 0",
+  padding: "10px 14px",
   fontSize: 18,
   lineHeight: 1.35,
   letterSpacing: "0.02em",
+  border: "none",
+  borderRadius: 14,
+  outline: "none",
 };
 
 const drawerToggleStyle = {
@@ -412,27 +481,35 @@ const drawerToggleStyle = {
   display: "flex" as const,
   alignItems: "center" as const,
   justifyContent: "space-between" as const,
+  appearance: "none" as const,
   border: "none",
   background: "transparent",
   cursor: "pointer",
   fontFamily: "inherit",
   textAlign: "left" as const,
+  outline: "none",
+  boxShadow: "none",
 };
 
 const drawerSubLinkStyle = {
-  color: "#4A4A4A",
+  color: "#505050",
   textDecoration: "none",
-  padding: "8px 0",
+  padding: "8px 12px",
   fontSize: 15,
   lineHeight: 1.35,
+  borderRadius: 12,
+  outline: "none",
 };
 
 const drawerSecondaryStyle = {
   color: "#4A4A4A",
   textDecoration: "none",
-  padding: "12px 0",
+  padding: "10px 14px",
   fontSize: 16,
   lineHeight: 1.35,
+  border: "none",
+  borderRadius: 14,
+  outline: "none",
 };
 
 const mutedStyle = {
@@ -445,11 +522,12 @@ const closeButtonStyle = {
   width: 38,
   height: 38,
   borderRadius: 999,
-  border: "1px solid #D1D1D1",
-  background: "#F2F2F2",
+  border: "1px solid rgba(31, 31, 31, 0.10)",
+  background: "rgba(255,255,255,0.78)",
   color: "#1F1F1F",
   display: "inline-flex" as const,
   alignItems: "center" as const,
   justifyContent: "center" as const,
   cursor: "pointer",
+  boxShadow: "0 1px 0 rgba(255,255,255,0.78) inset",
 };
