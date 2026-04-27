@@ -5,28 +5,28 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { StoreProduct } from "@/types/store";
 import { resolveAssetUrl } from "@/lib/asset-url";
-import { formatCurrency } from "@/lib/currency";
+import { formatCurrency, roundCurrency } from "@/lib/currency";
 import { getCatalogImageTransform } from "@/lib/product-image-layout";
 
 type Props = {
   products: StoreProduct[];
 };
 
-function formatPrice(product: StoreProduct) {
+function getProductPrice(product: StoreProduct) {
   const variantPrice = product.variants?.find((variant) => variant.price != null)?.price;
   const rawPrice = variantPrice ?? product.price;
 
   if (rawPrice == null || rawPrice === "") {
-    return "Consultar precio";
+    return null;
   }
 
   const numericPrice = Number(rawPrice);
 
   if (!Number.isFinite(numericPrice)) {
-    return `$${rawPrice}`;
+    return null;
   }
 
-  return formatCurrency(numericPrice);
+  return roundCurrency(numericPrice);
 }
 
 export default function HeroProductSpotlight({ products }: Props) {
@@ -70,6 +70,17 @@ export default function HeroProductSpotlight({ products }: Props) {
     ? resolveAssetUrl(product.images[0].url) ?? product.images[0].url
     : null;
   const category = product.categories?.[0]?.category?.name ?? "Selección curada";
+  const basePrice = roundCurrency(
+    product.pricing?.basePrice ?? getProductPrice(product) ?? 0,
+  );
+  const displayPrice = roundCurrency(
+    product.pricing?.hasActivePromotion
+      ? (product.pricing.finalPrice ?? basePrice)
+      : basePrice,
+  );
+  const hasPromotion = Boolean(
+    product.pricing?.hasActivePromotion && basePrice > displayPrice,
+  );
 
   return (
     <Link
@@ -146,9 +157,34 @@ export default function HeroProductSpotlight({ products }: Props) {
           >
             {product.title}
           </strong>
-          <span style={{ color: "var(--text-strong)", fontWeight: 700 }}>
-            {formatPrice(product)}
-          </span>
+          {displayPrice > 0 ? (
+            <span
+              style={{
+                display: "grid",
+                gap: 3,
+                color: "var(--text-strong)",
+                fontWeight: 700,
+              }}
+            >
+              {hasPromotion ? (
+                <span
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: 13,
+                    textDecoration: "line-through",
+                    textDecorationThickness: "1px",
+                  }}
+                >
+                  {formatCurrency(basePrice)}
+                </span>
+              ) : null}
+              <span>{formatCurrency(displayPrice)}</span>
+            </span>
+          ) : (
+            <span style={{ color: "var(--text-strong)", fontWeight: 700 }}>
+              Consultar precio
+            </span>
+          )}
         </div>
       </div>
 

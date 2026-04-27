@@ -84,7 +84,7 @@ const normalizeOptionGroups = (storeOptions: StoreProductOption[]) =>
     };
   });
 
-const hiddenCatalogCategorySlugs = new Set(["sale", "gift-cards"]);
+const hiddenCatalogCategorySlugs = new Set(["gift-cards"]);
 
 export default function CatalogView({
   products,

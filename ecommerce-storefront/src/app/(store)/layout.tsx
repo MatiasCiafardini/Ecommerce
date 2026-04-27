@@ -4,7 +4,7 @@ import { getTenantConfig } from "@/lib/tenant/get-tenant";
 import StoreShell from "@/components/store/StoreShell";
 
 const themeFavicons: Record<string, string> = {
-  trojani: "/images/trojani/iconos/logo.ico",
+  trojani: "/images/trojani/iconos/logo.ico?v=20260427",
 };
 
 export async function generateMetadata(): Promise<Metadata> {

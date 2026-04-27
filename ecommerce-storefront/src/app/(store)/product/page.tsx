@@ -6,7 +6,7 @@ import { getTenantConfig } from "@/lib/tenant/get-tenant";
 
 export const dynamic = "force-dynamic";
 
-const hiddenCatalogCategorySlugs = new Set(["sale", "gift-cards"]);
+const hiddenCatalogCategorySlugs = new Set(["gift-cards"]);
 
 type ProductsPageProps = {
   searchParams?: Promise<{

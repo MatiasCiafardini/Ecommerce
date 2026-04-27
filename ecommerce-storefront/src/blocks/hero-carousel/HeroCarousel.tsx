@@ -42,6 +42,7 @@ const defaultSlides: HeroCarouselSlide[] = [
 ];
 
 const carouselTransition = "transform 920ms cubic-bezier(0.16, 1, 0.3, 1)";
+const autoplayDelayMs = 4200;
 
 function hasTextContent(value?: string) {
   return typeof value === "string" && value.trim().length > 0;
@@ -58,6 +59,7 @@ export default function HeroCarousel({
   const [activeIndex, setActiveIndex] = useState(0);
   const [virtualIndex, setVirtualIndex] = useState(safeSlides.length > 1 ? 1 : 0);
   const [isTransitionEnabled, setIsTransitionEnabled] = useState(true);
+  const [autoplayResetKey, setAutoplayResetKey] = useState(0);
 
   const renderedSlides = useMemo(() => {
     if (safeSlides.length <= 1) {
@@ -70,7 +72,7 @@ export default function HeroCarousel({
     return [lastSlide, ...safeSlides, firstSlide];
   }, [safeSlides]);
 
-  const goToSlide = (nextIndex: number) => {
+  const goToSlide = (nextIndex: number, options?: { resetAutoplay?: boolean }) => {
     if (safeSlides.length === 0) {
       setActiveIndex(0);
       return;
@@ -81,6 +83,10 @@ export default function HeroCarousel({
     setActiveIndex(normalizedIndex);
     setIsTransitionEnabled(true);
     setVirtualIndex(normalizedIndex + 1);
+
+    if (options?.resetAutoplay) {
+      setAutoplayResetKey((key) => key + 1);
+    }
   };
 
   const handleAutoplayAdvance = useEffectEvent(() => {
@@ -92,12 +98,12 @@ export default function HeroCarousel({
       return;
     }
 
-    const interval = window.setInterval(() => {
+    const timeout = window.setTimeout(() => {
       handleAutoplayAdvance();
-    }, 4200);
+    }, autoplayDelayMs);
 
-    return () => window.clearInterval(interval);
-  }, [safeSlides.length]);
+    return () => window.clearTimeout(timeout);
+  }, [activeIndex, autoplayResetKey, safeSlides.length]);
 
   useEffect(() => {
     if (safeSlides.length <= 1) {
@@ -477,7 +483,7 @@ export default function HeroCarousel({
                   type="button"
                   aria-label={`Ver banner ${index + 1}`}
                   aria-pressed={index === activeIndex}
-                  onClick={() => goToSlide(index)}
+                  onClick={() => goToSlide(index, { resetAutoplay: true })}
                   style={{
                     width: 18,
                     height: 18,

@@ -14,8 +14,8 @@ export const trojaniThemeTokens = {
     textStrong: "#111111",
     border: "rgba(0,0,0,0.09)",
     borderStrong: "rgba(0,0,0,0.16)",
-    accent: "#c08a60",
-    accentStrong: "#9b6844",
+    accent: "#8f5f3f",
+    accentStrong: "#5f3824",
     accentContrast: "#ffffff",
   },
   shape: {

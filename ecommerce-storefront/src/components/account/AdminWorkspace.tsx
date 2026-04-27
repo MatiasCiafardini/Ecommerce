@@ -5158,10 +5158,11 @@ function CatalogImageLayoutEditor({
   onChange: (nextLayout: Partial<ImageLayoutState>) => void;
   onRemove: () => void;
 }) {
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
   const dragStateRef = useRef<{
-    mode: "move" | "resize";
-    handle?: ResizeHandle;
     startX: number;
     startY: number;
     startOffsetX: number;
@@ -5172,6 +5173,33 @@ function CatalogImageLayoutEditor({
   } | null>(null);
   const [dragging, setDragging] = useState(false);
 
+  useEffect(() => {
+    valueRef.current = value;
+    onChangeRef.current = onChange;
+  }, [onChange, value]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+
+    if (!stage) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const direction = event.deltaY > 0 ? -1 : 1;
+      onChangeRef.current({
+        zoom: clampImageZoom(valueRef.current.zoom + direction * 0.08),
+      });
+    };
+
+    stage.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      stage.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
   const stopDragging = () => {
     dragStateRef.current = null;
     setDragging(false);
@@ -5181,6 +5209,7 @@ function CatalogImageLayoutEditor({
     <article style={imageEditorCardStyle}>
       <div style={catalogPreviewCardStyle}>
         <div
+          ref={stageRef}
           style={{
             ...catalogPreviewEditorStageStyle,
             cursor: dragging ? "grabbing" : "grab",
@@ -5192,7 +5221,6 @@ function CatalogImageLayoutEditor({
             }
 
             dragStateRef.current = {
-              mode: "move",
               startX: event.clientX,
               startY: event.clientY,
               startOffsetX: value.offsetX,
@@ -5203,6 +5231,7 @@ function CatalogImageLayoutEditor({
             };
             setDragging(true);
             event.currentTarget.setPointerCapture(event.pointerId);
+            event.preventDefault();
           }}
           onPointerMove={(event) => {
             if (!dragStateRef.current) {
@@ -5211,31 +5240,16 @@ function CatalogImageLayoutEditor({
 
             const deltaX = event.clientX - dragStateRef.current.startX;
             const deltaY = event.clientY - dragStateRef.current.startY;
-
-            if (dragStateRef.current.mode === "move") {
-              onChange({
-                offsetX: clampImageOffset(
-                  dragStateRef.current.startOffsetX +
-                    (deltaX / dragStateRef.current.width) * 100,
-                ),
-                offsetY: clampImageOffset(
-                  dragStateRef.current.startOffsetY +
-                    (deltaY / dragStateRef.current.height) * 100,
-                ),
-              });
-              return;
-            }
+            const dragScale = Math.max(dragStateRef.current.startZoom, 1);
 
             onChange({
-              zoom: clampImageZoom(
-                dragStateRef.current.startZoom *
-                  getResizeFactor(
-                    dragStateRef.current.handle ?? "se",
-                    deltaX,
-                    deltaY,
-                    dragStateRef.current.width,
-                    dragStateRef.current.height,
-                  ),
+              offsetX: clampImageOffset(
+                dragStateRef.current.startOffsetX +
+                  (deltaX / (dragStateRef.current.width * dragScale)) * 100,
+              ),
+              offsetY: clampImageOffset(
+                dragStateRef.current.startOffsetY +
+                  (deltaY / (dragStateRef.current.height * dragScale)) * 100,
               ),
             });
           }}
@@ -5247,6 +5261,7 @@ function CatalogImageLayoutEditor({
             alt={label}
             fill
             unoptimized
+            draggable={false}
             sizes="(max-width: 900px) 100vw, 50vw"
             style={{
               ...catalogPreviewEditorImageStyle,
@@ -5257,36 +5272,6 @@ function CatalogImageLayoutEditor({
             <div style={catalogPreviewCropMaskStyle} />
             <div style={catalogPreviewGridStyle(gridLines)} />
             <div style={catalogPreviewCenterGuideStyle} />
-            {resizeHandles.map((handle) => (
-              <button
-                key={handle}
-                type="button"
-                aria-label={`Escalar imagen desde ${handle}`}
-                style={resizeHandleStyle(handle)}
-                onPointerDown={(event) => {
-                  const rect = frameRef.current?.getBoundingClientRect();
-                  if (!rect) {
-                    return;
-                  }
-
-                  dragStateRef.current = {
-                    mode: "resize",
-                    handle,
-                    startX: event.clientX,
-                    startY: event.clientY,
-                    startOffsetX: value.offsetX,
-                    startOffsetY: value.offsetY,
-                    startZoom: value.zoom,
-                    width: rect.width,
-                    height: rect.height,
-                  };
-                  setDragging(true);
-                  frameRef.current?.setPointerCapture(event.pointerId);
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-              />
-            ))}
           </div>
         </div>
 
@@ -5298,11 +5283,40 @@ function CatalogImageLayoutEditor({
           <span style={metaStyle}>{secondaryText}</span>
         </div>
         <span style={metaStyle}>
-          Arrastra la imagen desde el centro para moverla. Usa bordes o esquinas
-          para agrandarla o achicarla.
+          Arrastra desde cualquier punto de la imagen para moverla. Usa el
+          control de zoom o la rueda del mouse para acercar y alejar.
         </span>
 
+        <label style={imageZoomControlStyle}>
+          <span style={metaStyle}>Zoom {Math.round(value.zoom * 100)}%</span>
+          <input
+            type="range"
+            min={1}
+            max={2.5}
+            step={0.01}
+            value={value.zoom}
+            onChange={(event) =>
+              onChange({ zoom: clampImageZoom(Number(event.target.value)) })
+            }
+            style={imageZoomSliderStyle}
+          />
+        </label>
+
         <div style={rowWrapStyle}>
+          <button
+            type="button"
+            onClick={() => onChange({ offsetX: 0, offsetY: 0 })}
+            style={ghostButtonStyle}
+          >
+            Centrar
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange({ offsetX: 0, offsetY: 0, zoom: 1 })}
+            style={ghostButtonStyle}
+          >
+            Restablecer
+          </button>
           <button type="button" onClick={onRemove} style={ghostButtonStyle}>
             Quitar
           </button>
@@ -5311,19 +5325,6 @@ function CatalogImageLayoutEditor({
     </article>
   );
 }
-
-type ResizeHandle = "n" | "e" | "s" | "w" | "ne" | "nw" | "se" | "sw";
-
-const resizeHandles: ResizeHandle[] = [
-  "n",
-  "e",
-  "s",
-  "w",
-  "ne",
-  "nw",
-  "se",
-  "sw",
-];
 
 function sanitizeDecimalInput(value: string) {
   let normalized = value.replace(",", ".");
@@ -5339,36 +5340,6 @@ function sanitizeDecimalInput(value: string) {
     normalized.slice(0, firstDotIndex + 1) +
     normalized.slice(firstDotIndex + 1).replace(/\./g, "")
   );
-}
-
-function getResizeFactor(
-  handle: ResizeHandle,
-  deltaX: number,
-  deltaY: number,
-  width: number,
-  height: number,
-) {
-  const horizontal = deltaX / Math.max(width, 1);
-  const vertical = deltaY / Math.max(height, 1);
-
-  switch (handle) {
-    case "e":
-      return 1 + horizontal;
-    case "w":
-      return 1 - horizontal;
-    case "s":
-      return 1 + vertical;
-    case "n":
-      return 1 - vertical;
-    case "ne":
-      return 1 + (horizontal - vertical) / 2;
-    case "nw":
-      return 1 - (horizontal + vertical) / 2;
-    case "se":
-      return 1 + (horizontal + vertical) / 2;
-    case "sw":
-      return 1 + (vertical - horizontal) / 2;
-  }
 }
 
 function SuggestionInput({
@@ -5656,6 +5627,9 @@ const imageEditorGridStyle: React.CSSProperties = {
   gap: 16,
 };
 const imageEditorCardStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 380,
+  justifySelf: "center",
   borderRadius: 22,
   border: "1px solid var(--checkout-border)",
   background: "var(--page-panel-strong-bg)",
@@ -5665,8 +5639,9 @@ const imageEditorCardStyle: React.CSSProperties = {
 };
 const catalogPreviewCardStyle: React.CSSProperties = {
   width: "100%",
-  maxWidth: "100%",
+  maxWidth: 320,
   minWidth: 0,
+  justifySelf: "center",
   borderRadius: 24,
   overflow: "hidden",
   border: "1px solid var(--checkout-border)",
@@ -5721,6 +5696,8 @@ const catalogPreviewEditorStageStyle: React.CSSProperties = {
   placeItems: "center",
   overflow: "hidden",
   background: "var(--admin-preview-stage-bg)",
+  touchAction: "none",
+  userSelect: "none",
 };
 const catalogPreviewCropMaskStyle: React.CSSProperties = {
   position: "absolute",
@@ -5741,93 +5718,14 @@ const catalogPreviewCenterGuideStyle: React.CSSProperties = {
   background: "var(--admin-preview-guide-bg)",
   pointerEvents: "none",
 };
-const resizeHandleBaseStyle: React.CSSProperties = {
-  position: "absolute",
-  appearance: "none",
-  border: "none",
-  background: "transparent",
-  padding: 0,
-  margin: 0,
-  zIndex: 2,
-  pointerEvents: "auto",
+const imageZoomControlStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
 };
-
-function resizeHandleStyle(handle: ResizeHandle): React.CSSProperties {
-  switch (handle) {
-    case "n":
-      return {
-        ...resizeHandleBaseStyle,
-        top: 0,
-        left: 16,
-        right: 16,
-        height: 18,
-        cursor: "ns-resize",
-      };
-    case "s":
-      return {
-        ...resizeHandleBaseStyle,
-        bottom: 0,
-        left: 16,
-        right: 16,
-        height: 18,
-        cursor: "ns-resize",
-      };
-    case "e":
-      return {
-        ...resizeHandleBaseStyle,
-        top: 16,
-        bottom: 16,
-        right: 0,
-        width: 18,
-        cursor: "ew-resize",
-      };
-    case "w":
-      return {
-        ...resizeHandleBaseStyle,
-        top: 16,
-        bottom: 16,
-        left: 0,
-        width: 18,
-        cursor: "ew-resize",
-      };
-    case "ne":
-      return {
-        ...resizeHandleBaseStyle,
-        top: 0,
-        right: 0,
-        width: 22,
-        height: 22,
-        cursor: "nesw-resize",
-      };
-    case "nw":
-      return {
-        ...resizeHandleBaseStyle,
-        top: 0,
-        left: 0,
-        width: 22,
-        height: 22,
-        cursor: "nwse-resize",
-      };
-    case "se":
-      return {
-        ...resizeHandleBaseStyle,
-        right: 0,
-        bottom: 0,
-        width: 22,
-        height: 22,
-        cursor: "nwse-resize",
-      };
-    case "sw":
-      return {
-        ...resizeHandleBaseStyle,
-        left: 0,
-        bottom: 0,
-        width: 22,
-        height: 22,
-        cursor: "nesw-resize",
-      };
-  }
-}
+const imageZoomSliderStyle: React.CSSProperties = {
+  width: "100%",
+  accentColor: "var(--account-text-strong)",
+};
 const suggestionFieldWrapStyle: React.CSSProperties = { position: "relative" };
 const suggestionDropdownStyle: React.CSSProperties = {
   position: "absolute",

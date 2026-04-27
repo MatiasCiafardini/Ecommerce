@@ -10,6 +10,7 @@ import { StoreProduct, StoreProductOption, StoreVariant } from "@/types/store";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import { formatCurrency, roundCurrency } from "@/lib/currency";
 import { getProductImageTransform } from "@/lib/product-image-layout";
+import { isGiftCardProduct } from "@/lib/product-kind";
 import ProductCard from "./ProductCard";
 
 type Props = {
@@ -297,8 +298,9 @@ export default function ProductView({
     currentPrice,
     activePricing,
   );
+  const isGiftCard = isGiftCardProduct(product);
   const transferPrice =
-    currentFinalPrice > 0 && bankTransferDiscountPercentage > 0
+    !isGiftCard && currentFinalPrice > 0 && bankTransferDiscountPercentage > 0
       ? roundCurrency(
           Math.max(
             currentFinalPrice * (1 - bankTransferDiscountPercentage / 100),
@@ -611,6 +613,190 @@ export default function ProductView({
           </div>
 
           <div
+            className="product-info-panel"
+            style={{
+              borderRadius: 36,
+              border: "1px solid var(--border-soft)",
+              background: "var(--page-panel-bg)",
+              padding: "30px",
+              display: "grid",
+              gap: 18,
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  margin: "0 0 10px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.16em",
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                }}
+              >
+                Informacion del producto
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--text-muted)",
+                  lineHeight: 1.8,
+                }}
+              >
+                {product.description ||
+                  (isMiMaria
+                    ? "Una prenda femenina pensada para acompanarte todos los dias con una estetica limpia, delicada y actual."
+                    : "Pieza urbana pensada para rotacion diaria, capas faciles y una presencia limpia en cualquier look.")}
+              </p>
+            </div>
+
+            {productDetails.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {productDetails.map((item) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      borderRadius: 22,
+                      border: "1px solid var(--border-soft)",
+                      background: "var(--block-card-bg)",
+                      padding: 18,
+                      display: "grid",
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        textTransform: "uppercase",
+                        letterSpacing: "0.14em",
+                        fontSize: 11,
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                    <strong
+                      style={{ color: "var(--text-strong)", fontSize: 18 }}
+                    >
+                      {item.value}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {informationalOptions.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 14,
+                  paddingTop: 4,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowMoreOptions((current) => !current)}
+                  style={{
+                    width: "fit-content",
+                    padding: "12px 16px",
+                    borderRadius: 999,
+                    border: "1px solid var(--border-soft)",
+                    background: "transparent",
+                    color: "var(--text-strong)",
+                    cursor: "pointer",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.12em",
+                    fontSize: 12,
+                  }}
+                >
+                  {showMoreOptions ? "Ver menos" : "Ver mas..."}
+                </button>
+
+                {showMoreOptions ? (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(220px, 1fr))",
+                      gap: 14,
+                    }}
+                  >
+                    {informationalOptions.map((option) => (
+                      <div
+                        key={option.id}
+                        style={{
+                          borderRadius: 22,
+                          border: "1px solid var(--border-soft)",
+                          background: "var(--block-card-bg)",
+                          padding: 18,
+                          display: "grid",
+                          gap: 12,
+                        }}
+                      >
+                        <p
+                          style={{
+                            margin: 0,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.16em",
+                            fontSize: 11,
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          {option.name}
+                        </p>
+                        <div
+                          style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
+                        >
+                          {option.values.map((value) => {
+                            const selected =
+                              selectedOptionValues[option.id] === value.value;
+
+                            return (
+                              <button
+                                key={value.id}
+                                type="button"
+                                onClick={() =>
+                                  setSelectedOptionValues((current) => ({
+                                    ...current,
+                                    [option.id]: value.value,
+                                  }))
+                                }
+                                className="theme-button"
+                                style={{
+                                  padding: "10px 12px",
+                                  borderRadius: 999,
+                                  border: selected
+                                    ? "1px solid var(--text-strong)"
+                                    : "1px solid var(--border-soft)",
+                                  background: selected
+                                    ? "var(--block-card-bg)"
+                                    : "transparent",
+                                  color: "var(--text-strong)",
+                                  cursor: "pointer",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.1em",
+                                  fontSize: 11,
+                                }}
+                              >
+                                {value.value}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            className="product-buy-panel"
             style={{
               borderRadius: 36,
               border: "1px solid var(--border-soft)",
@@ -805,19 +991,6 @@ export default function ProductView({
               ) : null}
             </div>
 
-            <p
-              style={{
-                color: "var(--text-muted)",
-                lineHeight: 1.8,
-                margin: 0,
-              }}
-            >
-              {product.description ||
-                (isMiMaria
-                  ? "Una prenda versatil de lineas suaves, pensada para vestir con elegancia, comodidad y naturalidad."
-                  : "Pieza urbana de silueta relajada, disenada para combinar con basicos y capas de uso diario.")}
-            </p>
-
             {hasVariants ? (
               <div style={{ display: "grid", gap: 18 }}>
                 {sizeOptions.length > 0 ? (
@@ -998,186 +1171,6 @@ export default function ProductView({
           </div>
         </div>
 
-        <div
-          style={{
-            borderRadius: 36,
-            border: "1px solid var(--border-soft)",
-            background: "var(--page-panel-bg)",
-            padding: "30px",
-            display: "grid",
-            gap: 18,
-          }}
-        >
-          <div>
-            <p
-              style={{
-                margin: "0 0 10px",
-                textTransform: "uppercase",
-                letterSpacing: "0.16em",
-                fontSize: 12,
-                color: "var(--text-muted)",
-              }}
-            >
-              Informacion del producto
-            </p>
-            <p
-              style={{
-                margin: 0,
-                color: "var(--text-muted)",
-                lineHeight: 1.8,
-                maxWidth: 920,
-              }}
-            >
-              {product.description ||
-                (isMiMaria
-                  ? "Una prenda femenina pensada para acompanarte todos los dias con una estetica limpia, delicada y actual."
-                  : "Pieza urbana pensada para rotacion diaria, capas faciles y una presencia limpia en cualquier look.")}
-            </p>
-          </div>
-
-          {productDetails.length > 0 ? (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 12,
-              }}
-            >
-              {productDetails.map((item) => (
-                <div
-                  key={item.label}
-                  style={{
-                    borderRadius: 22,
-                    border: "1px solid var(--border-soft)",
-                    background: "var(--block-card-bg)",
-                    padding: 18,
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <span
-                    style={{
-                      textTransform: "uppercase",
-                      letterSpacing: "0.14em",
-                      fontSize: 11,
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {item.label}
-                  </span>
-                  <strong style={{ color: "var(--text-strong)", fontSize: 18 }}>
-                    {item.value}
-                  </strong>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {informationalOptions.length > 0 ? (
-            <div
-              style={{
-                display: "grid",
-                gap: 14,
-                paddingTop: 4,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setShowMoreOptions((current) => !current)}
-                style={{
-                  width: "fit-content",
-                  padding: "12px 16px",
-                  borderRadius: 999,
-                  border: "1px solid var(--border-soft)",
-                  background: "transparent",
-                  color: "var(--text-strong)",
-                  cursor: "pointer",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  fontSize: 12,
-                }}
-              >
-                {showMoreOptions ? "Ver menos" : "Ver mas..."}
-              </button>
-
-              {showMoreOptions ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: 14,
-                  }}
-                >
-                  {informationalOptions.map((option) => (
-                    <div
-                      key={option.id}
-                      style={{
-                        borderRadius: 22,
-                        border: "1px solid var(--border-soft)",
-                        background: "var(--block-card-bg)",
-                        padding: 18,
-                        display: "grid",
-                        gap: 12,
-                      }}
-                    >
-                      <p
-                        style={{
-                          margin: 0,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.16em",
-                          fontSize: 11,
-                          color: "var(--text-muted)",
-                        }}
-                      >
-                        {option.name}
-                      </p>
-                      <div
-                        style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
-                      >
-                        {option.values.map((value) => {
-                          const selected =
-                            selectedOptionValues[option.id] === value.value;
-
-                          return (
-                            <button
-                              key={value.id}
-                              type="button"
-                              onClick={() =>
-                                setSelectedOptionValues((current) => ({
-                                  ...current,
-                                  [option.id]: value.value,
-                                }))
-                              }
-                              className="theme-button"
-                              style={{
-                                padding: "10px 12px",
-                                borderRadius: 999,
-                                border: selected
-                                  ? "1px solid var(--text-strong)"
-                                  : "1px solid var(--border-soft)",
-                                background: selected
-                                  ? "var(--block-card-bg)"
-                                  : "transparent",
-                                color: "var(--text-strong)",
-                                cursor: "pointer",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.1em",
-                                fontSize: 11,
-                              }}
-                            >
-                              {value.value}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-
         {relatedProducts.length > 0 ? (
           <div
             style={{
@@ -1306,6 +1299,16 @@ export default function ProductView({
           flex-direction: row;
         }
 
+        .product-buy-panel {
+          grid-column: 2;
+          grid-row: 1;
+        }
+
+        .product-info-panel {
+          grid-column: 1 / -1;
+          grid-row: 2;
+        }
+
         .gallery-hover-ui {
           opacity: 0;
           pointer-events: none;
@@ -1366,6 +1369,12 @@ export default function ProductView({
         }
 
         @media (max-width: 768px) {
+          .product-buy-panel,
+          .product-info-panel {
+            grid-column: auto;
+            grid-row: auto;
+          }
+
           .cart-prompt-panel {
             align-self: flex-end;
             max-width: 100%;

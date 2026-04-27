@@ -7,7 +7,7 @@ export async function getStoreProductOptions(): Promise<StoreProductOption[]> {
   try {
     options = await apiFetch<StoreProductOption[]>("/store/options");
   } catch (error) {
-    console.error("[products] Failed to load storefront options", {
+    console.warn("[products] Failed to load storefront options", {
       error: error instanceof Error ? error.message : String(error),
     });
   }
@@ -27,7 +27,7 @@ export async function getProductOptions(slug: string) {
       `/store/products/${slug}/options`,
     );
   } catch (error) {
-    console.error("[products] Failed to load product options", {
+    console.warn("[products] Failed to load product options", {
       slug,
       error: error instanceof Error ? error.message : String(error),
     });

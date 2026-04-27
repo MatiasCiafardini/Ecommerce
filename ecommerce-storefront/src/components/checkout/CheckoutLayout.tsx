@@ -97,11 +97,11 @@ export default function CheckoutLayout({
                     borderRadius: 22,
                     border:
                       state === "active"
-                        ? "1px solid var(--checkout-border-strong)"
+                        ? "1px solid color-mix(in srgb, var(--accent-strong) 34%, var(--checkout-border-strong))"
                         : "1px solid var(--checkout-border)",
                     background:
                       state === "active"
-                        ? "var(--ghost-chip-active-bg)"
+                        ? "color-mix(in srgb, var(--accent) 14%, var(--checkout-panel-bg))"
                         : state === "done"
                           ? "var(--ghost-chip-bg)"
                           : "transparent",
@@ -123,8 +123,16 @@ export default function CheckoutLayout({
                       borderRadius: "50%",
                       display: "grid",
                       placeItems: "center",
-                      background: state === "active" ? "var(--paper)" : "var(--ghost-chip-bg)",
-                      color: state === "active" ? "var(--background)" : "var(--checkout-text-strong)",
+                      background:
+                        state === "active"
+                          ? "var(--accent-strong)"
+                          : state === "done"
+                            ? "color-mix(in srgb, var(--accent) 12%, var(--paper))"
+                            : "var(--ghost-chip-bg)",
+                      color:
+                        state === "active"
+                          ? "var(--accent-contrast)"
+                          : "var(--checkout-text-strong)",
                       fontWeight: 700,
                     }}
                   >
@@ -137,12 +145,21 @@ export default function CheckoutLayout({
                         fontSize: 11,
                         textTransform: "uppercase",
                         letterSpacing: "0.18em",
-                        color: "var(--checkout-text-muted)",
+                        color:
+                          state === "active"
+                            ? "color-mix(in srgb, var(--checkout-text-strong) 68%, transparent)"
+                            : "var(--checkout-text-muted)",
                       }}
                     >
                       Paso {item.number}
                     </p>
-                    <strong style={{ display: "block", marginTop: 6 }}>
+                    <strong
+                      style={{
+                        display: "block",
+                        marginTop: 6,
+                        color: "var(--checkout-text-strong)",
+                      }}
+                    >
                       {item.label}
                     </strong>
                   </div>

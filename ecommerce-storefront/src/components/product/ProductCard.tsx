@@ -4,6 +4,7 @@ import { StoreProduct } from "@/types/store";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import { formatCurrency, roundCurrency } from "@/lib/currency";
 import { getCatalogImageTransform } from "@/lib/product-image-layout";
+import { isGiftCardProduct } from "@/lib/product-kind";
 
 type Props = {
   product: StoreProduct;
@@ -26,6 +27,7 @@ export default function ProductCard({
   );
   const hasPromotion = Boolean(product.pricing?.hasActivePromotion);
   const hasBuyXGetY = Boolean(product.pricing?.hasBuyXGetYPromotion);
+  const isGiftCard = isGiftCardProduct(product);
   const displayPrice = hasPromotion
     ? roundCurrency(product.pricing?.finalPrice ?? fallbackPrice)
     : roundCurrency(fallbackPrice);
@@ -33,7 +35,7 @@ export default function ProductCard({
     ? roundCurrency(product.pricing?.basePrice ?? fallbackPrice)
     : roundCurrency(fallbackPrice);
   const transferPrice =
-    displayPrice > 0 && bankTransferDiscountPercentage > 0
+    !isGiftCard && displayPrice > 0 && bankTransferDiscountPercentage > 0
       ? roundCurrency(
           Math.max(
             displayPrice * (1 - bankTransferDiscountPercentage / 100),
@@ -193,18 +195,33 @@ export default function ProductCard({
         {displayPrice > 0 ? (
           <div style={{ display: "grid", gap: 8 }}>
             {hasPromotion ? (
-              <p
-                style={{
-                  margin: 0,
-                  color: "var(--text-strong)",
-                  fontSize: 18,
-                  lineHeight: 1.04,
-                  letterSpacing: "-0.04em",
-                  fontWeight: 800,
-                }}
-              >
-                {formatCurrency(basePrice)}
-              </p>
+              <div style={{ display: "grid", gap: 4 }}>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--text-muted)",
+                    fontSize: 14,
+                    lineHeight: 1.1,
+                    fontWeight: 700,
+                    textDecoration: "line-through",
+                    textDecorationThickness: "1px",
+                  }}
+                >
+                  {formatCurrency(basePrice)}
+                </p>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--text-strong)",
+                    fontSize: 18,
+                    lineHeight: 1.04,
+                    letterSpacing: "-0.04em",
+                    fontWeight: 800,
+                  }}
+                >
+                  {formatCurrency(displayPrice)}
+                </p>
+              </div>
             ) : (
               <p
                 style={{
