@@ -3648,7 +3648,14 @@ function AdminProductsSection({
               <h3 style={{ ...title3Style, marginTop: 8 }}>Categorias</h3>
             </div>
           </div>
-          <AdminCategoriesManager />
+          <AdminCategoriesManager
+            onCategoriesChange={async () => {
+              const nextProducts = await loadData();
+              if (activeTab === "stock") {
+                await loadStockData(nextProducts);
+              }
+            }}
+          />
         </section>
       </section>
       {pendingRemoval ? (
@@ -4084,7 +4091,11 @@ function OptionGroupSection({
   );
 }
 
-function AdminCategoriesManager() {
+function AdminCategoriesManager({
+  onCategoriesChange,
+}: {
+  onCategoriesChange?: () => Promise<void> | void;
+}) {
   const { isTabletOrSmaller } = useViewportFlags();
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
@@ -4146,6 +4157,7 @@ function AdminCategoriesManager() {
       setName("");
       setImageUrl("");
       setEditingCategoryId(null);
+      await onCategoriesChange?.();
       setSuccess(wasEditing ? "Categoria actualizada." : "Categoria creada.");
     } catch (err) {
       setError(
@@ -4175,6 +4187,7 @@ function AdminCategoriesManager() {
         setName("");
         setImageUrl("");
       }
+      await onCategoriesChange?.();
       setSuccess(`Categoria "${pendingRemoval.name}" eliminada.`);
       setPendingRemoval(null);
     } catch (err) {

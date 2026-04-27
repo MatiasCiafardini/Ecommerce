@@ -121,7 +121,10 @@ export class AuthController {
   }
 
   @Get('session')
-  async getSession(@Req() req: Request) {
+  async getSession(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const storeId = this.readStoreId(req);
     const token = extractAuthCookieValue(req.headers.cookie, 'store');
 
@@ -142,11 +145,20 @@ export class AuthController {
         return null;
       }
 
-      return this.authService.getOptionalAuthEntity(
+      const authEntity = await this.authService.getOptionalAuthEntity(
         payload.sub,
         payload.role,
         payload.storeId,
       );
+
+      if (!authEntity) {
+        return null;
+      }
+
+      const renewedToken = this.authService.signAccessToken(authEntity);
+      setAuthCookie(res, renewedToken, 'store', this.readCookieRequestHost(req));
+
+      return authEntity;
     } catch {
       return null;
     }

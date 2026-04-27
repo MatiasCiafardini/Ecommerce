@@ -9,6 +9,9 @@ import {
   setScopedStorageItem,
 } from "@/lib/store-browser-storage";
 
+const SESSION_REFRESH_INTERVAL_MS = 4 * 60 * 1000;
+const SESSION_ACTIVITY_REFRESH_COOLDOWN_MS = 90 * 1000;
+
 type User = {
   id: number;
   email: string;
@@ -44,6 +47,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authUiLockRouteKey, setAuthUiLockRouteKey] = useState<string | null>(null);
+  const sessionUserKey = user ? `${user.storeId ?? "store"}:${user.id}` : "";
 
   useEffect(() => {
     if (!authUiLockRouteKey || authUiLockRouteKey === pathname) {
@@ -99,6 +103,84 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     void hydrateSession();
   }, []);
+
+  useEffect(() => {
+    if (!sessionUserKey) {
+      return;
+    }
+
+    let cancelled = false;
+    let refreshRunning = false;
+    let lastActivityRefreshAt = 0;
+
+    const refreshSession = async () => {
+      if (refreshRunning) {
+        return;
+      }
+
+      refreshRunning = true;
+
+      try {
+        const freshUser = await api("/auth/session");
+
+        if (cancelled) {
+          return;
+        }
+
+        if (freshUser) {
+          setScopedStorageItem("user", JSON.stringify(freshUser));
+          setUser(freshUser);
+          return;
+        }
+
+        removeScopedStorageItem("user");
+        setUser(null);
+      } catch {
+        // A transient network failure should not log out a working user.
+      } finally {
+        refreshRunning = false;
+      }
+    };
+
+    const refreshAfterActivity = () => {
+      const now = Date.now();
+
+      if (now - lastActivityRefreshAt < SESSION_ACTIVITY_REFRESH_COOLDOWN_MS) {
+        return;
+      }
+
+      lastActivityRefreshAt = now;
+      void refreshSession();
+    };
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshAfterActivity();
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshSession();
+      }
+    }, SESSION_REFRESH_INTERVAL_MS);
+
+    window.addEventListener("focus", refreshAfterActivity);
+    window.addEventListener("pointerdown", refreshAfterActivity, { passive: true });
+    window.addEventListener("keydown", refreshAfterActivity);
+    window.addEventListener("touchstart", refreshAfterActivity, { passive: true });
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshAfterActivity);
+      window.removeEventListener("pointerdown", refreshAfterActivity);
+      window.removeEventListener("keydown", refreshAfterActivity);
+      window.removeEventListener("touchstart", refreshAfterActivity);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [sessionUserKey]);
 
   const login = async (data: { email: string; password: string }) => {
     const res = await api("/auth/session-login", {
