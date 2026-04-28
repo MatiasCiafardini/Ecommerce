@@ -319,7 +319,7 @@ export default function AdminShipmentOperationsPanel({
         </div>
 
         <div style={readinessCardStyle(!trackingRequired || (hasCarrier && hasTracking))}>
-          <strong style={{ color: "#fff" }}>
+          <strong style={{ color: "var(--account-text-strong)" }}>
             {!trackingRequired || (hasCarrier && hasTracking)
               ? "Datos listos para despacho"
               : "Completa carrier y tracking"}
@@ -408,7 +408,7 @@ export default function AdminShipmentOperationsPanel({
             shipment.trackingEvents!.map((event) => (
               <article key={event.id} style={timelineCardStyle}>
                 <div style={betweenStyle}>
-                  <strong style={{ color: "#fff" }}>{formatShipmentStatus(event.status)}</strong>
+                  <strong style={{ color: "var(--account-text-strong)" }}>{formatShipmentStatus(event.status)}</strong>
                   <span style={metaStyle}>{new Date(event.createdAt).toLocaleString("es-AR")}</span>
                 </div>
                 {event.description ? <p style={copyStyle}>{event.description}</p> : null}
@@ -428,7 +428,7 @@ function InfoCell({ label, value }: { label: string; value: string }) {
   return (
     <div style={infoCellStyle}>
       <span style={smallLabelStyle}>{label}</span>
-      <strong style={{ color: "#fff", lineHeight: 1.5 }}>{value}</strong>
+      <strong style={{ color: "var(--account-text-strong)", lineHeight: 1.5 }}>{value}</strong>
     </div>
   );
 }

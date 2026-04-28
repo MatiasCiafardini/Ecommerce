@@ -339,7 +339,9 @@ export default function AdminShipmentsSection() {
                         style={shipmentListItemStyle(active)}
                       >
                         <div style={betweenStyle}>
-                          <strong style={{ color: "#fff" }}>Pedido #{shipment.orderId}</strong>
+                          <strong style={{ color: "var(--account-text-strong)" }}>
+                            Pedido #{shipment.orderId}
+                          </strong>
                           <span style={statusChipStyle(shipment.status)}>
                             {formatShipmentStatus(shipment.status)}
                           </span>
@@ -423,19 +425,24 @@ const statusChipStyle = (status: string): React.CSSProperties => ({
   width: "fit-content",
   padding: "8px 12px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.12)",
+  border:
+    status === "delivered"
+      ? "1px solid var(--admin-tone-success-border, rgba(184,245,194,0.24))"
+      : status === "failed" || status === "returned"
+        ? "1px solid var(--admin-danger-border, rgba(255,159,159,0.28))"
+        : "1px solid var(--admin-tone-info-border, rgba(129,199,255,0.26))",
   background:
     status === "delivered"
-      ? "rgba(184,245,194,0.12)"
+      ? "var(--admin-tone-success-bg, rgba(184,245,194,0.12))"
       : status === "failed" || status === "returned"
-        ? "rgba(255,159,159,0.12)"
-        : "rgba(129,199,255,0.12)",
+        ? "var(--admin-danger-bg, rgba(255,159,159,0.12))"
+        : "var(--admin-tone-info-bg, rgba(129,199,255,0.12))",
   color:
     status === "delivered"
-      ? "#cbffd2"
+      ? "var(--admin-tone-success-color, #cbffd2)"
       : status === "failed" || status === "returned"
-        ? "#ffd6d6"
-        : "#d2efff",
+        ? "var(--admin-danger-color, #ffd6d6)"
+        : "var(--admin-tone-info-color, #d2efff)",
   fontSize: 12,
   fontWeight: 700,
 });

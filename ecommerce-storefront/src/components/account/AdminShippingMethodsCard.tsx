@@ -255,7 +255,7 @@ export default function AdminShippingMethodsCard({
           shippingMethods.map((method) => (
             <article key={method.id} style={cardStyle}>
               <div style={betweenStyle}>
-                <strong style={{ color: "#fff" }}>{method.name}</strong>
+                <strong style={{ color: "var(--account-text-strong)" }}>{method.name}</strong>
                 <span style={statusChipStyle(method.active)}>
                   {method.active ? "Activo" : "Inactivo"}
                 </span>

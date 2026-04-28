@@ -2537,7 +2537,7 @@ function AdminProductsSection({
             <div style={editingBannerStyle}>
               <div>
                 <p style={eyebrowStyle}>Editando</p>
-                <strong style={{ color: "#fff" }}>
+                <strong style={{ color: "var(--account-text-strong)" }}>
                   {form.title || "Producto sin titulo"}
                 </strong>
               </div>
@@ -2973,7 +2973,7 @@ function AdminProductsSection({
                       style={{ ...itemStyle, padding: 16 }}
                     >
                       <div style={betweenStyle}>
-                        <strong style={{ color: "#fff" }}>
+                        <strong style={{ color: "var(--account-text-strong)" }}>
                           {variant.sku || `Variante ${index + 1}`}
                         </strong>
                         <span style={softChipStyle}>
@@ -2984,7 +2984,7 @@ function AdminProductsSection({
                         <span style={metaStyle}>
                           {[variant.Size, variant.Color].filter(Boolean).join(" / ") || "Base"}
                         </span>
-                        <strong style={{ color: "#fff" }}>{money(variant.price)}</strong>
+                        <strong style={{ color: "var(--account-text-strong)" }}>{money(variant.price)}</strong>
                       </div>
                       <div style={rowWrapStyle}>
                         <button
@@ -3675,7 +3675,7 @@ function AdminProductsSection({
               <p style={eyebrowStyle}>Confirmacion</p>
               <strong
                 id="admin-confirmation-title"
-                style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}
+                style={{ color: "var(--account-text-strong)", fontSize: 22, lineHeight: 1.1 }}
               >
                 {pendingRemoval.kind === "option"
                   ? `Eliminar etiqueta "${pendingRemoval.optionName}"`
@@ -3822,7 +3822,7 @@ function AdminProductsSection({
               <p style={eyebrowStyle}>SKU duplicado</p>
               <strong
                 id="duplicate-sku-title"
-                style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}
+                style={{ color: "var(--account-text-strong)", fontSize: 22, lineHeight: 1.1 }}
               >
                 Ese codigo no se puede usar
               </strong>
@@ -3948,7 +3948,7 @@ function OptionGroupSection({
                     </div>
                   ) : (
                     <>
-                      <strong style={{ color: "#fff" }}>{option.name}</strong>
+                      <strong style={{ color: "var(--account-text-strong)" }}>{option.name}</strong>
                       <span style={metaStyle}>
                         {option.productsCount ?? 0} producto(s) -{" "}
                         {(option.reusableValues ?? []).length} valor(es)
@@ -4035,7 +4035,7 @@ function OptionGroupSection({
                         ) : (
                           <>
                             <div style={{ display: "grid", gap: 4 }}>
-                              <strong style={{ color: "#fff" }}>
+                              <strong style={{ color: "var(--account-text-strong)" }}>
                                 {value.value}
                               </strong>
                               <span style={metaStyle}>
@@ -4343,7 +4343,7 @@ function AdminCategoriesManager({
               <p style={eyebrowStyle}>Confirmacion</p>
               <strong
                 id="category-confirmation-title"
-                style={{ color: "#fff", fontSize: 22, lineHeight: 1.1 }}
+                style={{ color: "var(--account-text-strong)", fontSize: 22, lineHeight: 1.1 }}
               >
                 {`Eliminar categoria "${pendingRemoval.name}"`}
               </strong>
@@ -4484,14 +4484,14 @@ function AdminOrdersPanelSection() {
               >
                 <div style={betweenStyle}>
                   <div>
-                    <strong style={{ display: "block", color: "#fff" }}>
+                    <strong style={{ display: "block", color: "var(--account-text-strong)" }}>
                       Pedido #{order.id}
                     </strong>
                     <span style={metaStyle}>
                       {new Date(order.createdAt).toLocaleString("es-AR")}
                     </span>
                   </div>
-                  <strong style={{ color: "#fff" }}>
+                  <strong style={{ color: "var(--account-text-strong)" }}>
                     {money(order.total)}
                   </strong>
                 </div>
@@ -4597,14 +4597,14 @@ function AdminOrdersSection() {
           <article key={order.id} style={itemStyle}>
             <div style={betweenStyle}>
               <div>
-                <strong style={{ display: "block", color: "#fff" }}>
+                <strong style={{ display: "block", color: "var(--account-text-strong)" }}>
                   Pedido #{order.id}
                 </strong>
                 <span style={metaStyle}>
                   {new Date(order.createdAt).toLocaleDateString("es-AR")}
                 </span>
               </div>
-              <strong style={{ color: "#fff" }}>{money(order.total)}</strong>
+              <strong style={{ color: "var(--account-text-strong)" }}>{money(order.total)}</strong>
             </div>
             <p style={copyStyle}>
               {order.items.length} item{order.items.length === 1 ? "" : "s"} â€¢{" "}
@@ -4907,7 +4907,7 @@ function AdminCustomersSection() {
                   <span style={metaStyle}>
                     Ticket promedio por cliente activo
                   </span>
-                  <strong style={{ color: "#fff", fontSize: 28 }}>
+                  <strong style={{ color: "var(--account-text-strong)", fontSize: 28 }}>
                     {money(
                       metrics.customersWithOrders
                         ? metrics.totalRevenue / metrics.customersWithOrders
@@ -4917,7 +4917,7 @@ function AdminCustomersSection() {
                 </article>
                 <article style={statStyle}>
                   <span style={metaStyle}>Tasa de recompra</span>
-                  <strong style={{ color: "#fff", fontSize: 28 }}>
+                  <strong style={{ color: "var(--account-text-strong)", fontSize: 28 }}>
                     {metrics.customersWithOrders
                       ? `${Math.round((metrics.recurringCustomers / metrics.customersWithOrders) * 100)}%`
                       : "0%"}
@@ -4925,13 +4925,13 @@ function AdminCustomersSection() {
                 </article>
                 <article style={statStyle}>
                   <span style={metaStyle}>Clientes nuevos</span>
-                  <strong style={{ color: "#fff", fontSize: 28 }}>
+                  <strong style={{ color: "var(--account-text-strong)", fontSize: 28 }}>
                     {customerRows.filter((row) => row.ordersCount === 1).length}
                   </strong>
                 </article>
                 <article style={statStyle}>
                   <span style={metaStyle}>Sin compra</span>
-                  <strong style={{ color: "#fff", fontSize: 28 }}>
+                  <strong style={{ color: "var(--account-text-strong)", fontSize: 28 }}>
                     {customerRows.filter((row) => row.ordersCount === 0).length}
                   </strong>
                 </article>
@@ -4946,7 +4946,7 @@ function AdminCustomersSection() {
                       <article key={row.customer.id} style={{ ...itemStyle, padding: isPhone ? 16 : 18 }}>
                         <div style={betweenStyle}>
                           <div>
-                            <strong style={{ display: "block", color: "#fff" }}>
+                            <strong style={{ display: "block", color: "var(--account-text-strong)" }}>
                               {getCustomerDisplayName(row.customer)}
                             </strong>
                             <span style={metaStyle}>Cliente #{row.customer.id}</span>
@@ -4965,7 +4965,7 @@ function AdminCustomersSection() {
                           <span style={copyStyle}>
                             {row.ordersCount} pedidos · Promedio {money(row.averageTicket)}
                           </span>
-                          <strong style={{ color: "#fff" }}>{money(row.totalSpent)}</strong>
+                          <strong style={{ color: "var(--account-text-strong)" }}>{money(row.totalSpent)}</strong>
                           <span style={metaStyle}>
                             {row.lastOrderAt
                               ? `Ultima compra ${new Date(row.lastOrderAt).toLocaleDateString("es-AR")}`
@@ -4992,7 +4992,7 @@ function AdminCustomersSection() {
                         {filteredRows.map((row) => (
                           <tr key={row.customer.id}>
                             <td style={tdStyle}>
-                              <strong style={{ display: "block", color: "#fff" }}>
+                              <strong style={{ display: "block", color: "var(--account-text-strong)" }}>
                                 {getCustomerDisplayName(row.customer)}
                               </strong>
                               <span style={metaStyle}>
@@ -5046,7 +5046,7 @@ function AdminCustomersSection() {
                 {segmentCards.map((segment) => (
                   <article key={segment.id} style={statStyle}>
                     <span style={metaStyle}>{segment.label}</span>
-                    <strong style={{ color: "#fff", fontSize: 28 }}>
+                    <strong style={{ color: "var(--account-text-strong)", fontSize: 28 }}>
                       {segment.count}
                     </strong>
                     <span style={copyStyle}>{segment.description}</span>
@@ -5060,7 +5060,7 @@ function AdminCustomersSection() {
                 <div style={{ display: "grid", gap: 12 }}>
                   {alerts.map((alert) => (
                     <article key={alert.id} style={itemStyle}>
-                      <strong style={{ color: "#fff" }}>{alert.title}</strong>
+                      <strong style={{ color: "var(--account-text-strong)" }}>{alert.title}</strong>
                       <p style={copyStyle}>{alert.copy}</p>
                     </article>
                   ))}

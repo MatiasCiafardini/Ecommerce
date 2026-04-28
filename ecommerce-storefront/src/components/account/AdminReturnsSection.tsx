@@ -239,7 +239,7 @@ export default function AdminReturnsSection() {
                   <article key={entry.id} style={requestCardStyle}>
                     <div style={betweenStyle}>
                       <div>
-                        <strong style={{ color: "#fff" }}>Ticket #{entry.id}</strong>
+                        <strong style={{ color: "var(--account-text-strong)" }}>Ticket #{entry.id}</strong>
                         <p style={copyStyle}>Pedido #{entry.orderId}</p>
                       </div>
                       <span style={statusChipStyle(entry.status)}>
@@ -341,7 +341,7 @@ export default function AdminReturnsSection() {
                     <article key={entry.id} style={requestCardStyle}>
                       <div style={betweenStyle}>
                         <div>
-                          <strong style={{ color: "#fff" }}>Solicitud #{entry.id}</strong>
+                          <strong style={{ color: "var(--account-text-strong)" }}>Solicitud #{entry.id}</strong>
                           <p style={copyStyle}>Pedido #{entry.orderId}</p>
                         </div>
                         <span style={statusChipStyle(entry.status)}>
@@ -475,7 +475,7 @@ export default function AdminReturnsSection() {
                     <article key={entry.id} style={requestCardStyle}>
                       <div style={betweenStyle}>
                         <div>
-                          <strong style={{ color: "#fff" }}>Solicitud #{entry.id}</strong>
+                          <strong style={{ color: "var(--account-text-strong)" }}>Solicitud #{entry.id}</strong>
                           <p style={copyStyle}>Pedido #{entry.orderId}</p>
                         </div>
                         <span style={statusChipStyle(entry.status)}>
@@ -586,7 +586,7 @@ export default function AdminReturnsSection() {
                     <article key={entry.id} style={requestCardStyle}>
                       <div style={betweenStyle}>
                         <div>
-                          <strong style={{ color: "#fff" }}>Solicitud #{entry.id}</strong>
+                          <strong style={{ color: "var(--account-text-strong)" }}>Solicitud #{entry.id}</strong>
                           <p style={copyStyle}>Pedido #{entry.orderId}</p>
                         </div>
                         <span style={statusChipStyle(entry.status)}>
@@ -680,7 +680,7 @@ export default function AdminReturnsSection() {
                   return (
                     <article key={entry.id} style={historyCardStyle}>
                       <div style={betweenStyle}>
-                        <strong style={{ color: "#fff" }}>Solicitud #{entry.id}</strong>
+                        <strong style={{ color: "var(--account-text-strong)" }}>Solicitud #{entry.id}</strong>
                         <span style={statusChipStyle(entry.status)}>
                           {returnStatusLabel(entry.status)}
                         </span>
@@ -732,7 +732,7 @@ export default function AdminReturnsSection() {
                 {processedCancellations.map((entry) => (
                   <article key={entry.id} style={historyCardStyle}>
                     <div style={betweenStyle}>
-                      <strong style={{ color: "#fff" }}>Ticket #{entry.id}</strong>
+                      <strong style={{ color: "var(--account-text-strong)" }}>Ticket #{entry.id}</strong>
                       <span style={statusChipStyle(entry.status)}>
                         {returnStatusLabel(entry.status)}
                       </span>
@@ -783,7 +783,7 @@ function InfoCell({ label, value }: { label: string; value: string }) {
   return (
     <div style={infoCellStyle}>
       <span style={smallLabelStyle}>{label}</span>
-      <strong style={{ color: "#fff", lineHeight: 1.5 }}>{value}</strong>
+      <strong style={{ color: "var(--account-text-strong)", lineHeight: 1.5 }}>{value}</strong>
     </div>
   );
 }

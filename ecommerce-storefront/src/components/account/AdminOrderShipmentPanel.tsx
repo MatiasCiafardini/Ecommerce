@@ -255,7 +255,7 @@ export default function AdminOrderShipmentPanel({
       </div>
 
       <div style={readinessCardStyle(dispatchReady)}>
-        <strong style={{ color: "#fff" }}>
+        <strong style={{ color: "var(--account-text-strong)" }}>
           {dispatchReady ? "Listo para despachar" : "Faltan datos para despachar"}
         </strong>
         <span style={metaTextStyle}>

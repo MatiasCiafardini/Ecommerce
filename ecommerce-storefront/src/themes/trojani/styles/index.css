@@ -117,9 +117,29 @@
   --account-item-border: var(--theme-colors-border);
   --account-item-border-active: var(--theme-colors-border-strong);
   --account-text-strong: var(--theme-colors-text-strong);
-  --account-text-muted: var(--theme-colors-text-muted);
-  --account-text-soft: color-mix(in srgb, var(--theme-colors-text) 76%, transparent);
-  --account-text-faint: color-mix(in srgb, var(--theme-colors-text) 58%, transparent);
+  --account-text-muted: rgba(17, 17, 17, 0.7);
+  --account-text-soft: rgba(17, 17, 17, 0.56);
+  --account-text-faint: rgba(17, 17, 17, 0.42);
+
+  /* Admin tones */
+  --admin-status-idle-bg: #eef6ff;
+  --admin-status-idle-border: #dcebf8;
+  --admin-status-idle-color: #1b4d74;
+  --admin-tone-soft-bg: #f4f4f4;
+  --admin-tone-soft-border: #dddddd;
+  --admin-tone-soft-color: #333333;
+  --admin-tone-info-bg: #eef6ff;
+  --admin-tone-info-border: #cfe4f7;
+  --admin-tone-info-color: #1b4d74;
+  --admin-tone-success-bg: #edf8f0;
+  --admin-tone-success-border: #cfe8d6;
+  --admin-tone-success-color: #25623a;
+  --admin-tone-warning-bg: #fff6df;
+  --admin-tone-warning-border: #f0dfad;
+  --admin-tone-warning-color: #765a14;
+  --admin-danger-bg: #fff0f0;
+  --admin-danger-border: #f0caca;
+  --admin-danger-color: #8f2424;
 
   /* Admin */
   --admin-stat-bg: var(--page-panel-bg);
@@ -130,9 +150,6 @@
   --admin-preview-gridline: var(--theme-colors-border);
   --admin-preview-guide-border: var(--theme-colors-border-strong);
   --admin-preview-guide-bg: var(--page-panel-strong-bg);
-  --admin-status-idle-bg: var(--page-panel-strong-bg);
-  --admin-status-idle-border: var(--theme-colors-border);
-  --admin-status-idle-color: var(--theme-colors-text-strong);
   --admin-chip-bg: var(--page-panel-bg);
   --admin-chip-border: var(--theme-colors-border);
   --admin-chip-color: var(--theme-colors-text-strong);

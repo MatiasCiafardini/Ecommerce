@@ -31,9 +31,10 @@ const fieldStyle = {
   width: "100%",
   padding: "14px 16px",
   borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#f7f1e8",
+  border: "1px solid var(--checkout-border, var(--border-soft))",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  outline: "none",
 } as const;
 
 export default function AddressSection({ user }: { user: User }) {
@@ -161,12 +162,12 @@ export default function AddressSection({ user }: { user: User }) {
       data-account-panel
       style={{
         borderRadius: 32,
-        border: "1px solid rgba(255,255,255,0.08)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+        border: "1px solid var(--border-soft)",
+        background: "var(--page-panel-bg)",
         padding: "32px",
         display: "grid",
         gap: 28,
+        color: "var(--account-text-strong)",
       }}
     >
       <div
@@ -185,7 +186,7 @@ export default function AddressSection({ user }: { user: User }) {
               textTransform: "uppercase",
               letterSpacing: "0.26em",
               fontSize: 12,
-              color: "rgba(247,241,232,0.55)",
+              color: "var(--account-text-soft)",
             }}
           >
             Direcciones
@@ -206,9 +207,9 @@ export default function AddressSection({ user }: { user: User }) {
             style={{
               padding: "12px 16px",
               borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.03)",
-              color: "rgba(247,241,232,0.72)",
+              border: "1px solid var(--border-soft)",
+              background: "var(--page-panel-strong-bg)",
+              color: "var(--account-text-muted)",
               fontSize: 13,
             }}
           >
@@ -221,8 +222,8 @@ export default function AddressSection({ user }: { user: User }) {
               style={{
                 borderRadius: 999,
                 border: "none",
-                background: "#f7f1e8",
-                color: "#0b0b0b",
+                background: "var(--accent-strong)",
+                color: "var(--accent-contrast)",
                 padding: "12px 16px",
                 fontWeight: 700,
                 cursor: "pointer",
@@ -256,10 +257,10 @@ export default function AddressSection({ user }: { user: User }) {
             <div
               style={{
                 borderRadius: 24,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.03)",
+                border: "1px solid var(--border-soft)",
+                background: "var(--page-panel-strong-bg)",
                 padding: 24,
-                color: "rgba(247,241,232,0.66)",
+                color: "var(--account-text-muted)",
               }}
             >
               Cargando direcciones...
@@ -268,10 +269,10 @@ export default function AddressSection({ user }: { user: User }) {
             <div
               style={{
                 borderRadius: 24,
-                border: "1px dashed rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.02)",
+                border: "1px dashed var(--border-soft)",
+                background: "var(--page-panel-strong-bg)",
                 padding: 28,
-                color: "rgba(247,241,232,0.68)",
+                color: "var(--account-text-muted)",
                 lineHeight: 1.7,
               }}
             >
@@ -286,12 +287,12 @@ export default function AddressSection({ user }: { user: User }) {
                   borderRadius: 24,
                   border:
                     editingId === address.id
-                      ? "1px solid rgba(255,255,255,0.22)"
-                      : "1px solid rgba(255,255,255,0.08)",
+                      ? "1px solid var(--border-strong)"
+                      : "1px solid var(--border-soft)",
                   background:
                     editingId === address.id
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(255,255,255,0.03)",
+                      ? "var(--page-panel-bg)"
+                      : "var(--page-panel-strong-bg)",
                   padding: 24,
                   display: "grid",
                   gap: 18,
@@ -314,7 +315,7 @@ export default function AddressSection({ user }: { user: User }) {
                         textTransform: "uppercase",
                         letterSpacing: "0.22em",
                         fontSize: 11,
-                        color: "rgba(247,241,232,0.5)",
+                        color: "var(--account-text-soft)",
                       }}
                     >
                       Direccion {String(index + 1).padStart(2, "0")}
@@ -325,7 +326,7 @@ export default function AddressSection({ user }: { user: User }) {
                     <p
                       style={{
                         margin: 0,
-                        color: "rgba(247,241,232,0.72)",
+                        color: "var(--account-text-muted)",
                         lineHeight: 1.7,
                       }}
                     >
@@ -349,9 +350,9 @@ export default function AddressSection({ user }: { user: User }) {
                       onClick={() => startEdit(address)}
                       style={{
                         borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.12)",
+                        border: "1px solid var(--border-soft)",
                         background: "transparent",
-                        color: "#f7f1e8",
+                        color: "var(--account-text-strong)",
                         padding: "10px 14px",
                         cursor: "pointer",
                       }}
@@ -362,9 +363,9 @@ export default function AddressSection({ user }: { user: User }) {
                       onClick={() => removeAddress(address.id)}
                       style={{
                         borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        background: "rgba(255,255,255,0.06)",
-                        color: "rgba(247,241,232,0.88)",
+                        border: "1px solid var(--border-soft)",
+                        background: "var(--page-panel-bg)",
+                        color: "var(--account-text-strong)",
                         padding: "10px 14px",
                         cursor: "pointer",
                       }}
@@ -384,8 +385,8 @@ export default function AddressSection({ user }: { user: User }) {
             data-account-panel
             style={{
               borderRadius: 28,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(8,8,8,0.66)",
+              border: "1px solid var(--border-soft)",
+              background: "var(--page-panel-strong-bg)",
               padding: 24,
               display: "grid",
               gap: 18,
@@ -399,7 +400,7 @@ export default function AddressSection({ user }: { user: User }) {
                   textTransform: "uppercase",
                   letterSpacing: "0.22em",
                   fontSize: 11,
-                  color: "rgba(247,241,232,0.5)",
+                  color: "var(--account-text-soft)",
                 }}
               >
                 {editingId ? "Editar direccion" : "Nueva direccion"}
@@ -471,8 +472,8 @@ export default function AddressSection({ user }: { user: User }) {
                   minWidth: 180,
                   border: "none",
                   borderRadius: 999,
-                  background: "#f7f1e8",
-                  color: "#0b0b0b",
+                  background: "var(--accent-strong)",
+                  color: "var(--accent-contrast)",
                   padding: "14px 18px",
                   fontWeight: 700,
                   cursor: "pointer",
@@ -485,9 +486,9 @@ export default function AddressSection({ user }: { user: User }) {
                 onClick={resetForm}
                 style={{
                   borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  border: "1px solid var(--border-soft)",
                   background: "transparent",
-                  color: "#f7f1e8",
+                  color: "var(--account-text-strong)",
                   padding: "14px 18px",
                   cursor: "pointer",
                 }}
@@ -500,23 +501,23 @@ export default function AddressSection({ user }: { user: User }) {
           <div
             style={{
               borderRadius: 28,
-              border: "1px dashed rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.02)",
+              border: "1px dashed var(--border-soft)",
+              background: "var(--page-panel-strong-bg)",
               padding: 24,
               marginTop: 12,
-              color: "rgba(247,241,232,0.66)",
+              color: "var(--account-text-muted)",
               lineHeight: 1.7,
               alignSelf: "start",
               display: "grid",
               gap: 10,
             }}
           >
-            <strong style={{ color: "#fff", fontSize: 18 }}>
+            <strong style={{ color: "var(--account-text-strong)", fontSize: 18 }}>
               Tus direcciones guardadas
             </strong>
             <span>
               Elegi una direccion para editarla o usa el boton{" "}
-              <strong style={{ color: "#fff" }}>Agregar nueva</strong> para cargar
+              <strong style={{ color: "var(--account-text-strong)" }}>Agregar nueva</strong> para cargar
               otra.
             </span>
           </div>

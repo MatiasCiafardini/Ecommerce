@@ -4,12 +4,12 @@ export default function PaymentSection() {
       data-account-panel
       style={{
         borderRadius: 32,
-        border: "1px solid rgba(255,255,255,0.08)",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
+        border: "1px solid var(--border-soft)",
+        background: "var(--page-panel-bg)",
         padding: 32,
         display: "grid",
         gap: 22,
+        color: "var(--account-text-strong)",
       }}
     >
       <div>
@@ -19,7 +19,7 @@ export default function PaymentSection() {
             textTransform: "uppercase",
             letterSpacing: "0.26em",
             fontSize: 12,
-            color: "rgba(247,241,232,0.55)",
+            color: "var(--account-text-soft)",
           }}
         >
           Pagos
@@ -45,8 +45,8 @@ export default function PaymentSection() {
         <article
           style={{
             borderRadius: 24,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.03)",
+            border: "1px solid var(--border-soft)",
+            background: "var(--page-panel-strong-bg)",
             padding: 22,
             minHeight: 170,
             display: "grid",
@@ -60,14 +60,14 @@ export default function PaymentSection() {
                 fontSize: 12,
                 letterSpacing: "0.18em",
                 textTransform: "uppercase",
-                color: "rgba(247,241,232,0.48)",
+                color: "var(--account-text-soft)",
               }}
             >
               Proximo modulo
             </p>
             <h3 style={{ margin: "12px 0 0", fontSize: 22 }}>Tarjetas guardadas</h3>
           </div>
-          <p style={{ margin: 0, color: "rgba(247,241,232,0.7)", lineHeight: 1.7 }}>
+          <p style={{ margin: 0, color: "var(--account-text-muted)", lineHeight: 1.7 }}>
             Proximamente vas a poder guardar medios de pago desde tu cuenta.
           </p>
         </article>
@@ -75,8 +75,8 @@ export default function PaymentSection() {
         <article
           style={{
             borderRadius: 24,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.03)",
+            border: "1px solid var(--border-soft)",
+            background: "var(--page-panel-strong-bg)",
             padding: 22,
             minHeight: 170,
             display: "grid",
@@ -90,14 +90,14 @@ export default function PaymentSection() {
                 fontSize: 12,
                 letterSpacing: "0.18em",
                 textTransform: "uppercase",
-                color: "rgba(247,241,232,0.48)",
+                color: "var(--account-text-soft)",
               }}
             >
               Estado actual
             </p>
             <h3 style={{ margin: "12px 0 0", fontSize: 22 }}>Checkout activo</h3>
           </div>
-          <p style={{ margin: 0, color: "rgba(247,241,232,0.7)", lineHeight: 1.7 }}>
+          <p style={{ margin: 0, color: "var(--account-text-muted)", lineHeight: 1.7 }}>
             Hoy puedes completar tu compra directamente desde el checkout.
           </p>
         </article>

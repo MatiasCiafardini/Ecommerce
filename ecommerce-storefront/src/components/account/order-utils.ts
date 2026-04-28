@@ -250,51 +250,51 @@ export const orderStatusLabel = (status: string) => {
 export const orderStatusTone = (status: string) => {
   const tones: Record<string, { background: string; border: string; color: string }> = {
     pending: {
-      background: "rgba(255,214,122,0.12)",
-      border: "rgba(255,214,122,0.3)",
-      color: "#ffe8ad",
+      background: "var(--admin-tone-warning-bg, rgba(255,214,122,0.12))",
+      border: "var(--admin-tone-warning-border, rgba(255,214,122,0.3))",
+      color: "var(--admin-tone-warning-color, #ffe8ad)",
     },
     paid: {
-      background: "rgba(184,245,194,0.12)",
-      border: "rgba(184,245,194,0.3)",
-      color: "#cbffd2",
+      background: "var(--admin-tone-success-bg, rgba(184,245,194,0.12))",
+      border: "var(--admin-tone-success-border, rgba(184,245,194,0.3))",
+      color: "var(--admin-tone-success-color, #cbffd2)",
     },
     processing: {
-      background: "rgba(129,199,255,0.12)",
-      border: "rgba(129,199,255,0.3)",
-      color: "#d2efff",
+      background: "var(--admin-tone-info-bg, rgba(129,199,255,0.12))",
+      border: "var(--admin-tone-info-border, rgba(129,199,255,0.3))",
+      color: "var(--admin-tone-info-color, #d2efff)",
     },
     packed: {
-      background: "rgba(198,179,255,0.14)",
-      border: "rgba(198,179,255,0.3)",
-      color: "#efe6ff",
+      background: "var(--admin-status-idle-bg, rgba(198,179,255,0.14))",
+      border: "var(--admin-status-idle-border, rgba(198,179,255,0.3))",
+      color: "var(--admin-status-idle-color, #efe6ff)",
     },
     shipped: {
-      background: "rgba(134,239,172,0.12)",
-      border: "rgba(134,239,172,0.26)",
-      color: "#d5ffe1",
+      background: "var(--admin-tone-info-bg, rgba(134,239,172,0.12))",
+      border: "var(--admin-tone-info-border, rgba(134,239,172,0.26))",
+      color: "var(--admin-tone-info-color, #d5ffe1)",
     },
     delivered: {
-      background: "rgba(247,241,232,0.12)",
-      border: "rgba(247,241,232,0.18)",
-      color: "#f7f1e8",
+      background: "var(--admin-tone-success-bg, rgba(247,241,232,0.12))",
+      border: "var(--admin-tone-success-border, rgba(247,241,232,0.18))",
+      color: "var(--admin-tone-success-color, #f7f1e8)",
     },
     cancelled: {
-      background: "rgba(255,159,159,0.12)",
-      border: "rgba(255,159,159,0.28)",
-      color: "#ffd6d6",
+      background: "var(--admin-danger-bg, rgba(255,159,159,0.12))",
+      border: "var(--admin-danger-border, rgba(255,159,159,0.28))",
+      color: "var(--admin-danger-color, #ffd6d6)",
     },
     refunded: {
-      background: "rgba(255,195,113,0.12)",
-      border: "rgba(255,195,113,0.3)",
-      color: "#ffe7c3",
+      background: "var(--admin-tone-warning-bg, rgba(255,195,113,0.12))",
+      border: "var(--admin-tone-warning-border, rgba(255,195,113,0.3))",
+      color: "var(--admin-tone-warning-color, #ffe7c3)",
     },
   };
 
   return tones[status] ?? {
-    background: "rgba(255,255,255,0.08)",
-    border: "rgba(255,255,255,0.12)",
-    color: "#f7f1e8",
+    background: "var(--admin-status-idle-bg, rgba(255,255,255,0.08))",
+    border: "var(--admin-status-idle-border, rgba(255,255,255,0.12))",
+    color: "var(--admin-status-idle-color, #f7f1e8)",
   };
 };
 
