@@ -1,9 +1,13 @@
-import { getProducts } from "@/services/products.service";
 import { getBankTransferDiscountPercentage } from "@/services/payment-config.service";
 import ProductCard from "@/components/product/ProductCard";
 import StaggerReveal from "@/components/motion/StaggerReveal";
 import { getTenantConfig } from "@/lib/tenant/get-tenant";
 import { StoreProduct } from "@/types/store";
+import {
+  getBlockProducts,
+  normalizeBlockNumber,
+  normalizeProductIds,
+} from "@/blocks/product-block-utils";
 
 type Props = {
   title?: string;
@@ -14,12 +18,18 @@ type Props = {
 
 export default async function FeaturedProducts({
   title = "Productos destacados",
-  limit = 3,
+  limit = 6,
   columns = 3,
   productIds,
 }: Props) {
+  const normalizedLimit = normalizeBlockNumber(limit, 6);
+  const normalizedColumns = normalizeBlockNumber(columns, 3, { max: 6 });
+  const normalizedProductIds = normalizeProductIds(productIds);
   const [products, bankTransferDiscountPercentage, config] = await Promise.all([
-    getProducts({ limit, productIds }),
+    getBlockProducts({
+      limit: normalizedLimit,
+      productIds: normalizedProductIds,
+    }),
     getBankTransferDiscountPercentage(),
     getTenantConfig(),
   ]);
@@ -39,7 +49,7 @@ export default async function FeaturedProducts({
         <div
           className="layout-auto-grid"
           style={{
-            gridTemplateColumns: `repeat(${Math.max(1, columns)}, var(--product-card-width))`,
+            gridTemplateColumns: `repeat(${normalizedColumns}, var(--product-card-width))`,
             justifyContent: "center",
           }}
         >

@@ -1008,6 +1008,7 @@ export class SystemService {
             type: 'featured_products',
             props: {
               title: 'Productos destacados',
+              limit: 6,
               columns: 3,
               animationPreset: 'soft',
             },

@@ -1,4 +1,3 @@
-﻿import type { Block } from "@/types/block";
 import { getDefaultThemeLayout } from "@/lib/tenant/theme-layout-defaults";
 import type { StorefrontTenantConfig } from "@/types/storefront-config";
 
@@ -51,6 +50,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           type: "featured_products",
           props: {
             title: "Piezas clave para empezar el look",
+            limit: 6,
             columns: 3,
             animationPreset: "soft",
           },
@@ -141,7 +141,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           type: "featured_products",
           props: {
             title: "Seleccion Aurea",
-            limit: 3,
+            limit: 6,
             columns: 3,
             animationPreset: "soft",
           },
@@ -222,6 +222,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           type: "featured_products",
           props: {
             title: "Piezas clave para empezar el look",
+            limit: 6,
             columns: 3,
             animationPreset: "soft",
           },
@@ -321,7 +322,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           type: "featured_products",
           props: {
             title: "Seleccion para arrancar",
-            limit: 3,
+            limit: 6,
             columns: 3,
             animationPreset: "soft",
           },
@@ -408,8 +409,8 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           type: "featured_products",
           props: {
             title: "Destacados de Mi Maria",
-            limit: 4,
-            columns: 4,
+            limit: 6,
+            columns: 3,
             animationPreset: "soft",
           },
         },
@@ -521,6 +522,7 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           type: "featured_products",
           props: {
             title: "Piezas clave para empezar el look",
+            limit: 6,
             columns: 3,
             animationPreset: "soft",
           },
@@ -601,4 +603,3 @@ export function getSafeStorefrontConfig(
     safeEmptyStorefrontConfig
   );
 }
-

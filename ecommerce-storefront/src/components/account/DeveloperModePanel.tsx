@@ -636,8 +636,8 @@ const blockDefaultProps: Record<string, Record<string, unknown>> = {
   },
   featured_products: {
     title: "Productos destacados",
-    limit: 4,
-    columns: 4,
+    limit: 6,
+    columns: 3,
     productIds: [],
     animationPreset: "soft",
   },
