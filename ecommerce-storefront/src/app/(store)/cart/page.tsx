@@ -503,6 +503,7 @@ function CartPageInner() {
                   }}
                 >
                   <div
+                    className="cart-item-media"
                     style={{
                       width: 116,
                       minWidth: 116,
@@ -539,7 +540,7 @@ function CartPageInner() {
                     )}
                   </div>
 
-                  <div>
+                  <div className="cart-item-copy">
                     <p
                       style={{
                         margin: 0,
@@ -564,9 +565,8 @@ function CartPageInner() {
                     {cartStockMessage ? (
                       <p
                         style={{
+                          ...cartStockNoticeStyle,
                           margin: 0,
-                          color: "#ffe4bf",
-                          lineHeight: 1.7,
                         }}
                       >
                         {cartStockMessage}
@@ -597,7 +597,7 @@ function CartPageInner() {
                         </button>
                       </div>
                       {item.quantity >= item.maxAvailable ? (
-                        <span style={{ color: "#ffe4bf", fontSize: 13 }}>
+                        <span style={{ ...cartStockNoticeStyle, fontSize: 13 }}>
                           Ya agregaste las ultimas unidades disponibles
                         </span>
                       ) : null}
@@ -605,6 +605,7 @@ function CartPageInner() {
                   </div>
 
                   <div
+                    className="cart-item-actions"
                     style={{
                       display: "grid",
                       justifyItems: "end",
@@ -712,6 +713,63 @@ function CartPageInner() {
           </p>
         </aside>
       </div>
+      <style jsx>{`
+        .cart-item-copy {
+          min-width: 0;
+        }
+
+        .cart-item-copy h2 {
+          overflow-wrap: anywhere;
+          line-height: 1.16;
+        }
+
+        .cart-item-actions {
+          align-self: center;
+        }
+
+        @media (max-width: 768px) {
+          .layout-cart-item {
+            grid-template-columns: 88px minmax(0, 1fr) !important;
+            align-items: start !important;
+            gap: 12px !important;
+            padding: 16px !important;
+          }
+
+          .cart-item-media {
+            width: 88px !important;
+            min-width: 88px !important;
+            height: 108px !important;
+            border-radius: 16px !important;
+          }
+
+          .cart-item-media :global(img) {
+            padding: 8px !important;
+          }
+
+          .cart-item-copy h2 {
+            margin-top: 6px !important;
+            font-size: 18px !important;
+          }
+
+          .cart-item-actions {
+            grid-column: 1 / -1;
+            justify-items: start !important;
+            margin-top: 2px;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .layout-cart-item {
+            grid-template-columns: 82px minmax(0, 1fr) !important;
+          }
+
+          .cart-item-media {
+            width: 82px !important;
+            min-width: 82px !important;
+            height: 104px !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -761,4 +819,10 @@ const quantityButtonStyle: React.CSSProperties = {
   background: "var(--page-panel-bg)",
   color: "var(--text-strong)",
   cursor: "pointer",
+};
+
+const cartStockNoticeStyle: React.CSSProperties = {
+  color: "#2f7d4b",
+  lineHeight: 1.7,
+  fontWeight: 600,
 };
