@@ -7,6 +7,7 @@ import {
   Body,
   Req,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
@@ -35,8 +36,8 @@ export class ProductsController {
   }
 
   @Get()
-  findAll(@Req() req) {
-    return this.productsService.findAll(req.storeId);
+  findAll(@Req() req, @Query('search') search?: string) {
+    return this.productsService.findAll(req.storeId, search);
   }
 
   @Patch(':id')

@@ -4,6 +4,7 @@ import "./styles/index.css";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import HeaderSearch from "@/components/header/HeaderSearch";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
@@ -129,6 +130,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
             marginLeft: "auto",
           }}
         >
+          <HeaderSearch compact={isMobile} />
           <NotificationsMenu mobileSheet={isMobile} />
 
           <Link

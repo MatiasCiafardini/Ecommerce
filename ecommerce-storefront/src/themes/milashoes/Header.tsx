@@ -4,6 +4,7 @@ import "./styles/index.css";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import HeaderSearch from "@/components/header/HeaderSearch";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
@@ -174,6 +175,7 @@ export default function Header({
 
           {/* Derecha: acciones */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end" }}>
+            <HeaderSearch compact={Boolean(isMobile)} />
             <NotificationsMenu mobileSheet={isMobile ?? undefined} />
 
             {isMobile === false && user ? (

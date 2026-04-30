@@ -756,6 +756,11 @@ export class StorefrontService {
       };
     }
 
+    const searchFilter = await this.buildProductSearchFilter(storeId, query?.search);
+    if (searchFilter) {
+      where.AND = this.appendProductWhereAnd(where.AND, searchFilter);
+    }
+
     const optionValueIds = this.parseOptionValueIds(query?.optionValueIds);
 
     if (optionValueIds.length === 0) {
@@ -787,14 +792,8 @@ export class StorefrontService {
       optionGroups.set(value.productOptionId, current);
     }
 
-    const existingAnd = Array.isArray(where.AND)
-      ? where.AND
-      : where.AND
-        ? [where.AND]
-        : [];
-
-    where.AND = [
-      ...existingAnd,
+    where.AND = this.appendProductWhereAnd(
+      where.AND,
       ...[...optionGroups.entries()].map(([productOptionId, ids]) => ({
         optionValues: {
           some: {
@@ -805,9 +804,105 @@ export class StorefrontService {
           },
         },
       })),
-    ];
+    );
 
     return where;
+  }
+
+  private async buildProductSearchFilter(
+    storeId: number,
+    rawSearch?: string,
+  ): Promise<Prisma.ProductWhereInput | null> {
+    const search = rawSearch?.trim().slice(0, 80);
+
+    if (!search) {
+      return null;
+    }
+
+    const exactCategory = await this.prisma.category.findFirst({
+      where: {
+        storeId,
+        deletedAt: null,
+        OR: [
+          {
+            slug: {
+              equals: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            name: {
+              equals: search,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (exactCategory) {
+      return {
+        categories: {
+          some: {
+            categoryId: exactCategory.id,
+          },
+        },
+      };
+    }
+
+    const contains = {
+      contains: search,
+      mode: 'insensitive',
+    } satisfies Prisma.StringFilter;
+
+    return {
+      OR: [
+        { title: contains },
+        { slug: contains },
+        { description: contains },
+        {
+          categories: {
+            some: {
+              category: {
+                storeId,
+                deletedAt: null,
+                OR: [{ name: contains }, { slug: contains }],
+              },
+            },
+          },
+        },
+        {
+          optionValues: {
+            some: {
+              value: contains,
+              productOption: {
+                storeId,
+              },
+            },
+          },
+        },
+        {
+          variants: {
+            some: {
+              deletedAt: null,
+              OR: [{ sku: contains }, { Color: contains }, { Size: contains }],
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private appendProductWhereAnd(
+    current: Prisma.ProductWhereInput['AND'],
+    ...filters: Prisma.ProductWhereInput[]
+  ) {
+    const existingAnd = Array.isArray(current) ? current : current ? [current] : [];
+
+    return [...existingAnd, ...filters];
   }
 
   private parseOptionValueIds(optionValueIds?: string) {

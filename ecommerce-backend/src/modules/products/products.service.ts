@@ -29,12 +29,9 @@ export class ProductsService {
     });
   }
 
-  findAll(storeId: number) {
+  findAll(storeId: number, search?: string) {
     return this.prisma.product.findMany({
-      where: {
-        storeId,
-        deletedAt: null,
-      },
+      where: this.buildFindAllWhere(storeId, search),
       include: {
         variants: {
           where: {
@@ -57,6 +54,64 @@ export class ProductsService {
         },
       },
     });
+  }
+
+  private buildFindAllWhere(storeId: number, rawSearch?: string): Prisma.ProductWhereInput {
+    const where: Prisma.ProductWhereInput = {
+      storeId,
+      deletedAt: null,
+    };
+    const search = rawSearch?.trim().slice(0, 80);
+
+    if (!search) {
+      return where;
+    }
+
+    const contains = {
+      contains: search,
+      mode: 'insensitive',
+    } satisfies Prisma.StringFilter;
+
+    where.AND = [
+      {
+        OR: [
+          { title: contains },
+          { slug: contains },
+          { description: contains },
+          {
+            categories: {
+              some: {
+                category: {
+                  storeId,
+                  deletedAt: null,
+                  OR: [{ name: contains }, { slug: contains }],
+                },
+              },
+            },
+          },
+          {
+            optionValues: {
+              some: {
+                value: contains,
+                productOption: {
+                  storeId,
+                },
+              },
+            },
+          },
+          {
+            variants: {
+              some: {
+                deletedAt: null,
+                OR: [{ sku: contains }, { Color: contains }, { Size: contains }],
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    return where;
   }
 
   async update(productId: number, data: UpdateProductDto, storeId: number) {

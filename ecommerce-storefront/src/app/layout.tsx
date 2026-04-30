@@ -3,6 +3,7 @@ import "@/shared/styles/base.css";
 import { AuthProvider } from "@/context/auth-context";
 import { CartProvider } from "@/context/cart-context";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
+import Script from "next/script";
 
 const displayFont = Cormorant_Garamond({
   subsets: ["latin", "latin-ext"],
@@ -27,6 +28,29 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+      {process.env.NODE_ENV === "development" ? (
+        <Script
+          id="suppress-next-fast-refresh-logs"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (() => {
+                const originalLog = console.log.bind(console);
+                console.log = (...args) => {
+                  const firstArg = args[0];
+                  if (
+                    typeof firstArg === "string" &&
+                    firstArg.startsWith("[Fast Refresh]")
+                  ) {
+                    return;
+                  }
+                  originalLog(...args);
+                };
+              })();
+            `,
+          }}
+        />
+      ) : null}
       <body className={`${displayFont.variable} ${bodyFont.variable}`}>
         <AuthProvider>
           <CartProvider>{children}</CartProvider>

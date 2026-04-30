@@ -649,6 +649,15 @@ button:disabled {
     --product-card-copy-min-height: 156px;
   }
 
+  .theme-hover-lift.theme-product-card,
+  .theme-hover-lift.theme-product-card:hover,
+  .theme-product-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: var(--border-soft) !important;
+    filter: none !important;
+  }
+
   .layout-product-grid,
   .layout-auto-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;

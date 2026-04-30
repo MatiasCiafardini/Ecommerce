@@ -198,6 +198,12 @@ export default function ProductView({
     [dynamicOptions],
   );
   const primaryCategoryName = product.categories?.[0]?.category?.name ?? null;
+  const descriptionText =
+    product.description ||
+    (isMiMaria
+      ? "Una prenda femenina pensada para acompanarte todos los dias con una estetica limpia, delicada y actual."
+      : "Pieza urbana pensada para rotacion diaria, capas faciles y una presencia limpia en cualquier look.");
+  const canCollapseDescription = descriptionText.length > 220;
 
   const [selectedSize, setSelectedSize] = useState<string | null>(
     inStockVariants.find((variant) => variant.Size)?.Size ??
@@ -212,6 +218,7 @@ export default function ProductView({
   const [selectedOptionValues, setSelectedOptionValues] = useState<
     Record<number, string>
   >(() => getDefaultOptionValues(dynamicOptions));
+  const [showFullDescription, setShowFullDescription] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [addStatus, setAddStatus] = useState<"idle" | "loading" | "added">(
     "idle",
@@ -438,6 +445,7 @@ export default function ProductView({
       }}
     >
       <div
+        className="product-view-shell"
         style={{
           maxWidth: "var(--theme-layout-max-width, 1280px)",
           margin: "0 auto",
@@ -455,6 +463,7 @@ export default function ProductView({
           }}
         >
           <div
+            className="product-gallery-panel"
             style={{
               border: "1px solid var(--border-soft)",
               borderRadius: 36,
@@ -636,17 +645,30 @@ export default function ProductView({
                 Informacion del producto
               </p>
               <p
+                className={
+                  canCollapseDescription && !showFullDescription
+                    ? "product-description-text is-collapsed"
+                    : "product-description-text"
+                }
                 style={{
                   margin: 0,
                   color: "var(--text-muted)",
                   lineHeight: 1.8,
                 }}
               >
-                {product.description ||
-                  (isMiMaria
-                    ? "Una prenda femenina pensada para acompanarte todos los dias con una estetica limpia, delicada y actual."
-                    : "Pieza urbana pensada para rotacion diaria, capas faciles y una presencia limpia en cualquier look.")}
+                {descriptionText}
               </p>
+              {canCollapseDescription ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowFullDescription((current) => !current)
+                  }
+                  style={descriptionToggleStyle}
+                >
+                  {showFullDescription ? "Ver menos" : "Ver mas..."}
+                </button>
+              ) : null}
             </div>
 
             {productDetails.length > 0 ? (
@@ -1299,6 +1321,11 @@ export default function ProductView({
           flex-direction: row;
         }
 
+        .product-gallery-panel {
+          grid-column: 1;
+          grid-row: 1;
+        }
+
         .product-buy-panel {
           grid-column: 2;
           grid-row: 1;
@@ -1368,11 +1395,46 @@ export default function ProductView({
           box-shadow: none !important;
         }
 
+        .product-description-text.is-collapsed {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 5;
+          overflow: hidden;
+        }
+
         @media (max-width: 768px) {
+          .product-view-shell {
+            padding: 34px 10px 52px !important;
+            gap: 18px !important;
+          }
+
+          .product-gallery-panel {
+            order: 1;
+            grid-column: auto;
+            grid-row: auto;
+            padding: 8px !important;
+            border-radius: 28px !important;
+          }
+
+          .product-gallery-panel .gallery-frame {
+            aspect-ratio: 4 / 5 !important;
+            border-radius: 24px !important;
+          }
+
+          .product-buy-panel {
+            order: 2;
+          }
+
+          .product-info-panel {
+            order: 3;
+          }
+
           .product-buy-panel,
           .product-info-panel {
             grid-column: auto;
             grid-row: auto;
+            padding: 22px !important;
+            border-radius: 28px !important;
           }
 
           .cart-prompt-panel {
@@ -1440,6 +1502,20 @@ const urgencyChipStyle: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: "0.06em",
   textTransform: "uppercase",
+};
+
+const descriptionToggleStyle: React.CSSProperties = {
+  width: "fit-content",
+  marginTop: 12,
+  padding: 0,
+  border: "none",
+  background: "transparent",
+  color: "var(--text-strong)",
+  cursor: "pointer",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  fontSize: 12,
 };
 
 function EditIcon() {

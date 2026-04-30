@@ -5,6 +5,7 @@ type Params = {
   category?: string;
   limit?: number;
   productIds?: number[];
+  search?: string;
 };
 
 function reportProductsFallback(args: {
@@ -28,6 +29,12 @@ export async function getProducts(params?: Params): Promise<StoreProduct[]> {
 
   if (Array.isArray(params?.productIds) && params.productIds.length > 0) {
     query.set("productIds", params.productIds.join(","));
+  }
+
+  const search = params?.search?.trim();
+
+  if (search) {
+    query.set("search", search);
   }
 
   const hasCuratedProducts =

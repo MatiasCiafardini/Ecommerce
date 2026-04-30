@@ -12,6 +12,7 @@ type ProductsPageProps = {
   searchParams?: Promise<{
     category?: string;
     categories?: string;
+    search?: string;
   }>;
 };
 
@@ -26,8 +27,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   )
     .map((category) => category.trim().toLowerCase())
     .filter(Boolean);
+  const search = resolvedSearchParams?.search?.trim() ?? "";
   const [products, storeOptions, config, bankTransferDiscountPercentage] = await Promise.all([
-    getProducts(),
+    getProducts({ search }),
     getStoreProductOptions(),
     getTenantConfig(),
     getBankTransferDiscountPercentage(),
