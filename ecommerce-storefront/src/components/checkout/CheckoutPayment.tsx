@@ -48,14 +48,17 @@ const paymentOptions: PaymentOption[] = [
 ];
 
 const getShippingBadge = (option: ShippingOption) => {
-  const provider = option.provider?.trim().toLowerCase() ?? "";
   const method = option.method?.trim().toLowerCase() ?? "";
+  const serviceCode = option.serviceCode?.trim().toLowerCase() ?? "";
+  const modalityCode = option.modalityCode?.trim().toLowerCase() ?? "";
+  const dispatchType = option.dispatchType?.trim().toLowerCase() ?? "";
 
   if (
-    provider === "manual" ||
-    provider === "store" ||
     method.includes("retiro") ||
-    method.includes("pickup")
+    method.includes("pickup") ||
+    serviceCode === "pickup" ||
+    modalityCode === "pickup" ||
+    dispatchType === "pickup"
   ) {
     return "Retiro en local";
   }
@@ -64,13 +67,17 @@ const getShippingBadge = (option: ShippingOption) => {
 };
 
 const isPickupShipping = (option: ShippingOption | null) => {
-  const provider = option?.provider?.trim().toLowerCase() ?? "";
   const method = option?.method?.trim().toLowerCase() ?? "";
+  const serviceCode = option?.serviceCode?.trim().toLowerCase() ?? "";
+  const modalityCode = option?.modalityCode?.trim().toLowerCase() ?? "";
+  const dispatchType = option?.dispatchType?.trim().toLowerCase() ?? "";
 
   return (
-    provider === "store" ||
     method.includes("retiro") ||
-    method.includes("pickup")
+    method.includes("pickup") ||
+    serviceCode === "pickup" ||
+    modalityCode === "pickup" ||
+    dispatchType === "pickup"
   );
 };
 

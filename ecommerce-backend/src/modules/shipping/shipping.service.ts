@@ -14,6 +14,7 @@ import {
   ShippingRate,
 } from './providers/shipping-provider.interface';
 import { ShippingPackageCalculatorService } from './services/shipping-package-calculator.service';
+import { StoreShippingMethodsService } from './services/store-shipping-methods.service';
 
 @Injectable()
 export class ShippingService {
@@ -25,6 +26,7 @@ export class ShippingService {
     private quotesService: ShippingQuotesService,
     private providerConfigService: StoreShippingProviderConfigService,
     private packageCalculator: ShippingPackageCalculatorService,
+    private storeShippingMethodsService: StoreShippingMethodsService,
   ) {}
 
   async getOptions(
@@ -73,11 +75,14 @@ export class ShippingService {
     for (const item of cart.items) {
       value += Number(item.variant.price) * item.quantity;
     }
-    const resolvedProvider =
-      await this.providerConfigService.resolveProviderForCapability(
-        storeId,
-        'quote',
-      );
+    const storeControlsCheckoutMethods =
+      await this.storeShippingMethodsService.hasAnyConfigured(storeId);
+    const resolvedProvider = storeControlsCheckoutMethods
+      ? null
+      : await this.providerConfigService.resolveProviderForCapability(
+          storeId,
+          'quote',
+        );
     const fallbackWeightKg = cart.items.reduce((sum, item) => {
       const variantWeightGrams = Number(item.variant.weightGrams ?? 0);
       const productWeightGrams = Number(item.variant.product?.weightGrams ?? 0);
@@ -93,7 +98,7 @@ export class ShippingService {
       return sum + resolvedWeightKg * item.quantity;
     }, 0);
     const packageCalculation =
-      resolvedProvider.provider.providerCode === 'manual'
+      !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
         ? null
         : this.packageCalculator.calculateFromItems(
             cart.items,
@@ -116,7 +121,7 @@ export class ShippingService {
       ...(destination ?? {}),
     };
     this.logger.log(
-      `Checkout shipping quote provider=${resolvedProvider.provider.providerCode} capability=quote postalCode=${postalCode} weight=${request.weight} package=${JSON.stringify(
+      `Checkout shipping quote provider=${resolvedProvider?.provider.providerCode ?? 'manual-store-methods'} capability=quote postalCode=${postalCode} weight=${request.weight} package=${JSON.stringify(
         request.package ?? null,
       )}`,
     );
@@ -136,7 +141,7 @@ export class ShippingService {
     }));
 
     let rates =
-      resolvedProvider.provider.providerCode === 'manual'
+      !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
         ? pickupRates
         : await resolvedProvider.provider.getRates(
             request,
@@ -145,7 +150,7 @@ export class ShippingService {
 
     rates = rates
       .map((rate) =>
-        resolvedProvider.provider.providerCode === 'manual'
+        !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
           ? rate
           : {
               ...rate,
@@ -161,7 +166,7 @@ export class ShippingService {
       .filter((rate) => this.isSupportedCheckoutRate(rate));
 
     const mergedRates =
-      resolvedProvider.provider.providerCode === 'manual'
+      !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
         ? this.uniqueRates(rates)
         : this.uniqueRates([
             ...rates,
@@ -182,7 +187,7 @@ export class ShippingService {
       weight: packageCalculation?.weightKg ?? fallbackWeightKg,
       value,
       ...(destination ?? {}),
-      providerConfigId: resolvedProvider.config?.id ?? null,
+      providerConfigId: resolvedProvider?.config?.id ?? null,
       rates: mergedRates,
     });
   }

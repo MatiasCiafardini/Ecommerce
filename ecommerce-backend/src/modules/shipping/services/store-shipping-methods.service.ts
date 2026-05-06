@@ -71,6 +71,16 @@ export class StoreShippingMethodsService {
     return rows.map((row) => this.mapRow(row));
   }
 
+  async hasAnyConfigured(storeId: number) {
+    const rows = await this.prisma.$queryRaw<Array<{ count: bigint | number | string }>>`
+      SELECT COUNT(*)::int AS count
+      FROM "StoreShippingMethod"
+      WHERE "storeId" = ${storeId}
+    `;
+
+    return Number(rows[0]?.count ?? 0) > 0;
+  }
+
   async findOne(storeId: number, id: string) {
     const rows = await this.prisma.$queryRaw<RawStoreShippingMethodRow[]>`
       SELECT *

@@ -51,6 +51,7 @@ export type AdminStoreShippingMethod = {
   description?: string | null;
   active: boolean;
   displayOrder: number;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

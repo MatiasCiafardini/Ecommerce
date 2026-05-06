@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { api } from "@/lib/api";
 import AdminShippingMethodsCard from "./AdminShippingMethodsCard";
 import type { AdminStoreShippingMethod } from "./admin-types";
@@ -8,7 +8,35 @@ import type { AdminStoreShippingMethod } from "./admin-types";
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
+const trojaniDefaultShippingMethods = [
+  {
+    name: "Correo Argentino Clasico - Domicilio",
+    type: "free",
+    price: 0,
+    description: "Envio gratis",
+    active: true,
+    displayOrder: 0,
+  },
+  {
+    name: "Correo Argentino Expreso - Domicilio",
+    type: "free",
+    price: 0,
+    description: "Envio gratis",
+    active: true,
+    displayOrder: 1,
+  },
+  {
+    name: "Retiro en local",
+    type: "pickup",
+    price: 0,
+    description: "Envio gratis",
+    active: true,
+    displayOrder: 2,
+  },
+] as const;
+
 export default function AdminShipmentsSection() {
+  const seedAttemptedRef = useRef(false);
   const [shippingMethods, setShippingMethods] = useState<AdminStoreShippingMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -17,10 +45,30 @@ export default function AdminShipmentsSection() {
   const loadShippingMethods = async () => {
     try {
       setLoading(true);
-      const methodsData = await api("/admin/shipping/methods");
-      setShippingMethods(
-        Array.isArray(methodsData) ? (methodsData as AdminStoreShippingMethod[]) : [],
-      );
+      const methodsData = await api("/admin/shipping/methods?includeArchived=true");
+      const allMethods = Array.isArray(methodsData)
+        ? (methodsData as AdminStoreShippingMethod[])
+        : [];
+
+      if (
+        allMethods.length === 0 &&
+        !seedAttemptedRef.current &&
+        isTrojaniTheme()
+      ) {
+        seedAttemptedRef.current = true;
+        await seedTrojaniShippingMethods();
+        const seededMethodsData = await api("/admin/shipping/methods");
+        setShippingMethods(
+          Array.isArray(seededMethodsData)
+            ? (seededMethodsData as AdminStoreShippingMethod[])
+            : [],
+        );
+        setSuccess("Cargamos los metodos actuales de Trojani para que puedas editarlos.");
+        setError("");
+        return;
+      }
+
+      setShippingMethods(allMethods.filter((method) => !method.deletedAt));
       setError("");
     } catch (loadError) {
       setError(getErrorMessage(loadError, "No se pudieron cargar los metodos de envio."));
@@ -61,6 +109,21 @@ export default function AdminShipmentsSection() {
       )}
     </section>
   );
+}
+
+async function seedTrojaniShippingMethods() {
+  for (const method of trojaniDefaultShippingMethods) {
+    await api("/admin/shipping/methods", {
+      method: "POST",
+      body: JSON.stringify(method),
+    });
+  }
+}
+
+function isTrojaniTheme() {
+  if (typeof document === "undefined") return false;
+  const className = `${document.documentElement.className} ${document.body.className}`;
+  return className.includes("theme-trojani");
 }
 
 function Header({ title, copy }: { title: string; copy?: string }) {
