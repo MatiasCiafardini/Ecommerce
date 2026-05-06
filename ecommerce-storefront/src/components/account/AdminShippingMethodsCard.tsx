@@ -134,9 +134,9 @@ export default function AdminShippingMethodsCard({
         resetForm();
       }
       await onUpdated();
-      onSuccess("Metodo archivado.");
+      onSuccess("Metodo eliminado.");
     } catch (error) {
-      onError(getErrorMessage(error, "No se pudo archivar el metodo."));
+      onError(getErrorMessage(error, "No se pudo eliminar el metodo."));
     } finally {
       setArchivingId(null);
     }
@@ -283,14 +283,14 @@ export default function AdminShippingMethodsCard({
                   disabled={archivingId === method.id}
                   style={dangerButtonStyle}
                 >
-                  Archivar
+                  Eliminar
                 </button>
               </div>
             </article>
           ))
         ) : (
           <div style={stateStyle}>
-            Todavia no configuraste metodos manuales. Si no cargas ninguno, checkout sigue mostrando el fallback basico.
+            Todavia no configuraste metodos de envio para checkout.
           </div>
         )}
       </div>
