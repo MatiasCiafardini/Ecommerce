@@ -34,6 +34,8 @@ type DetailTab = {
   hint: string;
 };
 
+const ADMIN_ORDERS_UPDATED_EVENT = "admin-orders:updated";
+
 export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated }: Props) {
   const [order, setOrder] = useState<CustomerOrder | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,6 +78,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       const merged = { ...order, ...updated };
       setOrder(merged);
       onOrderUpdated?.(merged);
+      window.dispatchEvent(new CustomEvent(ADMIN_ORDERS_UPDATED_EVENT));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo actualizar el estado.");
     } finally {
@@ -95,6 +98,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       const refreshed = await api(`/orders/${order.id}`);
       setOrder(refreshed);
       onOrderUpdated?.(refreshed);
+      window.dispatchEvent(new CustomEvent(ADMIN_ORDERS_UPDATED_EVENT));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo revisar el pago.");
     }
@@ -189,9 +193,19 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       : "Entrega a confirmar";
   const trackingSummary = order.shipment?.trackingNumber ?? "Se cargara al despachar";
   const shipmentProvisionPending = hasShippingContext && !pickupOrder && !order.shipment;
+  const shipmentProviderCode = (
+    order.shipment?.provider ||
+    order.shippingProvider ||
+    ""
+  ).trim().toLowerCase();
+  const supportsAutomaticShipmentLabel = isIntegratedShipmentProvider(shipmentProviderCode);
   const canOpenRealShipmentLabel = Boolean(
-    order.shipment?.labelUrl || order.shipment?.trackingNumber,
+    order.shipment?.id &&
+      supportsAutomaticShipmentLabel &&
+      order.shipment.trackingNumber &&
+      (order.shipment.labelUrl || order.shipment.labelFormat),
   );
+  const packageSummary = buildLogisticsPackageSummary(order);
 
   const detailTabs: DetailTab[] = [
     { id: "customer", label: "Cliente", hint: "Contacto y datos comerciales" },
@@ -523,6 +537,8 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                   }
                 />
                 <InfoCell label="Tracking URL" value={order.shipment?.trackingUrl ?? "Sin link cargado"} />
+                <InfoCell label="Peso total" value={packageSummary.weight} />
+                <InfoCell label="Tamano apilado" value={packageSummary.size} />
               </div>
               {!hasOrderShippingSnapshot(order) ? (
                 <div style={warningCardStyle}>
@@ -536,7 +552,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                     : `Todavia no se genero el shipment logistico para este pedido. El tracking y la etiqueta se cargan cuando el pedido entra en la etapa de despacho. Estado actual: ${orderStatusLabel(order.status)}.`}
                 </div>
               ) : null}
-              {order.shipment && !canOpenRealShipmentLabel ? (
+              {order.shipment && supportsAutomaticShipmentLabel && !canOpenRealShipmentLabel ? (
                 <div style={warningCardStyle}>
                   {order.shippingProvider?.trim().toLowerCase() === "correo-argentino"
                     ? "El shipment ya existe, pero Correo Argentino todavia no devolvio un tracking o un rotulo real. Sin ese dato no se puede abrir una etiqueta oficial."
@@ -544,12 +560,11 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                 </div>
               ) : null}
               <div style={rowWrapStyle}>
-                {order.shipment ? (
+                {canOpenRealShipmentLabel ? (
                   <button
                     type="button"
                     onClick={() => void downloadShipmentLabel()}
                     style={primaryButtonStyle}
-                    disabled={!canOpenRealShipmentLabel}
                   >
                     Descargar etiqueta PDF
                   </button>
@@ -710,6 +725,74 @@ function InfoCell({ label, value }: { label: string; value: string }) {
 
 function StateCard({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
+}
+
+function isIntegratedShipmentProvider(provider: string) {
+  return provider === "correo-argentino" || provider === "enviopack";
+}
+
+function buildLogisticsPackageSummary(order: CustomerOrder) {
+  let totalWeightGrams = 0;
+  let stackedHeightCm = 0;
+  let maxWidthCm = 0;
+  let maxLengthCm = 0;
+
+  for (const item of order.items) {
+    const quantity = Math.max(Number(item.quantity) || 0, 0);
+    const variant = item.variant;
+    const product = variant.product;
+    const weightGrams =
+      positiveNumber(variant.weightGrams) ??
+      kilogramsToGrams(positiveNumber(variant.weight)) ??
+      positiveNumber(product.weightGrams) ??
+      kilogramsToGrams(positiveNumber(product.weight));
+    const heightCm =
+      positiveNumber(variant.packageHeightCm) ??
+      positiveNumber(variant.height) ??
+      positiveNumber(product.packageHeightCm) ??
+      positiveNumber(product.height);
+    const widthCm =
+      positiveNumber(variant.packageWidthCm) ??
+      positiveNumber(variant.width) ??
+      positiveNumber(product.packageWidthCm) ??
+      positiveNumber(product.width);
+    const lengthCm =
+      positiveNumber(variant.packageLengthCm) ??
+      positiveNumber(variant.length) ??
+      positiveNumber(product.packageLengthCm) ??
+      positiveNumber(product.length);
+
+    if (weightGrams !== null) totalWeightGrams += weightGrams * quantity;
+    if (heightCm !== null) stackedHeightCm += heightCm * quantity;
+    if (widthCm !== null) maxWidthCm = Math.max(maxWidthCm, widthCm);
+    if (lengthCm !== null) maxLengthCm = Math.max(maxLengthCm, lengthCm);
+  }
+
+  return {
+    weight: totalWeightGrams > 0 ? formatWeight(totalWeightGrams) : "Sin peso cargado",
+    size:
+      stackedHeightCm > 0 && maxWidthCm > 0 && maxLengthCm > 0
+        ? `${formatCm(stackedHeightCm)} alto - ${formatCm(maxWidthCm)} ancho - ${formatCm(maxLengthCm)} largo`
+        : "Sin dimensiones cargadas",
+  };
+}
+
+function positiveNumber(value: unknown) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+function kilogramsToGrams(value: number | null) {
+  return value !== null ? value * 1000 : null;
+}
+
+function formatWeight(grams: number) {
+  const formatter = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
+  return grams >= 1000 ? `${formatter.format(grams / 1000)} kg` : `${formatter.format(grams)} g`;
+}
+
+function formatCm(value: number) {
+  return `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)} cm`;
 }
 
 function buildMercadoPagoRows(payment: NonNullable<CustomerOrder["payments"]>[number]) {

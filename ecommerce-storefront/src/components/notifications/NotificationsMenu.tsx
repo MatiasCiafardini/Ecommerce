@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 
@@ -12,6 +12,12 @@ type NotificationItem = {
   createdAt: string;
   href: string;
 };
+
+type NotificationsResponse = {
+  items?: NotificationItem[];
+};
+
+const NOTIFICATIONS_POLL_INTERVAL_MS = 30_000;
 
 const readStorageKey = (userId: number, role?: string) =>
   `notifications:last-seen:${role ?? "customer"}:${userId}`;
@@ -31,6 +37,26 @@ export function NotificationsMenuInner({
 
   const isAdmin = Boolean(user?.role && user.role !== "CUSTOMER");
   const useMobileSheet = mobileSheet || forceMobileSheet;
+
+  const loadNotifications = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = (await api(
+        isAdmin ? "/orders/notifications" : "/customers/me/orders/notifications",
+      )) as NotificationsResponse | null;
+
+      setItems(Array.isArray(response?.items) ? response.items : []);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, user]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -63,46 +89,50 @@ export function NotificationsMenuInner({
   }, [user]);
 
   useEffect(() => {
-    if (!user || !open) {
+    if (!user) {
       return;
     }
 
     let active = true;
-    const storageKey = readStorageKey(user.id, user.role);
 
-    const loadNotifications = async () => {
-      try {
-        setLoading(true);
-
-        const response = await api(
-          isAdmin ? "/orders/notifications" : "/customers/me/orders/notifications",
-        );
-
-        if (!active) {
-          return;
-        }
-
-        setItems(Array.isArray(response?.items) ? (response.items as NotificationItem[]) : []);
-        const now = new Date().toISOString();
-        localStorage.setItem(storageKey, now);
-        setLastSeenAt(now);
-      } catch {
-        if (active) {
-          setItems([]);
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
+    const refresh = () => {
+      if (active) {
+        void loadNotifications();
       }
     };
 
-    void loadNotifications();
+    refresh();
+    const intervalId = window.setInterval(refresh, NOTIFICATIONS_POLL_INTERVAL_MS);
+    const handleFocus = () => refresh();
+    window.addEventListener("focus", handleFocus);
 
     return () => {
       active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
     };
-  }, [isAdmin, open, user]);
+  }, [loadNotifications, user]);
+
+  useEffect(() => {
+    if (!user || !open) {
+      return;
+    }
+
+    const storageKey = readStorageKey(user.id, user.role);
+    const latestCreatedAt = items.reduce<string | null>((latest, item) => {
+      if (!latest) {
+        return item.createdAt;
+      }
+
+      return new Date(item.createdAt).getTime() > new Date(latest).getTime()
+        ? item.createdAt
+        : latest;
+    }, null);
+    const seenAt = latestCreatedAt ?? new Date().toISOString();
+
+    localStorage.setItem(storageKey, seenAt);
+    setLastSeenAt(seenAt);
+  }, [items, open, user]);
 
   useEffect(() => {
     if (!open) return;
@@ -158,6 +188,8 @@ export function NotificationsMenuInner({
     const seenTimestamp = new Date(lastSeenAt).getTime();
     return items.filter((item) => new Date(item.createdAt).getTime() > seenTimestamp).length;
   }, [items, lastSeenAt]);
+  const hasUnread = unreadCount > 0;
+  const badgeLabel = unreadCount > 99 ? "99+" : String(unreadCount);
   const isEmptyState = !loading && items.length === 0;
 
   if (!user) {
@@ -169,14 +201,14 @@ export function NotificationsMenuInner({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        style={triggerStyle(open)}
+        style={triggerStyle(open, hasUnread)}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`Notificaciones${unreadCount > 0 ? `, ${unreadCount} nuevas` : ""}`}
         title="Notificaciones"
       >
         <BellIcon />
-        {unreadCount > 0 ? <span style={badgeStyle}>{unreadCount}</span> : null}
+        {hasUnread ? <span style={badgeStyle}>{badgeLabel}</span> : null}
       </button>
 
       {open ? (
@@ -242,9 +274,9 @@ export function NotificationsMenuInner({
                     >
                       <div style={{ display: "grid", gap: 6 }}>
                         <strong style={{ color: "var(--notification-text-strong, #fff)" }}>
-                          {item.title}
+                          {translateNotificationText(item.title)}
                         </strong>
-                        <span style={metaCopyStyle}>{item.body}</span>
+                        <span style={metaCopyStyle}>{translateNotificationText(item.body)}</span>
                       </div>
                       <span style={metaStyle}>{formatNotificationDate(item.createdAt)}</span>
                     </Link>
@@ -290,9 +322,9 @@ export function NotificationsMenuInner({
                   >
                     <div style={{ display: "grid", gap: 6 }}>
                       <strong style={{ color: "var(--notification-text-strong, #fff)" }}>
-                        {item.title}
+                        {translateNotificationText(item.title)}
                       </strong>
-                      <span style={metaCopyStyle}>{item.body}</span>
+                      <span style={metaCopyStyle}>{translateNotificationText(item.body)}</span>
                     </div>
                     <span style={metaStyle}>{formatNotificationDate(item.createdAt)}</span>
                   </Link>
@@ -362,11 +394,37 @@ function formatNotificationDate(value: string) {
   });
 }
 
+function translateNotificationText(value: string) {
+  const labels: Record<string, string> = {
+    pending: "pendiente",
+    paid: "pagado",
+    processing: "en preparacion",
+    packed: "empacado",
+    shipped: "enviado",
+    delivered: "entregado",
+    cancelled: "cancelado",
+    refunded: "reintegrado",
+    requested: "solicitado",
+    approved: "aprobado",
+    rejected: "rechazado",
+    received: "recibido",
+    resolved: "resuelto",
+    in_transit: "en transito",
+    out_for_delivery: "en reparto",
+  };
+
+  return Object.entries(labels).reduce(
+    (text, [source, label]) =>
+      text.replace(new RegExp(`\\b${source}\\b`, "gi"), label),
+    value,
+  );
+}
+
 const shellStyle: React.CSSProperties = {
   position: "relative",
 };
 
-const triggerStyle = (open: boolean): React.CSSProperties => ({
+const triggerStyle = (open: boolean, hasUnread: boolean): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -377,30 +435,41 @@ const triggerStyle = (open: boolean): React.CSSProperties => ({
   borderRadius: 999,
   border: open
     ? "1px solid var(--header-action-border-active, rgba(247,241,232,0.22))"
-    : "1px solid var(--header-action-border, rgba(255,255,255,0.12))",
+    : hasUnread
+      ? "1px solid var(--notification-trigger-unread-border, rgba(255, 193, 7, 0.72))"
+      : "1px solid var(--header-action-border, rgba(255,255,255,0.12))",
   background: open
     ? "var(--header-action-bg-active, rgba(255,255,255,0.08))"
-    : "var(--header-action-bg, rgba(255,255,255,0.04))",
-  color: "var(--header-action-color, #fff)",
+    : hasUnread
+      ? "var(--notification-trigger-unread-bg, #f7f1e8)"
+      : "var(--header-action-bg, rgba(255,255,255,0.04))",
+  color: hasUnread
+    ? "var(--notification-trigger-unread-color, #111)"
+    : "var(--header-action-color, #fff)",
   cursor: "pointer",
   position: "relative",
+  boxShadow: hasUnread
+    ? "var(--notification-trigger-unread-shadow, 0 0 0 3px rgba(247, 241, 232, 0.18))"
+    : "none",
 });
 
 const badgeStyle: React.CSSProperties = {
-  minWidth: 20,
-  height: 20,
+  minWidth: 19,
+  height: 19,
   padding: "0 5px",
   borderRadius: 999,
-  background: "var(--header-action-badge-bg, #f7f1e8)",
-  color: "var(--header-action-badge-color, #111)",
-  fontSize: 11,
-  fontWeight: 700,
+  background: "var(--notification-badge-bg, #ff3b30)",
+  color: "var(--notification-badge-color, #fff)",
+  fontSize: 10,
+  fontWeight: 800,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
   position: "absolute",
-  top: -5,
-  right: -5,
+  top: -4,
+  right: -4,
+  lineHeight: 1,
+  boxShadow: "0 0 0 2px var(--notification-badge-ring, #000)",
 };
 
 const dropdownStyle: React.CSSProperties = {

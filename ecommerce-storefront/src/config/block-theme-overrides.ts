@@ -1,5 +1,6 @@
 import type { ThemeBlockDefinition } from "@/types/block";
 import MilashoesHero from "@/themes/milashoes/MilashoesHero";
+import MilaShoesInstitutional from "@/themes/milashoes/MilaShoesInstitutional";
 
 export const blockThemeOverrides: Record<
   string,
@@ -50,6 +51,9 @@ export const blockThemeOverrides: Record<
   milashoes: {
     hero: {
       component: MilashoesHero,
+    },
+    milashoes_institutional: {
+      component: MilaShoesInstitutional,
     },
     product_grid: {
       defaultProps: {

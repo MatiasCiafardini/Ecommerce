@@ -80,7 +80,11 @@ export default function AdminOrderShipmentPanel({
   const hasCarrier = Boolean(form.carrier.trim());
   const hasTracking = Boolean(form.trackingNumber.trim());
   const dispatchReady = !trackingRequired || (hasCarrier && hasTracking);
-  const providerCode = order.shippingProvider?.trim().toLowerCase() ?? "";
+  const providerCode = (
+    order.shipment?.provider ||
+    order.shippingProvider ||
+    ""
+  ).trim().toLowerCase();
   const automaticCarrier =
     providerCode === "correo-argentino" || providerCode === "enviopack";
 
@@ -166,16 +170,6 @@ export default function AdminOrderShipmentPanel({
     }
   };
 
-  const downloadLabel = async () => {
-    try {
-      onError("");
-      const blob = await apiBlob(`/admin/shipments/${order.shipment!.id}/label.pdf`);
-      openBlobFile(blob);
-    } catch (error) {
-      onError(getErrorMessage(error, "No se pudo descargar la etiqueta."));
-    }
-  };
-
   const downloadReceipt = async () => {
     try {
       onError("");
@@ -254,24 +248,6 @@ export default function AdminOrderShipmentPanel({
         </div>
       </div>
 
-      <div style={readinessCardStyle(dispatchReady)}>
-        <strong style={{ color: "var(--account-text-strong)" }}>
-          {dispatchReady ? "Listo para despachar" : "Faltan datos para despachar"}
-        </strong>
-        <span style={metaTextStyle}>
-          Carrier: {hasCarrier ? "ok" : "pendiente"} · Tracking:{" "}
-          {trackingRequired ? (hasTracking ? "ok" : "pendiente") : "no requerido"}
-        </span>
-      </div>
-
-      <div style={hintCardStyle}>
-        {automaticCarrier
-          ? "Este envio usa integracion carrier. El tracking y la etiqueta deben llegar desde la API de Correo/transportista; no hace falta cargarlos manualmente."
-          : trackingRequired
-            ? "Si este pedido sale por correo o transporte, el tracking se vuelve obligatorio antes de marcarlo como despachado."
-            : "Este metodo no exige tracking obligatorio, pero podes dejar carrier, link y observaciones."}
-      </div>
-
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button type="button" onClick={() => void saveShipment()} disabled={saving} style={secondaryButtonStyle}>
           {saving ? "Guardando..." : "Guardar datos"}
@@ -281,9 +257,6 @@ export default function AdminOrderShipmentPanel({
             {refreshing ? "Sincronizando..." : "Refrescar carrier"}
           </button>
         ) : null}
-        <button type="button" onClick={() => void downloadLabel()} style={secondaryButtonStyle}>
-          Descargar etiqueta PDF
-        </button>
         <button type="button" onClick={() => void downloadReceipt()} style={secondaryButtonStyle}>
           Descargar comprobante PDF
         </button>
@@ -316,15 +289,6 @@ const primaryButtonStyle = (disabled: boolean): React.CSSProperties => ({
   fontWeight: 700,
 });
 const secondaryButtonStyle: React.CSSProperties = { padding: "12px 16px", background: "transparent", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border-strong)", borderRadius: 999, cursor: "pointer", width: "fit-content" };
-const hintCardStyle: React.CSSProperties = { borderRadius: 16, border: "1px solid var(--checkout-border)", background: "var(--page-panel-strong-bg)", padding: 14, color: "var(--account-text-muted)", lineHeight: 1.6 };
-const readinessCardStyle = (ready: boolean): React.CSSProperties => ({
-  borderRadius: 18,
-  border: `1px solid ${ready ? "rgba(184,245,194,0.22)" : "rgba(255,214,122,0.22)"}`,
-  background: ready ? "rgba(184,245,194,0.08)" : "rgba(255,214,122,0.08)",
-  padding: 14,
-  display: "grid",
-  gap: 6,
-});
 const chipButtonStyle = (active: boolean): React.CSSProperties => ({
   padding: "10px 12px",
   borderRadius: 999,
@@ -336,4 +300,3 @@ const chipButtonStyle = (active: boolean): React.CSSProperties => ({
 const eyebrowStyle: React.CSSProperties = { margin: 0, textTransform: "uppercase", letterSpacing: "0.18em", fontSize: 12, color: "var(--account-text-soft)" };
 const title3Style: React.CSSProperties = { margin: "8px 0 0", fontSize: 22, color: "var(--account-text-strong)" };
 const labelStyle: React.CSSProperties = { color: "var(--account-text-muted)", fontSize: 14 };
-const metaTextStyle: React.CSSProperties = { color: "var(--account-text-muted)", fontSize: 13 };

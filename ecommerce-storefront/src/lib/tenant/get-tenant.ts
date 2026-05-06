@@ -15,6 +15,8 @@ type RemoteStorefrontConfig = {
   };
 };
 
+const MILASHOES_FAQ_BLOCK_TYPE = "milashoes_institutional";
+
 function reportRemoteStorefrontFallback(args: {
   storeId: number;
   error: unknown;
@@ -27,6 +29,31 @@ function reportRemoteStorefrontFallback(args: {
     storeId: args.storeId,
     error: args.error instanceof Error ? args.error.message : String(args.error),
   });
+}
+
+function withRequiredThemeBlocks(args: {
+  storeId: number;
+  theme: string;
+  homeBlocks: Block[];
+}) {
+  const shouldAppendMilaShoesFaq =
+    args.storeId === 6 &&
+    args.theme.trim().toLowerCase() === "milashoes" &&
+    !args.homeBlocks.some((block) => block?.type === MILASHOES_FAQ_BLOCK_TYPE);
+
+  if (!shouldAppendMilaShoesFaq) {
+    return args.homeBlocks;
+  }
+
+  return [
+    ...args.homeBlocks,
+    {
+      type: MILASHOES_FAQ_BLOCK_TYPE,
+      props: {
+        animationPreset: "soft",
+      },
+    },
+  ];
 }
 
 function normalizeTenantConfig(args: {
@@ -44,13 +71,15 @@ function normalizeTenantConfig(args: {
   const remoteHome = Array.isArray(args.remoteConfig?.storefrontConfig?.pages?.home)
     ? args.remoteConfig.storefrontConfig.pages.home
     : null;
+  const theme = resolvedTheme || fallbackConfig.theme || "minimal";
+  const home =
+    remoteHome && remoteHome.length > 0
+      ? remoteHome
+      : fallbackConfig.pages.home;
 
   return {
     storeId: args.storeId,
-    theme:
-      resolvedTheme ||
-      fallbackConfig.theme ||
-      "minimal",
+    theme,
     themePalette:
       args.remoteConfig?.storefrontConfig?.themePalette ??
       fallbackConfig.themePalette,
@@ -59,10 +88,11 @@ function normalizeTenantConfig(args: {
       args.remoteConfig?.storefrontConfig?.themeLayout,
     ),
     pages: {
-      home:
-        remoteHome && remoteHome.length > 0
-          ? remoteHome
-          : fallbackConfig.pages.home,
+      home: withRequiredThemeBlocks({
+        storeId: args.storeId,
+        theme,
+        homeBlocks: home,
+      }),
     },
   };
 }

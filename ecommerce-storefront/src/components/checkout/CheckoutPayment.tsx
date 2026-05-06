@@ -95,9 +95,11 @@ const getShippingTimingCopy = (option: ShippingOption) => {
 
 export default function CheckoutPayment({
   shippingOptions,
+  freeShippingMode = false,
   onNext,
 }: {
   shippingOptions: ShippingOption[];
+  freeShippingMode?: boolean;
   onNext: (payload: {
     paymentMethod: string;
     paymentLabel: string;
@@ -210,6 +212,7 @@ export default function CheckoutPayment({
             const active =
               selectedShipping?.provider === option.provider &&
               selectedShipping?.method === option.method;
+            const displayPrice = freeShippingMode ? 0 : option.price;
 
             return (
               <button
@@ -262,10 +265,12 @@ export default function CheckoutPayment({
                         color: "var(--checkout-text-muted)",
                       }}
                     >
-                      {getShippingTimingCopy(option)}
+                      {freeShippingMode ? "Envio gratis" : getShippingTimingCopy(option)}
                     </p>
                   </div>
-                  <strong style={{ fontSize: 24 }}>{formatCurrency(option.price)}</strong>
+                  <strong style={{ fontSize: 24 }}>
+                    {freeShippingMode ? "Gratis" : formatCurrency(displayPrice)}
+                  </strong>
                 </div>
               </button>
             );

@@ -110,6 +110,12 @@ type DiscountPreview = {
   paymentMethodDiscountPercentage?: number;
 } | null;
 
+type StorePaymentConfig = {
+  bankTransfer?: {
+    alias?: string | null;
+  } | null;
+};
+
 const CHECKOUT_UPLOAD_TIMEOUT_MS = 60_000;
 const CHECKOUT_ORDER_LOAD_TIMEOUT_MS = 15_000;
 const MAX_TRANSFER_PROOF_UPLOAD_BYTES = 850 * 1024;
@@ -267,6 +273,7 @@ export default function CheckoutReview({
   paymentMethod,
   paymentLabel,
   shippingOption,
+  freeShippingMode = false,
 }: {
   cart: CheckoutCartItem[];
   cartId: number;
@@ -274,6 +281,7 @@ export default function CheckoutReview({
   paymentMethod: string | null;
   paymentLabel: string | null;
   shippingOption: ShippingOption | null;
+  freeShippingMode?: boolean;
 }) {
   const { clearCart } = useCart();
   const { user } = useAuth();
@@ -284,6 +292,7 @@ export default function CheckoutReview({
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [completedPaymentStatus, setCompletedPaymentStatus] = useState<string | null>(null);
   const [transferProofFile, setTransferProofFile] = useState<File | null>(null);
+  const [transferAlias, setTransferAlias] = useState("");
   const [transferReference, setTransferReference] = useState("");
   const [transferNotes, setTransferNotes] = useState("");
   const [rightColumnHeight, setRightColumnHeight] = useState<number | null>(null);
@@ -299,7 +308,7 @@ export default function CheckoutReview({
   const baseDiscountAmount = roundCurrency(discountPreview?.baseAmount ?? discountPreview?.amount ?? 0);
   const paymentMethodDiscountAmount = roundCurrency(discountPreview?.paymentMethodDiscountAmount ?? 0);
   const discountAmount = roundCurrency(baseDiscountAmount + paymentMethodDiscountAmount);
-  const baseShippingCost = roundCurrency(shippingOption?.price ?? 0);
+  const baseShippingCost = freeShippingMode ? 0 : roundCurrency(shippingOption?.price ?? 0);
   const shippingCost = roundCurrency(discountPreview?.freeShipping ? 0 : baseShippingCost);
   const total = roundCurrency(Math.max(subtotal - discountAmount + shippingCost, 0));
   const isBankTransfer = paymentMethod === "bank_transfer";
@@ -314,6 +323,20 @@ export default function CheckoutReview({
         : paymentMethod === "cash"
           ? "Efectivo al retirar"
         : "A confirmar");
+
+  useEffect(() => {
+    if (!isBankTransfer) {
+      return;
+    }
+
+    void api("/store/payment-config")
+      .then((config: StorePaymentConfig) => {
+        setTransferAlias(config?.bankTransfer?.alias?.trim() ?? "");
+      })
+      .catch(() => {
+        setTransferAlias("");
+      });
+  }, [isBankTransfer]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -435,21 +458,31 @@ export default function CheckoutReview({
   };
 
   const createOrderFromCheckout = async () => {
+    const checkoutShippingMethod = freeShippingMode
+      ? `${shippingOption?.method ?? "Envio"} - Envio gratis`
+      : shippingOption?.method;
+
     const order = await api(`/store/checkout/${cartId}`, {
       method: "POST",
       body: JSON.stringify({
-        shippingQuoteId: shippingOption?.quoteId,
-        shippingProvider: shippingOption?.provider,
-        shippingMethod: shippingOption?.method,
-        shippingCost: shippingOption?.price,
-        shippingSelection: {
-          carrierId: shippingOption?.carrierId,
-          carrierName: shippingOption?.carrierName,
-          serviceCode: shippingOption?.serviceCode,
-          modalityCode: shippingOption?.modalityCode,
-          dispatchType: shippingOption?.dispatchType,
-          branchId: shippingOption?.branchId ?? undefined,
-        },
+        shippingQuoteId: freeShippingMode ? undefined : shippingOption?.quoteId,
+        shippingProvider: freeShippingMode ? "manual" : shippingOption?.provider,
+        shippingMethod: checkoutShippingMethod,
+        shippingCost: freeShippingMode ? 0 : shippingOption?.price,
+        shippingSelection: freeShippingMode
+          ? {
+              carrierId: "manual",
+              carrierName: "Envio gratis",
+              dispatchType: "manual",
+            }
+          : {
+              carrierId: shippingOption?.carrierId,
+              carrierName: shippingOption?.carrierName,
+              serviceCode: shippingOption?.serviceCode,
+              modalityCode: shippingOption?.modalityCode,
+              dispatchType: shippingOption?.dispatchType,
+              branchId: shippingOption?.branchId ?? undefined,
+            },
         shippingAddress: {
           firstName: address.firstName,
           lastName: address.lastName,
@@ -917,11 +950,9 @@ export default function CheckoutReview({
               <div style={summaryCardStyle}>
                 <strong style={{ fontSize: 18 }}>Transferencia bancaria</strong>
                 <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.7 }}>
-                  Alias: asphalt.tienda
-                  <br />
-                  Banco: Banco Galicia
-                  <br />
-                  Titular: Asphalt Store
+                  {transferAlias
+                    ? `Alias: ${transferAlias}`
+                    : "El comercio te va a confirmar el alias de transferencia."}
                 </p>
                 <input
                   value={transferReference}
@@ -1054,6 +1085,8 @@ export default function CheckoutReview({
                 <strong>
                   {discountPreview?.freeShipping && baseShippingCost > 0
                     ? "Gratis"
+                    : freeShippingMode
+                    ? "Gratis"
                     : money(shippingCost)}
                 </strong>
               </div>
@@ -1173,7 +1206,7 @@ export default function CheckoutReview({
                 <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.8 }}>
                   {getCheckoutShippingLabel(shippingOption)}
                   <br />
-                  {getCheckoutShippingEta(shippingOption)}
+                  {freeShippingMode ? "Envio gratis" : getCheckoutShippingEta(shippingOption)}
                 </p>
               </div>
               <div style={{ height: 1, background: "var(--checkout-border)" }} />

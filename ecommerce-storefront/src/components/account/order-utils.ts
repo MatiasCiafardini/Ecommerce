@@ -44,8 +44,24 @@ export type CustomerOrder = {
       sku?: string | null;
       Size?: string | null;
       Color?: string | null;
+      weight?: string | number | null;
+      weightGrams?: string | number | null;
+      width?: string | number | null;
+      height?: string | number | null;
+      length?: string | number | null;
+      packageHeightCm?: string | number | null;
+      packageWidthCm?: string | number | null;
+      packageLengthCm?: string | number | null;
       product: {
         title: string;
+        weight?: string | number | null;
+        weightGrams?: string | number | null;
+        width?: string | number | null;
+        height?: string | number | null;
+        length?: string | number | null;
+        packageHeightCm?: string | number | null;
+        packageWidthCm?: string | number | null;
+        packageLengthCm?: string | number | null;
         images?: Array<{ url: string }>;
       };
     };

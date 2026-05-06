@@ -755,7 +755,7 @@ const emptyStyle: React.CSSProperties = {
 };
 
 const footerStyle: React.CSSProperties = {
-  padding: "18px 40px 28px",
+  padding: "18px 40px max(52px, calc(36px + env(safe-area-inset-bottom)))",
   background:
     "linear-gradient(180deg, transparent, var(--page-panel-bg, #fff) 18%)",
 };

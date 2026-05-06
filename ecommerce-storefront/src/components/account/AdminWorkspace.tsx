@@ -213,6 +213,8 @@ const MAX_IMAGE_UPLOAD_BYTES = 900 * 1024;
 const MAX_IMAGE_DIMENSION = 1400;
 const QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
 const IMAGE_UPLOAD_CONCURRENCY = 2;
+const ADMIN_ORDERS_UPDATED_EVENT = "admin-orders:updated";
+const ADMIN_ORDERS_POLL_INTERVAL_MS = 15_000;
 
 const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
@@ -355,10 +357,150 @@ export default function AdminWorkspace({
   if (section === "admin-shipments") return <AdminShipmentsSection />;
   if (section === "admin-returns") return <AdminReturnsSection />;
   if (section === "admin-promotions") return <AdminPromotionsSection />;
+  if (section === "admin-settings") return <AdminSettingsSection />;
   return (
     <AdminOverviewSection
       onOpenDeveloper={() => onSectionChange("admin-developer")}
     />
+  );
+}
+
+type AdminPaymentConfig = {
+  bankTransfer?: {
+    alias?: string | null;
+    discountPercentage?: number | null;
+  } | null;
+};
+
+function AdminSettingsSection() {
+  const [settingsTab, setSettingsTab] = useState<"transfer">("transfer");
+  const [alias, setAlias] = useState("");
+  const [discountPercentage, setDiscountPercentage] = useState("0");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    api("/store/admin/integrations")
+      .then((config: AdminPaymentConfig) => {
+        if (!mounted) return;
+        setAlias(config?.bankTransfer?.alias?.trim() ?? "");
+        setDiscountPercentage(String(Number(config?.bankTransfer?.discountPercentage ?? 0)));
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "No se pudo cargar la configuracion.");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  async function onSaveTransfer(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const response = await api("/store/admin/integrations/bank-transfer", {
+        method: "PUT",
+        body: JSON.stringify({
+          alias,
+          discountPercentage: Number(discountPercentage || 0),
+        }),
+      });
+      const bankTransfer = (response as AdminPaymentConfig).bankTransfer;
+      setAlias(bankTransfer?.alias?.trim() ?? "");
+      setDiscountPercentage(String(Number(bankTransfer?.discountPercentage ?? 0)));
+      setMessage("Configuracion de transferencia guardada.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la transferencia.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section style={panelStyle}>
+      <div style={betweenStyle}>
+        <div>
+          <p style={eyebrowStyle}>Configuracion</p>
+          <h2 style={title2Style}>Ajustes de la tienda</h2>
+          <p style={copyStyle}>Gestiona los datos operativos que se reflejan en el checkout.</p>
+        </div>
+      </div>
+
+      <div style={tabRailStyle}>
+        <button
+          type="button"
+          style={workspaceTabStyle(settingsTab === "transfer")}
+          onClick={() => setSettingsTab("transfer")}
+        >
+          Transferencia
+        </button>
+      </div>
+
+      {settingsTab === "transfer" ? (
+        <form style={blockStyle} onSubmit={onSaveTransfer}>
+          <div>
+            <p style={eyebrowStyle}>Pagos</p>
+            <h3 style={title3Style}>Transferencia bancaria</h3>
+            <p style={copyStyle}>Este alias aparece para los clientes antes de subir el comprobante.</p>
+          </div>
+
+          {loading ? <p style={copyStyle}>Cargando configuracion...</p> : null}
+          {error ? <p style={{ ...copyStyle, color: "#ffb7b7" }}>{error}</p> : null}
+          {message ? <p style={{ ...copyStyle, color: "var(--admin-tone-success-color)" }}>{message}</p> : null}
+
+          <div style={optionGridStyle}>
+            <label style={{ display: "grid", gap: 8 }}>
+              <span style={metaStyle}>Alias de transferencia</span>
+              <input
+                value={alias}
+                onChange={(event) => setAlias(event.target.value)}
+                maxLength={80}
+                placeholder="ej: mi.tienda.mp"
+                style={fieldStyle}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 8 }}>
+              <span style={metaStyle}>Descuento por transferencia (%)</span>
+              <input
+                value={discountPercentage}
+                onChange={(event) => setDiscountPercentage(event.target.value)}
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                style={fieldStyle}
+              />
+            </label>
+          </div>
+
+          <div style={itemStyle}>
+            <span style={metaStyle}>Vista cliente</span>
+            <strong>{alias.trim() || "Alias pendiente"}</strong>
+            <small style={copyStyle}>
+              {Number(discountPercentage || 0) > 0
+                ? `${Number(discountPercentage || 0)}% de descuento por transferencia`
+                : "Sin descuento adicional configurado"}
+            </small>
+          </div>
+
+          <button type="submit" disabled={saving || loading} style={primaryButtonStyle}>
+            {saving ? "Guardando..." : "Guardar transferencia"}
+          </button>
+        </form>
+      ) : null}
+    </section>
   );
 }
 
@@ -4380,25 +4522,73 @@ function AdminCategoriesManager({
 function AdminOrdersPanelSection() {
   const searchParams = useSearchParams();
   const detailTopRef = useRef<HTMLDivElement | null>(null);
+  const ordersSignatureRef = useRef("");
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const load = async () => {
+    let active = true;
+
+    const load = async (showInitialLoading = false, notifyOnChange = false) => {
       try {
+        if (showInitialLoading) {
+          setLoading(true);
+        }
+
         const data = await api("/orders");
-        setOrders(Array.isArray(data) ? data : []);
+        if (!active) return;
+
+        const nextOrders = Array.isArray(data) ? (data as CustomerOrder[]) : [];
+        const nextSignature = buildOrdersSignature(nextOrders);
+        const hasLoadedBefore = Boolean(ordersSignatureRef.current);
+        const changed = hasLoadedBefore && ordersSignatureRef.current !== nextSignature;
+        ordersSignatureRef.current = nextSignature;
+        setOrders(nextOrders);
+        setError("");
+
+        if (notifyOnChange && changed) {
+          window.dispatchEvent(new CustomEvent(ADMIN_ORDERS_UPDATED_EVENT));
+        }
       } catch (err) {
+        if (!active) return;
+
         setError(
           err instanceof Error ? err.message : "No se pudieron cargar pedidos.",
         );
       } finally {
-        setLoading(false);
+        if (active && showInitialLoading) {
+          setLoading(false);
+        }
       }
     };
-    void load();
+
+    void load(true, false);
+
+    const intervalId = window.setInterval(
+      () => void load(false, true),
+      ADMIN_ORDERS_POLL_INTERVAL_MS,
+    );
+    const handleFocus = () => void load(false, true);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void load(false, true);
+      }
+    };
+    const handleOrdersUpdated = () => void load(false, false);
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener(ADMIN_ORDERS_UPDATED_EVENT, handleOrdersUpdated);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(ADMIN_ORDERS_UPDATED_EVENT, handleOrdersUpdated);
+    };
   }, []);
 
   useEffect(() => {
@@ -4464,6 +4654,7 @@ function AdminOrdersPanelSection() {
       ) : (
         <div style={ordersGridStyle}>
           {orders.map((order) => {
+            const isNewOrder = order.status === "pending";
             const customerName =
               [order.customer?.firstName, order.customer?.lastName]
                 .filter(Boolean)
@@ -4479,14 +4670,21 @@ function AdminOrdersPanelSection() {
             return (
               <article
                 key={order.id}
-                style={{ ...itemStyle, cursor: "pointer" }}
+                style={{
+                  ...itemStyle,
+                  ...(isNewOrder ? newOrderItemStyle : null),
+                  cursor: "pointer",
+                }}
                 onClick={() => openOrderDetail(order.id)}
               >
                 <div style={betweenStyle}>
                   <div>
-                    <strong style={{ display: "block", color: "var(--account-text-strong)" }}>
-                      Pedido #{order.id}
-                    </strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <strong style={{ display: "block", color: "var(--account-text-strong)" }}>
+                        Pedido #{order.id}
+                      </strong>
+                      {isNewOrder ? <span style={newOrderBadgeStyle}>Nuevo</span> : null}
+                    </div>
                     <span style={metaStyle}>
                       {new Date(order.createdAt).toLocaleString("es-AR")}
                     </span>
@@ -4500,12 +4698,12 @@ function AdminOrdersPanelSection() {
                   <p style={copyStyle}>{customerName}</p>
                   <p style={copyStyle}>
                     {units} unidad{units === 1 ? "" : "es"} ·{" "}
-                    {orderStatusLabel(order.status)}
+                    {isNewOrder ? "Pedido pendiente" : orderStatusLabel(order.status)}
                   </p>
                 </div>
 
                 <div style={rowWrapStyle}>
-                  <span style={statusChipStyle(order.status)}>
+                  <span style={isNewOrder ? newOrderStatusChipStyle : statusChipStyle(order.status)}>
                     {orderStatusLabel(order.status)}
                   </span>
                   {order.shippingMethod ? (
@@ -4539,6 +4737,12 @@ function AdminOrdersPanelSection() {
       )}
     </section>
   );
+}
+
+function buildOrdersSignature(orders: CustomerOrder[]) {
+  return orders
+    .map((order) => `${order.id}:${order.status}:${order.updatedAt ?? order.createdAt}`)
+    .join("|");
 }
 
 // Legacy fallback kept temporarily while we consolidate the new operational panel.
@@ -4577,6 +4781,7 @@ function AdminOrdersSection() {
           order.id === orderId ? { ...order, ...updated } : order,
         ),
       );
+      window.dispatchEvent(new CustomEvent(ADMIN_ORDERS_UPDATED_EVENT));
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo actualizar el pedido.",
@@ -5814,6 +6019,13 @@ const editingBannerStyle: React.CSSProperties = {
   gap: 12,
 };
 const itemStyle: React.CSSProperties = { ...blockStyle, gap: 10 };
+const newOrderItemStyle: React.CSSProperties = {
+  border: "1px solid var(--admin-tone-warning-border, var(--checkout-border-strong))",
+  background:
+    "linear-gradient(180deg, color-mix(in srgb, var(--admin-tone-warning-bg, var(--page-panel-bg)) 78%, var(--page-panel-bg) 22%), var(--page-panel-bg))",
+  boxShadow:
+    "0 0 0 3px color-mix(in srgb, var(--admin-tone-warning-color, var(--account-text-strong)) 10%, transparent)",
+};
 const groupPanelStyle: React.CSSProperties = { ...blockStyle, gap: 18 };
 const modalOverlayStyle: React.CSSProperties = {
   position: "fixed",
@@ -5981,6 +6193,28 @@ const statusChipStyle = (status: string): React.CSSProperties => ({
           : "var(--admin-status-idle-color)",
   fontSize: 12,
 });
+const newOrderBadgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: "1px solid var(--admin-tone-warning-border, var(--checkout-border-strong))",
+  background: "var(--notification-badge-bg, #ff3b30)",
+  color: "var(--notification-badge-color, #fff)",
+  fontSize: 11,
+  fontWeight: 800,
+  lineHeight: 1,
+};
+const newOrderStatusChipStyle: React.CSSProperties = {
+  display: "inline-flex",
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: "1px solid var(--admin-tone-warning-border, var(--checkout-border-strong))",
+  background: "var(--admin-tone-warning-bg, var(--account-item-bg-active))",
+  color: "var(--admin-tone-warning-color, var(--account-text-strong))",
+  fontSize: 12,
+  fontWeight: 700,
+};
 const softChipStyle: React.CSSProperties = {
   display: "inline-flex",
   padding: "8px 12px",

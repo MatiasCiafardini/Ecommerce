@@ -66,6 +66,7 @@ type Store = {
       webhookSecretConfigured: boolean;
     };
     bankTransfer: {
+      alias: string | null;
       discountPercentage: number;
     };
   };
@@ -122,6 +123,7 @@ type StoreFormState = {
   mercadoPagoAccessToken: string;
   mercadoPagoWebhookSecret: string;
   manualSalesEnabled: boolean;
+  bankTransferAlias: string;
   bankTransferDiscountPercentage: string;
 };
 type StoreUserFormState = {
@@ -157,6 +159,7 @@ const emptyStoreForm: StoreFormState = {
   mercadoPagoAccessToken: "",
   mercadoPagoWebhookSecret: "",
   manualSalesEnabled: false,
+  bankTransferAlias: "",
   bankTransferDiscountPercentage: "0",
 };
 const emptyStoreUserForm: StoreUserFormState = {
@@ -227,6 +230,7 @@ function storeToForm(store: Store | null): StoreFormState {
     mercadoPagoAccessToken: "",
     mercadoPagoWebhookSecret: "",
     manualSalesEnabled: Boolean(store.features.manualSalesEnabled),
+    bankTransferAlias: store.integrations.bankTransfer?.alias ?? "",
     bankTransferDiscountPercentage: String(
       Number(store.integrations.bankTransfer?.discountPercentage ?? 0),
     ),
@@ -369,7 +373,6 @@ function StoreFields({
         ["MP public key", "mercadoPagoPublicKey"],
         ["MP access token", "mercadoPagoAccessToken"],
         ["MP webhook secret", "mercadoPagoWebhookSecret"],
-        ["Desc. transferencia %", "bankTransferDiscountPercentage"],
       ].map(([label, key]) => (
         <label key={key} className={`field${key === "tagline" || key === "logoUrl" || key === "heroSubtitle" || key === "mercadoPagoWebhookSecret" ? " span-2" : ""}`}>
           <span>{label}</span>
@@ -485,8 +488,9 @@ export default function Page() {
   const [themes, setThemes] = useState<ThemeOption[]>([]);
   const [createStepIndex, setCreateStepIndex] = useState(0);
   const [storeSectionTab, setStoreSectionTab] = useState<
-    "identity" | "commerce" | "users" | "provisioning"
+    "identity" | "commerce" | "settings" | "users" | "provisioning"
   >("identity");
+  const [settingsTab, setSettingsTab] = useState<"transfer">("transfer");
   const [storeUsers, setStoreUsers] = useState<StoreUser[]>([]);
   const [createUserState, setCreateUserState] = useState(emptyStoreUserForm);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
@@ -1057,6 +1061,7 @@ export default function Page() {
                       <div className="section-tabs">
                         <button type="button" className={`section-tab${storeSectionTab === "identity" ? " active" : ""}`} onClick={() => setStoreSectionTab("identity")}>Identidad</button>
                         <button type="button" className={`section-tab${storeSectionTab === "commerce" ? " active" : ""}`} onClick={() => setStoreSectionTab("commerce")}>Comercio</button>
+                        <button type="button" className={`section-tab${storeSectionTab === "settings" ? " active" : ""}`} onClick={() => setStoreSectionTab("settings")}>Configuracion</button>
                         <button type="button" className={`section-tab${storeSectionTab === "users" ? " active" : ""}`} onClick={() => setStoreSectionTab("users")}>Usuarios</button>
                         <button type="button" className={`section-tab${storeSectionTab === "provisioning" ? " active" : ""}`} onClick={() => setStoreSectionTab("provisioning")}>Provisioning VPS</button>
                       </div>
@@ -1068,7 +1073,7 @@ export default function Page() {
                             <div className="review-card"><span>Storefront</span><strong>{selectedStore.provisioning.storefrontReady ? "Listo" : "Pendiente"}</strong></div>
                             <div className="review-card"><span>Manual sales</span><strong>{selectedStore.features.manualSalesEnabled ? "Activa" : "Apagada"}</strong></div>
                             <div className="review-card"><span>Mercado Pago</span><strong>{selectedStore.integrations.mercadopago.publicKeyConfigured ? "Configurado" : "Pendiente"}</strong></div>
-                            <div className="review-card"><span>Transferencia</span><strong>{selectedStore.integrations.bankTransfer.discountPercentage}%</strong></div>
+                            <div className="review-card"><span>Transferencia</span><strong>{selectedStore.integrations.bankTransfer.alias || "Sin alias"}</strong><small>{selectedStore.integrations.bankTransfer.discountPercentage}% de descuento</small></div>
                           </div>
                           <div className="command-grid">
                             <div className="command-card">
@@ -1095,6 +1100,59 @@ export default function Page() {
                               <pre className="command-code">{`POST ${apiUrl}/system/platform/deploy`}</pre>
                             </div>
                           </div>
+                        </div>
+                      ) : null}
+                      {!loadingStore && storeSectionTab === "settings" ? (
+                        <div className="settings-panel">
+                          <div className="section-tabs compact-tabs">
+                            <button type="button" className={`section-tab${settingsTab === "transfer" ? " active" : ""}`} onClick={() => setSettingsTab("transfer")}>Transferencia</button>
+                          </div>
+                          {settingsTab === "transfer" ? (
+                            <form className="settings-card" onSubmit={onSaveStore}>
+                              <div>
+                                <p className="section-kicker">Pagos</p>
+                                <h2>Transferencia bancaria</h2>
+                                <p className="muted">
+                                  Este alias se muestra en el checkout cuando el cliente elige pagar por transferencia.
+                                </p>
+                              </div>
+                              <div className="form-grid">
+                                <label className="field">
+                                  <span>Alias de transferencia</span>
+                                  <input
+                                    value={editState.bankTransferAlias}
+                                    onChange={(event) => setEditState((current) => ({ ...current, bankTransferAlias: event.target.value }))}
+                                    type="text"
+                                    placeholder="ej: mi.tienda.mp"
+                                    maxLength={80}
+                                  />
+                                </label>
+                                <label className="field">
+                                  <span>Descuento por transferencia (%)</span>
+                                  <input
+                                    value={editState.bankTransferDiscountPercentage}
+                                    onChange={(event) => setEditState((current) => ({ ...current, bankTransferDiscountPercentage: event.target.value }))}
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step="0.01"
+                                  />
+                                </label>
+                              </div>
+                              <div className="review-card">
+                                <span>Vista cliente</span>
+                                <strong>{editState.bankTransferAlias.trim() || "Alias pendiente"}</strong>
+                                <small>
+                                  {Number(editState.bankTransferDiscountPercentage || 0) > 0
+                                    ? `${Number(editState.bankTransferDiscountPercentage || 0)}% de descuento aplicado al checkout`
+                                    : "Sin descuento adicional configurado"}
+                                </small>
+                              </div>
+                              <button className="primary-button" disabled={savingEdit}>
+                                {savingEdit ? "Guardando..." : "Guardar transferencia"}
+                              </button>
+                            </form>
+                          ) : null}
                         </div>
                       ) : null}
                       {!loadingStore && storeSectionTab === "users" ? (

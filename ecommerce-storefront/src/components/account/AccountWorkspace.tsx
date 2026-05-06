@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import type { User } from "@/context/auth-context";
+import { api } from "@/lib/api";
 import OrdersSection from "./OrdersSection";
 import ProfileSection from "./ProfileSection";
 import AddressSection from "./AddressSection";
@@ -24,18 +25,33 @@ type Props = {
   onSectionChange: (section: AccountSection) => void;
 };
 
-const adminSections: Array<{ id: AccountSection; label: string; description: string }> = [
+type NavigationItem = {
+  id: AccountSection;
+  label: string;
+  description: string;
+  badgeCount?: number;
+};
+
+type AdminOrderSummary = {
+  status?: string | null;
+};
+
+const PENDING_ORDERS_POLL_INTERVAL_MS = 30_000;
+const ADMIN_ORDERS_UPDATED_EVENT = "admin-orders:updated";
+
+const adminSections: NavigationItem[] = [
   { id: "admin-overview", label: "Resumen", description: "Estado general" },
   { id: "admin-accounting", label: "Contabilidad", description: "Export de ventas" },
   { id: "admin-products", label: "Productos", description: "Catalogo y altas" },
   { id: "admin-promotions", label: "Promociones", description: "Ofertas y cupones" },
+  { id: "admin-settings", label: "Configuracion", description: "Pagos y tienda" },
   { id: "admin-orders", label: "Pedidos", description: "Operacion diaria" },
   { id: "admin-customers", label: "Clientes", description: "Base activa" },
   { id: "admin-shipments", label: "Envios", description: "Logistica y tracking" },
   { id: "admin-returns", label: "Devoluciones", description: "Postventa" },
 ];
 
-const customerSections: Array<{ id: AccountSection; label: string; description: string }> = [
+const customerSections: NavigationItem[] = [
   { id: "orders", label: "Pedidos", description: "Seguimiento y recibos" },
   { id: "profile", label: "Perfil", description: "Datos personales" },
   { id: "addresses", label: "Direcciones", description: "Entrega y checkout" },
@@ -49,6 +65,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
   const displayName = [user.name, user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -94,6 +111,54 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
 
   const shouldCollapseSidebar = sidebarCollapsed && !isNarrowViewport;
   const showSidebar = !isNarrowViewport;
+  const adminNavigationSections = adminSections.map((item) =>
+    item.id === "admin-orders"
+      ? { ...item, badgeCount: pendingOrdersCount }
+      : item,
+  );
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setPendingOrdersCount(0);
+      return;
+    }
+
+    let active = true;
+
+    const loadPendingOrdersCount = async () => {
+      try {
+        const orders = (await api("/orders")) as AdminOrderSummary[];
+        if (!active) return;
+
+        setPendingOrdersCount(
+          Array.isArray(orders)
+            ? orders.filter((order) => order.status === "pending").length
+            : 0,
+        );
+      } catch {
+        if (active) {
+          setPendingOrdersCount(0);
+        }
+      }
+    };
+
+    void loadPendingOrdersCount();
+    const intervalId = window.setInterval(
+      loadPendingOrdersCount,
+      PENDING_ORDERS_POLL_INTERVAL_MS,
+    );
+    const handleFocus = () => void loadPendingOrdersCount();
+    const handleOrdersUpdated = () => void loadPendingOrdersCount();
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener(ADMIN_ORDERS_UPDATED_EVENT, handleOrdersUpdated);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener(ADMIN_ORDERS_UPDATED_EVENT, handleOrdersUpdated);
+    };
+  }, [isAdmin]);
 
   return (
     <section
@@ -231,7 +296,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                 {isAdmin ? (
                   <NavigationGroup
                     title="Administracion"
-                    items={adminSections}
+                    items={adminNavigationSections}
                     activeSection={section}
                     onSectionChange={onSectionChange}
                     collapsed={false}
@@ -300,7 +365,7 @@ function NavigationGroup({
   collapsed,
 }: {
   title: string;
-  items: Array<{ id: AccountSection; label: string; description: string }>;
+  items: NavigationItem[];
   activeSection: AccountSection;
   onSectionChange: (section: AccountSection) => void;
   collapsed: boolean;
@@ -332,6 +397,9 @@ function NavigationGroup({
       ) : null}
       {items.map((item) => {
         const active = activeSection === item.id;
+        const badgeCount = Number(item.badgeCount ?? 0);
+        const hasBadge = badgeCount > 0;
+        const badgeLabel = badgeCount > 99 ? "99+" : String(badgeCount);
         return (
           <button
             key={item.id}
@@ -342,23 +410,48 @@ function NavigationGroup({
               borderRadius: 20,
               border: active
                 ? "1px solid var(--account-item-border-active)"
-                : "1px solid var(--account-item-border)",
-              background: active ? "var(--account-item-bg-active)" : "var(--account-item-bg)",
+                : hasBadge
+                  ? "1px solid var(--admin-tone-warning-border, var(--account-item-border-active))"
+                  : "1px solid var(--account-item-border)",
+              background: active
+                ? "var(--account-item-bg-active)"
+                : hasBadge
+                  ? "var(--admin-tone-warning-bg, var(--account-item-bg-active))"
+                  : "var(--account-item-bg)",
               padding: collapsed ? "12px 8px" : "14px 16px",
-              color: "var(--account-text-strong)",
+              color: hasBadge
+                ? "var(--admin-tone-warning-color, var(--account-text-strong))"
+                : "var(--account-text-strong)",
               textAlign: collapsed ? "center" : "left",
               cursor: "pointer",
               display: "grid",
               gap: 4,
               justifyItems: collapsed ? "center" : "start",
+              position: "relative",
+              boxShadow: hasBadge
+                ? "0 0 0 3px color-mix(in srgb, var(--admin-tone-warning-color, var(--account-text-strong)) 10%, transparent)"
+                : "none",
             }}
             >
-            <strong style={{ fontSize: 15 }}>
-              {collapsed ? abbreviateLabel(item.label) : item.label}
-            </strong>
+            <span
+              style={{
+                display: "flex",
+                width: "100%",
+                alignItems: "center",
+                justifyContent: collapsed ? "center" : "space-between",
+                gap: 10,
+              }}
+            >
+              <strong style={{ fontSize: 15 }}>
+                {collapsed ? abbreviateLabel(item.label) : item.label}
+              </strong>
+              {hasBadge ? <span style={navigationBadgeStyle}>{badgeLabel}</span> : null}
+            </span>
             {!collapsed ? (
               <span style={{ color: "var(--account-text-soft)", fontSize: 13 }}>
-                {item.description}
+                {hasBadge
+                  ? `${item.description} · ${badgeCount} pendiente${badgeCount === 1 ? "" : "s"}`
+                  : item.description}
               </span>
             ) : null}
           </button>
@@ -390,6 +483,7 @@ function renderSection(
     case "admin-customers":
     case "admin-shipments":
     case "admin-returns":
+    case "admin-settings":
       return <AdminWorkspace section={section} user={user} onSectionChange={onSectionChange} />;
     case "orders":
     default:
@@ -453,6 +547,22 @@ const collapsedHintIconStyle = {
   alignItems: "center",
   justifyContent: "center",
   color: "var(--account-text-strong)",
+} as const;
+
+const navigationBadgeStyle = {
+  minWidth: 22,
+  height: 22,
+  padding: "0 7px",
+  borderRadius: 999,
+  background: "var(--notification-badge-bg, #ff3b30)",
+  color: "var(--notification-badge-color, #fff)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 11,
+  fontWeight: 800,
+  lineHeight: 1,
+  boxShadow: "0 0 0 2px var(--account-sidebar-bg)",
 } as const;
 
 const logoutButtonStyle = {

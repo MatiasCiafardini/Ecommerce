@@ -97,6 +97,7 @@ export class StorefrontController {
     @Req() req,
     @Body()
     body: {
+      alias?: string | null;
       discountPercentage?: number | null;
     },
   ) {

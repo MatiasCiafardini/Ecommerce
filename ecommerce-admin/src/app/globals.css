@@ -191,6 +191,10 @@ h2 {
   margin-bottom: 20px;
 }
 
+.compact-tabs {
+  margin-bottom: 0;
+}
+
 .section-tab {
   width: auto;
   padding: 10px 16px;
@@ -286,7 +290,9 @@ h2 {
 .stack-form,
 .user-list,
 .user-form-card,
-.users-panel {
+.users-panel,
+.settings-panel,
+.settings-card {
   display: grid;
   gap: 14px;
 }
@@ -521,7 +527,8 @@ h2 {
 }
 
 .users-panel,
-.user-management-grid {
+.user-management-grid,
+.settings-panel {
   display: grid;
   gap: 16px;
 }
@@ -531,7 +538,8 @@ h2 {
 }
 
 .user-form-card,
-.user-row-card {
+.user-row-card,
+.settings-card {
   background: var(--panel-strong);
   border: 1px solid var(--line);
   border-radius: 22px;

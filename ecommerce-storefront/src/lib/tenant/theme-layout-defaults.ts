@@ -222,6 +222,7 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
         { href: "/category/borcegos", label: "Borcegos" },
         { href: "/category/sneakers", label: "Sneakers" },
         { href: "/quienes-somos", label: "Quienes somos" },
+        { href: "/guia-de-talles", label: "Guia de talles" },
       ],
     },
     footer: {

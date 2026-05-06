@@ -28,29 +28,31 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      {process.env.NODE_ENV === "development" ? (
-        <Script
-          id="suppress-next-fast-refresh-logs"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              (() => {
-                const originalLog = console.log.bind(console);
-                console.log = (...args) => {
-                  const firstArg = args[0];
-                  if (
-                    typeof firstArg === "string" &&
-                    firstArg.startsWith("[Fast Refresh]")
-                  ) {
-                    return;
-                  }
-                  originalLog(...args);
-                };
-              })();
-            `,
-          }}
-        />
-      ) : null}
+      <head>
+        {process.env.NODE_ENV === "development" ? (
+          <Script
+            id="suppress-next-fast-refresh-logs"
+            strategy="beforeInteractive"
+            dangerouslySetInnerHTML={{
+              __html: `
+                (() => {
+                  const originalLog = console.log.bind(console);
+                  console.log = (...args) => {
+                    const firstArg = args[0];
+                    if (
+                      typeof firstArg === "string" &&
+                      firstArg.startsWith("[Fast Refresh]")
+                    ) {
+                      return;
+                    }
+                    originalLog(...args);
+                  };
+                })();
+              `,
+            }}
+          />
+        ) : null}
+      </head>
       <body className={`${displayFont.variable} ${bodyFont.variable}`}>
         <AuthProvider>
           <CartProvider>{children}</CartProvider>

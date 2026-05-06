@@ -35,14 +35,14 @@ export function resolveBlockDefinition(
   const defaultComponent =
     defaultBlockRegistry[blockType as keyof typeof defaultBlockRegistry];
 
-  if (!defaultComponent) {
-    return null;
-  }
-
   const themedDefinition =
     themeName && blockThemeOverrides[themeName]
       ? blockThemeOverrides[themeName][blockType]
       : undefined;
+
+  if (!defaultComponent && !themedDefinition?.component) {
+    return null;
+  }
 
   return {
     component: themedDefinition?.component ?? defaultComponent,

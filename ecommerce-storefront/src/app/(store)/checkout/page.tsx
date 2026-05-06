@@ -63,6 +63,7 @@ export default function CheckoutPage() {
     null,
   );
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [freeShippingMode, setFreeShippingMode] = useState(false);
   const [setupError, setSetupError] = useState<CheckoutSetupError | null>(null);
 
   useEffect(() => {
@@ -70,6 +71,19 @@ export default function CheckoutPage() {
       if (typeof window !== "undefined") {
         window.sessionStorage.removeItem("checkoutRedirectingOrderId");
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncThemeMode = () => {
+      setFreeShippingMode(Boolean(document.querySelector(".theme-trojani")));
+    };
+
+    syncThemeMode();
+    const frameId = window.requestAnimationFrame(syncThemeMode);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
     };
   }, []);
 
@@ -153,9 +167,18 @@ export default function CheckoutPage() {
         }),
       });
 
+      const trojaniFreeShipping = Boolean(document.querySelector(".theme-trojani"));
+      const normalizedOptions = Array.isArray(options)
+        ? options.map((option: ShippingOption) => ({
+            ...option,
+            price: trojaniFreeShipping ? 0 : option.price,
+          }))
+        : [];
+
+      setFreeShippingMode(trojaniFreeShipping);
       setCartId(serverCartId);
       setSelectedAddress(address);
-      setShippingOptions(options);
+      setShippingOptions(normalizedOptions);
       setStep(3);
     } catch (error) {
       setSetupError(resolveSetupError(error));
@@ -400,9 +423,12 @@ export default function CheckoutPage() {
       {step === 3 && (
         <CheckoutPayment
           shippingOptions={shippingOptions}
+          freeShippingMode={freeShippingMode}
           onNext={({ paymentMethod, paymentLabel, shippingOption }) => {
             setPaymentSelection({ paymentMethod, paymentLabel });
-            setShippingOption(shippingOption);
+            setShippingOption(
+              freeShippingMode ? { ...shippingOption, price: 0 } : shippingOption,
+            );
             setStep(4);
           }}
         />
@@ -416,6 +442,7 @@ export default function CheckoutPage() {
           paymentMethod={paymentSelection?.paymentMethod ?? null}
           paymentLabel={paymentSelection?.paymentLabel ?? null}
           shippingOption={shippingOption}
+          freeShippingMode={freeShippingMode}
         />
       )}
     </CheckoutLayout>

@@ -718,6 +718,7 @@ export class SystemService {
             dto.mercadoPagoWebhookSecret,
           ),
           manualSalesEnabled: dto.manualSalesEnabled ?? false,
+          bankTransferAlias: sanitizeOptionalString(dto.bankTransferAlias),
           bankTransferDiscountPercentage: this.normalizeBankTransferDiscount(
             dto.bankTransferDiscountPercentage,
           ),
@@ -875,6 +876,9 @@ export class SystemService {
             : {}),
           ...(dto.manualSalesEnabled !== undefined
             ? { manualSalesEnabled: dto.manualSalesEnabled }
+            : {}),
+          ...(dto.bankTransferAlias !== undefined
+            ? { bankTransferAlias: sanitizeOptionalString(dto.bankTransferAlias) }
             : {}),
           ...(dto.bankTransferDiscountPercentage !== undefined
             ? {
@@ -1376,6 +1380,7 @@ export class SystemService {
           webhookSecretConfigured: Boolean(store.mercadoPagoWebhookSecret),
         },
         bankTransfer: {
+          alias: store.bankTransferAlias ?? null,
           discountPercentage: Number(store.bankTransferDiscountPercentage ?? 0),
         },
       },

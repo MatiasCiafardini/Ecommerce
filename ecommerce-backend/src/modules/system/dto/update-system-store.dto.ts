@@ -116,6 +116,11 @@ export class UpdateSystemStoreDto {
   manualSalesEnabled?: boolean;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  bankTransferAlias?: string;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(100)

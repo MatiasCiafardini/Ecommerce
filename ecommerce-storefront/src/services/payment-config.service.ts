@@ -3,6 +3,7 @@ import { apiFetch } from "./api-client";
 
 type StorePaymentConfig = {
   bankTransfer?: {
+    alias?: string | null;
     discountPercentage?: number | null;
     enabled?: boolean | null;
   } | null;

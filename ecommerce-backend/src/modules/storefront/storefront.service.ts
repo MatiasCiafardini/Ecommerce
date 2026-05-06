@@ -127,6 +127,7 @@ export class StorefrontService {
           select: {
             id: true,
             storefrontConfig: true,
+            bankTransferAlias: true,
             bankTransferDiscountPercentage: true,
           },
         } as any)
@@ -135,6 +136,7 @@ export class StorefrontService {
           select: {
             id: true,
             storefrontConfig: true,
+            bankTransferAlias: true,
             bankTransferDiscountPercentage: true,
           },
         } as any);
@@ -161,6 +163,7 @@ export class StorefrontService {
         mercadopago: await this.mercadoPagoProvider.getPublicConfig(store.id),
         bankTransfer: {
           enabled: true,
+          alias: (store as any).bankTransferAlias ?? null,
           discountPercentage: Number(
             (store as any).bankTransferDiscountPercentage ?? 0,
           ),
@@ -173,6 +176,7 @@ export class StorefrontService {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
       select: {
+        bankTransferAlias: true,
         bankTransferDiscountPercentage: true,
       },
     });
@@ -181,6 +185,7 @@ export class StorefrontService {
       mercadopago: await this.mercadoPagoProvider.getPublicConfig(storeId),
       bankTransfer: {
         enabled: true,
+        alias: store?.bankTransferAlias ?? null,
         discountPercentage: Number(store?.bankTransferDiscountPercentage ?? 0),
       },
       cash: {
@@ -223,6 +228,7 @@ export class StorefrontService {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
       select: {
+        bankTransferAlias: true,
         bankTransferDiscountPercentage: true,
       },
     });
@@ -230,6 +236,7 @@ export class StorefrontService {
     return {
       mercadopago: await this.mercadoPagoProvider.getAdminConfig(storeId),
       bankTransfer: {
+        alias: store?.bankTransferAlias ?? null,
         discountPercentage: Number(store?.bankTransferDiscountPercentage ?? 0),
       },
       correoArgentino: await this.getAdminCorreoArgentinoConfig(storeId),
@@ -256,26 +263,41 @@ export class StorefrontService {
   async updateAdminBankTransferConfig(
     storeId: number,
     input: {
+      alias?: string | null;
       discountPercentage?: number | null;
     },
   ) {
-    const discountPercentage = Math.max(
-      0,
-      Math.min(Number(input.discountPercentage ?? 0) || 0, 100),
-    );
+    const discountPercentage =
+      input.discountPercentage !== undefined
+        ? Math.max(0, Math.min(Number(input.discountPercentage ?? 0) || 0, 100))
+        : undefined;
 
-    await this.prisma.store.update({
+    const updatedStore = await this.prisma.store.update({
       where: { id: storeId },
       data: {
-        bankTransferDiscountPercentage: Number(
-          discountPercentage.toFixed(2),
-        ),
+        ...(input.alias !== undefined
+          ? { bankTransferAlias: this.normalizeBankTransferAlias(input.alias) }
+          : {}),
+        ...(discountPercentage !== undefined
+          ? {
+              bankTransferDiscountPercentage: Number(
+                discountPercentage.toFixed(2),
+              ),
+            }
+          : {}),
+      },
+      select: {
+        bankTransferAlias: true,
+        bankTransferDiscountPercentage: true,
       },
     });
 
     return {
       bankTransfer: {
-        discountPercentage: Number(discountPercentage.toFixed(2)),
+        alias: updatedStore.bankTransferAlias ?? null,
+        discountPercentage: Number(
+          updatedStore.bankTransferDiscountPercentage ?? 0,
+        ),
       },
     };
   }
@@ -960,6 +982,11 @@ export class StorefrontService {
     }
 
     return fallback ?? false;
+  }
+
+  private normalizeBankTransferAlias(value?: string | null) {
+    const alias = value?.trim() ?? '';
+    return alias ? alias.slice(0, 80) : null;
   }
 
   private normalizeStorefrontConfig(input: unknown): NormalizedStorefrontConfig {

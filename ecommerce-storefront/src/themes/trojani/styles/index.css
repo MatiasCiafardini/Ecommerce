@@ -89,6 +89,13 @@
   --notification-text-muted: var(--theme-colors-text-muted);
   --notification-text-soft: var(--theme-colors-text);
   --notification-text-faint: color-mix(in srgb, var(--theme-colors-text) 78%, transparent);
+  --notification-trigger-unread-bg: #2b2018;
+  --notification-trigger-unread-border: #2b2018;
+  --notification-trigger-unread-color: #ffffff;
+  --notification-trigger-unread-shadow: 0 0 0 3px rgba(43, 32, 24, 0.12);
+  --notification-badge-bg: #c42f24;
+  --notification-badge-color: #ffffff;
+  --notification-badge-ring: #2b2018;
 
   /* Checkout */
   --checkout-panel-bg: var(--page-panel-bg);

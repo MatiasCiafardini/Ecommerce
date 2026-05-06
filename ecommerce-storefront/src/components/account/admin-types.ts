@@ -129,7 +129,8 @@ export type AdminSection =
   | "admin-customers"
   | "admin-shipments"
   | "admin-returns"
-  | "admin-promotions";
+  | "admin-promotions"
+  | "admin-settings";
 
 export type AdminPromotion = {
   id: number;

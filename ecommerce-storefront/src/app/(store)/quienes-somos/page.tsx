@@ -9,11 +9,11 @@ type AboutSection = {
 type AboutPageContent = {
   brandName: string;
   sections: AboutSection[];
-  locationTitle: string;
-  locationLabel: string;
-  locationText: string;
-  mapsUrl: string;
-  mapEmbedUrl: string;
+  locationTitle?: string;
+  locationLabel?: string;
+  locationText?: string;
+  mapsUrl?: string;
+  mapEmbedUrl?: string;
 };
 
 const defaultMapQuery = encodeURIComponent("Buenos Aires, Argentina");
@@ -52,26 +52,13 @@ const ABOUT_PAGE_BY_STORE_ID: Record<number, AboutPageContent> = {
     sections: [
       {
         label: "Nuestra historia",
-        title: "Calzado femenino con identidad propia",
+        title: "Quienes somos",
         paragraphs: [
-          "En Mila Shoes creemos que el calzado es mucho mas que un accesorio: es la base de cada look, la primera impresion y el detalle que completa una personalidad. Por eso, cada par que ofrecemos esta pensado con cuidado, combinando comodidad real con una estetica limpia y contemporanea.",
-          "Nacimos con una idea simple: llevar calzado de calidad a quienes buscan zapatos que duren, que se vean bien y que acompanen sin esfuerzo el ritmo del dia a dia. Seleccionamos cada modelo con criterio, priorizando materiales nobles, siluetas versatiles y terminaciones que marcan la diferencia.",
-        ],
-      },
-      {
-        label: "Nuestro compromiso",
-        title: "Diseno, calidad y una seleccion que evoluciona",
-        paragraphs: [
-          "Trabajamos con proveedores de confianza y renovamos nuestra coleccion constantemente para que siempre encuentres algo nuevo. Botas, borcegos, sneakers y mas: cada categoria tiene su identidad, pero todas comparten el mismo estandar de calidad que nos define.",
-          "Nuestra mayor satisfaccion es saber que cuando elegis un par de Mila Shoes, sabes exactamente lo que estas llevando: diseno, calidad y un estilo que no pasa de moda.",
+          "Mila Shoes nacio hace mas de 10 anos como un emprendimiento compartido con una amiga. Con el tiempo, el proyecto evoluciono y decidi continuar este camino sola, haciendo crecer la marca hasta convertirla en lo que es hoy.",
+          "Me gusta pensar Mila Shoes como una propuesta diferente, pensada para quienes buscan ese detalle especial que transforma y completa cada outfit.",
         ],
       },
     ],
-    locationTitle: "Veni a conocer nuestra tienda",
-    locationLabel: "Encontranos",
-    locationText: "Buenos Aires, Argentina",
-    mapsUrl: `https://www.google.com/maps/search/?api=1&query=${defaultMapQuery}`,
-    mapEmbedUrl: `https://www.google.com/maps?q=${defaultMapQuery}&z=14&output=embed`,
   },
 };
 
@@ -101,6 +88,7 @@ function getAboutPageContent(storeId: number) {
 export default async function QuienesSomosPage() {
   const { storeId } = await getServerStoreContext();
   const content = getAboutPageContent(storeId);
+  const hasLocation = Boolean(content.mapEmbedUrl && content.mapsUrl);
 
   return (
     <section
@@ -145,7 +133,9 @@ export default async function QuienesSomosPage() {
         <div
           className="layout-two-col"
           style={{
-            gridTemplateColumns: "minmax(0, 1fr) minmax(340px, 0.92fr)",
+            gridTemplateColumns: hasLocation
+              ? "minmax(0, 1fr) minmax(340px, 0.92fr)"
+              : "minmax(0, 920px)",
             gap: 22,
             alignItems: "stretch",
           }}
@@ -207,95 +197,97 @@ export default async function QuienesSomosPage() {
             ))}
           </article>
 
-          <aside
-            style={{
-              borderRadius: 36,
-              border: "1px solid var(--border-soft)",
-              background: "var(--page-panel-bg)",
-              overflow: "hidden",
-              display: "grid",
-            }}
-          >
-            <div
+          {hasLocation ? (
+            <aside
               style={{
-                position: "relative",
-                width: "100%",
-                minHeight: 320,
-                background: "var(--block-card-bg)",
-              }}
-            >
-              <iframe
-                src={content.mapEmbedUrl}
-                title={`Ubicacion ${content.brandName}`}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  border: 0,
-                }}
-              />
-            </div>
-
-            <div
-              style={{
-                padding: "22px 24px 26px",
+                borderRadius: 36,
+                border: "1px solid var(--border-soft)",
+                background: "var(--page-panel-bg)",
+                overflow: "hidden",
                 display: "grid",
-                gap: 12,
               }}
             >
-              <span
+              <div
                 style={{
-                  textTransform: "uppercase",
-                  letterSpacing: "0.16em",
-                  fontSize: 12,
-                  color: "var(--text-muted)",
+                  position: "relative",
+                  width: "100%",
+                  minHeight: 320,
+                  background: "var(--block-card-bg)",
                 }}
               >
-                {content.locationLabel}
-              </span>
-              <strong
+                <iframe
+                  src={content.mapEmbedUrl!}
+                  title={`Ubicacion ${content.brandName}`}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    border: 0,
+                  }}
+                />
+              </div>
+
+              <div
                 style={{
-                  color: "var(--text-strong)",
-                  fontSize: 24,
-                  lineHeight: 1.15,
+                  padding: "22px 24px 26px",
+                  display: "grid",
+                  gap: 12,
                 }}
               >
-                {content.locationTitle}
-              </strong>
-              <p
-                style={{
-                  margin: 0,
-                  color: "var(--text-muted)",
-                  lineHeight: 1.75,
-                }}
-              >
-                {content.locationText}
-              </p>
-              <a
-                href={content.mapsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="theme-button"
-                style={{
-                  width: "fit-content",
-                  textDecoration: "none",
-                  padding: "13px 18px",
-                  borderRadius: 999,
-                  background: "var(--text-strong)",
-                  color: "var(--page-panel-bg)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                Abrir en Google Maps
-              </a>
-            </div>
-          </aside>
+                <span
+                  style={{
+                    textTransform: "uppercase",
+                    letterSpacing: "0.16em",
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  {content.locationLabel}
+                </span>
+                <strong
+                  style={{
+                    color: "var(--text-strong)",
+                    fontSize: 24,
+                    lineHeight: 1.15,
+                  }}
+                >
+                  {content.locationTitle}
+                </strong>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--text-muted)",
+                    lineHeight: 1.75,
+                  }}
+                >
+                  {content.locationText}
+                </p>
+                <a
+                  href={content.mapsUrl!}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="theme-button"
+                  style={{
+                    width: "fit-content",
+                    textDecoration: "none",
+                    padding: "13px 18px",
+                    borderRadius: 999,
+                    background: "var(--text-strong)",
+                    color: "var(--page-panel-bg)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.12em",
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  Abrir en Google Maps
+                </a>
+              </div>
+            </aside>
+          ) : null}
         </div>
       </div>
     </section>

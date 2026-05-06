@@ -120,7 +120,8 @@ export default function Header({
     { href: "/", label: "Inicio" },
     { href: "/product", label: "Catalogo" },
     { href: "/category/ofertas", label: "Ofertas" },
-    { href: "/quienes-somos", label: "Informacion" },
+    { href: "/quienes-somos", label: "Quienes somos" },
+    { href: "/guia-de-talles", label: "Guia de talles" },
     { href: "/donde-encontrarnos", label: "Contacto" },
   ];
 
