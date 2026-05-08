@@ -144,6 +144,23 @@ export class ShippingService {
       ...rate,
       providerConfigId: null,
     }));
+    const eligibleFreeShippingRates = pickupRates.filter((rate) =>
+      this.isFreeShippingRate(rate),
+    );
+
+    if (eligibleFreeShippingRates.length > 0) {
+      return this.quotesService.persistQuotes({
+        storeId,
+        cartId,
+        customerId,
+        postalCode,
+        weight: packageCalculation?.weightKg ?? fallbackWeightKg,
+        value,
+        ...(destination ?? {}),
+        providerConfigId: null,
+        rates: this.uniqueRates(eligibleFreeShippingRates),
+      });
+    }
 
     const providerRates =
       !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
@@ -258,6 +275,21 @@ export class ShippingService {
         : null;
 
     return metadata?.requiresBranchSelection !== true;
+  }
+
+  private isFreeShippingRate(rate: ShippingRate) {
+    const method = rate.method?.trim().toLowerCase() ?? '';
+    const serviceCode = rate.serviceCode?.trim().toLowerCase() ?? '';
+    const dispatchType = rate.dispatchType?.trim().toLowerCase() ?? '';
+    const methodType = rate.methodType?.trim().toLowerCase() ?? '';
+
+    return (
+      Number(rate.price ?? 0) === 0 &&
+      (methodType === 'free' ||
+        serviceCode === 'free' ||
+        dispatchType === 'free' ||
+        method.includes('gratis'))
+    );
   }
 
   private uniqueRates(rates: ShippingRate[]) {
