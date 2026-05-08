@@ -1,7 +1,5 @@
 "use client";
 
-import { useAuth } from "@/context/auth-context";
-
 export default function StoreShell({
   themeName,
   children,
@@ -9,13 +7,10 @@ export default function StoreShell({
   themeName?: string | null;
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
-  const isAdmin = Boolean(user?.role && user.role !== "CUSTOMER");
-
   return (
     <div data-store-shell style={{ minHeight: "100vh" }}>
       <main data-store-content>{children}</main>
-      {themeName === "trojani" && !isAdmin ? <WhatsAppFloatingButton /> : null}
+      {themeName === "trojani" ? <WhatsAppFloatingButton /> : null}
     </div>
   );
 }
@@ -33,9 +28,9 @@ function WhatsAppFloatingButton() {
       title="WhatsApp"
       style={{
         position: "fixed",
-        right: 18,
-        bottom: 18,
-        zIndex: 60,
+        right: "max(18px, env(safe-area-inset-right))",
+        bottom: "max(18px, env(safe-area-inset-bottom))",
+        zIndex: 2147483000,
         width: 60,
         height: 60,
         borderRadius: 999,
