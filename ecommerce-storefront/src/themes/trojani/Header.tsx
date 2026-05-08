@@ -8,8 +8,25 @@ import HeaderSearch from "@/components/header/HeaderSearch";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
+import { api } from "@/lib/api";
 import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
 import type { StorefrontThemeLayout } from "@/types/storefront-config";
+
+type HeaderProductSearchResult = {
+  title?: string | null;
+  slug?: string | null;
+  published?: boolean;
+};
+
+const shopCategoryLinks = [
+  { href: "/category/abrigos", label: "Abrigos" },
+  { href: "/category/accesorios", label: "Accesorios" },
+  { href: "/category/calzado", label: "Calzado" },
+  { href: "/category/remeras", label: "Remeras" },
+];
+
+const afaFallbackHref = "/product/camiseta-argentina";
+const afaSearchTerms = ["afa", "argentina", "camiseta", "futbol", "fútbol"];
 
 const navLinkStyle = {
   color: "color-mix(in srgb, var(--theme-colors-text-strong) 84%, transparent)",
@@ -35,6 +52,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   );
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [afaHref, setAfaHref] = useState(afaFallbackHref);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 920px)");
@@ -62,6 +81,56 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
       document.body.style.overflow = previousOverflow;
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    let active = true;
+
+    const resolveAfaProduct = async () => {
+      try {
+        const responses = await Promise.all(
+          afaSearchTerms.map((term) =>
+            api(`/store/products?search=${encodeURIComponent(term)}`).catch(() => []),
+          ),
+        );
+
+        if (!active) {
+          return;
+        }
+
+        const products = responses
+          .flat()
+          .filter(
+            (product): product is HeaderProductSearchResult =>
+              Boolean(product) && typeof product === "object",
+          );
+        const match = products.find((product) => {
+          const searchable = `${product.title ?? ""} ${product.slug ?? ""}`.toLowerCase();
+
+          return (
+            product.published !== false &&
+            product.slug &&
+            (searchable.includes("afa") ||
+              searchable.includes("argentina") ||
+              searchable.includes("camiseta"))
+          );
+        });
+
+        if (match?.slug) {
+          setAfaHref(`/product/${match.slug}`);
+        }
+      } catch {
+        if (active) {
+          setAfaHref(afaFallbackHref);
+        }
+      }
+    };
+
+    void resolveAfaProduct();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const layoutConfig = mergeThemeLayout("trojani", themeLayout);
   const primaryLinks = layoutConfig.header?.primaryLinks ?? [];
@@ -117,11 +186,50 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               fontSize: 17,
             }}
           >
-            {primaryLinks.map((link) => (
-              <Link key={link.href} href={link.href} style={navLinkStyle}>
-                {link.label}
-              </Link>
-            ))}
+            {primaryLinks.map((link) =>
+              link.label.toLowerCase() === "shop" ? (
+                <div
+                  key={link.href}
+                  onMouseEnter={() => setShopOpen(true)}
+                  onMouseLeave={() => setShopOpen(false)}
+                  style={shopMenuWrapperStyle}
+                >
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={shopOpen}
+                    onClick={() => setShopOpen((current) => !current)}
+                    style={shopMenuButtonStyle}
+                  >
+                    {link.label}
+                    <ChevronDownIcon open={shopOpen} />
+                  </button>
+                  {shopOpen ? (
+                    <div role="menu" style={shopDropdownStyle}>
+                      {shopCategoryLinks.map((category) => (
+                        <Link
+                          key={category.href}
+                          href={category.href}
+                          role="menuitem"
+                          onClick={() => setShopOpen(false)}
+                          style={shopDropdownLinkStyle}
+                        >
+                          {category.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <Link
+                  key={`${link.href}-${link.label}`}
+                  href={link.label.toLowerCase() === "afa" ? afaHref : link.href}
+                  style={navLinkStyle}
+                >
+                  {link.label}
+                </Link>
+              ),
+            )}
           </nav>
         ) : null}
 
@@ -237,16 +345,34 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                 Navegacion
               </span>
               <div style={{ display: "grid", gap: 8 }}>
-                {primaryLinks.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMenuOpen(false)}
-                    style={mobileNavLinkStyle}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
+                {primaryLinks.map((link) =>
+                  link.label.toLowerCase() === "shop" ? (
+                    <details key={link.href} style={mobileShopDetailsStyle}>
+                      <summary style={mobileShopSummaryStyle}>{link.label}</summary>
+                      <div style={mobileShopLinksStyle}>
+                        {shopCategoryLinks.map((category) => (
+                          <Link
+                            key={category.href}
+                            href={category.href}
+                            onClick={() => setMenuOpen(false)}
+                            style={mobileShopLinkStyle}
+                          >
+                            {category.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </details>
+                  ) : (
+                    <Link
+                      key={`${link.href}-${link.label}`}
+                      href={link.label.toLowerCase() === "afa" ? afaHref : link.href}
+                      onClick={() => setMenuOpen(false)}
+                      style={mobileNavLinkStyle}
+                    >
+                      {link.label}
+                    </Link>
+                  ),
+                )}
               </div>
             </div>
 
@@ -369,6 +495,28 @@ function HamburgerIcon({ open }: { open: boolean }) {
   );
 }
 
+function ChevronDownIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{
+        transform: open ? "rotate(180deg)" : "rotate(0deg)",
+        transition: "transform 160ms ease",
+      }}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 function CartIcon() {
   return (
     <svg
@@ -433,6 +581,51 @@ const iconActionStyle = {
   position: "relative",
 } as const;
 
+const shopMenuWrapperStyle = {
+  position: "relative",
+  display: "inline-flex",
+  alignItems: "center",
+} as const;
+
+const shopMenuButtonStyle = {
+  ...navLinkStyle,
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+} as const;
+
+const shopDropdownStyle = {
+  position: "absolute",
+  top: "100%",
+  left: "50%",
+  transform: "translateX(-50%)",
+  minWidth: 190,
+  padding: 8,
+  borderRadius: 18,
+  border: "1px solid var(--header-action-border)",
+  background: "var(--page-panel-strong-bg)",
+  boxShadow:
+    "0 24px 60px color-mix(in srgb, var(--theme-colors-text-strong) 16%, transparent)",
+  display: "grid",
+  gap: 4,
+  zIndex: 45,
+} as const;
+
+const shopDropdownLinkStyle = {
+  color: "var(--theme-colors-text-strong)",
+  textDecoration: "none",
+  padding: "12px 14px",
+  borderRadius: 12,
+  fontSize: 14,
+  fontFamily: 'var(--font-body, "Helvetica Neue", Helvetica, Arial, sans-serif)',
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  fontWeight: 500,
+} as const;
+
 const iconBadgeStyle = {
   minWidth: 20,
   height: 20,
@@ -473,6 +666,36 @@ const mobileNavLinkStyle = {
   textTransform: "uppercase",
   letterSpacing: "0.06em",
   fontWeight: 500,
+} as const;
+
+const mobileShopDetailsStyle = {
+  borderRadius: 18,
+  border: "1px solid var(--theme-colors-border)",
+  background: "var(--page-panel-bg)",
+  overflow: "hidden",
+} as const;
+
+const mobileShopSummaryStyle = {
+  ...mobileNavLinkStyle,
+  border: "none",
+  borderRadius: 0,
+  background: "transparent",
+  cursor: "pointer",
+  listStyle: "none",
+} as const;
+
+const mobileShopLinksStyle = {
+  display: "grid",
+  gap: 6,
+  padding: "0 12px 12px",
+} as const;
+
+const mobileShopLinkStyle = {
+  ...mobileNavLinkStyle,
+  padding: "11px 14px",
+  borderRadius: 14,
+  background: "color-mix(in srgb, var(--page-panel-bg) 62%, var(--page-shell-bg))",
+  fontSize: 14,
 } as const;
 
 const mobileSessionPlaceholderStyle = {

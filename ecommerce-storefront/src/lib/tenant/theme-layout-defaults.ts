@@ -17,6 +17,7 @@ const trojaniPrimaryLinks: StorefrontNavLink[] = [
   { href: "/product", label: "Shop" },
   { href: "/category/sale", label: "Sale" },
   { href: "/category/gift-cards", label: "Gift Cards" },
+  { href: "/product/camiseta-argentina", label: "AFA" },
   { href: "/quienes-somos", label: "Quienes somos" },
 ];
 
