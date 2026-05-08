@@ -616,24 +616,26 @@ const shopMenuWrapperStyle = {
   position: "relative",
   display: "inline-flex",
   alignItems: "center",
+  paddingBottom: 12,
+  marginBottom: -12,
 } as const;
 
 const shopMenuButtonStyle = {
   ...navLinkStyle,
   textDecoration: "none",
-  background: "color-mix(in srgb, var(--theme-colors-text-strong) 5%, transparent)",
+  background: "transparent",
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
-  minHeight: 40,
-  padding: "10px 13px",
-  borderRadius: 999,
+  minHeight: 0,
+  padding: "10px 0",
+  borderRadius: 0,
   color: "var(--theme-colors-text-strong)",
 } as const;
 
 const shopDropdownStyle = {
   position: "absolute",
-  top: "calc(100% + 12px)",
+  top: "100%",
   left: "50%",
   transform: "translateX(-50%)",
   minWidth: 178,

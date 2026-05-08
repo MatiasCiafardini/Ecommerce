@@ -290,9 +290,9 @@
 
 .theme-trojani .trojani-shop-trigger:hover,
 .theme-trojani .trojani-shop-trigger[aria-expanded="true"] {
-  background: var(--theme-colors-text-strong) !important;
-  color: var(--theme-colors-background) !important;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--theme-colors-text-strong) 10%, transparent);
+  background: transparent !important;
+  color: var(--theme-colors-text-strong) !important;
+  box-shadow: none;
 }
 
 .theme-trojani .trojani-shop-dropdown::before {
