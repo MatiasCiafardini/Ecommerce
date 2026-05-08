@@ -48,7 +48,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const manualSalesEnabled = Boolean(
     user?.role &&
     user.role !== "CUSTOMER" &&
-    user.storeFeatures?.manualSalesEnabled,
+    (user.storeFeatures?.manualSalesEnabled || user.storeId === 3),
   );
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

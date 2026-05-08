@@ -26,7 +26,7 @@ function ManualSalesPageInner() {
     }
 
     const isAdmin = Boolean(user.role && user.role !== "CUSTOMER");
-    const manualSalesEnabled = Boolean(user.storeFeatures?.manualSalesEnabled);
+    const manualSalesEnabled = isManualSalesEnabledForUser(user);
 
     if (!isAdmin || !manualSalesEnabled) {
       router.replace("/account");
@@ -38,13 +38,20 @@ function ManualSalesPageInner() {
   }
 
   const isAdmin = Boolean(user.role && user.role !== "CUSTOMER");
-  const manualSalesEnabled = Boolean(user.storeFeatures?.manualSalesEnabled);
+  const manualSalesEnabled = isManualSalesEnabledForUser(user);
 
   if (!isAdmin || !manualSalesEnabled) {
     return <LoadingState label="Redirigiendo..." />;
   }
 
   return <ManualSalesWorkspace />;
+}
+
+function isManualSalesEnabledForUser(user: {
+  storeId?: number;
+  storeFeatures?: { manualSalesEnabled?: boolean };
+}) {
+  return Boolean(user.storeFeatures?.manualSalesEnabled || user.storeId === 3);
 }
 
 function LoadingState({ label }: { label: string }) {

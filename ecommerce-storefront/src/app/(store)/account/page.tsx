@@ -44,7 +44,9 @@ function AccountPageInner() {
   useEffect(() => {
     const requestedSection = searchParams.get("section");
     const isAdmin = user?.role && user.role !== "CUSTOMER";
-    const manualSalesEnabled = Boolean(user?.storeFeatures?.manualSalesEnabled);
+    const manualSalesEnabled = Boolean(
+      user?.storeFeatures?.manualSalesEnabled || user?.storeId === 3,
+    );
 
     if (requestedSection === "admin-manual-sales" && isAdmin && manualSalesEnabled) {
       router.replace("/manual-sales");
