@@ -20,6 +20,12 @@ export class CreateStoreShippingMethodDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  freeShippingMinimumAmount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   description?: string;
 

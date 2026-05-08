@@ -102,11 +102,9 @@ const getShippingTimingCopy = (option: ShippingOption) => {
 
 export default function CheckoutPayment({
   shippingOptions,
-  freeShippingMode = false,
   onNext,
 }: {
   shippingOptions: ShippingOption[];
-  freeShippingMode?: boolean;
   onNext: (payload: {
     paymentMethod: string;
     paymentLabel: string;
@@ -164,15 +162,10 @@ export default function CheckoutPayment({
 
     return true;
   });
-
-  useEffect(() => {
-    if (
-      selectedMethod &&
-      !availablePaymentOptions.some((option) => option.id === selectedMethod.id)
-    ) {
-      setSelectedMethod(null);
-    }
-  }, [availablePaymentOptions, selectedMethod]);
+  const selectedMethodAvailable = selectedMethod
+    ? availablePaymentOptions.some((option) => option.id === selectedMethod.id)
+    : false;
+  const effectiveSelectedMethod = selectedMethodAvailable ? selectedMethod : null;
 
   return (
     <section
@@ -219,7 +212,6 @@ export default function CheckoutPayment({
             const active =
               selectedShipping?.provider === option.provider &&
               selectedShipping?.method === option.method;
-            const displayPrice = freeShippingMode ? 0 : option.price;
 
             return (
               <button
@@ -272,11 +264,11 @@ export default function CheckoutPayment({
                         color: "var(--checkout-text-muted)",
                       }}
                     >
-                      {freeShippingMode ? "Envio gratis" : getShippingTimingCopy(option)}
+                      {getShippingTimingCopy(option)}
                     </p>
                   </div>
                   <strong style={{ fontSize: 24 }}>
-                    {freeShippingMode ? "Gratis" : formatCurrency(displayPrice)}
+                    {option.price <= 0 ? "Gratis" : formatCurrency(option.price)}
                   </strong>
                 </div>
               </button>
@@ -315,7 +307,7 @@ export default function CheckoutPayment({
 
         <div style={{ display: "grid", gap: 12 }}>
           {availablePaymentOptions.map((method) => {
-            const active = selectedMethod?.id === method.id;
+            const active = effectiveSelectedMethod?.id === method.id;
             const hasTransferDiscount =
               method.id === "bank_transfer" && bankTransferDiscountPercentage > 0;
 
@@ -390,24 +382,24 @@ export default function CheckoutPayment({
                 lineHeight: 1.7,
               }}
             >
-              {selectedMethod?.id === "bank_transfer"
+              {effectiveSelectedMethod?.id === "bank_transfer"
               ? bankTransferDiscountPercentage > 0
                 ? `En la revision final vas a subir el comprobante y se aplicara un ${bankTransferDiscountPercentage}% de descuento a la transferencia.`
                 : "En la revision final vas a subir el comprobante para que el comercio valide la transferencia."
-              : selectedMethod?.id === "cash"
+              : effectiveSelectedMethod?.id === "cash"
                 ? "El pedido quedara reservado para que puedas pagarlo en efectivo al momento del retiro."
               : "Al confirmar, el pedido se registra con Mercado Pago como medio de cobro online."}
             </p>
         </div>
 
         <button
-          disabled={!selectedMethod || !selectedShipping}
+          disabled={!effectiveSelectedMethod || !selectedShipping}
           onClick={() =>
-            selectedMethod &&
+            effectiveSelectedMethod &&
             selectedShipping &&
             onNext({
-              paymentMethod: selectedMethod.id,
-              paymentLabel: selectedMethod.title,
+              paymentMethod: effectiveSelectedMethod.id,
+              paymentLabel: effectiveSelectedMethod.title,
               shippingOption: selectedShipping,
             })
           }
@@ -415,16 +407,16 @@ export default function CheckoutPayment({
             border: "none",
             borderRadius: 999,
             background:
-              selectedMethod && selectedShipping
+              effectiveSelectedMethod && selectedShipping
                 ? "var(--checkout-primary-bg)"
                 : "var(--checkout-card-alt-bg)",
             color:
-              selectedMethod && selectedShipping
+              effectiveSelectedMethod && selectedShipping
                 ? "var(--checkout-primary-color)"
                 : "var(--checkout-text-muted)",
             padding: "15px 18px",
             fontWeight: 700,
-            cursor: selectedMethod && selectedShipping ? "pointer" : "not-allowed",
+            cursor: effectiveSelectedMethod && selectedShipping ? "pointer" : "not-allowed",
           }}
         >
           Continuar a revision

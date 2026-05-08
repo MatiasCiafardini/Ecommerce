@@ -166,6 +166,7 @@ export class CheckoutService {
       shippingAddress,
       shippingSelection,
       freeShipping,
+      subtotal: discountedSubtotal,
     });
 
     if (validatedShipping) {
@@ -337,6 +338,7 @@ export class CheckoutService {
       branchId?: string;
     };
     freeShipping: boolean;
+    subtotal: number;
   }) {
     const normalizedProvider = params.shippingProvider?.trim().toLowerCase();
     const normalizedMethod = params.shippingMethod?.trim();
@@ -420,6 +422,7 @@ export class CheckoutService {
     shippingProvider?: string;
     shippingMethod?: string;
     shippingCost: number;
+    subtotal: number;
   }) {
     const provider = params.shippingProvider?.trim().toLowerCase();
     const method = params.shippingMethod?.trim() || '';
@@ -448,6 +451,20 @@ export class CheckoutService {
       );
 
     if (configuredMethod) {
+      const freeShippingMinimumAmount = Number(
+        configuredMethod.freeShippingMinimumAmount ?? 0,
+      );
+
+      if (
+        configuredMethod.type === 'free' &&
+        freeShippingMinimumAmount > 0 &&
+        params.subtotal < freeShippingMinimumAmount
+      ) {
+        throw new BadRequestException(
+          'Cart subtotal does not meet the free shipping minimum amount',
+        );
+      }
+
       return {
         shippingProvider: configuredMethod.type === 'pickup' ? 'store' : 'manual',
         shippingMethod: configuredMethod.name,

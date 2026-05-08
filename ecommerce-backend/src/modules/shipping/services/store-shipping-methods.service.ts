@@ -13,6 +13,7 @@ type RawStoreShippingMethodRow = {
   name: string;
   type: string;
   price: Prisma.Decimal | number | string;
+  freeShippingMinimumAmount: Prisma.Decimal | number | string | null;
   description: string | null;
   active: boolean;
   displayOrder: number;
@@ -27,6 +28,7 @@ type StoreShippingMethodRecord = {
   name: string;
   type: 'pickup' | 'manual' | 'free' | 'coordinar';
   price: number;
+  freeShippingMinimumAmount: number | null;
   description: string | null;
   active: boolean;
   displayOrder: number;
@@ -105,6 +107,7 @@ export class StoreShippingMethodsService {
       name: string;
       type: string;
       price: number;
+      freeShippingMinimumAmount?: number | null;
       description?: string;
       active?: boolean;
       displayOrder?: number;
@@ -120,6 +123,7 @@ export class StoreShippingMethodsService {
         "name",
         "type",
         "price",
+        "freeShippingMinimumAmount",
         "description",
         "active",
         "displayOrder",
@@ -130,6 +134,7 @@ export class StoreShippingMethodsService {
         ${normalized.name},
         ${normalized.type},
         ${normalized.price},
+        ${normalized.freeShippingMinimumAmount},
         ${normalized.description},
         ${normalized.active},
         ${normalized.displayOrder},
@@ -147,6 +152,7 @@ export class StoreShippingMethodsService {
       name?: string;
       type?: string;
       price?: number;
+      freeShippingMinimumAmount?: number | null;
       description?: string;
       active?: boolean;
       displayOrder?: number;
@@ -157,6 +163,10 @@ export class StoreShippingMethodsService {
       name: data.name ?? current.name,
       type: data.type ?? current.type,
       price: data.price ?? current.price,
+      freeShippingMinimumAmount:
+        data.freeShippingMinimumAmount === undefined
+          ? current.freeShippingMinimumAmount
+          : data.freeShippingMinimumAmount,
       description:
         data.description === undefined ? current.description || undefined : data.description,
       active: data.active ?? current.active,
@@ -169,6 +179,7 @@ export class StoreShippingMethodsService {
         "name" = ${normalized.name},
         "type" = ${normalized.type},
         "price" = ${normalized.price},
+        "freeShippingMinimumAmount" = ${normalized.freeShippingMinimumAmount},
         "description" = ${normalized.description},
         "active" = ${normalized.active},
         "displayOrder" = ${normalized.displayOrder},
@@ -264,6 +275,7 @@ export class StoreShippingMethodsService {
     name: string;
     type: string;
     price: number;
+    freeShippingMinimumAmount?: number | null;
     description?: string;
     active?: boolean;
     displayOrder?: number;
@@ -277,11 +289,19 @@ export class StoreShippingMethodsService {
     const type = this.normalizeType(data.type);
     const forceZeroPrice = type === 'pickup' || type === 'free' || type === 'coordinar';
     const price = forceZeroPrice ? 0 : Math.max(Number(data.price ?? 0), 0);
+    const rawFreeShippingMinimumAmount = Number(
+      data.freeShippingMinimumAmount ?? 0,
+    );
+    const freeShippingMinimumAmount =
+      type === 'free' && rawFreeShippingMinimumAmount > 0
+        ? rawFreeShippingMinimumAmount
+        : null;
 
     return {
       name,
       type,
       price,
+      freeShippingMinimumAmount,
       description: data.description?.trim() || null,
       active: data.active ?? true,
       displayOrder: Math.max(Number(data.displayOrder ?? 0), 0),
@@ -310,6 +330,11 @@ export class StoreShippingMethodsService {
       name: row.name,
       type: this.normalizeType(row.type),
       price: Number(row.price ?? 0),
+      freeShippingMinimumAmount:
+        row.freeShippingMinimumAmount === null ||
+        row.freeShippingMinimumAmount === undefined
+          ? null
+          : Number(row.freeShippingMinimumAmount),
       description: row.description ?? null,
       active: Boolean(row.active),
       displayOrder: Number(row.displayOrder ?? 0),

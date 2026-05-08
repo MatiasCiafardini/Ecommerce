@@ -16,6 +16,7 @@ type ShippingMethodFormState = {
   name: string;
   type: "pickup" | "manual" | "free" | "coordinar";
   price: string;
+  freeShippingMinimumAmount: string;
   description: string;
   active: boolean;
   displayOrder: string;
@@ -32,6 +33,7 @@ const emptyShippingMethodForm: ShippingMethodFormState = {
   name: "",
   type: "manual",
   price: "0",
+  freeShippingMinimumAmount: "",
   description: "",
   active: true,
   displayOrder: "0",
@@ -64,6 +66,10 @@ export default function AdminShippingMethodsCard({
       name: method.name,
       type: method.type,
       price: String(method.price ?? 0),
+      freeShippingMinimumAmount:
+        method.freeShippingMinimumAmount && method.freeShippingMinimumAmount > 0
+          ? String(method.freeShippingMinimumAmount)
+          : "",
       description: method.description ?? "",
       active: method.active,
       displayOrder: String(method.displayOrder ?? 0),
@@ -83,6 +89,12 @@ export default function AdminShippingMethodsCard({
         name: form.name.trim(),
         type: form.type,
         price: Number(form.price || 0),
+        freeShippingMinimumAmount:
+          form.type === "free"
+            ? Number(form.freeShippingMinimumAmount || 0) > 0
+              ? Number(form.freeShippingMinimumAmount)
+              : null
+            : undefined,
         description: form.description.trim() || undefined,
         active: form.active,
         displayOrder: Number(form.displayOrder || 0),
@@ -172,6 +184,8 @@ export default function AdminShippingMethodsCard({
                 price: ["pickup", "free", "coordinar"].includes(event.target.value)
                   ? "0"
                   : current.price,
+                freeShippingMinimumAmount:
+                  event.target.value === "free" ? current.freeShippingMinimumAmount : "",
               }))
             }
             style={fieldStyle}
@@ -195,6 +209,24 @@ export default function AdminShippingMethodsCard({
             disabled={zeroPriceType}
           />
         </div>
+
+        {form.type === "free" ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={labelStyle}>Gratis desde</label>
+            <input
+              value={form.freeShippingMinimumAmount}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  freeShippingMinimumAmount: event.target.value,
+                }))
+              }
+              placeholder="70000"
+              style={fieldStyle}
+              inputMode="numeric"
+            />
+          </div>
+        ) : null}
 
         <div style={{ display: "grid", gap: 8 }}>
           <label style={labelStyle}>Orden visual</label>
@@ -223,7 +255,9 @@ export default function AdminShippingMethodsCard({
       </div>
 
       <div style={hintCardStyle}>
-        {zeroPriceType
+        {form.type === "free"
+          ? "Si cargas un monto minimo, este metodo solo aparece en checkout cuando el subtotal del carrito lo alcanza."
+          : zeroPriceType
           ? "Este tipo se publica con costo $0 y se usa para retiro, envio gratis o coordinacion manual."
           : "Usa precio fijo para cobrar el envio directamente en checkout."}
       </div>
@@ -264,6 +298,9 @@ export default function AdminShippingMethodsCard({
                 {shippingMethodTypes.find((entry) => entry.value === method.type)?.label ?? method.type} ·{" "}
                 {money(method.price)}
               </p>
+              {method.type === "free" && method.freeShippingMinimumAmount ? (
+                <p style={metaStyle}>Disponible desde {money(method.freeShippingMinimumAmount)}</p>
+              ) : null}
               {method.description ? <p style={metaStyle}>{method.description}</p> : null}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" onClick={() => editMethod(method)} style={secondaryButtonStyle}>

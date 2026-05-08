@@ -27,25 +27,38 @@ export class ManualShippingProvider implements ShippingProvider {
       );
 
       if (storeMethods.length > 0) {
-        return storeMethods.map((method) => ({
-          provider: 'manual',
-          method: method.name,
-          price: Number(method.price),
-          estimatedDays: 0,
-          description: method.description ?? undefined,
-          storeShippingMethodId: method.id,
-          methodType: method.type,
-          carrierId: method.type === 'pickup' ? 'store' : 'manual',
-          carrierName: method.name,
-          serviceCode: method.type,
-          modalityCode: method.type === 'pickup' ? 'pickup' : 'manual',
-          dispatchType: method.type,
-          metadata: {
-            description: method.description,
+        return storeMethods
+          .filter((method) => {
+            if (method.type !== 'free') {
+              return true;
+            }
+
+            const minimumAmount = Number(
+              method.freeShippingMinimumAmount ?? 0,
+            );
+
+            return minimumAmount <= 0 || Number(_data.value ?? 0) >= minimumAmount;
+          })
+          .map((method) => ({
+            provider: 'manual',
+            method: method.name,
+            price: Number(method.price),
+            estimatedDays: 0,
+            description: method.description ?? undefined,
             storeShippingMethodId: method.id,
             methodType: method.type,
-          },
-        }));
+            carrierId: method.type === 'pickup' ? 'store' : 'manual',
+            carrierName: method.name,
+            serviceCode: method.type,
+            modalityCode: method.type === 'pickup' ? 'pickup' : 'manual',
+            dispatchType: method.type,
+            metadata: {
+              description: method.description,
+              storeShippingMethodId: method.id,
+              methodType: method.type,
+              freeShippingMinimumAmount: method.freeShippingMinimumAmount,
+            },
+          }));
       }
     }
 

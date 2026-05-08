@@ -653,18 +653,19 @@ model ShippingQuote {
 }
 
 model StoreShippingMethod {
-  id           String    @id @default(cuid())
-  storeId      Int
-  name         String
-  type         String
-  price        Decimal   @default(0) @db.Decimal(10, 2)
-  description  String?
-  active       Boolean   @default(true)
-  displayOrder Int       @default(0)
-  deletedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  id                        String    @id @default(cuid())
+  storeId                   Int
+  name                      String
+  type                      String
+  price                     Decimal   @default(0) @db.Decimal(10, 2)
+  freeShippingMinimumAmount Decimal?  @db.Decimal(10, 2)
+  description               String?
+  active                    Boolean   @default(true)
+  displayOrder              Int       @default(0)
+  deletedAt                 DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  store                     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, active, displayOrder])
   @@index([storeId, deletedAt])

@@ -273,7 +273,6 @@ export default function CheckoutReview({
   paymentMethod,
   paymentLabel,
   shippingOption,
-  freeShippingMode = false,
 }: {
   cart: CheckoutCartItem[];
   cartId: number;
@@ -281,7 +280,6 @@ export default function CheckoutReview({
   paymentMethod: string | null;
   paymentLabel: string | null;
   shippingOption: ShippingOption | null;
-  freeShippingMode?: boolean;
 }) {
   const { clearCart } = useCart();
   const { user } = useAuth();
@@ -308,7 +306,7 @@ export default function CheckoutReview({
   const baseDiscountAmount = roundCurrency(discountPreview?.baseAmount ?? discountPreview?.amount ?? 0);
   const paymentMethodDiscountAmount = roundCurrency(discountPreview?.paymentMethodDiscountAmount ?? 0);
   const discountAmount = roundCurrency(baseDiscountAmount + paymentMethodDiscountAmount);
-  const baseShippingCost = freeShippingMode ? 0 : roundCurrency(shippingOption?.price ?? 0);
+  const baseShippingCost = roundCurrency(shippingOption?.price ?? 0);
   const shippingCost = roundCurrency(discountPreview?.freeShipping ? 0 : baseShippingCost);
   const total = roundCurrency(Math.max(subtotal - discountAmount + shippingCost, 0));
   const isBankTransfer = paymentMethod === "bank_transfer";
@@ -458,31 +456,21 @@ export default function CheckoutReview({
   };
 
   const createOrderFromCheckout = async () => {
-    const checkoutShippingMethod = freeShippingMode
-      ? `${shippingOption?.method ?? "Envio"} - Envio gratis`
-      : shippingOption?.method;
-
     const order = await api(`/store/checkout/${cartId}`, {
       method: "POST",
       body: JSON.stringify({
-        shippingQuoteId: freeShippingMode ? undefined : shippingOption?.quoteId,
-        shippingProvider: freeShippingMode ? "manual" : shippingOption?.provider,
-        shippingMethod: checkoutShippingMethod,
-        shippingCost: freeShippingMode ? 0 : shippingOption?.price,
-        shippingSelection: freeShippingMode
-          ? {
-              carrierId: "manual",
-              carrierName: "Envio gratis",
-              dispatchType: "manual",
-            }
-          : {
-              carrierId: shippingOption?.carrierId,
-              carrierName: shippingOption?.carrierName,
-              serviceCode: shippingOption?.serviceCode,
-              modalityCode: shippingOption?.modalityCode,
-              dispatchType: shippingOption?.dispatchType,
-              branchId: shippingOption?.branchId ?? undefined,
-            },
+        shippingQuoteId: shippingOption?.quoteId,
+        shippingProvider: shippingOption?.provider,
+        shippingMethod: shippingOption?.method,
+        shippingCost: shippingOption?.price,
+        shippingSelection: {
+          carrierId: shippingOption?.carrierId,
+          carrierName: shippingOption?.carrierName,
+          serviceCode: shippingOption?.serviceCode,
+          modalityCode: shippingOption?.modalityCode,
+          dispatchType: shippingOption?.dispatchType,
+          branchId: shippingOption?.branchId ?? undefined,
+        },
         shippingAddress: {
           firstName: address.firstName,
           lastName: address.lastName,
@@ -1085,8 +1073,6 @@ export default function CheckoutReview({
                 <strong>
                   {discountPreview?.freeShipping && baseShippingCost > 0
                     ? "Gratis"
-                    : freeShippingMode
-                    ? "Gratis"
                     : money(shippingCost)}
                 </strong>
               </div>
@@ -1206,7 +1192,7 @@ export default function CheckoutReview({
                 <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.8 }}>
                   {getCheckoutShippingLabel(shippingOption)}
                   <br />
-                  {freeShippingMode ? "Envio gratis" : getCheckoutShippingEta(shippingOption)}
+                  {getCheckoutShippingEta(shippingOption)}
                 </p>
               </div>
               <div style={{ height: 1, background: "var(--checkout-border)" }} />
