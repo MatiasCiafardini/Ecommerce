@@ -19,10 +19,10 @@ type HeaderProductSearchResult = {
 };
 
 const shopCategoryLinks = [
-  { href: "/category/abrigos", label: "Abrigos" },
-  { href: "/category/accesorios", label: "Accesorios" },
-  { href: "/category/calzado", label: "Calzado" },
-  { href: "/category/remeras", label: "Remeras" },
+  { href: "/product?categories=buzos,camperas", label: "Abrigos" },
+  { href: "/product?category=accesorios", label: "Accesorios" },
+  { href: "/product?category=calzado", label: "Calzado" },
+  { href: "/product?category=remeras", label: "Remeras" },
 ];
 
 const afaFallbackHref = "/product/camiseta-argentina";
@@ -192,24 +192,35 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                   key={link.href}
                   onMouseEnter={() => setShopOpen(true)}
                   onMouseLeave={() => setShopOpen(false)}
+                  onFocus={() => setShopOpen(true)}
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) {
+                      setShopOpen(false);
+                    }
+                  }}
                   style={shopMenuWrapperStyle}
                 >
-                  <button
-                    type="button"
+                  <Link
+                    href={link.href}
+                    className="trojani-shop-trigger"
                     aria-haspopup="menu"
                     aria-expanded={shopOpen}
-                    onClick={() => setShopOpen((current) => !current)}
                     style={shopMenuButtonStyle}
                   >
                     {link.label}
                     <ChevronDownIcon open={shopOpen} />
-                  </button>
+                  </Link>
                   {shopOpen ? (
-                    <div role="menu" style={shopDropdownStyle}>
+                    <div
+                      role="menu"
+                      className="trojani-shop-dropdown"
+                      style={shopDropdownStyle}
+                    >
                       {shopCategoryLinks.map((category) => (
                         <Link
                           key={category.href}
                           href={category.href}
+                          className="trojani-shop-dropdown-link"
                           role="menuitem"
                           onClick={() => setShopOpen(false)}
                           style={shopDropdownLinkStyle}
@@ -347,21 +358,41 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               <div style={{ display: "grid", gap: 8 }}>
                 {primaryLinks.map((link) =>
                   link.label.toLowerCase() === "shop" ? (
-                    <details key={link.href} style={mobileShopDetailsStyle}>
-                      <summary style={mobileShopSummaryStyle}>{link.label}</summary>
-                      <div style={mobileShopLinksStyle}>
+                    <div key={link.href} style={mobileShopDetailsStyle}>
+                      <div className="trojani-mobile-shop-summary" style={mobileShopSummaryStyle}>
+                        <Link
+                          href={link.href}
+                          onClick={() => setMenuOpen(false)}
+                          style={mobileShopMainLinkStyle}
+                        >
+                          {link.label}
+                        </Link>
+                        <button
+                          type="button"
+                          aria-label="Ver categorias de Shop"
+                          aria-expanded={shopOpen}
+                          onClick={() => setShopOpen((current) => !current)}
+                          style={mobileShopToggleStyle}
+                        >
+                          <ChevronDownIcon open={shopOpen} />
+                        </button>
+                      </div>
+                      {shopOpen ? (
+                        <div style={mobileShopLinksStyle}>
                         {shopCategoryLinks.map((category) => (
                           <Link
                             key={category.href}
                             href={category.href}
+                            className="trojani-mobile-shop-link"
                             onClick={() => setMenuOpen(false)}
                             style={mobileShopLinkStyle}
                           >
                             {category.label}
                           </Link>
                         ))}
-                      </div>
-                    </details>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : (
                     <Link
                       key={`${link.href}-${link.label}`}
@@ -589,41 +620,45 @@ const shopMenuWrapperStyle = {
 
 const shopMenuButtonStyle = {
   ...navLinkStyle,
-  border: "none",
-  background: "transparent",
-  cursor: "pointer",
+  textDecoration: "none",
+  background: "color-mix(in srgb, var(--theme-colors-text-strong) 5%, transparent)",
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
+  minHeight: 40,
+  padding: "10px 13px",
+  borderRadius: 999,
+  color: "var(--theme-colors-text-strong)",
 } as const;
 
 const shopDropdownStyle = {
   position: "absolute",
-  top: "100%",
+  top: "calc(100% + 12px)",
   left: "50%",
   transform: "translateX(-50%)",
-  minWidth: 190,
-  padding: 8,
-  borderRadius: 18,
-  border: "1px solid var(--header-action-border)",
-  background: "var(--page-panel-strong-bg)",
+  minWidth: 178,
+  padding: 6,
+  borderRadius: 14,
+  border: "1px solid color-mix(in srgb, var(--theme-colors-text-strong) 12%, transparent)",
+  background:
+    "color-mix(in srgb, var(--theme-colors-background) 98%, var(--page-panel-strong-bg))",
   boxShadow:
-    "0 24px 60px color-mix(in srgb, var(--theme-colors-text-strong) 16%, transparent)",
+    "0 20px 50px color-mix(in srgb, var(--theme-colors-text-strong) 13%, transparent)",
   display: "grid",
-  gap: 4,
+  gap: 2,
   zIndex: 45,
 } as const;
 
 const shopDropdownLinkStyle = {
   color: "var(--theme-colors-text-strong)",
   textDecoration: "none",
-  padding: "12px 14px",
-  borderRadius: 12,
-  fontSize: 14,
+  padding: "11px 12px",
+  borderRadius: 10,
+  fontSize: 13,
   fontFamily: 'var(--font-body, "Helvetica Neue", Helvetica, Arial, sans-serif)',
   textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  fontWeight: 500,
+  letterSpacing: "0.08em",
+  fontWeight: 600,
 } as const;
 
 const iconBadgeStyle = {
@@ -676,12 +711,36 @@ const mobileShopDetailsStyle = {
 } as const;
 
 const mobileShopSummaryStyle = {
-  ...mobileNavLinkStyle,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  padding: "0 0 0 16px",
+} as const;
+
+const mobileShopMainLinkStyle = {
+  color: "var(--theme-colors-text-strong)",
+  textDecoration: "none",
+  padding: "14px 0",
+  flex: "1 1 auto",
+  fontSize: 16,
+  fontFamily: 'var(--font-body, "Helvetica Neue", Helvetica, Arial, sans-serif)',
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  fontWeight: 500,
+} as const;
+
+const mobileShopToggleStyle = {
+  width: 48,
+  minHeight: 48,
   border: "none",
-  borderRadius: 0,
+  borderLeft: "1px solid var(--theme-colors-border)",
   background: "transparent",
+  color: "var(--theme-colors-text-strong)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
   cursor: "pointer",
-  listStyle: "none",
 } as const;
 
 const mobileShopLinksStyle = {

@@ -281,6 +281,73 @@
   justify-content: flex-end;
 }
 
+.theme-trojani .trojani-shop-trigger {
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.theme-trojani .trojani-shop-trigger:hover,
+.theme-trojani .trojani-shop-trigger[aria-expanded="true"] {
+  background: var(--theme-colors-text-strong) !important;
+  color: var(--theme-colors-background) !important;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--theme-colors-text-strong) 10%, transparent);
+}
+
+.theme-trojani .trojani-shop-dropdown::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-left: 1px solid color-mix(in srgb, var(--theme-colors-text-strong) 12%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--theme-colors-text-strong) 12%, transparent);
+  background: color-mix(in srgb, var(--theme-colors-background) 98%, var(--page-panel-strong-bg));
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.theme-trojani .trojani-shop-dropdown-link {
+  position: relative;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.theme-trojani .trojani-shop-dropdown-link:hover {
+  background: color-mix(in srgb, var(--theme-colors-text-strong) 8%, transparent);
+  transform: translateX(2px);
+}
+
+.theme-trojani .trojani-shop-dropdown-link:focus-visible,
+.theme-trojani .trojani-shop-trigger:focus-visible,
+.theme-trojani .trojani-mobile-shop-link:focus-visible,
+.theme-trojani .trojani-mobile-shop-summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--theme-colors-text-strong) 34%, transparent);
+  outline-offset: 3px;
+}
+
+.theme-trojani .trojani-mobile-shop-summary::-webkit-details-marker {
+  display: none;
+}
+
+.theme-trojani .trojani-mobile-shop-summary button svg {
+  transition: transform 160ms ease;
+}
+
+.theme-trojani .trojani-mobile-shop-link {
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.theme-trojani .trojani-mobile-shop-link:hover {
+  background: color-mix(in srgb, var(--theme-colors-text-strong) 8%, var(--page-panel-bg)) !important;
+  transform: translateX(2px);
+}
+
 /* Trojani keyframes */
 @keyframes theme-trojani-ambient-pan {
   0% { background-position: 0% 0%, center, center; }
