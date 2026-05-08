@@ -5564,7 +5564,7 @@ function CatalogImageLayoutEditor({
 
       <div style={{ display: "grid", gap: 10 }}>
         <div style={{ display: "grid", gap: 8 }}>
-          <div style={betweenStyle}>
+          <div style={imageEditorHeaderStyle}>
             <div style={{ display: "grid", gap: 4 }}>
               <strong style={{ color: "var(--account-text-strong)" }}>{label}</strong>
               <span style={metaStyle}>{secondaryText}</span>
@@ -6034,8 +6034,15 @@ const imageZoomSliderStyle: React.CSSProperties = {
   width: "100%",
   accentColor: "var(--account-text-strong)",
 };
+const imageEditorHeaderStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  alignItems: "start",
+  gap: 12,
+};
 const imageOrderBadgeStyle: React.CSSProperties = {
   width: "fit-content",
+  justifySelf: "end",
   padding: "8px 10px",
   borderRadius: 999,
   border: "1px solid var(--checkout-border)",
