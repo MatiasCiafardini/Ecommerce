@@ -10,6 +10,7 @@ import { CustomerOrder, money, openReceipt } from "@/components/account/order-ut
 import MercadoPagoCardPayment from "@/components/checkout/MercadoPagoCardPayment";
 import { roundCurrency } from "@/lib/currency";
 import { getClientStoreContext } from "@/lib/tenant/store-context";
+import { useBusyCursor } from "@/lib/use-busy-cursor";
 
 type ShippingOption = {
   quoteId?: string;
@@ -301,6 +302,8 @@ export default function CheckoutReview({
   const [discountLoading, setDiscountLoading] = useState(false);
   const DESKTOP_REVIEW_THREE_PRODUCTS_HEIGHT = 700;
   const DESKTOP_REVIEW_FALLBACK_MIN_HEIGHT = 580;
+
+  useBusyCursor(loading || discountLoading);
 
   const subtotal = roundCurrency(cart.reduce((acc, item) => acc + item.price * item.quantity, 0));
   const baseDiscountAmount = roundCurrency(discountPreview?.baseAmount ?? discountPreview?.amount ?? 0);

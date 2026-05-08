@@ -3,6 +3,7 @@
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import { api } from "@/lib/api";
+import { useBusyCursor } from "@/lib/use-busy-cursor";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -64,6 +65,8 @@ export default function CheckoutPage() {
   );
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [setupError, setSetupError] = useState<CheckoutSetupError | null>(null);
+
+  useBusyCursor(loading || syncing);
 
   useEffect(() => {
     return () => {
