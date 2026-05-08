@@ -7,7 +7,9 @@ import type {
 const cloneLinks = (links: StorefrontNavLink[]): StorefrontNavLink[] =>
   links.map((link) => ({ ...link }));
 
-const cloneColumns = (columns: StorefrontFooterColumn[]): StorefrontFooterColumn[] =>
+const cloneColumns = (
+  columns: StorefrontFooterColumn[],
+): StorefrontFooterColumn[] =>
   columns.map((column) => ({
     title: column.title,
     links: cloneLinks(column.links),
@@ -65,7 +67,7 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
       brandLabel: "Trojani",
       primaryLinks: trojaniPrimaryLinks,
       announcementText:
-        "3X2 / 10% OFF EN TRANSFERENCIA / ENVIO GRATIS A PARTIR DE $120.000",
+        "3X2 / 10% OFF EN TRANSFERENCIA / ENVIO GRATIS A PARTIR DE $70.000",
     },
     footer: {
       brandTitle: "Trojani",
@@ -216,7 +218,8 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
   milashoes: {
     header: {
       brandLabel: "Mila Shoes",
-      announcementText: "ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES",
+      announcementText:
+        "ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES",
       primaryLinks: [
         { href: "/product", label: "Shop" },
         { href: "/category/botas", label: "Botas" },
@@ -260,7 +263,9 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
   },
 };
 
-export function getDefaultThemeLayout(theme?: string | null): StorefrontThemeLayout {
+export function getDefaultThemeLayout(
+  theme?: string | null,
+): StorefrontThemeLayout {
   const normalized = theme?.trim().toLowerCase() ?? "";
   const base = themeLayoutDefaults[normalized] ?? themeLayoutDefaults.minimal;
 
@@ -291,9 +296,10 @@ export function mergeThemeLayout(
   const headerLinks =
     normalizedTheme === "trojani"
       ? trojaniPrimaryLinks
-      : Array.isArray(layout?.header?.primaryLinks) && layout.header.primaryLinks.length > 0
-      ? layout.header.primaryLinks
-      : (fallback.header?.primaryLinks ?? []);
+      : Array.isArray(layout?.header?.primaryLinks) &&
+          layout.header.primaryLinks.length > 0
+        ? layout.header.primaryLinks
+        : (fallback.header?.primaryLinks ?? []);
   const footerColumns =
     Array.isArray(layout?.footer?.columns) && layout.footer.columns.length > 0
       ? layout.footer.columns
@@ -301,9 +307,12 @@ export function mergeThemeLayout(
 
   return {
     header: {
-      brandLabel: layout?.header?.brandLabel?.trim() || fallback.header?.brandLabel || "",
+      brandLabel:
+        layout?.header?.brandLabel?.trim() || fallback.header?.brandLabel || "",
       announcementText:
-        layout?.header?.announcementText?.trim() || fallback.header?.announcementText || "",
+        layout?.header?.announcementText?.trim() ||
+        fallback.header?.announcementText ||
+        "",
       primaryLinks: cloneLinks(
         headerLinks.filter(
           (link): link is StorefrontNavLink =>
@@ -312,9 +321,12 @@ export function mergeThemeLayout(
       ),
     },
     footer: {
-      brandTitle: layout?.footer?.brandTitle?.trim() || fallback.footer?.brandTitle || "",
+      brandTitle:
+        layout?.footer?.brandTitle?.trim() || fallback.footer?.brandTitle || "",
       brandSubtitle:
-        layout?.footer?.brandSubtitle?.trim() || fallback.footer?.brandSubtitle || "",
+        layout?.footer?.brandSubtitle?.trim() ||
+        fallback.footer?.brandSubtitle ||
+        "",
       columns: cloneColumns(
         footerColumns
           .map((column) => ({
