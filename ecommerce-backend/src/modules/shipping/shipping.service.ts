@@ -75,14 +75,19 @@ export class ShippingService {
     for (const item of cart.items) {
       value += Number(item.variant.price) * item.quantity;
     }
-    const storeControlsCheckoutMethods =
-      await this.storeShippingMethodsService.hasAnyConfigured(storeId);
-    const resolvedProvider = storeControlsCheckoutMethods
-      ? null
-      : await this.providerConfigService.resolveProviderForCapability(
-          storeId,
-          'quote',
-        );
+    const activeStoreMethods =
+      await this.storeShippingMethodsService.findActive(storeId);
+    const storeControlsCheckoutMethods = activeStoreMethods.length > 0;
+    const integrationShippingEnabled = activeStoreMethods.some(
+      (method) => method.type === 'integration',
+    );
+    const resolvedProvider =
+      !storeControlsCheckoutMethods || integrationShippingEnabled
+        ? await this.providerConfigService.resolveProviderForCapability(
+            storeId,
+            'quote',
+          )
+        : null;
     const fallbackWeightKg = cart.items.reduce((sum, item) => {
       const variantWeightGrams = Number(item.variant.weightGrams ?? 0);
       const productWeightGrams = Number(item.variant.product?.weightGrams ?? 0);
@@ -140,38 +145,33 @@ export class ShippingService {
       providerConfigId: null,
     }));
 
-    let rates =
+    const providerRates =
       !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
-        ? pickupRates
+        ? []
         : await resolvedProvider.provider.getRates(
             request,
             resolvedProvider.context,
           );
 
-    rates = rates
+    const rates = providerRates
       .map((rate) =>
-        !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
-          ? rate
-          : {
-              ...rate,
-              providerConfigId: resolvedProvider.config?.id ?? null,
-              metadata: packageCalculation
-                ? {
-                    ...(rate.metadata ?? {}),
-                    packageSummary: packageCalculation.summary,
-                  }
-                : rate.metadata,
-            },
+        ({
+          ...rate,
+          providerConfigId: resolvedProvider?.config?.id ?? null,
+          metadata: packageCalculation
+            ? {
+                ...(rate.metadata ?? {}),
+                packageSummary: packageCalculation.summary,
+              }
+            : rate.metadata,
+        }),
       )
       .filter((rate) => this.isSupportedCheckoutRate(rate));
 
     const mergedRates =
       !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
-        ? this.uniqueRates(rates)
-        : this.uniqueRates([
-            ...rates,
-            ...pickupRates.filter((rate) => this.isPickupRate(rate)),
-          ]);
+        ? this.uniqueRates(pickupRates)
+        : this.uniqueRates([...rates, ...pickupRates]);
 
     if (!mergedRates.length) {
       throw new BadRequestException(
@@ -249,21 +249,6 @@ export class ShippingService {
     }
 
     return customer;
-  }
-
-  private isPickupRate(rate: ShippingRate) {
-    const method = rate.method?.trim().toLowerCase() ?? '';
-    const provider = rate.provider?.trim().toLowerCase() ?? '';
-    const modality = rate.modalityCode?.trim().toLowerCase() ?? '';
-    const dispatchType = rate.dispatchType?.trim().toLowerCase() ?? '';
-
-    return (
-      provider === 'store' ||
-      method.includes('retiro') ||
-      method.includes('pickup') ||
-      modality === 'pickup' ||
-      dispatchType === 'pickup'
-    );
   }
 
   private isSupportedCheckoutRate(rate: ShippingRate) {

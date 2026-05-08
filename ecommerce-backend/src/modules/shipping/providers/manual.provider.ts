@@ -27,19 +27,28 @@ export class ManualShippingProvider implements ShippingProvider {
       );
 
       if (storeMethods.length > 0) {
-        return storeMethods
-          .filter((method) => {
-            if (method.type !== 'free') {
-              return true;
-            }
+        const hasIntegrationMethod = storeMethods.some(
+          (method) => method.type === 'integration',
+        );
+        const eligibleMethods = storeMethods.filter((method) => {
+          if (method.type === 'integration') {
+            return false;
+          }
 
-            const minimumAmount = Number(
-              method.freeShippingMinimumAmount ?? 0,
-            );
+          if (method.type !== 'free') {
+            return true;
+          }
 
-            return minimumAmount <= 0 || Number(_data.value ?? 0) >= minimumAmount;
-          })
-          .map((method) => ({
+          const minimumAmount = Number(method.freeShippingMinimumAmount ?? 0);
+
+          return minimumAmount <= 0 || Number(_data.value ?? 0) >= minimumAmount;
+        });
+
+        if (eligibleMethods.length === 0) {
+          return hasIntegrationMethod ? [] : this.defaultManualRates();
+        }
+
+        return eligibleMethods.map((method) => ({
             provider: 'manual',
             method: method.name,
             price: Number(method.price),
@@ -69,6 +78,10 @@ export class ManualShippingProvider implements ShippingProvider {
       return manualOptions;
     }
 
+    return this.defaultManualRates();
+  }
+
+  private defaultManualRates(): ShippingRate[] {
     return [
       {
         provider: 'manual',

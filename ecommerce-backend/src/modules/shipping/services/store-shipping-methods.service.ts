@@ -26,7 +26,7 @@ type StoreShippingMethodRecord = {
   id: string;
   storeId: number;
   name: string;
-  type: 'pickup' | 'manual' | 'free' | 'coordinar';
+  type: 'pickup' | 'manual' | 'free' | 'coordinar' | 'integration';
   price: number;
   freeShippingMinimumAmount: number | null;
   description: string | null;
@@ -78,6 +78,7 @@ export class StoreShippingMethodsService {
       SELECT COUNT(*)::int AS count
       FROM "StoreShippingMethod"
       WHERE "storeId" = ${storeId}
+        AND "deletedAt" IS NULL
     `;
 
     return Number(rows[0]?.count ?? 0) > 0;
@@ -287,7 +288,11 @@ export class StoreShippingMethodsService {
     }
 
     const type = this.normalizeType(data.type);
-    const forceZeroPrice = type === 'pickup' || type === 'free' || type === 'coordinar';
+    const forceZeroPrice =
+      type === 'pickup' ||
+      type === 'free' ||
+      type === 'coordinar' ||
+      type === 'integration';
     const price = forceZeroPrice ? 0 : Math.max(Number(data.price ?? 0), 0);
     const rawFreeShippingMinimumAmount = Number(
       data.freeShippingMinimumAmount ?? 0,
@@ -315,7 +320,8 @@ export class StoreShippingMethodsService {
       normalized !== 'pickup' &&
       normalized !== 'manual' &&
       normalized !== 'free' &&
-      normalized !== 'coordinar'
+      normalized !== 'coordinar' &&
+      normalized !== 'integration'
     ) {
       throw new BadRequestException('Invalid store shipping method type');
     }

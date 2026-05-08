@@ -14,7 +14,7 @@ type Props = {
 
 type ShippingMethodFormState = {
   name: string;
-  type: "pickup" | "manual" | "free" | "coordinar";
+  type: "pickup" | "manual" | "free" | "coordinar" | "integration";
   price: string;
   freeShippingMinimumAmount: string;
   description: string;
@@ -25,6 +25,7 @@ type ShippingMethodFormState = {
 const shippingMethodTypes = [
   { value: "pickup", label: "Retiro en local" },
   { value: "manual", label: "Envio manual" },
+  { value: "integration", label: "Envio por integracion" },
   { value: "free", label: "Envio gratis" },
   { value: "coordinar", label: "Envio a coordinar" },
 ] as const;
@@ -53,7 +54,7 @@ export default function AdminShippingMethodsCard({
   const [saving, setSaving] = useState(false);
   const [updatingStateId, setUpdatingStateId] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
-  const zeroPriceType = ["pickup", "free", "coordinar"].includes(form.type);
+  const zeroPriceType = ["pickup", "free", "coordinar", "integration"].includes(form.type);
 
   const resetForm = () => {
     setEditingId(null);
@@ -181,7 +182,7 @@ export default function AdminShippingMethodsCard({
               setForm((current) => ({
                 ...current,
                 type: event.target.value as ShippingMethodFormState["type"],
-                price: ["pickup", "free", "coordinar"].includes(event.target.value)
+                price: ["pickup", "free", "coordinar", "integration"].includes(event.target.value)
                   ? "0"
                   : current.price,
                 freeShippingMinimumAmount:
@@ -257,6 +258,8 @@ export default function AdminShippingMethodsCard({
       <div style={hintCardStyle}>
         {form.type === "free"
           ? "Si cargas un monto minimo, este metodo solo aparece en checkout cuando el subtotal del carrito lo alcanza."
+          : form.type === "integration"
+          ? "Este metodo muestra en checkout las cotizaciones del proveedor de envio activo, por ejemplo Correo Argentino."
           : zeroPriceType
           ? "Este tipo se publica con costo $0 y se usa para retiro, envio gratis o coordinacion manual."
           : "Usa precio fijo para cobrar el envio directamente en checkout."}

@@ -1,7 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
-const STORE_SHIPPING_METHOD_TYPES = ['pickup', 'manual', 'free', 'coordinar'] as const;
+const STORE_SHIPPING_METHOD_TYPES = [
+  'pickup',
+  'manual',
+  'free',
+  'coordinar',
+  'integration',
+] as const;
 
 export class CreateStoreShippingMethodDto {
   @ApiProperty()
@@ -11,7 +17,7 @@ export class CreateStoreShippingMethodDto {
   @ApiProperty({ enum: STORE_SHIPPING_METHOD_TYPES })
   @IsString()
   @IsIn(STORE_SHIPPING_METHOD_TYPES)
-  type!: 'pickup' | 'manual' | 'free' | 'coordinar';
+  type!: 'pickup' | 'manual' | 'free' | 'coordinar' | 'integration';
 
   @ApiProperty()
   @IsNumber()

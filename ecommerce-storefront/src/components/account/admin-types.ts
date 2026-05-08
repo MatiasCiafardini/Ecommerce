@@ -46,7 +46,7 @@ export type AdminStoreShippingMethod = {
   id: string;
   storeId: number;
   name: string;
-  type: "pickup" | "manual" | "free" | "coordinar";
+  type: "pickup" | "manual" | "free" | "coordinar" | "integration";
   price: number;
   freeShippingMinimumAmount?: number | null;
   description?: string | null;
