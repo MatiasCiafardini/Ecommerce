@@ -235,7 +235,9 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                 <Link
                   key={`${link.href}-${link.label}`}
                   href={link.label.toLowerCase() === "afa" ? afaHref : link.href}
-                  style={navLinkStyle}
+                  style={
+                    link.label.toLowerCase() === "afa" ? afaNavLinkStyle : navLinkStyle
+                  }
                 >
                   {link.label}
                 </Link>
@@ -398,7 +400,11 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                       key={`${link.href}-${link.label}`}
                       href={link.label.toLowerCase() === "afa" ? afaHref : link.href}
                       onClick={() => setMenuOpen(false)}
-                      style={mobileNavLinkStyle}
+                      style={
+                        link.label.toLowerCase() === "afa"
+                          ? mobileAfaNavLinkStyle
+                          : mobileNavLinkStyle
+                      }
                     >
                       {link.label}
                     </Link>
@@ -673,6 +679,23 @@ const shopDropdownLinkStyle = {
   fontWeight: 600,
 } as const;
 
+const afaNavLinkStyle = {
+  ...navLinkStyle,
+  width: 44,
+  height: 44,
+  padding: 0,
+  borderRadius: 999,
+  background: "#75c8f0",
+  color: "#fff",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 13,
+  fontWeight: 800,
+  letterSpacing: 0,
+  boxShadow: "0 8px 18px rgba(117, 200, 240, 0.28)",
+} as const;
+
 const iconBadgeStyle = {
   minWidth: 20,
   height: 20,
@@ -719,6 +742,13 @@ const mobileNavButtonStyle = {
   ...mobileNavLinkStyle,
   textAlign: "left",
   cursor: "pointer",
+} as const;
+
+const mobileAfaNavLinkStyle = {
+  ...afaNavLinkStyle,
+  width: 54,
+  height: 54,
+  justifySelf: "start",
 } as const;
 
 const mobileShopDetailsStyle = {
