@@ -220,6 +220,9 @@ const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
 };
 
+const normalizeImagePositions = <T extends ImageLayoutState>(images: T[]): T[] =>
+  images.map((image, index) => ({ ...image, position: index }));
+
 function createUploadImageId() {
   return `upload-${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 }
@@ -1924,14 +1927,18 @@ function AdminProductsSection({
         const safeImages = Array.isArray(productImages) ? productImages : [];
         revokeUploadImages(imageFiles);
         setExistingImages(
-          safeImages.map((image, index) => ({
-            id: image.id,
-            url: image.url,
-            position: Number(image.position ?? index),
-            offsetX: Number(image.offsetX ?? 0),
-            offsetY: Number(image.offsetY ?? 0),
-            zoom: Number(image.zoom ?? 1),
-          })),
+          normalizeImagePositions(
+            safeImages
+              .map((image, index) => ({
+                id: image.id,
+                url: image.url,
+                position: Number(image.position ?? index),
+                offsetX: Number(image.offsetX ?? 0),
+                offsetY: Number(image.offsetY ?? 0),
+                zoom: Number(image.zoom ?? 1),
+              }))
+              .sort((a, b) => a.position - b.position),
+          ),
         );
         setOriginalImageIds(safeImages.map((image) => image.id));
         setImageFiles([]);
@@ -2305,6 +2312,25 @@ function AdminProductsSection({
     });
   };
 
+  const moveUploadImage = (fromIndex: number, direction: -1 | 1) => {
+    setImageFiles((current) => {
+      const toIndex = fromIndex + direction;
+
+      if (
+        toIndex < 0 ||
+        toIndex >= current.length ||
+        current[fromIndex]?.status === "uploading" ||
+        current[toIndex]?.status === "uploading"
+      ) {
+        return current;
+      }
+
+      const next = [...current];
+      [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
+      return normalizeImagePositions(next);
+    });
+  };
+
   const updateUploadImageLayout = (
     index: number,
     nextLayout: Partial<ImageLayoutState>,
@@ -2335,6 +2361,21 @@ function AdminProductsSection({
           : image,
       ),
     );
+  };
+
+  const moveExistingImage = (imageId: number, direction: -1 | 1) => {
+    setExistingImages((current) => {
+      const fromIndex = current.findIndex((image) => image.id === imageId);
+      const toIndex = fromIndex + direction;
+
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
+      return normalizeImagePositions(next);
+    });
   };
 
   const buildOptionValuesToPersist = () =>
@@ -2866,14 +2907,21 @@ function AdminProductsSection({
 
             {existingImages.length > 0 ? (
               <div style={responsiveImageEditorGridStyle}>
-                {existingImages.map((image) => (
+                {existingImages.map((image, index) => (
                   <CatalogImageLayoutEditor
                     key={image.id}
                     src={resolveAssetUrl(image.url) ?? image.url}
-                    label={`Imagen actual #${image.id}`}
+                    label={`Imagen actual #${index + 1}`}
                     secondaryText={image.url}
                     value={image}
                     gridLines={imageGridLines}
+                    orderLabel={`Orden ${index + 1} de ${
+                      existingImages.length + imageFiles.length
+                    }`}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < existingImages.length - 1}
+                    onMoveUp={() => moveExistingImage(image.id, -1)}
+                    onMoveDown={() => moveExistingImage(image.id, 1)}
                     onChange={(nextLayout) =>
                       updateExistingImageLayout(image.id, nextLayout)
                     }
@@ -2903,6 +2951,15 @@ function AdminProductsSection({
                     }`}
                     value={entry}
                     gridLines={imageGridLines}
+                    orderLabel={`Orden ${existingImages.length + index + 1} de ${
+                      existingImages.length + imageFiles.length
+                    }`}
+                    canMoveUp={index > 0 && entry.status !== "uploading"}
+                    canMoveDown={
+                      index < imageFiles.length - 1 && entry.status !== "uploading"
+                    }
+                    onMoveUp={() => moveUploadImage(index, -1)}
+                    onMoveDown={() => moveUploadImage(index, 1)}
                     onChange={(nextLayout) =>
                       updateUploadImageLayout(index, nextLayout)
                     }
@@ -5365,6 +5422,11 @@ function CatalogImageLayoutEditor({
   secondaryText,
   value,
   gridLines,
+  orderLabel,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
   onChange,
   onRemove,
 }: {
@@ -5373,6 +5435,11 @@ function CatalogImageLayoutEditor({
   secondaryText: string;
   value: ImageLayoutState;
   gridLines: number;
+  orderLabel: string;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onChange: (nextLayout: Partial<ImageLayoutState>) => void;
   onRemove: () => void;
 }) {
@@ -5496,9 +5563,32 @@ function CatalogImageLayoutEditor({
       </div>
 
       <div style={{ display: "grid", gap: 10 }}>
-        <div style={{ display: "grid", gap: 4 }}>
-          <strong style={{ color: "var(--account-text-strong)" }}>{label}</strong>
-          <span style={metaStyle}>{secondaryText}</span>
+        <div style={{ display: "grid", gap: 8 }}>
+          <div style={betweenStyle}>
+            <div style={{ display: "grid", gap: 4 }}>
+              <strong style={{ color: "var(--account-text-strong)" }}>{label}</strong>
+              <span style={metaStyle}>{secondaryText}</span>
+            </div>
+            <span style={imageOrderBadgeStyle}>{orderLabel}</span>
+          </div>
+          <div style={rowWrapStyle}>
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!canMoveUp}
+              style={ghostButtonStyle}
+            >
+              Subir
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!canMoveDown}
+              style={ghostButtonStyle}
+            >
+              Bajar
+            </button>
+          </div>
         </div>
         <span style={metaStyle}>
           Arrastra desde cualquier punto de la imagen para moverla. Usa el
@@ -5943,6 +6033,15 @@ const imageZoomControlStyle: React.CSSProperties = {
 const imageZoomSliderStyle: React.CSSProperties = {
   width: "100%",
   accentColor: "var(--account-text-strong)",
+};
+const imageOrderBadgeStyle: React.CSSProperties = {
+  width: "fit-content",
+  padding: "8px 10px",
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-muted)",
+  fontSize: 12,
 };
 const suggestionFieldWrapStyle: React.CSSProperties = { position: "relative" };
 const suggestionDropdownStyle: React.CSSProperties = {

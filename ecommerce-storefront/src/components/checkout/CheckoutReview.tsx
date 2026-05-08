@@ -937,6 +937,47 @@ export default function CheckoutReview({
           }}
         >
           <div className="checkout-review-sidebar-scroll" style={{ display: "grid", gap: 18, minHeight: 0 }}>
+            <div style={summaryCardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                <span style={{ color: "var(--checkout-text-muted)" }}>Subtotal</span>
+                <strong>{money(subtotal)}</strong>
+              </div>
+              {baseDiscountAmount > 0 ? (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                  <span style={{ color: "var(--checkout-text-muted)" }}>
+                    {discountPreview?.source === "coupon"
+                      ? `Descuento (${discountPreview.code})`
+                      : "Descuento automatico"}
+                  </span>
+                  <strong>-{money(baseDiscountAmount)}</strong>
+                </div>
+              ) : null}
+              {paymentMethodDiscountAmount > 0 ? (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                  <span style={{ color: "var(--checkout-text-muted)" }}>
+                    Descuento por transferencia
+                    {discountPreview?.paymentMethodDiscountPercentage
+                      ? ` (${discountPreview.paymentMethodDiscountPercentage}%)`
+                      : ""}
+                  </span>
+                  <strong>-{money(paymentMethodDiscountAmount)}</strong>
+                </div>
+              ) : null}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                <span style={{ color: "var(--checkout-text-muted)" }}>Envio</span>
+                <strong>
+                  {discountPreview?.freeShipping && baseShippingCost > 0
+                    ? "Gratis"
+                    : money(shippingCost)}
+                </strong>
+              </div>
+              <div style={{ height: 1, background: "var(--checkout-border)" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                <span>Total</span>
+                <strong style={{ fontSize: 28 }}>{money(total)}</strong>
+              </div>
+            </div>
+
             {isBankTransfer ? (
               <div style={summaryCardStyle}>
                 <strong style={{ fontSize: 18 }}>Transferencia bancaria</strong>
@@ -1042,47 +1083,6 @@ export default function CheckoutReview({
                     {discountError}
                   </p>
                 ) : null}
-              </div>
-            </div>
-
-            <div style={summaryCardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                <span style={{ color: "var(--checkout-text-muted)" }}>Subtotal</span>
-                <strong>{money(subtotal)}</strong>
-              </div>
-              {baseDiscountAmount > 0 ? (
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                  <span style={{ color: "var(--checkout-text-muted)" }}>
-                    {discountPreview?.source === "coupon"
-                      ? `Descuento (${discountPreview.code})`
-                      : "Descuento automatico"}
-                  </span>
-                  <strong>-{money(baseDiscountAmount)}</strong>
-                </div>
-              ) : null}
-              {paymentMethodDiscountAmount > 0 ? (
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                  <span style={{ color: "var(--checkout-text-muted)" }}>
-                    Descuento por transferencia
-                    {discountPreview?.paymentMethodDiscountPercentage
-                      ? ` (${discountPreview.paymentMethodDiscountPercentage}%)`
-                      : ""}
-                  </span>
-                  <strong>-{money(paymentMethodDiscountAmount)}</strong>
-                </div>
-              ) : null}
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                <span style={{ color: "var(--checkout-text-muted)" }}>Envio</span>
-                <strong>
-                  {discountPreview?.freeShipping && baseShippingCost > 0
-                    ? "Gratis"
-                    : money(shippingCost)}
-                </strong>
-              </div>
-              <div style={{ height: 1, background: "var(--checkout-border)" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                <span>Total</span>
-                <strong style={{ fontSize: 28 }}>{money(total)}</strong>
               </div>
             </div>
 
