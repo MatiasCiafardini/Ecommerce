@@ -41,7 +41,7 @@ const navLinkStyle = {
 } as const;
 
 export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
-  const { user, authUiLocked } = useAuth();
+  const { user, authUiLocked, logout } = useAuth();
   const { cart } = useCart();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const sessionUiPending = authUiLocked;
@@ -445,6 +445,16 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                   >
                     Mi cuenta
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      setMenuOpen(false);
+                    }}
+                    style={mobileNavButtonStyle}
+                  >
+                    Cerrar sesion
+                  </button>
                 </>
               ) : (
                 <Link
@@ -703,6 +713,12 @@ const mobileNavLinkStyle = {
   textTransform: "uppercase",
   letterSpacing: "0.06em",
   fontWeight: 500,
+} as const;
+
+const mobileNavButtonStyle = {
+  ...mobileNavLinkStyle,
+  textAlign: "left",
+  cursor: "pointer",
 } as const;
 
 const mobileShopDetailsStyle = {
