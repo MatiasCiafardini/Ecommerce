@@ -61,6 +61,10 @@ export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
       closeTimerRef.current = null;
     }
 
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     setValue("");
     setProducts([]);
     setLoadedOnce(false);
@@ -98,10 +102,6 @@ export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     document.addEventListener("pointerdown", closeOnOutsidePointerDown);
-
-    if (open) {
-      window.setTimeout(() => inputRef.current?.focus(), 180);
-    }
 
     return () => {
       document.removeEventListener("pointerdown", closeOnOutsidePointerDown);
