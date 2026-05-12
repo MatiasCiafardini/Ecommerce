@@ -100,12 +100,21 @@ export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
     };
 
     const previousOverflow = document.body.style.overflow;
+    const previousOverflowX = document.body.style.overflowX;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousHtmlOverflowX = document.documentElement.style.overflowX;
     document.body.style.overflow = "hidden";
+    document.body.style.overflowX = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.overflowX = "hidden";
     document.addEventListener("pointerdown", closeOnOutsidePointerDown);
 
     return () => {
       document.removeEventListener("pointerdown", closeOnOutsidePointerDown);
       document.body.style.overflow = previousOverflow;
+      document.body.style.overflowX = previousOverflowX;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.documentElement.style.overflowX = previousHtmlOverflowX;
     };
   }, [closeSearch, open, shouldRenderDrawer]);
 
@@ -314,19 +323,19 @@ export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
       <style jsx>{`
         @keyframes headerSearchSlideIn {
           from {
-            transform: translateX(100%);
+            opacity: 0;
           }
           to {
-            transform: translateX(0);
+            opacity: 1;
           }
         }
 
         @keyframes headerSearchSlideOut {
           from {
-            transform: translateX(0);
+            opacity: 1;
           }
           to {
-            transform: translateX(100%);
+            opacity: 0;
           }
         }
 
