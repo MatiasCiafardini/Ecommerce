@@ -23,9 +23,7 @@ type HeaderSearchProps = {
 
 type SearchTab = "products" | "collections";
 
-export default function HeaderSearch({ compact: _compact = false }: HeaderSearchProps) {
-  void _compact;
-
+export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -223,7 +221,7 @@ export default function HeaderSearch({ compact: _compact = false }: HeaderSearch
 
       {shouldRenderDrawer ? (
         <div
-          style={overlayStyle}
+          style={getOverlayStyle(compact)}
           data-state={closing ? "closing" : "open"}
           onClick={closeSearch}
           role="presentation"
@@ -231,11 +229,12 @@ export default function HeaderSearch({ compact: _compact = false }: HeaderSearch
           <aside
             ref={drawerRef}
             className="header-search-drawer"
+            data-compact={compact ? "true" : "false"}
             data-state={closing ? "closing" : "open"}
-            style={drawerStyle}
+            style={getDrawerStyle(compact)}
             onClick={(event) => event.stopPropagation()}
           >
-            <form role="search" onSubmit={submitSearch} style={formStyle}>
+            <form role="search" onSubmit={submitSearch} style={getFormStyle(compact)}>
               <label htmlFor={inputId} style={srOnlyStyle}>
                 Buscar productos
               </label>
@@ -259,7 +258,7 @@ export default function HeaderSearch({ compact: _compact = false }: HeaderSearch
               </button>
             </form>
 
-            <div style={tabsStyle}>
+            <div style={getTabsStyle(compact)}>
               <button
                 type="button"
                 className="header-search-tab"
@@ -280,7 +279,7 @@ export default function HeaderSearch({ compact: _compact = false }: HeaderSearch
               </button>
             </div>
 
-            <div style={resultsStyle}>
+            <div style={getResultsStyle(compact)}>
               {activeTab === "products" ? (
                 <ProductResults
                   products={products}
@@ -298,7 +297,7 @@ export default function HeaderSearch({ compact: _compact = false }: HeaderSearch
               )}
             </div>
 
-            <div style={footerStyle}>
+            <div style={getFooterStyle(compact)}>
               <button type="button" onClick={navigateToCatalog} style={allResultsStyle}>
                 {trimmedSearch ? "Ver todos los resultados" : "Ver catalogo"}
               </button>
@@ -344,6 +343,28 @@ export default function HeaderSearch({ compact: _compact = false }: HeaderSearch
           }
         }
 
+        @keyframes headerSearchCompactIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes headerSearchCompactOut {
+          from {
+            opacity: 1;
+            transform: translateY(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+        }
+
         [data-state="closing"] {
           pointer-events: none;
         }
@@ -366,6 +387,16 @@ export default function HeaderSearch({ compact: _compact = false }: HeaderSearch
             both;
         }
 
+        .header-search-drawer[data-compact="true"][data-state="open"] {
+          animation: headerSearchCompactIn 260ms cubic-bezier(0.22, 1, 0.36, 1)
+            both;
+        }
+
+        .header-search-drawer[data-compact="true"][data-state="closing"] {
+          animation: headerSearchCompactOut 220ms cubic-bezier(0.4, 0, 0.2, 1)
+            both;
+        }
+
         .header-search-tab:hover,
         .header-search-tab:focus-visible {
           background: color-mix(
@@ -384,9 +415,26 @@ export default function HeaderSearch({ compact: _compact = false }: HeaderSearch
           border-bottom-color: var(--text-strong, #111) !important;
         }
 
+        .header-search-drawer {
+          max-height: 100dvh;
+          overflow: hidden;
+        }
+
+        .header-search-drawer[data-compact="true"] {
+          max-height: calc(100dvh - 24px);
+        }
+
+        @media (max-width: 920px) {
+          .header-search-drawer {
+            width: min(480px, calc(100vw - 24px)) !important;
+            height: min(680px, calc(100dvh - 24px)) !important;
+            border-radius: 18px;
+          }
+        }
+
         @media (max-width: 640px) {
           .header-search-drawer {
-            width: min(94vw, 480px) !important;
+            width: calc(100vw - 24px) !important;
           }
         }
       `}</style>
@@ -594,6 +642,15 @@ const overlayStyle: React.CSSProperties = {
   justifyContent: "flex-end",
 };
 
+const compactOverlayStyle: React.CSSProperties = {
+  ...overlayStyle,
+  alignItems: "flex-start",
+  justifyContent: "center",
+  padding: 12,
+  boxSizing: "border-box",
+  overflow: "hidden",
+};
+
 const drawerStyle: React.CSSProperties = {
   width: "min(460px, 92vw)",
   height: "100dvh",
@@ -605,6 +662,15 @@ const drawerStyle: React.CSSProperties = {
   transform: "translateX(0)",
 };
 
+const compactDrawerStyle: React.CSSProperties = {
+  ...drawerStyle,
+  width: "min(480px, calc(100vw - 24px))",
+  height: "min(680px, calc(100dvh - 24px))",
+  maxHeight: "calc(100dvh - 24px)",
+  borderRadius: 18,
+  boxShadow: "0 22px 70px rgba(0,0,0,0.2)",
+};
+
 const formStyle: React.CSSProperties = {
   height: 98,
   display: "flex",
@@ -613,6 +679,12 @@ const formStyle: React.CSSProperties = {
   padding: "0 26px",
   borderBottom: "1px solid var(--border-soft, rgba(0,0,0,0.12))",
   color: "var(--text-muted, #666)",
+};
+
+const compactFormStyle: React.CSSProperties = {
+  ...formStyle,
+  height: 72,
+  padding: "0 18px",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -645,6 +717,12 @@ const tabsStyle: React.CSSProperties = {
   padding: "26px 40px 18px",
 };
 
+const compactTabsStyle: React.CSSProperties = {
+  ...tabsStyle,
+  gap: 24,
+  padding: "18px 24px 12px",
+};
+
 const tabStyle = (active: boolean): React.CSSProperties => ({
   padding: "9px 13px 10px",
   margin: "-9px -13px 0",
@@ -666,6 +744,11 @@ const resultsStyle: React.CSSProperties = {
   minHeight: 0,
   overflowY: "auto",
   padding: "8px 40px 24px",
+};
+
+const compactResultsStyle: React.CSSProperties = {
+  ...resultsStyle,
+  padding: "8px 24px 18px",
 };
 
 const listStyle: React.CSSProperties = {
@@ -760,6 +843,11 @@ const footerStyle: React.CSSProperties = {
     "linear-gradient(180deg, transparent, var(--page-panel-bg, #fff) 18%)",
 };
 
+const compactFooterStyle: React.CSSProperties = {
+  ...footerStyle,
+  padding: "14px 24px max(18px, calc(14px + env(safe-area-inset-bottom)))",
+};
+
 const allResultsStyle: React.CSSProperties = {
   width: "100%",
   minHeight: 52,
@@ -773,3 +861,27 @@ const allResultsStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
 };
+
+function getOverlayStyle(compact: boolean): React.CSSProperties {
+  return compact ? compactOverlayStyle : overlayStyle;
+}
+
+function getDrawerStyle(compact: boolean): React.CSSProperties {
+  return compact ? compactDrawerStyle : drawerStyle;
+}
+
+function getFormStyle(compact: boolean): React.CSSProperties {
+  return compact ? compactFormStyle : formStyle;
+}
+
+function getTabsStyle(compact: boolean): React.CSSProperties {
+  return compact ? compactTabsStyle : tabsStyle;
+}
+
+function getResultsStyle(compact: boolean): React.CSSProperties {
+  return compact ? compactResultsStyle : resultsStyle;
+}
+
+function getFooterStyle(compact: boolean): React.CSSProperties {
+  return compact ? compactFooterStyle : footerStyle;
+}

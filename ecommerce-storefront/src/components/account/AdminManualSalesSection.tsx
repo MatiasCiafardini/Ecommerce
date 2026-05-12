@@ -331,8 +331,14 @@ export default function AdminManualSalesSection({
                 <span>Accion</span>
               </div>
 
-              <div style={productsTableScrollStyle} className="theme-horizontal-scroll">
-                {filteredProducts.slice(0, 5).map((product) => (
+              <div
+                style={productsTableScrollStyle}
+                className="theme-horizontal-scroll theme-vertical-scroll"
+              >
+                {filteredProducts.length === 0 ? (
+                  <StateCard label="No encontramos productos con esa busqueda." />
+                ) : (
+                  filteredProducts.map((product) => (
                   <div key={product.id} style={productTableRowStyle}>
                   <div style={{ minWidth: 0 }}>
                     <strong style={tablePrimaryTextStyle}>{product.title}</strong>
@@ -389,7 +395,8 @@ export default function AdminManualSalesSection({
                     );
                   })()}
                   </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </section>
@@ -707,8 +714,11 @@ const productsTableScrollStyle: React.CSSProperties = {
   display: "grid",
   gap: 10,
   minWidth: 0,
+  maxHeight: "min(62vh, 680px)",
   overflowX: "auto",
-  overflowY: "visible",
+  overflowY: "auto",
+  paddingRight: 8,
+  overscrollBehavior: "contain",
 };
 
 const cardStyle: React.CSSProperties = {
