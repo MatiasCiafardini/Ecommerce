@@ -242,10 +242,15 @@ export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
               <input
                 ref={inputRef}
                 id={inputId}
+                name="storefront-product-search"
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
                 placeholder="Buscar productos..."
                 style={inputStyle}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 enterKeyHint="search"
               />
               <button
