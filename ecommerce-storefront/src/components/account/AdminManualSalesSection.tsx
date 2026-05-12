@@ -333,8 +333,9 @@ export default function AdminManualSalesSection({
 
               <div
                 style={productsTableScrollStyle}
-                className="theme-horizontal-scroll theme-vertical-scroll"
+                className="manual-products-scroll"
               >
+                <div style={productsTableHorizontalLayerStyle} className="theme-horizontal-scroll">
                 {filteredProducts.length === 0 ? (
                   <StateCard label="No encontramos productos con esa busqueda." />
                 ) : (
@@ -397,6 +398,7 @@ export default function AdminManualSalesSection({
                   </div>
                   ))
                 )}
+                </div>
               </div>
             </div>
           </section>
@@ -684,6 +686,18 @@ export default function AdminManualSalesSection({
           </div>
         </div>
       ) : null}
+
+      <style jsx>{`
+        .manual-products-scroll {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+
+        .manual-products-scroll::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+        }
+      `}</style>
     </section>
   );
 }
@@ -711,14 +725,20 @@ const productsTableShellStyle: React.CSSProperties = {
 };
 
 const productsTableScrollStyle: React.CSSProperties = {
+  minWidth: 0,
+  maxHeight: "min(62vh, 680px)",
+  overflowX: "hidden",
+  overflowY: "auto",
+  overscrollBehavior: "contain",
+};
+
+const productsTableHorizontalLayerStyle: React.CSSProperties = {
   display: "grid",
   gap: 10,
   minWidth: 0,
-  maxHeight: "min(62vh, 680px)",
   overflowX: "auto",
-  overflowY: "auto",
-  paddingRight: 8,
-  overscrollBehavior: "contain",
+  overflowY: "visible",
+  paddingRight: 10,
 };
 
 const cardStyle: React.CSSProperties = {
