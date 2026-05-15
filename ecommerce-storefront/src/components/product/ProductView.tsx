@@ -382,7 +382,6 @@ export default function ProductView({
         .map((variant) => ({
           id: variant.id,
           size: variant.Size ?? "",
-          color: variant.Color ?? null,
           width: formatMeasure(
             variant.packageWidthCm ?? variant.width ?? product.packageWidthCm,
           ),
@@ -687,9 +686,6 @@ export default function ProductView({
                       <thead>
                         <tr>
                           <th style={sizeGuideHeaderCellStyle}>Talle</th>
-                          {isFootwearProduct && colorOptions.length > 0 ? (
-                            <th style={sizeGuideHeaderCellStyle}>Color</th>
-                          ) : null}
                           <th style={sizeGuideHeaderCellStyle}>Ancho</th>
                           {isFootwearProduct ? (
                             <th style={sizeGuideHeaderCellStyle}>Alto</th>
@@ -701,11 +697,6 @@ export default function ProductView({
                         {sizeGuideRows.map((row) => (
                           <tr key={row.id}>
                             <td style={sizeGuideCellStyle}>{row.size}</td>
-                            {isFootwearProduct && colorOptions.length > 0 ? (
-                              <td style={sizeGuideCellStyle}>
-                                {row.color ?? "-"}
-                              </td>
-                            ) : null}
                             <td style={sizeGuideCellStyle}>{row.width ?? "-"}</td>
                             {isFootwearProduct ? (
                               <td style={sizeGuideCellStyle}>
