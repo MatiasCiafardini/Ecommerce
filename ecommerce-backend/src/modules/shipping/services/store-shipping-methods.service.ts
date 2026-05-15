@@ -14,6 +14,7 @@ type RawStoreShippingMethodRow = {
   type: string;
   price: Prisma.Decimal | number | string;
   freeShippingMinimumAmount: Prisma.Decimal | number | string | null;
+  estimatedDays: number | null;
   description: string | null;
   active: boolean;
   displayOrder: number;
@@ -29,6 +30,7 @@ type StoreShippingMethodRecord = {
   type: 'pickup' | 'manual' | 'free' | 'coordinar' | 'integration';
   price: number;
   freeShippingMinimumAmount: number | null;
+  estimatedDays: number | null;
   description: string | null;
   active: boolean;
   displayOrder: number;
@@ -109,6 +111,7 @@ export class StoreShippingMethodsService {
       type: string;
       price: number;
       freeShippingMinimumAmount?: number | null;
+      estimatedDays?: number | null;
       description?: string;
       active?: boolean;
       displayOrder?: number;
@@ -125,6 +128,7 @@ export class StoreShippingMethodsService {
         "type",
         "price",
         "freeShippingMinimumAmount",
+        "estimatedDays",
         "description",
         "active",
         "displayOrder",
@@ -136,6 +140,7 @@ export class StoreShippingMethodsService {
         ${normalized.type},
         ${normalized.price},
         ${normalized.freeShippingMinimumAmount},
+        ${normalized.estimatedDays},
         ${normalized.description},
         ${normalized.active},
         ${normalized.displayOrder},
@@ -154,6 +159,7 @@ export class StoreShippingMethodsService {
       type?: string;
       price?: number;
       freeShippingMinimumAmount?: number | null;
+      estimatedDays?: number | null;
       description?: string;
       active?: boolean;
       displayOrder?: number;
@@ -168,6 +174,10 @@ export class StoreShippingMethodsService {
         data.freeShippingMinimumAmount === undefined
           ? current.freeShippingMinimumAmount
           : data.freeShippingMinimumAmount,
+      estimatedDays:
+        data.estimatedDays === undefined
+          ? current.estimatedDays
+          : data.estimatedDays,
       description:
         data.description === undefined ? current.description || undefined : data.description,
       active: data.active ?? current.active,
@@ -181,6 +191,7 @@ export class StoreShippingMethodsService {
         "type" = ${normalized.type},
         "price" = ${normalized.price},
         "freeShippingMinimumAmount" = ${normalized.freeShippingMinimumAmount},
+        "estimatedDays" = ${normalized.estimatedDays},
         "description" = ${normalized.description},
         "active" = ${normalized.active},
         "displayOrder" = ${normalized.displayOrder},
@@ -277,6 +288,7 @@ export class StoreShippingMethodsService {
     type: string;
     price: number;
     freeShippingMinimumAmount?: number | null;
+    estimatedDays?: number | null;
     description?: string;
     active?: boolean;
     displayOrder?: number;
@@ -301,12 +313,21 @@ export class StoreShippingMethodsService {
       type === 'free' && rawFreeShippingMinimumAmount > 0
         ? rawFreeShippingMinimumAmount
         : null;
+    const rawEstimatedDays =
+      data.estimatedDays === null || data.estimatedDays === undefined
+        ? null
+        : Number(data.estimatedDays);
+    const estimatedDays =
+      rawEstimatedDays !== null && Number.isFinite(rawEstimatedDays)
+        ? Math.max(Math.trunc(rawEstimatedDays), 0)
+        : null;
 
     return {
       name,
       type,
       price,
       freeShippingMinimumAmount,
+      estimatedDays,
       description: data.description?.trim() || null,
       active: data.active ?? true,
       displayOrder: Math.max(Number(data.displayOrder ?? 0), 0),
@@ -341,6 +362,10 @@ export class StoreShippingMethodsService {
         row.freeShippingMinimumAmount === undefined
           ? null
           : Number(row.freeShippingMinimumAmount),
+      estimatedDays:
+        row.estimatedDays === null || row.estimatedDays === undefined
+          ? null
+          : Number(row.estimatedDays),
       description: row.description ?? null,
       active: Boolean(row.active),
       displayOrder: Number(row.displayOrder ?? 0),

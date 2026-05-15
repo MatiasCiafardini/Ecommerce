@@ -17,6 +17,7 @@ type ShippingMethodFormState = {
   type: "pickup" | "manual" | "free" | "coordinar" | "integration";
   price: string;
   freeShippingMinimumAmount: string;
+  estimatedDays: string;
   description: string;
   active: boolean;
   displayOrder: string;
@@ -35,6 +36,7 @@ const emptyShippingMethodForm: ShippingMethodFormState = {
   type: "manual",
   price: "0",
   freeShippingMinimumAmount: "",
+  estimatedDays: "",
   description: "",
   active: true,
   displayOrder: "0",
@@ -71,6 +73,10 @@ export default function AdminShippingMethodsCard({
         method.freeShippingMinimumAmount && method.freeShippingMinimumAmount > 0
           ? String(method.freeShippingMinimumAmount)
           : "",
+      estimatedDays:
+        method.estimatedDays !== null && method.estimatedDays !== undefined
+          ? String(method.estimatedDays)
+          : "",
       description: method.description ?? "",
       active: method.active,
       displayOrder: String(method.displayOrder ?? 0),
@@ -96,6 +102,10 @@ export default function AdminShippingMethodsCard({
               ? Number(form.freeShippingMinimumAmount)
               : null
             : undefined,
+        estimatedDays:
+          form.estimatedDays.trim() === ""
+            ? null
+            : Math.max(Number(form.estimatedDays || 0), 0),
         description: form.description.trim() || undefined,
         active: form.active,
         displayOrder: Number(form.displayOrder || 0),
@@ -242,6 +252,19 @@ export default function AdminShippingMethodsCard({
           />
         </div>
 
+        <div style={{ display: "grid", gap: 8 }}>
+          <label style={labelStyle}>Tiempo estimado de entrega</label>
+          <input
+            value={form.estimatedDays}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, estimatedDays: event.target.value }))
+            }
+            placeholder="Ej. 3"
+            style={fieldStyle}
+            inputMode="numeric"
+          />
+        </div>
+
         <div style={{ display: "grid", gap: 8, gridColumn: "1 / -1" }}>
           <label style={labelStyle}>Descripcion</label>
           <textarea
@@ -303,6 +326,11 @@ export default function AdminShippingMethodsCard({
               </p>
               {method.type === "free" && method.freeShippingMinimumAmount ? (
                 <p style={metaStyle}>Disponible desde {money(method.freeShippingMinimumAmount)}</p>
+              ) : null}
+              {method.estimatedDays !== null && method.estimatedDays !== undefined ? (
+                <p style={metaStyle}>
+                  Entrega estimada: {method.estimatedDays} dia{method.estimatedDays === 1 ? "" : "s"}
+                </p>
               ) : null}
               {method.description ? <p style={metaStyle}>{method.description}</p> : null}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

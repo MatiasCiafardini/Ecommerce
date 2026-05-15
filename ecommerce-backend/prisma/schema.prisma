@@ -659,6 +659,7 @@ model StoreShippingMethod {
   type                      String
   price                     Decimal   @default(0) @db.Decimal(10, 2)
   freeShippingMinimumAmount Decimal?  @db.Decimal(10, 2)
+  estimatedDays             Int?
   description               String?
   active                    Boolean   @default(true)
   displayOrder              Int       @default(0)

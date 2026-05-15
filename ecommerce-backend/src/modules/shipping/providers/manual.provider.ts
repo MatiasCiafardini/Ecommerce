@@ -52,7 +52,7 @@ export class ManualShippingProvider implements ShippingProvider {
             provider: 'manual',
             method: method.name,
             price: Number(method.price),
-            estimatedDays: 0,
+            estimatedDays: Math.max(Number(method.estimatedDays ?? 0), 0),
             description: method.description ?? undefined,
             storeShippingMethodId: method.id,
             methodType: method.type,

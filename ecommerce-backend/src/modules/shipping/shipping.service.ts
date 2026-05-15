@@ -174,6 +174,10 @@ export class ShippingService {
       .map((rate) =>
         ({
           ...rate,
+          estimatedDays: this.resolveEstimatedDaysOverride(
+            rate.estimatedDays,
+            activeStoreMethods,
+          ),
           providerConfigId: resolvedProvider?.config?.id ?? null,
           metadata: packageCalculation
             ? {
@@ -313,5 +317,22 @@ export class ShippingService {
       seen.add(key);
       return true;
     });
+  }
+
+  private resolveEstimatedDaysOverride(
+    providerEstimatedDays: number,
+    activeStoreMethods: Array<{
+      type: string;
+      estimatedDays?: number | null;
+    }>,
+  ) {
+    const integrationMethod = activeStoreMethods.find(
+      (method) =>
+        method.type === 'integration' &&
+        method.estimatedDays !== null &&
+        method.estimatedDays !== undefined,
+    );
+
+    return integrationMethod?.estimatedDays ?? providerEstimatedDays;
   }
 }

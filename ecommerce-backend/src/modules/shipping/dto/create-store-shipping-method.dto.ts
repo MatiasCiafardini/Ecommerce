@@ -32,6 +32,12 @@ export class CreateStoreShippingMethodDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  estimatedDays?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   description?: string;
 

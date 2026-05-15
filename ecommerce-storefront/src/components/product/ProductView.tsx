@@ -97,6 +97,15 @@ const formatVariantTitle = (variant?: StoreVariant | null) => {
   return parts.length > 0 ? parts.join(" - ") : "Variante principal";
 };
 
+const compareSizes = (left: string, right: string) =>
+  left.localeCompare(right, "es", {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+const isNonEmptyText = (value?: string | null): value is string =>
+  Boolean(value);
+
 const getAvailableStock = (variant: StoreVariant) => {
   const inventories = variant.inventories ?? [];
   if (inventories.length === 0) return 0;
@@ -167,13 +176,22 @@ export default function ProductView({
     () => variants.filter((variant) => getAvailableStock(variant) > 0),
     [variants],
   );
+  const inStockSizeOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          inStockVariants.map((variant) => variant.Size).filter(isNonEmptyText),
+        ),
+      ].sort(compareSizes) as string[],
+    [inStockVariants],
+  );
   const hasVariants = variants.length > 0;
 
   const sizeOptions = useMemo(
     () =>
       [
-        ...new Set(variants.map((variant) => variant.Size).filter(Boolean)),
-      ] as string[],
+        ...new Set(variants.map((variant) => variant.Size).filter(isNonEmptyText)),
+      ].sort(compareSizes) as string[],
     [variants],
   );
   const colorOptions = useMemo(
@@ -198,6 +216,11 @@ export default function ProductView({
     [dynamicOptions],
   );
   const primaryCategoryName = product.categories?.[0]?.category?.name ?? null;
+  const isFootwearProduct = product.categories?.some(({ category }) =>
+    ["calzado", "zapatilla", "zapatillas"].some((keyword) =>
+      category.name.trim().toLowerCase().includes(keyword),
+    ),
+  );
   const descriptionText =
     product.description ||
     (isMiMaria
@@ -206,7 +229,7 @@ export default function ProductView({
   const canCollapseDescription = descriptionText.length > 220;
 
   const [selectedSize, setSelectedSize] = useState<string | null>(
-    inStockVariants.find((variant) => variant.Size)?.Size ??
+    inStockSizeOptions[0] ??
       sizeOptions[0] ??
       null,
   );
@@ -219,6 +242,7 @@ export default function ProductView({
     Record<number, string>
   >(() => getDefaultOptionValues(dynamicOptions));
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [addStatus, setAddStatus] = useState<"idle" | "loading" | "added">(
     "idle",
@@ -348,40 +372,46 @@ export default function ProductView({
       : quantityInCart > 0 && remainingUnits === 0
         ? "Ya agregaste las ultimas unidades disponibles de esta variante."
         : null;
-  const productDetails = [
-    {
-      label: "Peso",
-      value: formatWeightMeasure({
-        weightGrams: selectedVariant?.weightGrams ?? product.weightGrams,
-        weightKg: selectedVariant?.weight,
-      }),
+  const sizeGuideRows = useMemo(
+    () => {
+      const rows = variants
+        .filter((variant) => Boolean(variant.Size))
+        .sort((left, right) =>
+          compareSizes(left.Size ?? "", right.Size ?? ""),
+        )
+        .map((variant) => ({
+          id: variant.id,
+          size: variant.Size ?? "",
+          color: variant.Color ?? null,
+          width: formatMeasure(
+            variant.packageWidthCm ?? variant.width ?? product.packageWidthCm,
+          ),
+          height: formatMeasure(
+            variant.packageHeightCm ?? variant.height ?? product.packageHeightCm,
+          ),
+          length: formatMeasure(
+            variant.packageLengthCm ?? variant.length ?? product.packageLengthCm,
+          ),
+        }));
+
+      if (isFootwearProduct) {
+        return rows;
+      }
+
+      return [
+        ...new Map(rows.map((row) => [row.size.trim().toLowerCase(), row])).values(),
+      ];
     },
-    {
-      label: "Ancho",
-      value: formatMeasure(
-        selectedVariant?.packageWidthCm ??
-          selectedVariant?.width ??
-          product.packageWidthCm,
-      ),
-    },
-    {
-      label: "Alto",
-      value: formatMeasure(
-        selectedVariant?.packageHeightCm ??
-          selectedVariant?.height ??
-          product.packageHeightCm,
-      ),
-    },
-    {
-      label: "Largo",
-      value: formatMeasure(
-        selectedVariant?.packageLengthCm ??
-          selectedVariant?.length ??
-          product.packageLengthCm,
-      ),
-    },
-  ].filter((item): item is { label: string; value: string } =>
-    Boolean(item.value),
+    [
+      isFootwearProduct,
+      product.packageHeightCm,
+      product.packageLengthCm,
+      product.packageWidthCm,
+      variants,
+    ],
+  );
+  const hasSizeGuide = sizeGuideRows.some(
+    (row) => row.width || row.height || row.length,
   );
 
   const handleAddToCart = async () => {
@@ -632,6 +662,66 @@ export default function ProductView({
               gap: 18,
             }}
           >
+            {hasSizeGuide ? (
+              <div
+                style={{
+                  borderRadius: 22,
+                  border: "1px solid var(--border-soft)",
+                  background: "var(--block-card-bg)",
+                  overflow: "hidden",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowSizeGuide((current) => !current)}
+                  aria-expanded={showSizeGuide}
+                  style={sizeGuideToggleStyle}
+                >
+                  <span>Tabla de talles</span>
+                  <span aria-hidden="true">{showSizeGuide ? "-" : "+"}</span>
+                </button>
+
+                {showSizeGuide ? (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={sizeGuideTableStyle}>
+                      <thead>
+                        <tr>
+                          <th style={sizeGuideHeaderCellStyle}>Talle</th>
+                          {isFootwearProduct && colorOptions.length > 0 ? (
+                            <th style={sizeGuideHeaderCellStyle}>Color</th>
+                          ) : null}
+                          <th style={sizeGuideHeaderCellStyle}>Ancho</th>
+                          {isFootwearProduct ? (
+                            <th style={sizeGuideHeaderCellStyle}>Alto</th>
+                          ) : null}
+                          <th style={sizeGuideHeaderCellStyle}>Largo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sizeGuideRows.map((row) => (
+                          <tr key={row.id}>
+                            <td style={sizeGuideCellStyle}>{row.size}</td>
+                            {isFootwearProduct && colorOptions.length > 0 ? (
+                              <td style={sizeGuideCellStyle}>
+                                {row.color ?? "-"}
+                              </td>
+                            ) : null}
+                            <td style={sizeGuideCellStyle}>{row.width ?? "-"}</td>
+                            {isFootwearProduct ? (
+                              <td style={sizeGuideCellStyle}>
+                                {row.height ?? "-"}
+                              </td>
+                            ) : null}
+                            <td style={sizeGuideCellStyle}>{row.length ?? "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div>
               <p
                 style={{
@@ -670,46 +760,6 @@ export default function ProductView({
                 </button>
               ) : null}
             </div>
-
-            {productDetails.length > 0 ? (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: 12,
-                }}
-              >
-                {productDetails.map((item) => (
-                  <div
-                    key={item.label}
-                    style={{
-                      borderRadius: 22,
-                      border: "1px solid var(--border-soft)",
-                      background: "var(--block-card-bg)",
-                      padding: 18,
-                      display: "grid",
-                      gap: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        textTransform: "uppercase",
-                        letterSpacing: "0.14em",
-                        fontSize: 11,
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      {item.label}
-                    </span>
-                    <strong
-                      style={{ color: "var(--text-strong)", fontSize: 18 }}
-                    >
-                      {item.value}
-                    </strong>
-                  </div>
-                ))}
-              </div>
-            ) : null}
 
             {informationalOptions.length > 0 ? (
               <div
@@ -1516,6 +1566,46 @@ const descriptionToggleStyle: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.12em",
   fontSize: 12,
+};
+
+const sizeGuideToggleStyle: React.CSSProperties = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "13px 16px",
+  border: "none",
+  background: "transparent",
+  color: "var(--text-strong)",
+  cursor: "pointer",
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const sizeGuideTableStyle: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+};
+
+const sizeGuideHeaderCellStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  borderTop: "1px solid var(--border-soft)",
+  color: "var(--text-muted)",
+  textAlign: "left",
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  fontSize: 10,
+};
+
+const sizeGuideCellStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  borderTop: "1px solid var(--border-soft)",
+  color: "var(--text-strong)",
+  fontSize: 14,
+  whiteSpace: "nowrap",
 };
 
 function EditIcon() {
