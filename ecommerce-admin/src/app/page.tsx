@@ -239,8 +239,11 @@ function storeToForm(store: Store | null): StoreFormState {
 }
 
 function serializeStoreForm(value: StoreFormState) {
+  const domain = value.domain.trim();
+
   return {
     ...value,
+    ...(domain ? { domain } : { domain: undefined }),
     bankTransferDiscountPercentage: Number(value.bankTransferDiscountPercentage || 0),
   };
 }

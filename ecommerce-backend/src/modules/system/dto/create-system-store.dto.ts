@@ -8,6 +8,7 @@ import {
   Max,
   MinLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateSystemStoreDto {
@@ -17,6 +18,7 @@ export class CreateSystemStoreDto {
   name: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== '')
   @IsString()
   @MinLength(3)
   @MaxLength(120)
