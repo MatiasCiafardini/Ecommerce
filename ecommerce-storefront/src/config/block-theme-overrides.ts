@@ -64,6 +64,22 @@ export const blockThemeOverrides: Record<
       },
     },
   },
+  comovosyyo: {
+    hero: {
+      component: MilashoesHero,
+    },
+    milashoes_institutional: {
+      component: MilaShoesInstitutional,
+    },
+    product_grid: {
+      defaultProps: {
+        eyebrow: "Mila essentials",
+        editorialLabel: "Curated shoes",
+        editorialTitle:
+          "Modelos versatiles para vestir todos los dias con un gesto limpio",
+      },
+    },
+  },
   libreria: {
     product_grid: {
       defaultProps: {

@@ -11,13 +11,14 @@ function buildApiHeaders(
   options: ApiOptions,
   storeId: number,
   storeHost: string,
+  isPreview: boolean,
 ) {
   const isFormData = options.body instanceof FormData;
 
   return {
     ...(!isFormData ? { "Content-Type": "application/json" } : {}),
     "x-store-id": String(storeId),
-    "x-store-host": storeHost,
+    ...(!isPreview ? { "x-store-host": storeHost } : {}),
     ...options.headers,
   };
 }
@@ -61,11 +62,11 @@ const extractErrorMessage = async (res: Response) => {
 export const api = async (endpoint: string, options: ApiOptions = {}) => {
   const apiUrl =
     typeof window === "undefined" ? getPublicApiUrl() : "/api/proxy";
-  const { host, storeId } = getClientStoreContext();
+  const { host, storeId, isPreview } = getClientStoreContext();
 
   const res = await fetch(`${apiUrl}${endpoint}`, {
     method: options.method || "GET",
-    headers: buildApiHeaders(options, storeId, host),
+    headers: buildApiHeaders(options, storeId, host, isPreview),
     body: options.body,
     credentials: "include",
   });
@@ -82,11 +83,11 @@ export const api = async (endpoint: string, options: ApiOptions = {}) => {
 export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
   const apiUrl =
     typeof window === "undefined" ? getPublicApiUrl() : "/api/proxy";
-  const { host, storeId } = getClientStoreContext();
+  const { host, storeId, isPreview } = getClientStoreContext();
 
   const res = await fetch(`${apiUrl}${endpoint}`, {
     method: options.method || "GET",
-    headers: buildApiHeaders(options, storeId, host),
+    headers: buildApiHeaders(options, storeId, host, isPreview),
     body: options.body,
     credentials: "include",
   });
@@ -101,11 +102,11 @@ export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
 export const apiBlob = async (endpoint: string, options: ApiOptions = {}) => {
   const apiUrl =
     typeof window === "undefined" ? getPublicApiUrl() : "/api/proxy";
-  const { host, storeId } = getClientStoreContext();
+  const { host, storeId, isPreview } = getClientStoreContext();
 
   const res = await fetch(`${apiUrl}${endpoint}`, {
     method: options.method || "GET",
-    headers: buildApiHeaders(options, storeId, host),
+    headers: buildApiHeaders(options, storeId, host, isPreview),
     body: options.body,
     credentials: "include",
   });

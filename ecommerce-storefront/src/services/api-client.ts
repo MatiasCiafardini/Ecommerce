@@ -25,14 +25,14 @@ export async function apiFetch<T>(
     throw new Error(`API request failed for ${path}: missing NEXT_PUBLIC_API_URL`);
   }
 
-  const { host, storeId } = await getServerStoreContext();
+  const { host, storeId, isPreview } = await getServerStoreContext();
   let response: Response;
 
   try {
     response = await fetch(`${apiUrl}${path}`, {
       headers: {
         "x-store-id": String(storeId),
-        "x-store-host": host,
+        ...(!isPreview ? { "x-store-host": host } : {}),
         ...options?.headers,
       },
       cache: options?.cache ?? "no-store",

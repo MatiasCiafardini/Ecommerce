@@ -16,6 +16,7 @@ const storefrontDefaultThemeIds = {
   libreria: 4,
   mimaria: 5,
   milashoes: 6,
+  comovosyyo: 7,
 } as const;
 
 export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
@@ -478,6 +479,115 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
   },
   6: {
     theme: "milashoes",
+    pages: {
+      home: [
+        {
+          type: "hero_carousel",
+          props: {
+            showContentCard: false,
+            buttonText: "Comprar ahora",
+            buttonLink: "/product",
+            slides: [
+              {
+                image: "/images/trojani/fondo_banner.png",
+                eyebrow: "Promocion",
+                title: "Hasta 50% de descuento",
+                subtitle: "Aprovecha las promociones destacadas.",
+              },
+              {
+                image: "/images/trojani/fondo_banner2.png",
+                eyebrow: "Nueva Coleccion",
+                title: "Elegancia femenina",
+                subtitle: "",
+              },
+              {
+                image: "/images/trojani/fondo_banner3.png",
+                eyebrow: "Nuevos ingresos",
+                title: "Lineas limpias para hoy",
+                subtitle: "Descubre lo nuevo de la temporada.",
+              },
+            ],
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "banner",
+          props: {
+            text: "Drop nuevo activo, compra hoy y define tu entrega en el checkout",
+            backgroundColor: "#ddd4c7",
+            textColor: "#141414",
+            animationPreset: "none",
+          },
+        },
+        {
+          type: "featured_products",
+          props: {
+            title: "Piezas clave para empezar el look",
+            limit: 6,
+            columns: 3,
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "product_grid",
+          props: {
+            title: "Lo nuevo que ya esta rotando",
+            limit: 8,
+            columns: 4,
+            animationPreset: "soft",
+          },
+        },
+        { type: "testimonials", props: { animationPreset: "soft" } },
+        {
+          type: "carousel",
+          props: {
+            title: "Favoritos de la comunidad",
+            limit: 6,
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "category_image_strip",
+          props: {
+            items: [
+              {
+                title: "Botas",
+                image: "/images/milashoes/categories/botas.svg",
+                categorySlugs: ["botas"],
+              },
+              {
+                title: "Borcegos",
+                image: "/images/milashoes/categories/borcegos.svg",
+                categorySlugs: ["borcegos"],
+              },
+              {
+                title: "Sneakers",
+                image: "/images/milashoes/categories/sneakers.svg",
+                categorySlugs: ["sneakers"],
+              },
+            ],
+          },
+        },
+        {
+          type: "newsletter",
+          props: {
+            title: "Entra al drop list",
+            subtitle:
+              "Recibi lanzamientos, reposiciones y descuentos antes que el resto.",
+            animationPreset: "soft",
+          },
+        },
+        {
+          type: "milashoes_institutional",
+          props: {
+            animationPreset: "soft",
+          },
+        },
+      ],
+    },
+  },
+  7: {
+    theme: "comovosyyo",
     pages: {
       home: [
         {

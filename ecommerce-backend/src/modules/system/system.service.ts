@@ -179,6 +179,18 @@ const availableThemes: ThemeCatalogEntry[] = [
       text: '#161311',
     },
   },
+  {
+    id: 'comovosyyo',
+    label: 'Como Vos y Yo',
+    description: 'Clon inicial de Mila Shoes para una nueva tienda lista para personalizar.',
+    tone: 'Minimal premium',
+    surfaces: {
+      background: '#f6f1ea',
+      panel: '#fffdfa',
+      accent: '#a27d62',
+      text: '#161311',
+    },
+  },
 ];
 const execFileAsync = promisify(execFile);
 const managedSystemUserRoles = new Set<Role>([Role.OWNER, Role.ADMIN, Role.STAFF]);

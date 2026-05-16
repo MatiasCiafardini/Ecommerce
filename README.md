@@ -93,6 +93,8 @@ npm run dev:store2
 - `127.0.0.1:3001` -> tienda 1
 - `localhost:3002` -> tienda 2
 - `127.0.0.1:3002` -> tienda 2
+- `localhost:3007` -> tienda 7
+- `127.0.0.1:3007` -> tienda 7
 
 Esto se configura desde `NEXT_PUBLIC_STORE_HOST_MAP`.
 

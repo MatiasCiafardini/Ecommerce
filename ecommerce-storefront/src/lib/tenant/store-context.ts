@@ -1,5 +1,8 @@
 export type HostStoreMap = Record<string, number>;
 
+export const PREVIEW_STORE_COOKIE = "preview-store-id";
+const PLATFORM_PREVIEW_HOSTS = new Set(["estudiosmc.cloud", "www.estudiosmc.cloud"]);
+
 const DEV_HOST_STORE_MAP: HostStoreMap = {
   localhost: 1,
   "127.0.0.1": 1,
@@ -15,6 +18,8 @@ const DEV_HOST_STORE_MAP: HostStoreMap = {
   "127.0.0.1:3005": 5,
   "localhost:3006": 6,
   "127.0.0.1:3006": 6,
+  "localhost:3007": 7,
+  "127.0.0.1:3007": 7,
 };
 
 export function normalizeHostValue(value?: string | null) {
@@ -173,17 +178,47 @@ export function resolveStoreIdFromHost(host?: string | null) {
   throw new Error(buildUnknownHostMessage(host, hostStoreMap));
 }
 
+export function parsePreviewStoreId(value?: string | null) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function isPlatformPreviewHost(host?: string | null) {
+  const normalizedHost = normalizeHostValue(host);
+  const hostWithoutPort = normalizedHost.replace(/:\d+$/, "");
+
+  return PLATFORM_PREVIEW_HOSTS.has(hostWithoutPort);
+}
+
+function readBrowserCookie(name: string) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const prefix = `${name}=`;
+  const entry = document.cookie
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(prefix));
+
+  return entry ? decodeURIComponent(entry.slice(prefix.length)) : null;
+}
+
 export function getClientStoreContext() {
   if (typeof window === "undefined") {
     throw new Error("getClientStoreContext can only be used in the browser");
   }
 
   const host = normalizeHostValue(window.location.host);
-  const storeId = resolveStoreIdFromHost(host);
+  const previewStoreId = isPlatformPreviewHost(host)
+    ? parsePreviewStoreId(readBrowserCookie(PREVIEW_STORE_COOKIE))
+    : null;
+  const storeId = previewStoreId ?? resolveStoreIdFromHost(host);
 
   return {
     host,
     storeId,
+    isPreview: Boolean(previewStoreId),
   };
 }
 

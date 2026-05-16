@@ -46,6 +46,8 @@ Por defecto:
 - `127.0.0.1:3001` -> tienda 1
 - `localhost:3002` -> tienda 2
 - `127.0.0.1:3002` -> tienda 2
+- `localhost:3007` -> tienda 7
+- `127.0.0.1:3007` -> tienda 7
 
 Si el host no esta mapeado, el storefront ahora falla de forma explicita en lugar de mandar todo a la tienda 1.
 

@@ -276,6 +276,10 @@ function withWww(domain: string) {
   return normalized.startsWith("www.") ? normalized : `www.${normalized}`;
 }
 
+function buildSamplePageUrl(storeId: number) {
+  return `https://www.estudiosmc.cloud/preview/${storeId}`;
+}
+
 function buildProvisioningChecklist(domain: string) {
   const wwwDomain = withWww(domain);
   return [
@@ -1046,7 +1050,19 @@ export default function Page() {
                 <article className="panel store-detail">
                   <div className="panel-top">
                     <div><p className="section-kicker">Editor</p><h2>{selectedStore?.name ?? "Selecciona una tienda"}</h2></div>
-                    {selectedStore ? <span className="pill">{selectedStore.domain}</span> : null}
+                    {selectedStore ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span className="pill">{selectedStore.domain}</span>
+                        <a
+                          className="ghost-button"
+                          href={buildSamplePageUrl(selectedStore.id)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Pagina de muestra
+                        </a>
+                      </div>
+                    ) : null}
                   </div>
                   {selectedStore ? (
                     <>

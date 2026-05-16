@@ -4,6 +4,7 @@ import trojani from "@/themes/trojani/theme";
 import libreria from "@/themes/libreria/theme";
 import mimaria from "@/themes/mimaria/theme";
 import milashoes from "@/themes/milashoes/theme";
+import comovosyyo from "@/themes/comovosyyo/theme";
 import darkLuxe from "@/themes/dark-luxe/theme";
 import urban from "@/themes/urban/theme";
 import cleanWhite from "@/themes/clean-white/theme";
@@ -17,6 +18,7 @@ export const themes = {
   libreria,
   mimaria,
   milashoes,
+  comovosyyo,
   "dark-luxe": darkLuxe,
   urban,
   "clean-white": cleanWhite,

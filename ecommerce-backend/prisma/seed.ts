@@ -47,6 +47,12 @@ const DEVELOPMENT_STORES = [
     domain: 'localhost:3006',
     adminEmail: 'admin@milashoes.com',
   },
+  {
+    id: 7,
+    name: 'Como Vos y Yo',
+    domain: 'localhost:3007',
+    adminEmail: 'admin@comovosyyo.com',
+  },
 ] as const;
 
 const MILASHOES_STOREFRONT_CONFIG = {
@@ -151,6 +157,11 @@ const MILASHOES_STOREFRONT_CONFIG = {
       },
     ],
   },
+} as const;
+
+const COMOVOSYYO_STOREFRONT_CONFIG = {
+  ...MILASHOES_STOREFRONT_CONFIG,
+  theme: 'comovosyyo',
 } as const;
 
 const MILASHOES_CATEGORY_DEFINITIONS = [
@@ -832,8 +843,13 @@ async function ensureDevelopmentStores() {
             mercadoPagoAccessToken: readStoreEnvCredential(definition.id, "ACCESS_TOKEN"),
             mercadoPagoPublicKey: readStoreEnvCredential(definition.id, "PUBLIC_KEY"),
             mercadoPagoWebhookSecret: readStoreEnvCredential(definition.id, "WEBHOOK_SECRET"),
-            ...(definition.id === 6
-              ? { storefrontConfig: MILASHOES_STOREFRONT_CONFIG as any }
+            ...([6, 7].includes(definition.id)
+              ? {
+                  storefrontConfig:
+                    definition.id === 7
+                      ? (COMOVOSYYO_STOREFRONT_CONFIG as any)
+                      : (MILASHOES_STOREFRONT_CONFIG as any),
+                }
               : {}),
           },
         })
@@ -845,8 +861,13 @@ async function ensureDevelopmentStores() {
             mercadoPagoAccessToken: readStoreEnvCredential(definition.id, "ACCESS_TOKEN"),
             mercadoPagoPublicKey: readStoreEnvCredential(definition.id, "PUBLIC_KEY"),
             mercadoPagoWebhookSecret: readStoreEnvCredential(definition.id, "WEBHOOK_SECRET"),
-            ...(definition.id === 6
-              ? { storefrontConfig: MILASHOES_STOREFRONT_CONFIG as any }
+            ...([6, 7].includes(definition.id)
+              ? {
+                  storefrontConfig:
+                    definition.id === 7
+                      ? (COMOVOSYYO_STOREFRONT_CONFIG as any)
+                      : (MILASHOES_STOREFRONT_CONFIG as any),
+                }
               : {}),
           },
         });
@@ -1328,13 +1349,15 @@ async function main() {
   const assetDirs = await ensureAssetDir();
 
   for (const store of stores) {
-    if (store.id === 6) {
+    if ([6, 7].includes(store.id)) {
       await ensureAdmin(store.id, store.adminEmail, {
         password: 'Admin123!',
-        name: 'Mila Shoes Admin',
+        name: store.id === 7 ? 'Como Vos y Yo Admin' : 'Mila Shoes Admin',
         role: Role.ADMIN,
       });
-      await ensureMilaShoesCustomer(store.id);
+      if (store.id === 6) {
+        await ensureMilaShoesCustomer(store.id);
+      }
     } else {
       await ensureAdmin(store.id, store.adminEmail);
     }
@@ -1346,7 +1369,7 @@ async function main() {
 
     if (store.id === 4) {
       await seedPapereriaCatalog(store.id);
-    } else if (store.id === 6) {
+    } else if ([6, 7].includes(store.id)) {
       await seedMilaShoesCatalog(store.id);
     } else {
       await seedCatalog(store.id, assetDirs);
@@ -1366,7 +1389,7 @@ async function main() {
           ? `${store.domain} -> catalogo vacio / listo para carga real`
           : store.id === 4
           ? `${store.domain} -> ${PAPERERIA_CATEGORIES.length} categorias / ${PAPERERIA_PRODUCTS.length} productos`
-          : store.id === 6
+          : [6, 7].includes(store.id)
           ? `${store.domain} -> ${MILASHOES_CATEGORY_DEFINITIONS.length} categorias / ${MILASHOES_PRODUCTS.length} productos`
           : `${store.domain} -> ${getCatalogSeedConfig(store.id).definitions.length} categorias / ${getCatalogSeedConfig(store.id).definitions.reduce(
               (sum, category) => sum + category.titles.length,
@@ -1377,7 +1400,7 @@ async function main() {
   );
   console.log('Usuarios admin disponibles:');
   for (const store of stores) {
-    const password = store.id === 6 ? 'Admin123!' : 'admin123';
+    const password = [6, 7].includes(store.id) ? 'Admin123!' : 'admin123';
     console.log(`- ${store.adminEmail} / ${password} (${store.domain})`);
   }
   console.log('- user@milashoes.com / User123! (localhost:3006)');

@@ -261,6 +261,52 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
       ],
     },
   },
+  comovosyyo: {
+    header: {
+      brandLabel: "Mila Shoes",
+      announcementText:
+        "ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES",
+      primaryLinks: [
+        { href: "/product", label: "Shop" },
+        { href: "/category/botas", label: "Botas" },
+        { href: "/category/borcegos", label: "Borcegos" },
+        { href: "/category/sneakers", label: "Sneakers" },
+        { href: "/quienes-somos", label: "Quienes somos" },
+        { href: "/guia-de-talles", label: "Guia de talles" },
+      ],
+    },
+    footer: {
+      brandTitle: "Mila Shoes",
+      brandSubtitle:
+        "Calzado femenino de lineas limpias, materiales nobles y una seleccion pensada para usar todos los dias.",
+      columns: [
+        {
+          title: "Comprar",
+          links: [
+            { href: "/product", label: "Coleccion completa" },
+            { href: "/category/botas", label: "Botas" },
+            { href: "/category/sneakers", label: "Sneakers" },
+          ],
+        },
+        {
+          title: "Cuenta",
+          links: [
+            { href: "/account", label: "Mi cuenta" },
+            { href: "/cart", label: "Carrito" },
+            { href: "/checkout", label: "Checkout" },
+          ],
+        },
+        {
+          title: "Contacto",
+          links: [
+            { href: "mailto:hola@milashoes.com", label: "hola@milashoes.com" },
+            { href: "https://instagram.com", label: "Instagram" },
+            { href: "https://wa.me", label: "WhatsApp" },
+          ],
+        },
+      ],
+    },
+  },
 };
 
 export function getDefaultThemeLayout(
