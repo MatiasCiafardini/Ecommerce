@@ -16,10 +16,11 @@ export class CreateSystemStoreDto {
   @MaxLength(80)
   name: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(3)
   @MaxLength(120)
-  domain: string;
+  domain?: string;
 
   @IsEmail()
   ownerEmail: string;

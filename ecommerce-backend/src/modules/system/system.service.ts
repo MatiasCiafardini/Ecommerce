@@ -216,6 +216,25 @@ function normalizeDomain(value: string) {
     : normalizedDomain;
 }
 
+function slugifyStoreName(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function buildPreviewOnlyDomain(storeName: string) {
+  const slug = slugifyStoreName(storeName) || 'tienda';
+  return `${slug}.preview.internal`;
+}
+
+function isPreviewOnlyDomain(domain: string) {
+  return domain.endsWith('.preview.internal');
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -691,7 +710,9 @@ export class SystemService {
   }
 
   async createStore(dto: CreateSystemStoreDto) {
-    const normalizedDomain = normalizeDomain(dto.domain);
+    const normalizedDomain = dto.domain?.trim()
+      ? normalizeDomain(dto.domain)
+      : buildPreviewOnlyDomain(dto.name);
     const normalizedEmail = dto.ownerEmail.trim().toLowerCase();
 
     const [existingStore, existingOwner] = await Promise.all([
@@ -1409,6 +1430,7 @@ export class SystemService {
         vpsAutomationReady: runtimeConfig.systemVpsAutomationEnabled,
         domainAutomationPending: true,
       },
+      previewOnly: isPreviewOnlyDomain(normalizeDomain(store.domain)),
       storefrontConfig,
     };
   }

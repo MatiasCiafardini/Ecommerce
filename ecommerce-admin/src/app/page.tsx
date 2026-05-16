@@ -81,6 +81,7 @@ type Store = {
     vpsAutomationReady?: boolean;
     domainAutomationPending: boolean;
   };
+  previewOnly?: boolean;
   storefrontConfig: {
     theme?: string;
     themePalette?: Record<string, string>;
@@ -330,6 +331,21 @@ function buildProvisioningChecklist(domain: string) {
   ];
 }
 
+function buildPreviewChecklist() {
+  return [
+    {
+      title: "Modo muestra",
+      description:
+        "La tienda queda disponible desde el boton Pagina de muestra sin publicar un dominio propio.",
+      commands: [
+        "Crear la tienda sin dominio",
+        "Abrir Tiendas > Pagina de muestra",
+        "Agregar dominio real mas adelante cuando exista",
+      ],
+    },
+  ];
+}
+
 function StoreFields({
   value,
   onChange,
@@ -361,7 +377,7 @@ function StoreFields({
     <div className={`form-grid${compact ? " compact" : ""}`}>
       {[
         ["Nombre comercial", "name"],
-        ["Dominio principal", "domain"],
+        ["Dominio principal (opcional)", "domain"],
         ["Owner email", "ownerEmail"],
         ["Owner nombre", "ownerName"],
         ["Tagline", "tagline"],
@@ -755,7 +771,10 @@ export default function Page() {
   const selectedTheme =
     themes.find((theme) => theme.id === createState.theme) ?? themes[0] ?? null;
   const createChecklist = useMemo(
-    () => buildProvisioningChecklist(createState.domain || "tu-dominio.com"),
+    () =>
+      createState.domain.trim()
+        ? buildProvisioningChecklist(createState.domain)
+        : buildPreviewChecklist(),
     [createState.domain],
   );
   const createProgress = Math.round(((createStepIndex + 1) / createSteps.length) * 100);
@@ -764,7 +783,7 @@ export default function Page() {
   const generatedWwwDomain = withWww(createState.domain || "");
   const createSummary = [
     { label: "Store name", value: generatedStoreName || "Pendiente" },
-    { label: "Domain", value: createState.domain || "Pendiente" },
+    { label: "Domain", value: createState.domain || "Solo pagina de muestra" },
     { label: "Owner", value: createState.ownerEmail || "Pendiente" },
     { label: "Theme", value: selectedTheme?.label || createState.theme || "Pendiente" },
   ];
@@ -1044,7 +1063,7 @@ export default function Page() {
                 <article className="panel store-catalog">
                   <div className="panel-top"><div><p className="section-kicker">Portfolio</p><h2>Tiendas</h2></div><span className="pill">{stores.length} activas</span></div>
                   <div className="store-list">
-                    {stores.map((store) => <button key={store.id} className={`store-row${selectedStoreId === store.id ? " selected" : ""}`} onClick={() => setSelectedStoreId(store.id)}><div className="store-row-copy"><strong>{store.name}</strong><span>{store.domain}</span></div><small>#{store.id}</small></button>)}
+                    {stores.map((store) => <button key={store.id} className={`store-row${selectedStoreId === store.id ? " selected" : ""}`} onClick={() => setSelectedStoreId(store.id)}><div className="store-row-copy"><strong>{store.name}</strong><span>{store.previewOnly ? "Solo pagina de muestra" : store.domain}</span></div><small>#{store.id}</small></button>)}
                   </div>
                 </article>
                 <article className="panel store-detail">
@@ -1052,7 +1071,7 @@ export default function Page() {
                     <div><p className="section-kicker">Editor</p><h2>{selectedStore?.name ?? "Selecciona una tienda"}</h2></div>
                     {selectedStore ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span className="pill">{selectedStore.domain}</span>
+                        <span className="pill">{selectedStore.previewOnly ? "Solo pagina de muestra" : selectedStore.domain}</span>
                         <a
                           className="ghost-button"
                           href={buildSamplePageUrl(selectedStore.id)}
@@ -1351,16 +1370,28 @@ export default function Page() {
                             <button
                               type="button"
                               className="primary-button"
-                              disabled={!selectedPlan.automationEnabled || runningProvisioning}
+                              disabled={
+                                Boolean(selectedStore?.previewOnly) ||
+                                !selectedPlan.automationEnabled ||
+                                runningProvisioning
+                              }
                               onClick={() => void onProvisionVps()}
                             >
-                              {runningProvisioning
+                              {selectedStore?.previewOnly
+                                ? "Solo pagina de muestra"
+                                : runningProvisioning
                                 ? "Ejecutando..."
                                 : selectedPlan.automationEnabled
                                   ? "Ejecutar provisioning VPS"
                                   : "Automatizacion deshabilitada"}
                             </button>
                           </div>
+
+                          {selectedStore?.previewOnly ? (
+                            <p className="muted">
+                              Esta tienda todavia no tiene dominio real. Mientras tanto se abre desde Pagina de muestra.
+                            </p>
+                          ) : null}
 
                           <div className="review-grid">
                             <div className="review-card">
@@ -1452,7 +1483,7 @@ export default function Page() {
                       <div className="form-grid">
                         {[
                           ["Nombre comercial", "name"],
-                          ["Dominio principal", "domain"],
+                          ["Dominio principal (opcional)", "domain"],
                           ["Owner email", "ownerEmail"],
                           ["Owner nombre", "ownerName"],
                         ].map(([label, key]) => (
@@ -1508,7 +1539,9 @@ export default function Page() {
                   {createStepIndex === 2 ? (
                     <div className="stack-form">
                       <p className="muted">
-                        Estas tareas no dependen del panel y siguen siendo obligatorias. La idea es que nunca más tengas que recordar el orden.
+                        {createState.domain.trim()
+                          ? "Estas tareas no dependen del panel y siguen siendo obligatorias. La idea es que nunca mas tengas que recordar el orden."
+                          : "Como todavia no hay dominio real, esta tienda puede quedar solo en modo muestra por ahora."}
                       </p>
                       <div className="external-checklist">
                         {createChecklist.map((item) => (
@@ -1535,8 +1568,8 @@ export default function Page() {
                         ))}
                         <div className="review-card span-2">
                           <span>Publicacion esperada</span>
-                          <strong>{createState.domain ? `https://${createState.domain}` : "Pendiente de dominio"}</strong>
-                          <small>{generatedWwwDomain ? `www: https://${generatedWwwDomain}` : "www se completa cuando hay dominio principal."}</small>
+                          <strong>{createState.domain ? `https://${createState.domain}` : "Disponible desde Pagina de muestra"}</strong>
+                          <small>{generatedWwwDomain ? `www: https://${generatedWwwDomain}` : "Podes dejarlo vacio si todavia no hay dominio real."}</small>
                         </div>
                         <div className="review-card span-2">
                           <span>Automatico desde panel</span>
