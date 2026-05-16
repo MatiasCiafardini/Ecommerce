@@ -13,10 +13,20 @@ import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
 import type { StorefrontThemeLayout } from "@/types/storefront-config";
 import type { StoreCategory } from "@/types/store";
 
-export default function Header({
+export function BrandedHeader({
   themeLayout,
+  themeName = "milashoes",
+  logoSrc = "/images/milashoes/logo.jpg",
+  logoAlt = "Mila Shoes",
+  logoDesktopWidth = 88,
+  logoMobileWidth = 60,
 }: {
   themeLayout?: StorefrontThemeLayout;
+  themeName?: string;
+  logoSrc?: string;
+  logoAlt?: string;
+  logoDesktopWidth?: number;
+  logoMobileWidth?: number;
 }) {
   const { user, authUiLocked } = useAuth();
   const { cart } = useCart();
@@ -35,7 +45,7 @@ export default function Header({
   const [categories, setCategories] = useState<StoreCategory[]>([]);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollLockYRef = useRef(0);
-  mergeThemeLayout("milashoes", themeLayout);
+  mergeThemeLayout(themeName, themeLayout);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 980px)");
@@ -132,8 +142,8 @@ export default function Header({
           position: "sticky",
           top: 0,
           zIndex: 30,
-          background: "rgb(235, 235, 235)",
-          borderBottom: "1px solid rgba(31, 31, 31, 0.08)",
+          background: "var(--theme-header-bg, rgb(235, 235, 235))",
+          borderBottom: "1px solid var(--theme-header-border, rgba(31, 31, 31, 0.08))",
           backdropFilter: "blur(12px)",
         }}
       >
@@ -164,13 +174,18 @@ export default function Header({
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
           >
             <Image
-              src="/images/milashoes/logo.jpg"
-              alt="Mila Shoes"
+              src={logoSrc}
+              alt={logoAlt}
               width={110}
               height={44}
               priority
               unoptimized
-              style={{ width: isMobile ? 60 : 88, height: "auto", objectFit: "contain", display: "block" }}
+              style={{
+                width: isMobile ? logoMobileWidth : logoDesktopWidth,
+                height: "auto",
+                objectFit: "contain",
+                display: "block",
+              }}
             />
           </Link>
 
@@ -226,8 +241,9 @@ export default function Header({
               bottom: 0,
               width: "min(88vw, 400px)",
               zIndex: 40,
-              background: "linear-gradient(180deg, #FCFCFC 0%, #F4F4F4 100%)",
-              borderRight: "1px solid rgba(31, 31, 31, 0.06)",
+              background:
+                "linear-gradient(180deg, var(--theme-drawer-bg-start, #FCFCFC) 0%, var(--theme-drawer-bg-end, #F4F4F4) 100%)",
+              borderRight: "1px solid var(--theme-drawer-border, rgba(31, 31, 31, 0.06))",
               boxShadow: "18px 0 48px rgba(31,31,31,0.10)",
               padding: isMobile
                 ? "max(22px, env(safe-area-inset-top)) 24px calc(44px + env(safe-area-inset-bottom))"
@@ -357,6 +373,14 @@ export default function Header({
       ) : null}
     </>
   );
+}
+
+export default function Header({
+  themeLayout,
+}: {
+  themeLayout?: StorefrontThemeLayout;
+}) {
+  return <BrandedHeader themeLayout={themeLayout} />;
 }
 
 function CloseIcon() {

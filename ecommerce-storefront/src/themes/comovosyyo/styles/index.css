@@ -1,0 +1,72 @@
+.theme-comovosyyo {
+  --page-shell-bg: #F5F1EA;
+  --store-shell-bg: #F5F1EA;
+  --page-panel-bg: #F5F1EA;
+  --page-panel-strong-bg: #BFD5CF;
+  --block-card-bg: #F5F1EA;
+  --block-panel-bg: #BFD5CF;
+  --testimonial-card-bg: #F5F1EA;
+  --testimonial-card-featured-bg: #BFD5CF;
+  --newsletter-shell-bg: #BFD5CF;
+  --newsletter-input-bg: #F5F1EA;
+  --product-media-fallback: #BFD5CF;
+  --muted-field-bg: #F5F1EA;
+  --muted-field-color: #1A1A1A;
+  --ghost-chip-border: #D8C7B5;
+  --ghost-chip-active-border: #8DBBB3;
+  --ghost-chip-active-bg: #BFD5CF;
+  --ghost-chip-color: #1A1A1A;
+  --theme-hover-border: #8DBBB3;
+  --header-action-bg: #F5F1EA;
+  --header-action-bg-active: #BFD5CF;
+  --header-action-border: #D8C7B5;
+  --header-action-border-active: #8DBBB3;
+  --header-action-color: #1A1A1A;
+  --header-action-badge-bg: #8DBBB3;
+  --header-action-badge-color: #F5F1EA;
+  --theme-header-bg: #F5F1EA;
+  --theme-header-border: #D8C7B5;
+  --theme-drawer-bg-start: #F5F1EA;
+  --theme-drawer-bg-end: #BFD5CF;
+  --theme-drawer-border: #D8C7B5;
+}
+
+.theme-comovosyyo main {
+  background: #F5F1EA;
+}
+
+.theme-comovosyyo .theme-product-card,
+.theme-comovosyyo .product-card-copy,
+.theme-comovosyyo .theme-block-section--featured-products,
+.theme-comovosyyo .theme-block-section--product-grid,
+.theme-comovosyyo .theme-block-section--carousel {
+  background: #F5F1EA;
+}
+
+.theme-comovosyyo .product-card-media,
+.theme-comovosyyo .theme-block-section--testimonials,
+.theme-comovosyyo .theme-block-section--newsletter {
+  background: #BFD5CF;
+}
+
+.theme-comovosyyo .theme-newsletter-shell button.theme-button {
+  background: #8DBBB3 !important;
+  color: #F5F1EA !important;
+}
+
+.theme-comovosyyo .theme-newsletter-shell button.theme-button:hover {
+  background: #D8C7B5 !important;
+  color: #1A1A1A !important;
+}
+
+.theme-comovosyyo .theme-editorial-panel {
+  background: linear-gradient(135deg, #BFD5CF 0%, #D8C7B5 100%);
+}
+
+.theme-comovosyyo .theme-category-media[data-tone="soft"] {
+  background: linear-gradient(135deg, #BFD5CF 0%, #F5F1EA 100%);
+}
+
+.theme-comovosyyo .theme-category-media[data-tone="warm"] {
+  background: linear-gradient(135deg, #F5F1EA 0%, #D8C7B5 100%);
+}

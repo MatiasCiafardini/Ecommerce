@@ -2,8 +2,16 @@ import Link from "next/link";
 import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
 import type { StorefrontThemeLayout } from "@/types/storefront-config";
 
-export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
-  const layoutConfig = mergeThemeLayout("milashoes", themeLayout);
+export function BrandedFooter({
+  themeLayout,
+  themeName = "milashoes",
+  eyebrow = "Mila Shoes",
+}: {
+  themeLayout?: StorefrontThemeLayout;
+  themeName?: string;
+  eyebrow?: string;
+}) {
+  const layoutConfig = mergeThemeLayout(themeName, themeLayout);
   const columns = layoutConfig.footer?.columns ?? [];
 
   return (
@@ -36,7 +44,7 @@ export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeL
               color: "var(--theme-colors-text-muted)",
             }}
           >
-            Mila Shoes
+            {eyebrow}
           </span>
           <h3 style={{ fontSize: 28, margin: 0 }}>
             {layoutConfig.footer?.brandTitle || "Mila Shoes"}
@@ -78,4 +86,8 @@ export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeL
       </div>
     </footer>
   );
+}
+
+export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {
+  return <BrandedFooter themeLayout={themeLayout} />;
 }

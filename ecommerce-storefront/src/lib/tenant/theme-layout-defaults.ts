@@ -263,7 +263,7 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
   },
   comovosyyo: {
     header: {
-      brandLabel: "Mila Shoes",
+      brandLabel: "Como Vos y Yo",
       announcementText:
         "ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES",
       primaryLinks: [
@@ -276,9 +276,9 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
       ],
     },
     footer: {
-      brandTitle: "Mila Shoes",
+      brandTitle: "Como Vos y Yo",
       brandSubtitle:
-        "Calzado femenino de lineas limpias, materiales nobles y una seleccion pensada para usar todos los dias.",
+        "Moda femenina elegante, limpia y actual para una boutique minimalista con mirada premium.",
       columns: [
         {
           title: "Comprar",
@@ -299,7 +299,7 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
         {
           title: "Contacto",
           links: [
-            { href: "mailto:hola@milashoes.com", label: "hola@milashoes.com" },
+            { href: "mailto:hola@comovosyyo.com", label: "hola@comovosyyo.com" },
             { href: "https://instagram.com", label: "Instagram" },
             { href: "https://wa.me", label: "WhatsApp" },
           ],
