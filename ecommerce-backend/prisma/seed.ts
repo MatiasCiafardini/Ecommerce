@@ -160,8 +160,10 @@ const MILASHOES_STOREFRONT_CONFIG = {
 } as const;
 
 const COMOVOSYYO_STOREFRONT_CONFIG = {
-  ...MILASHOES_STOREFRONT_CONFIG,
   theme: 'comovosyyo',
+  pages: {
+    home: [],
+  },
 } as const;
 
 const MILASHOES_CATEGORY_DEFINITIONS = [
@@ -1351,7 +1353,7 @@ async function main() {
   for (const store of stores) {
     if ([6, 7].includes(store.id)) {
       await ensureAdmin(store.id, store.adminEmail, {
-        password: 'Admin123!',
+        password: store.id === 7 ? 'Admin123456!' : 'Admin123!',
         name: store.id === 7 ? 'Como Vos y Yo Admin' : 'Mila Shoes Admin',
         role: Role.ADMIN,
       });
@@ -1360,6 +1362,10 @@ async function main() {
       }
     } else {
       await ensureAdmin(store.id, store.adminEmail);
+    }
+
+    if (store.id === 7) {
+      continue;
     }
 
     await resetCatalogData(store.id);
@@ -1389,8 +1395,10 @@ async function main() {
           ? `${store.domain} -> catalogo vacio / listo para carga real`
           : store.id === 4
           ? `${store.domain} -> ${PAPERERIA_CATEGORIES.length} categorias / ${PAPERERIA_PRODUCTS.length} productos`
-          : [6, 7].includes(store.id)
+          : store.id === 6
           ? `${store.domain} -> ${MILASHOES_CATEGORY_DEFINITIONS.length} categorias / ${MILASHOES_PRODUCTS.length} productos`
+          : store.id === 7
+          ? `${store.domain} -> usar prisma/seed-comovosyyo.ts`
           : `${store.domain} -> ${getCatalogSeedConfig(store.id).definitions.length} categorias / ${getCatalogSeedConfig(store.id).definitions.reduce(
               (sum, category) => sum + category.titles.length,
               0,
@@ -1400,7 +1408,8 @@ async function main() {
   );
   console.log('Usuarios admin disponibles:');
   for (const store of stores) {
-    const password = [6, 7].includes(store.id) ? 'Admin123!' : 'admin123';
+    const password =
+      store.id === 7 ? 'Admin123456!' : store.id === 6 ? 'Admin123!' : 'admin123';
     console.log(`- ${store.adminEmail} / ${password} (${store.domain})`);
   }
   console.log('- user@milashoes.com / User123! (localhost:3006)');

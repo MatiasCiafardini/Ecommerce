@@ -10,18 +10,18 @@ const comovosyyo: Theme = {
   tokens: {
     colors: {
       background: "#F5F1EA",
-      backgroundSoft: "#BFD5CF",
-      backgroundElevated: "#D8C7B5",
+      backgroundSoft: "#F5F1EA",
+      backgroundElevated: "#BFD5CF",
       paper: "#F5F1EA",
       paperMuted: "#BFD5CF",
       text: "#1A1A1A",
       textMuted: "#6E6E6E",
       textStrong: "#1A1A1A",
-      border: "#D8C7B5",
-      borderStrong: "#8DBBB3",
-      accent: "#8DBBB3",
-      accentStrong: "#8DBBB3",
-      accentContrast: "#F5F1EA",
+      border: "rgba(26, 26, 26, 0.12)",
+      borderStrong: "#73B5A5",
+      accent: "#73B5A5",
+      accentStrong: "#73B5A5",
+      accentContrast: "#1A1A1A",
       accentSoft: "#BFD5CF",
     },
     shape: {
@@ -42,9 +42,9 @@ const comovosyyo: Theme = {
   blocks: {
     product_grid: {
       defaultProps: {
-        eyebrow: "Curado para el street",
-        editorialLabel: "Urban people",
-        editorialTitle: "Editorial street energy",
+        eyebrow: "Curado para tu guardarropa",
+        editorialLabel: "Como Vos y Yo",
+        editorialTitle: "Prendas suaves, versatiles y faciles de combinar",
       },
     },
   },

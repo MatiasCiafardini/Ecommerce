@@ -267,10 +267,10 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
       announcementText:
         "ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES",
       primaryLinks: [
-        { href: "/product", label: "Shop" },
-        { href: "/category/botas", label: "Botas" },
-        { href: "/category/borcegos", label: "Borcegos" },
-        { href: "/category/sneakers", label: "Sneakers" },
+        { href: "/product", label: "Coleccion" },
+        { href: "/category/remeras", label: "Remeras" },
+        { href: "/category/camisas", label: "Camisas" },
+        { href: "/category/vestidos", label: "Vestidos" },
         { href: "/quienes-somos", label: "Quienes somos" },
         { href: "/guia-de-talles", label: "Guia de talles" },
       ],
@@ -284,8 +284,9 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
           title: "Comprar",
           links: [
             { href: "/product", label: "Coleccion completa" },
-            { href: "/category/botas", label: "Botas" },
-            { href: "/category/sneakers", label: "Sneakers" },
+            { href: "/category/remeras", label: "Remeras" },
+            { href: "/category/camisas", label: "Camisas" },
+            { href: "/category/vestidos", label: "Vestidos" },
           ],
         },
         {

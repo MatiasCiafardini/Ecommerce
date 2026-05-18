@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { useAuth } from "@/context/auth-context";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 
 export default function LoginPage() {
   return (
@@ -27,6 +28,15 @@ function LoginPageInner() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showGoogleAuth, setShowGoogleAuth] = useState(false);
+
+  useEffect(() => {
+    try {
+      setShowGoogleAuth(getClientStoreId() !== 7);
+    } catch {
+      setShowGoogleAuth(false);
+    }
+  }, []);
 
   const redirectAfterLogin = (role?: string) => {
     const defaultRedirect =
@@ -45,9 +55,15 @@ function LoginPageInner() {
 
       const user = await login(form);
       redirectAfterLogin(user.role);
-    } catch {
+    } catch (error) {
       unlockAuthUi();
-      setError("Email o contraseña incorrectos");
+      setError(
+        error instanceof Error && error.message.includes("Invalid credentials")
+          ? "Email o contraseña incorrectos"
+          : error instanceof Error
+            ? error.message
+            : "No se pudo iniciar sesión. Revisá la tienda abierta y probá nuevamente.",
+      );
     } finally {
       setLoading(false);
     }
@@ -72,6 +88,7 @@ function LoginPageInner() {
         }}
       >
         <div
+          className="comovosyyo-surface-card"
           style={{
             minHeight: 620,
             padding: 32,
@@ -112,6 +129,7 @@ function LoginPageInner() {
           </div>
 
           <div
+            className="comovosyyo-surface-card comovosyyo-surface-card--quiet"
             style={{
               minHeight: 260,
               padding: 24,
@@ -142,6 +160,7 @@ function LoginPageInner() {
         </div>
 
         <div
+          className="comovosyyo-surface-card"
           style={{
             padding: 32,
             borderRadius: 36,
@@ -154,44 +173,48 @@ function LoginPageInner() {
           </h2>
 
           <div style={{ display: "grid", gap: 14 }}>
-            <GoogleSignInButton
-              text="continue_with"
-              disabled={loading}
-              loginWithGoogle={loginWithGoogle}
-              onBusyChange={(busy) => {
-                setLoading(busy);
+            {showGoogleAuth ? (
+              <>
+                <GoogleSignInButton
+                  text="continue_with"
+                  disabled={loading}
+                  loginWithGoogle={loginWithGoogle}
+                  onBusyChange={(busy) => {
+                    setLoading(busy);
 
-                if (busy) {
-                  lockAuthUi();
-                  return;
-                }
+                    if (busy) {
+                      lockAuthUi();
+                      return;
+                    }
 
-                unlockAuthUi();
-              }}
-              onError={(message) => {
-                unlockAuthUi();
-                setError(message);
-              }}
-              onSuccess={(user) => {
-                redirectAfterLogin(user.role);
-              }}
-            />
+                    unlockAuthUi();
+                  }}
+                  onError={(message) => {
+                    unlockAuthUi();
+                    setError(message);
+                  }}
+                  onSuccess={(user) => {
+                    redirectAfterLogin(user.role);
+                  }}
+                />
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                color: "var(--text-muted)",
-                fontSize: 12,
-                textTransform: "uppercase",
-                letterSpacing: "0.16em",
-              }}
-            >
-              <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
-              o con email
-              <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
-            </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    color: "var(--text-muted)",
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.16em",
+                  }}
+                >
+                  <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+                  o con email
+                  <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+                </div>
+              </>
+            ) : null}
 
             <input
               placeholder="Email"
@@ -252,6 +275,7 @@ function LoginLoadingState() {
       }}
     >
       <div
+        className="comovosyyo-surface-card"
         style={{
           maxWidth: 1180,
           margin: "0 auto",

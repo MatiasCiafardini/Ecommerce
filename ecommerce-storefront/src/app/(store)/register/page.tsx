@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) {
@@ -29,6 +30,15 @@ export default function RegisterPage() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showGoogleAuth, setShowGoogleAuth] = useState(false);
+
+  useEffect(() => {
+    try {
+      setShowGoogleAuth(getClientStoreId() !== 7);
+    } catch {
+      setShowGoogleAuth(false);
+    }
+  }, []);
 
   const handleRegister = async () => {
     if (form.password !== form.confirmPassword) {
@@ -68,6 +78,7 @@ export default function RegisterPage() {
       }}
     >
       <div
+        className="comovosyyo-surface-card"
         style={{
           maxWidth: 760,
           margin: "0 auto",
@@ -112,32 +123,36 @@ export default function RegisterPage() {
         </p>
 
         <div style={{ display: "grid", gap: 14 }}>
-          <GoogleSignInButton
-            text="signup_with"
-            disabled={loading}
-            loginWithGoogle={loginWithGoogle}
-            onBusyChange={setLoading}
-            onError={setError}
-            onSuccess={() => {
-              router.push("/account?section=orders");
-            }}
-          />
+          {showGoogleAuth ? (
+            <>
+              <GoogleSignInButton
+                text="signup_with"
+                disabled={loading}
+                loginWithGoogle={loginWithGoogle}
+                onBusyChange={setLoading}
+                onError={setError}
+                onSuccess={() => {
+                  router.push("/account?section=orders");
+                }}
+              />
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              color: "var(--text-muted)",
-              fontSize: 12,
-              textTransform: "uppercase",
-              letterSpacing: "0.16em",
-            }}
-          >
-            <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
-            o crea tu cuenta con email
-            <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
-          </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  color: "var(--text-muted)",
+                  fontSize: 12,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.16em",
+                }}
+              >
+                <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+                o crea tu cuenta con email
+                <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+              </div>
+            </>
+          ) : null}
 
           <div className="layout-form-two">
             <input

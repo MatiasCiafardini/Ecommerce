@@ -594,26 +594,15 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           type: "hero_carousel",
           props: {
             showContentCard: false,
-            buttonText: "Comprar ahora",
+            buttonText: "Ver coleccion",
             buttonLink: "/product",
             slides: [
               {
-                image: "/images/trojani/fondo_banner.png",
-                eyebrow: "Promocion",
-                title: "Hasta 50% de descuento",
-                subtitle: "Aprovecha las promociones destacadas.",
-              },
-              {
-                image: "/images/trojani/fondo_banner2.png",
-                eyebrow: "Nueva Coleccion",
-                title: "Elegancia femenina",
-                subtitle: "",
-              },
-              {
-                image: "/images/trojani/fondo_banner3.png",
-                eyebrow: "Nuevos ingresos",
-                title: "Lineas limpias para hoy",
-                subtitle: "Descubre lo nuevo de la temporada.",
+                image: "/images/comovosyyo/products/hero-comovosyyo.png",
+                eyebrow: "Como Vos y Yo",
+                title: "Moda femenina suave y actual",
+                subtitle:
+                  "Prendas versatiles, tonos calmos y siluetas pensadas para combinar todos los dias.",
               },
             ],
             animationPreset: "soft",
@@ -622,16 +611,16 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
         {
           type: "banner",
           props: {
-            text: "Drop nuevo activo, compra hoy y define tu entrega en el checkout",
-            backgroundColor: "#ddd4c7",
-            textColor: "#141414",
+            text: "Coleccion capsula con envios a todo el pais y cambios simples",
+            backgroundColor: "#BFD5CF",
+            textColor: "#1A1A1A",
             animationPreset: "none",
           },
         },
         {
           type: "featured_products",
           props: {
-            title: "Piezas clave para empezar el look",
+            title: "Destacados de la tienda",
             limit: 6,
             columns: 3,
             animationPreset: "soft",
@@ -640,18 +629,9 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
         {
           type: "product_grid",
           props: {
-            title: "Lo nuevo que ya esta rotando",
+            title: "Nuevos ingresos",
             limit: 8,
             columns: 4,
-            animationPreset: "soft",
-          },
-        },
-        { type: "testimonials", props: { animationPreset: "soft" } },
-        {
-          type: "carousel",
-          props: {
-            title: "Favoritos de la comunidad",
-            limit: 6,
             animationPreset: "soft",
           },
         },
@@ -660,19 +640,19 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
           props: {
             items: [
               {
-                title: "Botas",
-                image: "/images/milashoes/categories/botas.svg",
-                categorySlugs: ["botas"],
+                title: "Remeras",
+                image: "/images/comovosyyo/products/remera-basica.png",
+                categorySlugs: ["remeras"],
               },
               {
-                title: "Borcegos",
-                image: "/images/milashoes/categories/borcegos.svg",
-                categorySlugs: ["borcegos"],
+                title: "Camisas",
+                image: "/images/comovosyyo/products/camisa-oversize-lino.png",
+                categorySlugs: ["camisas"],
               },
               {
-                title: "Sneakers",
-                image: "/images/milashoes/categories/sneakers.svg",
-                categorySlugs: ["sneakers"],
+                title: "Vestidos",
+                image: "/images/comovosyyo/products/vestido-midi.png",
+                categorySlugs: ["vestidos"],
               },
             ],
           },
@@ -680,15 +660,9 @@ export const storefrontDefaults: Record<number, StorefrontTenantConfig> = {
         {
           type: "newsletter",
           props: {
-            title: "Entra al drop list",
+            title: "Recibi novedades de Como Vos y Yo",
             subtitle:
-              "Recibi lanzamientos, reposiciones y descuentos antes que el resto.",
-            animationPreset: "soft",
-          },
-        },
-        {
-          type: "milashoes_institutional",
-          props: {
+              "Suscribite para conocer nuevos ingresos, restocks y propuestas de temporada.",
             animationPreset: "soft",
           },
         },

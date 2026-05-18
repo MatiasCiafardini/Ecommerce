@@ -37,8 +37,8 @@ function withRequiredThemeBlocks(args: {
   homeBlocks: Block[];
 }) {
   const shouldAppendMilaShoesFaq =
-    [6, 7].includes(args.storeId) &&
-    ["milashoes", "comovosyyo"].includes(args.theme.trim().toLowerCase()) &&
+    args.storeId === 6 &&
+    args.theme.trim().toLowerCase() === "milashoes" &&
     !args.homeBlocks.some((block) => block?.type === MILASHOES_FAQ_BLOCK_TYPE);
 
   if (!shouldAppendMilaShoesFaq) {

@@ -3,6 +3,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { User } from "@/context/auth-context";
 import { getGoogleClientId } from "@/lib/runtime-config";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 
 type GoogleCredentialResponse = {
   credential?: string;
@@ -109,6 +110,7 @@ export function GoogleSignInButton({
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isAvailableForStore, setIsAvailableForStore] = useState(false);
   const emitSuccess = useEffectEvent(async (user: User) => {
     await onSuccess(user);
   });
@@ -123,7 +125,15 @@ export function GoogleSignInButton({
   );
 
   useEffect(() => {
-    if (!clientId || !buttonRef.current) {
+    try {
+      setIsAvailableForStore(getClientStoreId() !== 7);
+    } catch {
+      setIsAvailableForStore(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!clientId || !isAvailableForStore || !buttonRef.current) {
       return;
     }
 
@@ -196,7 +206,11 @@ export function GoogleSignInButton({
     return () => {
       active = false;
     };
-  }, [clientId, text]);
+  }, [clientId, isAvailableForStore, text]);
+
+  if (!isAvailableForStore) {
+    return null;
+  }
 
   if (!clientId) {
     return (

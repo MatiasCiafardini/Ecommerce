@@ -13,22 +13,22 @@
   --muted-field-bg: #F5F1EA;
   --muted-field-color: #1A1A1A;
   --ghost-chip-border: #D8C7B5;
-  --ghost-chip-active-border: #8DBBB3;
+  --ghost-chip-active-border: #73B5A5;
   --ghost-chip-active-bg: #BFD5CF;
   --ghost-chip-color: #1A1A1A;
-  --theme-hover-border: #8DBBB3;
-  --header-action-bg: #F5F1EA;
+  --theme-hover-border: #73B5A5;
+  --header-action-bg: rgba(245, 241, 234, 0.88);
   --header-action-bg-active: #BFD5CF;
-  --header-action-border: #D8C7B5;
-  --header-action-border-active: #8DBBB3;
+  --header-action-border: rgba(26, 26, 26, 0.12);
+  --header-action-border-active: #73B5A5;
   --header-action-color: #1A1A1A;
-  --header-action-badge-bg: #8DBBB3;
-  --header-action-badge-color: #F5F1EA;
-  --theme-header-bg: #F5F1EA;
-  --theme-header-border: #D8C7B5;
+  --header-action-badge-bg: #73B5A5;
+  --header-action-badge-color: #1A1A1A;
+  --theme-header-bg: rgb(115, 181, 165);
+  --theme-header-border: rgba(26, 26, 26, 0.12);
   --theme-drawer-bg-start: #F5F1EA;
   --theme-drawer-bg-end: #BFD5CF;
-  --theme-drawer-border: #D8C7B5;
+  --theme-drawer-border: rgba(26, 26, 26, 0.12);
 }
 
 .theme-comovosyyo main {
@@ -36,10 +36,33 @@
 }
 
 .theme-comovosyyo .theme-product-card,
-.theme-comovosyyo .product-card-copy,
 .theme-comovosyyo .theme-block-section--featured-products,
 .theme-comovosyyo .theme-block-section--product-grid,
 .theme-comovosyyo .theme-block-section--carousel {
+  background: #F5F1EA;
+}
+
+.theme-comovosyyo .theme-product-card {
+  border: none !important;
+  box-shadow: 0 12px 28px rgba(26, 26, 26, 0.06);
+}
+
+.theme-comovosyyo .theme-block-card,
+.theme-comovosyyo .theme-block-panel,
+.theme-comovosyyo .theme-category-card,
+.theme-comovosyyo .theme-testimonial-card,
+.theme-comovosyyo .theme-newsletter-shell,
+.theme-comovosyyo .theme-editorial-panel,
+.theme-comovosyyo .comovosyyo-surface-card {
+  border: none !important;
+}
+
+.theme-comovosyyo .comovosyyo-surface-card--quiet {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.theme-comovosyyo .product-card-copy {
   background: #F5F1EA;
 }
 
@@ -49,9 +72,34 @@
   background: #BFD5CF;
 }
 
+.theme-comovosyyo .theme-button {
+  background: #73B5A5 !important;
+  border-color: #73B5A5 !important;
+  color: #1A1A1A !important;
+}
+
+.theme-comovosyyo .theme-button:hover {
+  background: #D8C7B5 !important;
+  border-color: #D8C7B5 !important;
+  color: #1A1A1A !important;
+}
+
+.theme-comovosyyo a:hover {
+  color: #1A1A1A;
+}
+
+.theme-comovosyyo .layout-header-bar a:hover,
+.theme-comovosyyo .theme-footer-column a:hover {
+  color: #1A1A1A !important;
+}
+
+.theme-comovosyyo .theme-product-card span {
+  border-radius: 999px !important;
+}
+
 .theme-comovosyyo .theme-newsletter-shell button.theme-button {
-  background: #8DBBB3 !important;
-  color: #F5F1EA !important;
+  background: #73B5A5 !important;
+  color: #1A1A1A !important;
 }
 
 .theme-comovosyyo .theme-newsletter-shell button.theme-button:hover {
@@ -69,4 +117,52 @@
 
 .theme-comovosyyo .theme-category-media[data-tone="warm"] {
   background: linear-gradient(135deg, #F5F1EA 0%, #D8C7B5 100%);
+}
+
+.theme-comovosyyo .theme-footer-shell {
+  background: linear-gradient(180deg, #BFD5CF 0%, #F5F1EA 100%) !important;
+}
+
+.theme-comovosyyo
+  .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+  .theme-hero-carousel {
+  --hero-carousel-overlay: linear-gradient(
+    90deg,
+    rgba(245, 241, 234, 0.9) 0%,
+    rgba(245, 241, 234, 0.72) 38%,
+    rgba(245, 241, 234, 0.16) 72%,
+    rgba(245, 241, 234, 0.06) 100%
+  );
+}
+
+.theme-comovosyyo
+  .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+  .theme-hero-carousel-eyebrow {
+  border-color: rgba(26, 26, 26, 0.14) !important;
+  background: rgba(245, 241, 234, 0.82) !important;
+  color: #1A1A1A !important;
+}
+
+.theme-comovosyyo
+  .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+  .theme-hero-carousel-title,
+.theme-comovosyyo
+  .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+  .theme-hero-carousel-subtitle {
+  color: #1A1A1A !important;
+  text-shadow: none !important;
+}
+
+@media (max-width: 768px) {
+  .theme-comovosyyo
+    .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+    .theme-hero-carousel {
+    --hero-carousel-overlay: linear-gradient(
+      180deg,
+      rgba(245, 241, 234, 0.16) 0%,
+      rgba(245, 241, 234, 0.48) 36%,
+      rgba(245, 241, 234, 0.94) 100%
+    );
+    --hero-carousel-image-position: 58% center;
+  }
 }

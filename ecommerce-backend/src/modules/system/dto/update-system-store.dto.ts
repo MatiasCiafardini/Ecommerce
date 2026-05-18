@@ -8,6 +8,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class UpdateSystemStoreDto {
@@ -18,6 +19,7 @@ export class UpdateSystemStoreDto {
   name?: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== '')
   @IsString()
   @MinLength(3)
   @MaxLength(120)
@@ -44,6 +46,7 @@ export class UpdateSystemStoreDto {
   logoUrl?: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== '')
   @IsEmail()
   supportEmail?: string;
 
@@ -103,10 +106,12 @@ export class UpdateSystemStoreDto {
   ownerName?: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== '')
   @IsEmail()
   ownerEmail?: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== '')
   @IsString()
   @MinLength(8)
   ownerPassword?: string;

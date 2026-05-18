@@ -240,10 +240,33 @@ function storeToForm(store: Store | null): StoreFormState {
 
 function serializeStoreForm(value: StoreFormState) {
   const domain = value.domain.trim();
+  const optionalTextFields = [
+    "ownerEmail",
+    "ownerPassword",
+    "ownerName",
+    "tagline",
+    "description",
+    "logoUrl",
+    "supportEmail",
+    "supportPhone",
+    "heroTitle",
+    "heroSubtitle",
+    "mercadoPagoPublicKey",
+    "mercadoPagoAccessToken",
+    "mercadoPagoWebhookSecret",
+    "bankTransferAlias",
+  ] as const;
+  const normalizedOptionalFields = Object.fromEntries(
+    optionalTextFields.map((key) => {
+      const normalizedValue = value[key].trim();
+      return [key, normalizedValue || undefined];
+    }),
+  );
 
   return {
     ...value,
     ...(domain ? { domain } : { domain: undefined }),
+    ...normalizedOptionalFields,
     bankTransferDiscountPercentage: Number(value.bankTransferDiscountPercentage || 0),
   };
 }
