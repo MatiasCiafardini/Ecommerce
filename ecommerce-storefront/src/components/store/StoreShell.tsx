@@ -7,21 +7,46 @@ export default function StoreShell({
   themeName?: string | null;
   children: React.ReactNode;
 }) {
+  const whatsappConfig = getWhatsAppConfig(themeName);
+
   return (
     <div data-store-shell style={{ minHeight: "100vh" }}>
       <main data-store-content>{children}</main>
-      {themeName === "trojani" ? <WhatsAppFloatingButton /> : null}
+      {whatsappConfig ? <WhatsAppFloatingButton {...whatsappConfig} /> : null}
     </div>
   );
 }
 
-function WhatsAppFloatingButton() {
-  const phone = "5492326440747";
-  const message = encodeURIComponent("Hola! Quiero hacer una consulta sobre Trojani.");
+function getWhatsAppConfig(themeName?: string | null) {
+  if (themeName === "trojani") {
+    return {
+      phone: "5492326440747",
+      message: "Hola! Quiero hacer una consulta sobre Trojani.",
+    };
+  }
+
+  if (themeName === "comovosyyo") {
+    return {
+      phone: "5492326494545",
+      message: "Hola! Quiero hacer una consulta sobre Como Vos y Yo.",
+    };
+  }
+
+  return null;
+}
+
+function WhatsAppFloatingButton({
+  phone,
+  message,
+}: {
+  phone: string;
+  message: string;
+}) {
+  const encodedMessage = encodeURIComponent(message);
 
   return (
     <a
-      href={`https://wa.me/${phone}?text=${message}`}
+      href={`https://wa.me/${phone}?text=${encodedMessage}`}
       target="_blank"
       rel="noreferrer"
       aria-label="Contactar por WhatsApp"

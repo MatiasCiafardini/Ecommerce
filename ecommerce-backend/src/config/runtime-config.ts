@@ -69,6 +69,7 @@ export const runtimeConfig = {
   rateLimitWindowMs: readNumber('RATE_LIMIT_WINDOW_MS', 60_000),
   authRateLimitMax: readNumber('AUTH_RATE_LIMIT_MAX', 10),
   webhookRateLimitMax: readNumber('WEBHOOK_RATE_LIMIT_MAX', 120),
+  labelsMaxPdfLabels: readNumber('LABELS_MAX_PDF_LABELS', 1000),
   systemVpsAutomationEnabled: readBoolean(
     'SYSTEM_VPS_AUTOMATION_ENABLED',
     false,

@@ -16,6 +16,7 @@ import AdminOrderDetailPanel from "./AdminOrderDetailPanel";
 import AdminShipmentsSection from "./AdminShipmentsSection";
 import AdminReturnsSection from "./AdminReturnsSection";
 import AdminPromotionsSection from "./AdminPromotionsSection";
+import AdminLabelsGenerator from "./AdminLabelsGenerator";
 import DeveloperModePanel from "./DeveloperModePanel";
 import type { AdminReturn, AdminSection, AdminShipment } from "./admin-types";
 
@@ -353,6 +354,7 @@ export default function AdminWorkspace({
     );
   if (section === "admin-accounting") return <AdminAccountingSection />;
   if (section === "admin-products") return <AdminProductsSection />;
+  if (section === "admin-labels") return <AdminLabelsSection />;
   if (section === "admin-categories")
     return <AdminProductsSection initialTab="categories" />;
   if (section === "admin-orders") return <AdminOrdersPanelSection />;
@@ -837,6 +839,10 @@ function AdminAccountingSection() {
       </div>
     </section>
   );
+}
+
+function AdminLabelsSection() {
+  return <AdminLabelsGenerator />;
 }
 
 function AdminDeveloperSection({
@@ -1999,6 +2005,92 @@ function AdminProductsSection({
     [imageFiles],
   );
 
+  const duplicateProductDraft = useCallback(
+    async (product: Product) => {
+      setLoadingEditId(product.id);
+      setError("");
+      setSuccess("");
+
+      try {
+        const [productVariants, productOptionValues] = await Promise.all([
+          api(`/variants/${product.id}`),
+          api(`/products/${product.id}/option-values`),
+        ]);
+
+        setEditingProductId(null);
+        setForm({
+          title: `Copia de ${product.title}`,
+          description: product.description ?? "",
+          published: false,
+          weightGrams: String(product.weightGrams ?? ""),
+          packageHeightCm: String(product.packageHeightCm ?? ""),
+          packageWidthCm: String(product.packageWidthCm ?? ""),
+          packageLengthCm: String(product.packageLengthCm ?? ""),
+        });
+        setSelectedCategoryIds(
+          (product.categories ?? []).map((entry) => entry.category.id),
+        );
+        revokeUploadImages(imageFiles);
+        setExistingImages([]);
+        setOriginalImageIds([]);
+        setImageFiles([]);
+
+        const safeOptionValues = Array.isArray(productOptionValues)
+          ? productOptionValues
+          : [];
+        setLoadedOptionValues([]);
+        setSelectedOptionValues(
+          safeOptionValues.reduce<Record<number, string[]>>((acc, item) => {
+            acc[item.productOptionId] = [
+              ...(acc[item.productOptionId] ?? []),
+              item.value,
+            ];
+            return acc;
+          }, {}),
+        );
+        setDraftOptionValues({});
+
+        setVariants(
+          Array.isArray(productVariants)
+            ? productVariants.map((variant) => ({
+                sku: `${String(variant.sku ?? "").trim()}-COPY`,
+                price: String(variant.price ?? ""),
+                Size: String(variant.Size ?? ""),
+                Color: String(variant.Color ?? ""),
+                inventoryQuantity: String(
+                  variant.inventories?.[0]?.quantity ?? "",
+                ),
+                weight: String(
+                  variant.weightGrams ??
+                    (variant.weight ? Math.round(Number(variant.weight) * 1000) : ""),
+                ),
+                width: String(variant.packageWidthCm ?? variant.width ?? ""),
+                height: String(variant.packageHeightCm ?? variant.height ?? ""),
+                length: String(variant.packageLengthCm ?? variant.length ?? ""),
+              }))
+            : [],
+        );
+        clearVariantDraft();
+        setActiveTab("create");
+        setSuccess("Copia preparada como borrador. Revisa los SKU antes de guardar.");
+
+        formTopRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo preparar la copia del producto.",
+        );
+      } finally {
+        setLoadingEditId(null);
+      }
+    },
+    [imageFiles],
+  );
+
   const syncExistingImages = async (productId: number) => {
     const imagesToRemove = originalImageIds.filter(
       (id) => !existingImages.some((image) => image.id === id),
@@ -2657,6 +2749,13 @@ function AdminProductsSection({
     }
   };
 
+  const openLabelsForProduct = (productId: number) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("section", "admin-labels");
+    params.set("productId", String(productId));
+    window.location.href = `/account?${params.toString()}`;
+  };
+
   return (
     <section style={panelStyle}>
       <Header
@@ -3284,6 +3383,15 @@ function AdminProductsSection({
               {success ? <p style={successStyle}>{success}</p> : null}
             </div>
             <div style={rowWrapStyle}>
+              {editingProductId ? (
+                <button
+                  type="button"
+                  onClick={() => openLabelsForProduct(editingProductId)}
+                  style={ghostButtonStyle}
+                >
+                  Imprimir etiquetas
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={resetForm}
@@ -3380,6 +3488,21 @@ function AdminProductsSection({
                       </button>
                       <button
                         type="button"
+                        onClick={() => openLabelsForProduct(product.id)}
+                        style={ghostButtonStyle}
+                      >
+                        Etiquetas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void duplicateProductDraft(product)}
+                        style={ghostButtonStyle}
+                        disabled={loadingEditId === product.id}
+                      >
+                        Duplicar
+                      </button>
+                      <button
+                        type="button"
                         onClick={() =>
                           setPendingRemoval({
                             kind: "product",
@@ -3447,6 +3570,21 @@ function AdminProductsSection({
                               {loadingEditId === product.id
                                 ? "Cargando..."
                                 : "Editar"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openLabelsForProduct(product.id)}
+                              style={ghostButtonStyle}
+                            >
+                              Etiquetas
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void duplicateProductDraft(product)}
+                              style={ghostButtonStyle}
+                              disabled={loadingEditId === product.id}
+                            >
+                              Duplicar
                             </button>
                             <button
                               type="button"

@@ -13,6 +13,7 @@ const adminSections: AccountSection[] = [
   "admin-accounting",
   "admin-developer",
   "admin-products",
+  "admin-labels",
   "admin-categories",
   "admin-promotions",
   "admin-settings",

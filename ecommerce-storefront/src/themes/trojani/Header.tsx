@@ -4,6 +4,7 @@ import "./styles/index.css";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type React from "react";
 import HeaderSearch from "@/components/header/HeaderSearch";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
@@ -141,11 +142,14 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
         position: "sticky",
         top: 0,
         zIndex: 30,
+        marginLeft: "var(--admin-sidebar-offset, 0px)",
+        width: "calc(100% - var(--admin-sidebar-offset, 0px))",
         backdropFilter: isMobile ? "none" : "blur(18px)",
         background: isMobile
           ? "color-mix(in srgb, var(--page-panel-strong-bg) 98%, var(--theme-colors-background))"
           : "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-strong-bg) 94%, transparent) 0%, color-mix(in srgb, var(--page-panel-bg) 82%, transparent) 100%)",
         borderBottom: "1px solid var(--theme-colors-border)",
+        transition: "margin-left 180ms ease, width 180ms ease",
       }}
     >
       <div
@@ -169,13 +173,9 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
           <Image
             src="/images/trojani/logo_trojani_recortado.png"
             alt={layoutConfig.header?.brandLabel || "Trojani"}
-            width={112}
-            height={32}
+            width={isMobile ? 88 : 112}
+            height={isMobile ? 25 : 32}
             priority
-            style={{
-              width: isMobile ? 88 : 112,
-              height: "auto",
-            }}
           />
         </Link>
 
@@ -320,32 +320,65 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
             onClick={() => setMenuOpen(false)}
             style={{
               position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.46)",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: "var(--admin-sidebar-offset, 0px)",
+              background:
+                "color-mix(in srgb, var(--theme-colors-text-strong) 52%, transparent)",
               zIndex: 35,
             }}
           />
           <div
             style={{
               position: "fixed",
-              top: 78,
-              left: 14,
-              right: 14,
-              bottom: 14,
-              maxHeight: "calc(100dvh - 92px)",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "min(86vw, 380px)",
+              maxWidth: "calc(100vw - var(--admin-sidebar-offset, 0px) - 48px)",
+              minHeight: "100dvh",
               zIndex: 40,
-              borderRadius: 28,
-              border: "1px solid var(--header-action-border)",
+              borderRadius: "28px 0 0 28px",
+              borderLeft: "1px solid var(--theme-colors-border)",
               background:
-                "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-strong-bg) 98%, var(--page-panel-bg)) 0%, color-mix(in srgb, var(--page-panel-bg) 96%, var(--page-shell-bg)) 100%)",
-              boxShadow: "0 26px 70px color-mix(in srgb, var(--theme-colors-text-strong) 10%, transparent)",
-              padding: 20,
+                "linear-gradient(180deg, color-mix(in srgb, var(--page-panel-strong-bg) 96%, var(--theme-colors-background)) 0%, color-mix(in srgb, var(--page-panel-bg) 96%, var(--page-shell-bg)) 100%)",
+              boxShadow: "-24px 0 70px color-mix(in srgb, var(--theme-colors-text-strong) 18%, transparent)",
+              padding: 18,
               display: "grid",
-              gap: 18,
-              overflowY: "auto",
+              gridTemplateRows: "auto minmax(0, 1fr)",
+              gap: 16,
+              overflow: "hidden",
               WebkitOverflowScrolling: "touch",
+              animation: "trojaniMobileDrawerIn 220ms cubic-bezier(.2,.8,.2,1)",
             }}
           >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                paddingBottom: 14,
+                borderBottom: "1px solid var(--theme-colors-border)",
+              }}
+            >
+              <Image
+                src="/images/trojani/logo_trojani_recortado.png"
+                alt={layoutConfig.header?.brandLabel || "Trojani"}
+                width={96}
+                height={28}
+              />
+              <button
+                type="button"
+                aria-label="Cerrar menu"
+                onClick={() => setMenuOpen(false)}
+                style={iconActionStyle}
+              >
+                <HamburgerIcon open />
+              </button>
+            </div>
+            <div style={{ display: "grid", gap: 18, overflowY: "auto", minHeight: 0, paddingRight: 2 }}>
             <div style={{ display: "grid", gap: 10 }}>
               <span
                 style={{
@@ -492,16 +525,18 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                   >
                     Administración
                   </span>
-                  <div style={{ display: "grid", gap: 8 }}>
+                  <div style={mobileAdminPanelStyle}>
                     {[
-                      { href: "/account?section=admin-overview", label: "Resumen" },
-                      { href: "/account?section=admin-accounting", label: "Contabilidad" },
-                      { href: "/account?section=admin-products", label: "Productos" },
-                      { href: "/account?section=admin-promotions", label: "Promociones" },
-                      { href: "/account?section=admin-orders", label: "Pedidos" },
-                      { href: "/account?section=admin-customers", label: "Clientes" },
-                      { href: "/account?section=admin-shipments", label: "Envios" },
-                      { href: "/account?section=admin-returns", label: "Devoluciones" },
+                      { href: "/account?section=admin-overview", label: "Dashboard", icon: "dashboard" },
+                      { href: "/account?section=admin-products", label: "Productos", icon: "products" },
+                      { href: "/account?section=admin-labels", label: "Etiquetas", icon: "labels" },
+                      { href: "/account?section=admin-orders", label: "Pedidos", icon: "orders" },
+                      { href: "/account?section=admin-customers", label: "Clientes", icon: "customers" },
+                      { href: "/account?section=admin-shipments", label: "Envios", icon: "shipments" },
+                      { href: "/account?section=admin-returns", label: "Devoluciones", icon: "returns" },
+                      { href: "/account?section=admin-promotions", label: "Promociones", icon: "promotions" },
+                      { href: "/account?section=admin-accounting", label: "Contabilidad", icon: "accounting" },
+                      { href: "/account?section=admin-settings", label: "Configuracion", icon: "settings" },
                     ].map((item) => (
                       <Link
                         key={item.href}
@@ -509,6 +544,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                         onClick={() => setMenuOpen(false)}
                         style={mobileAdminLinkStyle}
                       >
+                        <MobileAdminIcon name={item.icon} />
                         {item.label}
                       </Link>
                     ))}
@@ -516,6 +552,17 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                 </div>
               </>
             ) : null}
+            </div>
+            <style jsx>{`
+              @keyframes trojaniMobileDrawerIn {
+                from {
+                  transform: translateX(100%);
+                }
+                to {
+                  transform: translateX(0);
+                }
+              }
+            `}</style>
           </div>
         </>
       ) : null}
@@ -599,6 +646,38 @@ function PersonIcon() {
     >
       <path d="M20 21a8 8 0 0 0-16 0" />
       <circle cx="12" cy="8" r="4" />
+    </svg>
+  );
+}
+
+function MobileAdminIcon({ name }: { name: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    dashboard: <><path d="M4 13a8 8 0 0 1 16 0" /><path d="M12 13l4-5" /><path d="M7 17h10" /></>,
+    products: <><path d="M6 7h12l1 13H5L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></>,
+    labels: <><path d="M4 7V4h3" /><path d="M17 4h3v3" /><path d="M20 17v3h-3" /><path d="M7 20H4v-3" /><path d="M7 8v8" /><path d="M10 8v8" /><path d="M14 8v8" /><path d="M17 8v8" /></>,
+    orders: <><path d="M7 3h10v18H7z" /><path d="M9 8h6" /><path d="M9 12h6" /><path d="M9 16h4" /></>,
+    customers: <><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+    shipments: <><path d="M3 8h11v9H3z" /><path d="M14 11h4l3 3v3h-7z" /><path d="M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /><path d="M17 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /></>,
+    returns: <><path d="M9 7H5v4" /><path d="M5 11a7 7 0 1 0 2-5" /><path d="M12 8v5l3 2" /></>,
+    promotions: <><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /></>,
+    accounting: <><path d="M4 3h16v18H4z" /><path d="M8 7h8" /><path d="M8 11h8" /><path d="M8 15h3" /><path d="M15 15h1" /></>,
+    settings: <><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19 12h2" /><path d="M3 12h2" /><path d="M12 3v2" /><path d="M12 19v2" /></>,
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      width="19"
+      height="19"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flex: "0 0 19px" }}
+    >
+      {paths[name] ?? paths.dashboard}
     </svg>
   );
 }
@@ -727,10 +806,10 @@ const sessionPlaceholderStyle = {
 const mobileNavLinkStyle = {
   color: "var(--theme-colors-text-strong)",
   textDecoration: "none",
-  padding: "14px 16px",
-  borderRadius: 18,
-  border: "1px solid var(--theme-colors-border)",
-  background: "var(--page-panel-bg)",
+  padding: "12px 2px",
+  borderRadius: 0,
+  border: "0",
+  background: "transparent",
   fontSize: 16,
   fontFamily: 'var(--font-body, "Helvetica Neue", Helvetica, Arial, sans-serif)',
   textTransform: "uppercase",
@@ -752,10 +831,11 @@ const mobileAfaNavLinkStyle = {
 } as const;
 
 const mobileShopDetailsStyle = {
-  borderRadius: 18,
-  border: "1px solid var(--theme-colors-border)",
-  background: "var(--page-panel-bg)",
-  overflow: "hidden",
+  borderRadius: 0,
+  border: 0,
+  borderBottom: "1px solid var(--theme-colors-border)",
+  background: "transparent",
+  overflow: "visible",
 } as const;
 
 const mobileShopSummaryStyle = {
@@ -763,13 +843,13 @@ const mobileShopSummaryStyle = {
   alignItems: "center",
   justifyContent: "space-between",
   gap: 8,
-  padding: "0 0 0 16px",
+  padding: 0,
 } as const;
 
 const mobileShopMainLinkStyle = {
   color: "var(--theme-colors-text-strong)",
   textDecoration: "none",
-  padding: "14px 0",
+  padding: "12px 0",
   flex: "1 1 auto",
   fontSize: 16,
   fontFamily: 'var(--font-body, "Helvetica Neue", Helvetica, Arial, sans-serif)',
@@ -779,10 +859,9 @@ const mobileShopMainLinkStyle = {
 } as const;
 
 const mobileShopToggleStyle = {
-  width: 48,
-  minHeight: 48,
+  width: 44,
+  minHeight: 44,
   border: "none",
-  borderLeft: "1px solid var(--theme-colors-border)",
   background: "transparent",
   color: "var(--theme-colors-text-strong)",
   display: "inline-flex",
@@ -794,14 +873,14 @@ const mobileShopToggleStyle = {
 const mobileShopLinksStyle = {
   display: "grid",
   gap: 6,
-  padding: "0 12px 12px",
+  padding: "0 0 10px 16px",
 } as const;
 
 const mobileShopLinkStyle = {
   ...mobileNavLinkStyle,
-  padding: "11px 14px",
-  borderRadius: 14,
-  background: "color-mix(in srgb, var(--page-panel-bg) 62%, var(--page-shell-bg))",
+  padding: "9px 0",
+  borderRadius: 0,
+  background: "transparent",
   fontSize: 14,
 } as const;
 
@@ -813,8 +892,29 @@ const mobileSessionPlaceholderStyle = {
   fontSize: 11,
 } as const;
 
+const mobileAdminPanelStyle = {
+  display: "grid",
+  gap: 0,
+  overflow: "visible",
+  borderRadius: 0,
+  border: 0,
+  background: "transparent",
+  boxShadow: "none",
+} as const;
+
 const mobileAdminLinkStyle = {
-  ...mobileNavLinkStyle,
-  background: "color-mix(in srgb, var(--page-panel-bg) 60%, var(--page-shell-bg))",
+  color: "var(--theme-colors-text-strong)",
+  textDecoration: "none",
+  minHeight: 40,
+  padding: "10px 0",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  borderBottom: 0,
+  background: "transparent",
   fontSize: 14,
+  fontFamily: 'var(--font-body, "Helvetica Neue", Helvetica, Arial, sans-serif)',
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  fontWeight: 600,
 } as const;

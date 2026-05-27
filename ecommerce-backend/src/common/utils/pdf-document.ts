@@ -26,6 +26,13 @@ type DrawRectOptions = {
   lineWidth?: number;
 };
 
+type DrawFilledRectOptions = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 type DrawLineOptions = {
   x1: number;
   y1: number;
@@ -170,6 +177,12 @@ export class SimplePdfDocument {
     this.currentPage().push(
       `${lineWidth.toFixed(2)} w`,
       `${options.x.toFixed(2)} ${options.y.toFixed(2)} ${options.width.toFixed(2)} ${options.height.toFixed(2)} re S`,
+    );
+  }
+
+  drawFilledRect(options: DrawFilledRectOptions) {
+    this.currentPage().push(
+      `${options.x.toFixed(2)} ${options.y.toFixed(2)} ${options.width.toFixed(2)} ${options.height.toFixed(2)} re f`,
     );
   }
 

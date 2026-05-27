@@ -116,7 +116,7 @@ export class AuthController {
 
   @Post('logout')
   logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    clearAuthCookie(res, 'store', this.readCookieRequestHost(req));
+    clearAuthCookie(res, 'store', this.readCookieRequestHost(req), this.readOptionalStoreId(req));
     return { success: true };
   }
 
@@ -126,7 +126,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const storeId = this.readStoreId(req);
-    const token = extractAuthCookieValue(req.headers.cookie, 'store');
+    const token = extractAuthCookieValue(req.headers.cookie, 'store', storeId);
 
     if (!token) {
       return null;
@@ -156,7 +156,7 @@ export class AuthController {
       }
 
       const renewedToken = this.authService.signAccessToken(authEntity);
-      setAuthCookie(res, renewedToken, 'store', this.readCookieRequestHost(req));
+      setAuthCookie(res, renewedToken, 'store', this.readCookieRequestHost(req), storeId);
 
       return authEntity;
     } catch {
@@ -200,11 +200,25 @@ export class AuthController {
 
   private async finishLogin(res: Response, authEntity: any, req: Request) {
     const payload = await this.authService.login(authEntity);
-    setAuthCookie(res, payload.access_token, 'store', this.readCookieRequestHost(req));
+    setAuthCookie(
+      res,
+      payload.access_token,
+      'store',
+      this.readCookieRequestHost(req),
+      authEntity.storeId,
+    );
 
     return {
       user: payload.user,
     };
+  }
+
+  private readOptionalStoreId(req: Request) {
+    const storeIdHeader = req.headers['x-store-id'];
+    const rawValue = Array.isArray(storeIdHeader) ? storeIdHeader[0] : storeIdHeader;
+    const storeId = Number(rawValue);
+
+    return Number.isInteger(storeId) && storeId > 0 ? storeId : null;
   }
 
   private readCookieRequestHost(req: Request) {

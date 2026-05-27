@@ -60,13 +60,20 @@ export function getAuthCookieName(kind: AuthCookieKind = 'store') {
   return runtimeConfig.authCookieName;
 }
 
+function getStoreScopedAuthCookieName(storeId?: number | null) {
+  return storeId && Number.isInteger(storeId) && storeId > 0
+    ? `${runtimeConfig.authCookieName}_store_${storeId}`
+    : runtimeConfig.authCookieName;
+}
+
 export function setAuthCookie(
   response: Response,
   token: string,
   kind: AuthCookieKind = 'store',
   requestHost?: string,
+  storeId?: number | null,
 ) {
-  response.cookie(getAuthCookieName(kind), token, {
+  response.cookie(kind === 'store' ? getStoreScopedAuthCookieName(storeId) : getAuthCookieName(kind), token, {
     httpOnly: true,
     secure: runtimeConfig.authCookieSecure,
     sameSite: normalizeSameSite() as 'lax' | 'strict' | 'none',
@@ -80,14 +87,21 @@ export function clearAuthCookie(
   response: Response,
   kind: AuthCookieKind = 'store',
   requestHost?: string,
+  storeId?: number | null,
 ) {
-  response.clearCookie(getAuthCookieName(kind), {
+  const options = {
     httpOnly: true,
     secure: runtimeConfig.authCookieSecure,
     sameSite: normalizeSameSite() as 'lax' | 'strict' | 'none',
     domain: resolveCookieDomain(requestHost),
     path: getCookiePath(kind),
-  });
+  };
+
+  response.clearCookie(kind === 'store' ? getStoreScopedAuthCookieName(storeId) : getAuthCookieName(kind), options);
+
+  if (kind === 'store') {
+    response.clearCookie(getAuthCookieName(kind), options);
+  }
 }
 
 export function extractCookieValue(rawCookieHeader: string | undefined, name: string) {
@@ -112,6 +126,11 @@ export function extractCookieValue(rawCookieHeader: string | undefined, name: st
 export function extractAuthCookieValue(
   rawCookieHeader: string | undefined,
   kind: AuthCookieKind = 'store',
+  storeId?: number | null,
 ) {
+  if (kind === 'store' && storeId) {
+    return extractCookieValue(rawCookieHeader, getStoreScopedAuthCookieName(storeId));
+  }
+
   return extractCookieValue(rawCookieHeader, getAuthCookieName(kind));
 }

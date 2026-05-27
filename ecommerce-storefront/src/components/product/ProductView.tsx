@@ -1747,9 +1747,9 @@ const cartPromptOverlayStyle: React.CSSProperties = {
 const promptPrimaryStyle: React.CSSProperties = {
   padding: "12px 16px",
   borderRadius: 999,
-  border: "none",
-  background: "#f3eee7",
-  color: "#111",
+  border: "1px solid var(--accent-strong)",
+  background: "var(--accent-strong)",
+  color: "var(--accent-contrast)",
   cursor: "pointer",
   fontWeight: 700,
   flex: 1,
@@ -1758,10 +1758,11 @@ const promptPrimaryStyle: React.CSSProperties = {
 const promptSecondaryStyle: React.CSSProperties = {
   padding: "12px 16px",
   borderRadius: 999,
-  border: "1px solid var(--border-soft)",
-  background: "transparent",
+  border: "1px solid var(--theme-colors-border-strong, var(--border-strong))",
+  background: "color-mix(in srgb, var(--page-panel-bg) 84%, var(--page-panel-strong-bg) 16%)",
   color: "var(--text-strong)",
   cursor: "pointer",
+  fontWeight: 600,
   flex: 1,
 };
 
@@ -1769,12 +1770,13 @@ const cartPromptPanelStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 520,
   borderRadius: 30,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-bg)",
+  border: "1px solid color-mix(in srgb, var(--accent-strong) 34%, var(--border-soft))",
+  background:
+    "linear-gradient(180deg, var(--page-panel-bg) 0%, color-mix(in srgb, var(--page-panel-bg) 82%, var(--page-panel-strong-bg) 18%) 100%)",
   padding: "28px",
   display: "grid",
   gap: 22,
-  boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+  boxShadow: "0 24px 80px color-mix(in srgb, var(--text-strong) 28%, transparent)",
 };
 
 const cartPromptEyebrowStyle: React.CSSProperties = {
@@ -1783,8 +1785,8 @@ const cartPromptEyebrowStyle: React.CSSProperties = {
   padding: "8px 12px",
   borderRadius: 999,
   border:
-    "1px solid color-mix(in srgb, var(--accent-strong) 28%, var(--border-soft))",
-  background: "color-mix(in srgb, var(--accent) 10%, var(--page-panel-bg))",
+    "1px solid color-mix(in srgb, var(--accent-strong) 46%, var(--border-soft))",
+  background: "color-mix(in srgb, var(--accent) 22%, var(--page-panel-bg))",
   color: "var(--accent-strong)",
   fontSize: 11,
   fontWeight: 700,

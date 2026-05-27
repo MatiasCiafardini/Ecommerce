@@ -31,21 +31,6 @@ export class RateLimitMiddleware implements NestMiddleware {
   private readonly buckets = new Map<string, RateLimitBucket>();
   private readonly rules: RateLimitRule[] = [
     {
-      key: 'auth',
-      max: runtimeConfig.authRateLimitMax,
-      matches: (path) =>
-        startsWithAny(path, [
-          '/api/auth/login',
-          '/auth/login',
-          '/api/auth/session-login',
-          '/auth/session-login',
-          '/api/auth/customer/login',
-          '/auth/customer/login',
-          '/api/system/auth/login',
-          '/system/auth/login',
-        ]),
-    },
-    {
       key: 'webhook',
       max: runtimeConfig.webhookRateLimitMax,
       matches: (path) =>

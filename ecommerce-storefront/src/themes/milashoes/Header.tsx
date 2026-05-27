@@ -142,9 +142,12 @@ export function BrandedHeader({
           position: "sticky",
           top: 0,
           zIndex: 30,
+          marginLeft: "var(--admin-sidebar-offset, 0px)",
+          width: "calc(100% - var(--admin-sidebar-offset, 0px))",
           background: "var(--theme-header-bg, rgb(235, 235, 235))",
           borderBottom: "1px solid var(--theme-header-border, rgba(31, 31, 31, 0.08))",
           backdropFilter: "blur(12px)",
+          transition: "margin-left 180ms ease, width 180ms ease",
         }}
       >
         <div
@@ -229,7 +232,15 @@ export function BrandedHeader({
             className="milashoes-menu-overlay"
             data-menu-state={menuEntered ? "open" : "closed"}
             onClick={closeMenu}
-            style={{ position: "fixed", inset: 0, background: "rgba(31,31,31,0.20)", zIndex: 35 }}
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: "var(--admin-sidebar-offset, 0px)",
+              background: "rgba(31,31,31,0.20)",
+              zIndex: 35,
+            }}
           />
           <div
             className="milashoes-menu-drawer"
@@ -237,9 +248,10 @@ export function BrandedHeader({
             style={{
               position: "fixed",
               top: 0,
-              left: 0,
+              left: "var(--admin-sidebar-offset, 0px)",
               bottom: 0,
               width: "min(88vw, 400px)",
+              maxWidth: "calc(100vw - var(--admin-sidebar-offset, 0px) - 20px)",
               zIndex: 40,
               background:
                 "linear-gradient(180deg, var(--theme-drawer-bg-start, #FCFCFC) 0%, var(--theme-drawer-bg-end, #F4F4F4) 100%)",

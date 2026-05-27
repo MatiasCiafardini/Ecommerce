@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
-import type { StorefrontThemeLayout } from "@/types/storefront-config";
+import type { StorefrontFooterColumn, StorefrontThemeLayout } from "@/types/storefront-config";
 
 export function BrandedFooter({
   themeLayout,
@@ -12,7 +12,7 @@ export function BrandedFooter({
   eyebrow?: string;
 }) {
   const layoutConfig = mergeThemeLayout(themeName, themeLayout);
-  const columns = layoutConfig.footer?.columns ?? [];
+  const columns = normalizeFooterColumns(themeName, layoutConfig.footer?.columns ?? []);
 
   return (
     <footer
@@ -86,6 +86,32 @@ export function BrandedFooter({
       </div>
     </footer>
   );
+}
+
+function normalizeFooterColumns(
+  themeName: string,
+  columns: StorefrontFooterColumn[],
+) {
+  if (themeName !== "comovosyyo") {
+    return columns;
+  }
+
+  return columns.map((column) => ({
+    ...column,
+    links: column.links.map((link) => {
+      const normalizedLabel = link.label.trim().toLowerCase();
+
+      if (normalizedLabel === "instagram") {
+        return { ...link, href: "https://www.instagram.com/comovosyyo_" };
+      }
+
+      if (normalizedLabel === "whatsapp") {
+        return { ...link, href: "https://wa.me/5492326494545" };
+      }
+
+      return link;
+    }),
+  }));
 }
 
 export default function Footer({ themeLayout }: { themeLayout?: StorefrontThemeLayout }) {

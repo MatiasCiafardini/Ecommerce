@@ -301,8 +301,8 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
           title: "Contacto",
           links: [
             { href: "mailto:hola@comovosyyo.com", label: "hola@comovosyyo.com" },
-            { href: "https://instagram.com", label: "Instagram" },
-            { href: "https://wa.me", label: "WhatsApp" },
+            { href: "https://www.instagram.com/comovosyyo_", label: "Instagram" },
+            { href: "https://wa.me/5492326494545", label: "WhatsApp" },
           ],
         },
       ],

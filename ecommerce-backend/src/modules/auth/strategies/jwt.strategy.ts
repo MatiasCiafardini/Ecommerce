@@ -12,19 +12,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         ExtractJwt.fromAuthHeaderAsBearerToken(),
-        (request: { headers?: { cookie?: string }; path?: string; originalUrl?: string }) => {
+        (request: {
+          headers?: { cookie?: string; 'x-store-id'?: string | string[] };
+          path?: string;
+          originalUrl?: string;
+        }) => {
           const requestPath = request.originalUrl || request.path || '';
           const isSystemRequest = /\/system(\/|$)/.test(requestPath);
+          const rawStoreId = request.headers?.['x-store-id'];
+          const storeIdValue = Array.isArray(rawStoreId) ? rawStoreId[0] : rawStoreId;
+          const storeId = Number(storeIdValue);
+          const scopedStoreId = Number.isInteger(storeId) && storeId > 0 ? storeId : null;
 
           if (isSystemRequest) {
             return (
               extractAuthCookieValue(request.headers?.cookie, 'system') ||
-              extractAuthCookieValue(request.headers?.cookie, 'store')
+              extractAuthCookieValue(request.headers?.cookie, 'store', scopedStoreId)
             );
           }
 
           return (
-            extractAuthCookieValue(request.headers?.cookie, 'store') ||
+            extractAuthCookieValue(request.headers?.cookie, 'store', scopedStoreId) ||
             extractAuthCookieValue(request.headers?.cookie, 'system')
           );
         },

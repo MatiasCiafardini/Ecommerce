@@ -22,6 +22,9 @@ export default function AnnouncementTicker({
         background: "#111111",
         color: "#ffffff",
         borderBottom: "1px solid rgba(255,255,255,0.08)",
+        marginLeft: "var(--admin-sidebar-offset, 0px)",
+        width: "calc(100% - var(--admin-sidebar-offset, 0px))",
+        transition: "margin-left 180ms ease, width 180ms ease",
       }}
     >
       <div
