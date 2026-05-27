@@ -100,17 +100,6 @@ function LoginPageInner() {
           }}
         >
           <div>
-            <p
-              style={{
-                margin: "0 0 14px",
-                textTransform: "uppercase",
-                letterSpacing: "0.2em",
-                fontSize: 12,
-                color: "var(--text-muted)",
-              }}
-            >
-              Asphalt members
-            </p>
             <h1
               style={{
                 fontSize: "clamp(2.5rem, 5vw, 4.8rem)",
@@ -122,9 +111,15 @@ function LoginPageInner() {
             >
               Volvé a tu cuenta
             </h1>
-            <p style={{ maxWidth: 460, color: "var(--text-muted)", lineHeight: 1.8 }}>
-              Ingresá para revisar tus direcciones, completar tu compra y seguir el
-              próximo drop urbano.
+            <p
+              style={{
+                maxWidth: 460,
+                color: "var(--text-muted)",
+                lineHeight: 1.8,
+              }}
+            >
+              Ingresá para revisar tus direcciones, completar tu compra y seguir
+              el próximo drop urbano.
             </p>
           </div>
 
@@ -152,7 +147,6 @@ function LoginPageInner() {
             >
               Access panel
             </p>
-            <strong style={{ marginTop: 10, fontSize: 24 }}>Minimal streetwear account</strong>
             <p style={{ margin: "10px 0 0", lineHeight: 1.8 }}>
               Accede a tu perfil para revisar pedidos, direcciones y compras.
             </p>
@@ -168,7 +162,13 @@ function LoginPageInner() {
             border: "1px solid var(--border-soft)",
           }}
         >
-          <h2 style={{ margin: "0 0 24px", fontSize: 28, textTransform: "uppercase" }}>
+          <h2
+            style={{
+              margin: "0 0 24px",
+              fontSize: 28,
+              textTransform: "uppercase",
+            }}
+          >
             Iniciar sesión
           </h2>
 
@@ -209,9 +209,21 @@ function LoginPageInner() {
                     letterSpacing: "0.16em",
                   }}
                 >
-                  <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+                  <span
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      background: "var(--border-soft)",
+                    }}
+                  />
                   o con email
-                  <span style={{ flex: 1, height: 1, background: "var(--border-soft)" }} />
+                  <span
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      background: "var(--border-soft)",
+                    }}
+                  />
                 </div>
               </>
             ) : null}
@@ -232,7 +244,9 @@ function LoginPageInner() {
             />
           </div>
 
-          {error ? <p style={{ color: "#d14f4f", marginTop: 14 }}>{error}</p> : null}
+          {error ? (
+            <p style={{ color: "#d14f4f", marginTop: 14 }}>{error}</p>
+          ) : null}
 
           <button
             onClick={handleLogin}
