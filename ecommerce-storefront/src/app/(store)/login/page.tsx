@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { type FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { useAuth } from "@/context/auth-context";
@@ -47,13 +47,18 @@ function LoginPageInner() {
     router.push(redirect === "/" ? defaultRedirect : redirect);
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
     try {
       setLoading(true);
       setError("");
       lockAuthUi();
 
-      const user = await login(form);
+      const user = await login({
+        ...form,
+        email: form.email.trim(),
+      });
       redirectAfterLogin(user.role);
     } catch (error) {
       unlockAuthUi();
@@ -172,7 +177,7 @@ function LoginPageInner() {
             Iniciar sesión
           </h2>
 
-          <div style={{ display: "grid", gap: 14 }}>
+          <form onSubmit={handleLogin} style={{ display: "grid", gap: 14 }}>
             {showGoogleAuth ? (
               <>
                 <GoogleSignInButton
@@ -229,9 +234,11 @@ function LoginPageInner() {
             ) : null}
 
             <input
+              type="email"
               placeholder="Email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
+              autoComplete="email"
               style={fieldStyle}
             />
 
@@ -240,25 +247,25 @@ function LoginPageInner() {
               placeholder="Contraseña"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
+              autoComplete="current-password"
               style={fieldStyle}
             />
-          </div>
+            {error ? (
+              <p style={{ color: "#d14f4f", margin: 0 }}>{error}</p>
+            ) : null}
 
-          {error ? (
-            <p style={{ color: "#d14f4f", marginTop: 14 }}>{error}</p>
-          ) : null}
-
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            style={{
-              ...primaryButton,
-              width: "100%",
-              marginTop: 22,
-            }}
-          >
-            {loading ? "Ingresando..." : "Ingresar"}
-          </button>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                ...primaryButton,
+                width: "100%",
+                marginTop: 8,
+              }}
+            >
+              {loading ? "Ingresando..." : "Ingresar"}
+            </button>
+          </form>
 
           <p style={{ marginTop: 20, color: "var(--text-muted)" }}>
             ¿No tenés cuenta?{" "}
