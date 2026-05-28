@@ -71,11 +71,13 @@ export class StoreMiddleware implements NestMiddleware {
     const headerStoreId = this.parseStoreIdHeader(req.headers['x-store-id']);
     const explicitStoreHost = normalizeHost(req.headers['x-store-host']);
     const forwardedHost = normalizeHost(req.headers['x-forwarded-host']);
-    const requestHost = normalizeHost(explicitStoreHost || forwardedHost || req.headers.host);
+    const fallbackHost = normalizeHost(forwardedHost || req.headers.host);
+    const requestHost = normalizeHost(explicitStoreHost || fallbackHost);
+    const hostForLookup = explicitStoreHost || (headerStoreId ? '' : fallbackHost);
 
     const [storeFromHeader, storeFromHost] = await Promise.all([
       headerStoreId ? this.findStoreById(headerStoreId) : Promise.resolve(null),
-      requestHost ? this.findStoreByHost(requestHost) : Promise.resolve(null),
+      hostForLookup ? this.findStoreByHost(hostForLookup) : Promise.resolve(null),
     ]);
 
     if (headerStoreId && !storeFromHeader) {
@@ -88,9 +90,9 @@ export class StoreMiddleware implements NestMiddleware {
       );
     }
 
-    if (requestHost && !storeFromHost && !headerStoreId) {
+    if (hostForLookup && !storeFromHost && !headerStoreId) {
       throw new NotFoundException(
-        `Store is not configured for host "${requestHost}"`,
+        `Store is not configured for host "${hostForLookup}"`,
       );
     }
 
@@ -120,6 +122,10 @@ export class StoreMiddleware implements NestMiddleware {
     if (requestHost) {
       req.headers['x-store-host'] = requestHost;
     }
+
+    this.logger.log(
+      `Resolved tenant storeId=${resolvedStore.id} from ${headerStoreId ? 'x-store-id' : 'host'}; host="${requestHost || '(missing)'}"; path="${originalUrl || path}"`,
+    );
 
     if (!headerStoreId && requestHost) {
       this.logger.log(

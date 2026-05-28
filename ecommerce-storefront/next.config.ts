@@ -51,20 +51,6 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns,
   },
-  async rewrites() {
-    const apiUrl = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
-
-    if (!apiUrl) {
-      return [];
-    }
-
-    return [
-      {
-        source: "/api/proxy/:path*",
-        destination: `${apiUrl}/:path*`,
-      },
-    ];
-  },
   turbopack: {
     root: __dirname,
   },
