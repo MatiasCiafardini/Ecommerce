@@ -14,6 +14,8 @@ export type PrintableLabel = {
   variantName: string;
   sku: string;
   price: string;
+  normalPrice: string;
+  transferPrice: string | null;
   storeName: string;
   logoUrl?: string | null;
 };
@@ -83,6 +85,39 @@ export class LabelPdfRenderer {
         borderColor: rgb(0, 0, 0),
         borderWidth: 0.25,
       });
+
+      if (template.layout === 'product_cut_price') {
+        this.drawProductCutPriceLabel(page, fonts, label, template, options, {
+          x,
+          y,
+          width: labelWidth,
+          height: labelHeight,
+          padding,
+        });
+        continue;
+      }
+
+      if (template.layout === 'compact_cut_price') {
+        this.drawCompactCutPriceLabel(page, fonts, label, template, options, {
+          x,
+          y,
+          width: labelWidth,
+          height: labelHeight,
+          padding,
+        });
+        continue;
+      }
+
+      if (template.layout === 'shipping') {
+        this.drawShippingLabel(page, fonts, label, template, options, {
+          x,
+          y,
+          width: labelWidth,
+          height: labelHeight,
+          padding,
+        });
+        continue;
+      }
 
       if (options.showLogo) {
         const logo = await this.resolveLogo(pdf, label.logoUrl, logoCache);
@@ -161,14 +196,17 @@ export class LabelPdfRenderer {
 
       if (options.showPrice) {
         const size = this.fontSize(template, 4.8);
-        if (this.hasRoom(cursorY, size, contentBottom)) {
-          this.drawText(page, fonts, {
-            x: innerX,
-            y: cursorY,
-            text: label.price,
-            size,
-            bold: true,
-          });
+        for (const line of this.resolvePriceLines(label, options)) {
+          if (this.hasRoom(cursorY, size, contentBottom)) {
+            this.drawText(page, fonts, {
+              x: innerX,
+              y: cursorY,
+              text: this.fitText([line.caption, line.value].filter(Boolean).join(' '), innerWidth, size),
+              size,
+              bold: true,
+            });
+            cursorY -= this.lineStep(template, 4.6);
+          }
         }
       }
 
@@ -216,6 +254,256 @@ export class LabelPdfRenderer {
         height: Math.max(0.35, bar.height * scaleY),
         color: rgb(0, 0, 0),
       });
+    });
+  }
+
+  private drawProductCutPriceLabel(
+    page: PDFPage,
+    fonts: PdfFonts,
+    label: PrintableLabel,
+    template: LabelTemplate,
+    options: Required<LabelOptionsDto>,
+    box: { x: number; y: number; width: number; height: number; padding: number },
+  ) {
+    const priceWidth = options.priceMode === 'none' ? 0 : mmToPt(22);
+    const dividerX = box.x + box.width - priceWidth;
+    const contentX = box.x + box.padding;
+    const contentWidth = box.width - priceWidth - box.padding * 2 - mmToPt(1);
+    const barcodeHeight = mmToPt(7.6);
+    const barcodeY = box.y + box.padding + (options.showSku ? mmToPt(3.1) : 0);
+    const titleSize = this.fontSize(template, 5.2);
+    const metaSize = this.fontSize(template, 4.2);
+    let cursorY = box.y + box.height - box.padding - titleSize;
+
+    if (options.priceMode !== 'none') {
+      this.drawCutLine(page, dividerX, box.y, box.height);
+      this.drawPriceBlock(page, fonts, label, options, {
+        x: dividerX + mmToPt(1),
+        y: box.y + box.padding,
+        width: priceWidth - mmToPt(2),
+        height: box.height - box.padding * 2,
+        compact: false,
+      });
+    }
+
+    if (options.showStoreName && label.storeName) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: cursorY,
+        text: this.fitText(label.storeName.toUpperCase(), contentWidth, metaSize),
+        size: metaSize,
+        bold: true,
+      });
+      cursorY -= metaSize + 2;
+    }
+
+    if (options.showProductName) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: cursorY,
+        text: this.fitText(label.productName, contentWidth, titleSize),
+        size: titleSize,
+        bold: true,
+      });
+      cursorY -= titleSize + 1.8;
+    }
+
+    if (options.showVariantName && label.variantName) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: cursorY,
+        text: this.fitText(label.variantName, contentWidth, metaSize),
+        size: metaSize,
+      });
+    }
+
+    this.drawBarcode(page, label.sku, contentX, barcodeY, contentWidth, barcodeHeight);
+
+    if (options.showSku) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: box.y + box.padding,
+        text: this.fitText(label.sku, contentWidth, metaSize),
+        size: metaSize,
+      });
+    }
+  }
+
+  private drawCompactCutPriceLabel(
+    page: PDFPage,
+    fonts: PdfFonts,
+    label: PrintableLabel,
+    template: LabelTemplate,
+    options: Required<LabelOptionsDto>,
+    box: { x: number; y: number; width: number; height: number; padding: number },
+  ) {
+    const priceWidth = options.priceMode === 'none' ? 0 : mmToPt(16);
+    const dividerX = box.x + box.width - priceWidth;
+    const contentX = box.x + box.padding;
+    const contentWidth = box.width - priceWidth - box.padding * 2 - mmToPt(0.8);
+    const titleSize = this.fontSize(template, 4);
+    const skuSize = this.fontSize(template, 3.4);
+    const barcodeHeight = mmToPt(5);
+
+    if (options.priceMode !== 'none') {
+      this.drawCutLine(page, dividerX, box.y, box.height);
+      this.drawPriceBlock(page, fonts, label, options, {
+        x: dividerX + mmToPt(0.7),
+        y: box.y + box.padding,
+        width: priceWidth - mmToPt(1.4),
+        height: box.height - box.padding * 2,
+        compact: true,
+      });
+    }
+
+    if (options.showProductName) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: box.y + box.height - box.padding - titleSize,
+        text: this.fitText(label.productName, contentWidth, titleSize),
+        size: titleSize,
+        bold: true,
+      });
+    }
+
+    this.drawBarcode(page, label.sku, contentX, box.y + box.padding + mmToPt(2.8), contentWidth, barcodeHeight);
+
+    if (options.showSku) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: box.y + box.padding,
+        text: this.fitText(label.sku, contentWidth, skuSize),
+        size: skuSize,
+      });
+    }
+  }
+
+  private drawShippingLabel(
+    page: PDFPage,
+    fonts: PdfFonts,
+    label: PrintableLabel,
+    template: LabelTemplate,
+    _options: Required<LabelOptionsDto>,
+    box: { x: number; y: number; width: number; height: number; padding: number },
+  ) {
+    const contentX = box.x + box.padding;
+    const contentWidth = box.width - box.padding * 2;
+    const titleSize = this.fontSize(template, 7.2);
+    const bodySize = this.fontSize(template, 5);
+    let cursorY = box.y + box.height - box.padding - titleSize;
+
+    this.drawText(page, fonts, {
+      x: contentX,
+      y: cursorY,
+      text: this.fitText(label.storeName || 'Pedido interno', contentWidth, titleSize),
+      size: titleSize,
+      bold: true,
+    });
+    cursorY -= titleSize + 8;
+
+    [
+      `Producto: ${label.productName}`,
+      label.variantName ? `Variante: ${label.variantName}` : '',
+      `SKU: ${label.sku}`,
+    ]
+      .filter(Boolean)
+      .forEach((line) => {
+        this.drawText(page, fonts, {
+          x: contentX,
+          y: cursorY,
+          text: this.fitText(line, contentWidth, bodySize),
+          size: bodySize,
+        });
+        cursorY -= bodySize + 5;
+      });
+
+    this.drawBarcode(page, label.sku, contentX, box.y + box.padding + mmToPt(8), contentWidth, mmToPt(18));
+    this.drawText(page, fonts, {
+      x: contentX,
+      y: box.y + box.padding,
+      text: this.fitText(label.sku, contentWidth, bodySize),
+      size: bodySize,
+    });
+  }
+
+  private drawPriceBlock(
+    page: PDFPage,
+    fonts: PdfFonts,
+    label: PrintableLabel,
+    options: Required<LabelOptionsDto>,
+    box: { x: number; y: number; width: number; height: number; compact: boolean },
+  ) {
+    const priceLines = this.resolvePriceLines(label, options);
+    const labelSize = box.compact ? 3.7 : 4.4;
+    const priceSize = box.compact ? 6.2 : 8.4;
+    const captionGap = box.compact ? 1 : 1.6;
+    const groupGap = box.compact ? 1.8 : 2.8;
+    const blockHeight = priceLines.reduce(
+      (total, line, index) =>
+        total +
+        priceSize +
+        (line.caption ? labelSize + captionGap : 0) +
+        (index < priceLines.length - 1 ? groupGap : 0),
+      0,
+    );
+    let topY = box.y + box.height / 2 + blockHeight / 2;
+
+    priceLines.forEach((line) => {
+      if (line.caption) {
+        topY -= labelSize;
+        this.drawRightAlignedText(page, fonts, line.caption, box.x, topY, box.width, labelSize, false);
+        topY -= captionGap;
+      }
+      topY -= priceSize;
+      this.drawRightAlignedText(page, fonts, line.value, box.x, topY, box.width, priceSize, true);
+      topY -= groupGap;
+    });
+  }
+
+  private resolvePriceLines(label: PrintableLabel, options: Required<LabelOptionsDto>) {
+    if (options.priceMode === 'none') return [];
+    if (options.priceMode === 'transfer') {
+      return [{ caption: 'TRANSF.', value: label.transferPrice ?? label.normalPrice }];
+    }
+    if (options.priceMode === 'both') {
+      return [
+        { caption: 'LISTA', value: label.normalPrice },
+        { caption: 'TRANSF.', value: label.transferPrice ?? label.normalPrice },
+      ];
+    }
+
+    return [{ caption: '', value: label.normalPrice }];
+  }
+
+  private drawCutLine(page: PDFPage, x: number, y: number, height: number) {
+    page.drawLine({
+      start: { x, y: y + 1 },
+      end: { x, y: y + height - 1 },
+      thickness: 0.45,
+      color: rgb(0, 0, 0),
+      dashArray: [2, 2],
+    });
+  }
+
+  private drawRightAlignedText(
+    page: PDFPage,
+    fonts: PdfFonts,
+    text: string,
+    x: number,
+    y: number,
+    width: number,
+    size: number,
+    bold: boolean,
+  ) {
+    const font = bold ? fonts.bold : fonts.regular;
+    const fitted = this.fitText(text, width, size);
+    const textWidth = font.widthOfTextAtSize(fitted, size);
+    page.drawText(fitted, {
+      x: x + Math.max(0, width - textWidth),
+      y,
+      size,
+      font,
+      color: rgb(0, 0, 0),
     });
   }
 

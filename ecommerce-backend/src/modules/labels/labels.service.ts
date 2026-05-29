@@ -6,7 +6,7 @@ import { Code128BarcodeService } from './barcode/code128-barcode.service';
 import { GenerateLabelsDto, LabelOptionsDto } from './dto/generate-labels.dto';
 import { ListLabelProductsDto } from './dto/list-label-products.dto';
 import { LabelPdfRenderer, PrintableLabel } from './pdf/label-pdf.renderer';
-import { LABEL_TEMPLATES, getLabelTemplate } from './templates/label-templates';
+import { LABEL_TEMPLATES, getLabelTemplate, type LabelPriceMode } from './templates/label-templates';
 
 @Injectable()
 export class LabelsService {
@@ -56,8 +56,23 @@ export class LabelsService {
     };
   }
 
-  getTemplates() {
-    return Object.values(LABEL_TEMPLATES);
+  async getTemplates(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { bankTransferDiscountPercentage: true },
+    });
+    const bankTransferDiscountPercentage = this.normalizeDiscountPercentage(
+      store?.bankTransferDiscountPercentage,
+    );
+    const hasTransferPrice = bankTransferDiscountPercentage > 0;
+
+    return {
+      templates: Object.values(LABEL_TEMPLATES),
+      priceSettings: {
+        hasTransferPrice,
+        bankTransferDiscountPercentage,
+      },
+    };
   }
 
   async preview(storeId: number, dto: GenerateLabelsDto) {
@@ -69,6 +84,7 @@ export class LabelsService {
     return {
       template,
       options: this.normalizeOptions(dto.options),
+      priceSettings: await this.getPriceSettings(storeId),
       totalLabels: await this.countRequestedLabels(dto),
       labels: labels.map((label, index) => ({
         id: `${label.sku}-${index}`,
@@ -209,22 +225,29 @@ export class LabelsService {
 
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
-      select: { name: true, storefrontConfig: true },
+      select: { name: true, storefrontConfig: true, bankTransferDiscountPercentage: true },
     });
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const labels: PrintableLabel[] = [];
     const logoUrl = this.resolveStoreLogoUrl(store?.storefrontConfig);
+    const bankTransferDiscountPercentage = this.normalizeDiscountPercentage(
+      store?.bankTransferDiscountPercentage,
+    );
 
     for (const item of normalizedItems) {
       const variant = variantById.get(item.variantId);
       if (!variant) continue;
+      const normalPrice = Number(variant.price);
+      const transferPrice = this.resolveTransferPrice(normalPrice, bankTransferDiscountPercentage);
 
       for (let index = 0; index < item.quantity && labels.length < maxLabels; index += 1) {
         labels.push({
           productName: variant.product.title,
           variantName: [variant.Color, variant.Size].filter(Boolean).join(' ') || variant.sku,
           sku: variant.sku,
-          price: this.formatMoney(variant.price),
+          price: this.formatMoney(normalPrice),
+          normalPrice: this.formatMoney(normalPrice),
+          transferPrice: transferPrice ? this.formatMoney(transferPrice) : null,
           storeName: store?.name ?? '',
           logoUrl,
         });
@@ -282,14 +305,28 @@ export class LabelsService {
   }
 
   private normalizeOptions(options?: LabelOptionsDto): Required<LabelOptionsDto> {
+    const priceMode = this.normalizePriceMode(options?.priceMode, options?.showPrice);
     return {
-      showPrice: options?.showPrice ?? true,
+      showPrice: priceMode !== 'none',
       showStoreName: options?.showStoreName ?? true,
       showProductName: options?.showProductName ?? true,
       showVariantName: options?.showVariantName ?? true,
       showSku: options?.showSku ?? true,
       showLogo: options?.showLogo ?? false,
+      priceMode,
     };
+  }
+
+  private normalizePriceMode(
+    priceMode: LabelOptionsDto['priceMode'] | undefined,
+    showPrice: boolean | undefined,
+  ): LabelPriceMode {
+    if (showPrice === false) return 'none';
+    if (priceMode === 'normal' || priceMode === 'transfer' || priceMode === 'both' || priceMode === 'none') {
+      return priceMode;
+    }
+
+    return 'normal';
   }
 
   private serializeVariant(variant: any, storeId: number) {
@@ -321,7 +358,31 @@ export class LabelsService {
     ];
   }
 
-  private formatMoney(value: Prisma.Decimal) {
+  private async getPriceSettings(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { bankTransferDiscountPercentage: true },
+    });
+    const bankTransferDiscountPercentage = this.normalizeDiscountPercentage(
+      store?.bankTransferDiscountPercentage,
+    );
+
+    return {
+      hasTransferPrice: bankTransferDiscountPercentage > 0,
+      bankTransferDiscountPercentage,
+    };
+  }
+
+  private normalizeDiscountPercentage(value: number | null | undefined) {
+    return Math.max(0, Math.min(Number(value ?? 0) || 0, 100));
+  }
+
+  private resolveTransferPrice(price: number, discountPercentage: number) {
+    if (!Number.isFinite(price) || price <= 0 || discountPercentage <= 0) return null;
+    return Math.max(0, Math.round(price * (1 - discountPercentage / 100)));
+  }
+
+  private formatMoney(value: Prisma.Decimal | number) {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS',

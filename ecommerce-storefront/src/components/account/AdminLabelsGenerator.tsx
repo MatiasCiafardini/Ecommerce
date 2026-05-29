@@ -21,13 +21,22 @@ type VariantRow = {
 type Category = { id: number; name: string };
 type Template = {
   key: string;
+  id?: string;
   name: string;
+  type?: "clothing" | "accessory" | "shipping" | "generic";
+  useCase?: "clothing" | "accessory" | "shipping" | "generic";
+  layout?: "product_cut_price" | "compact_cut_price" | "shipping" | "legacy";
+  continuous?: boolean;
+  fields?: string[];
+  priceOptions?: PriceMode[];
   page: { widthMm: number; heightMm: number };
   label: { widthMm: number; heightMm: number; paddingMm: number };
   grid: { columns: number; rows: number };
 };
+type PriceMode = "normal" | "transfer" | "both" | "none";
 type LabelOptions = {
   showPrice: boolean;
+  priceMode: PriceMode;
   showStoreName: boolean;
   showProductName: boolean;
   showVariantName: boolean;
@@ -41,6 +50,8 @@ type PreviewLabel = {
   sku: string;
   storeName: string;
   price: string;
+  normalPrice?: string;
+  transferPrice?: string | null;
   logoUrl?: string | null;
   barcodeSvg: string;
 };
@@ -50,11 +61,16 @@ type Preview = {
   totalLabels: number;
   labels: PreviewLabel[];
 };
+type PriceSettings = {
+  hasTransferPrice: boolean;
+  bankTransferDiscountPercentage: number;
+};
 type Toast = { type: "success" | "error" | "info"; message: string };
 
 const storageKey = "labels-wizard-state-v2";
 const defaultOptions: LabelOptions = {
   showPrice: true,
+  priceMode: "normal",
   showStoreName: true,
   showProductName: true,
   showVariantName: true,
@@ -62,7 +78,8 @@ const defaultOptions: LabelOptions = {
   showLogo: false,
 };
 const optionLabels: Record<keyof LabelOptions, string> = {
-  showPrice: "Mostrar precio",
+  showPrice: "Precio normal",
+  priceMode: "Tipo de precio",
   showStoreName: "Mostrar tienda",
   showProductName: "Mostrar producto",
   showVariantName: "Mostrar variante",
@@ -78,8 +95,37 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function normalizeSavedOptions(options?: Partial<LabelOptions>): LabelOptions {
+  const priceMode = options?.showPrice === false ? "none" : options?.priceMode ?? defaultOptions.priceMode;
+
+  return {
+    ...defaultOptions,
+    ...options,
+    priceMode,
+    showPrice: priceMode !== "none" && (options?.showPrice ?? true),
+  };
+}
+
 function variantLabel(row: Pick<VariantRow, "productName" | "variantName">) {
   return [row.productName, row.variantName].filter(Boolean).join(" - ");
+}
+
+function templateUseCaseLabel(template: Pick<Template, "useCase" | "type">) {
+  const useCase = template.useCase ?? template.type;
+  if (useCase === "clothing") return "Ropa / productos";
+  if (useCase === "accessory") return "Accesorios chicos";
+  if (useCase === "shipping") return "Envios";
+  return "General";
+}
+
+function nextPriceMode(current: PriceMode, target: "normal" | "transfer", checked: boolean): PriceMode {
+  const normalChecked = target === "normal" ? checked : current === "normal" || current === "both";
+  const transferChecked = target === "transfer" ? checked : current === "transfer" || current === "both";
+
+  if (normalChecked && transferChecked) return "both";
+  if (normalChecked) return "normal";
+  if (transferChecked) return "transfer";
+  return "none";
 }
 
 function resolveImageUrl(imageUrl: string | null) {
@@ -133,9 +179,13 @@ export default function AdminLabelsGenerator() {
   const [rows, setRows] = useState<VariantRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [priceSettings, setPriceSettings] = useState<PriceSettings>({
+    hasTransferPrice: false,
+    bankTransferDiscountPercentage: 0,
+  });
   const [selected, setSelected] = useState<Record<number, VariantRow>>({});
   const [quantities, setQuantities] = useState<Record<number, number>>({});
-  const [templateKey, setTemplateKey] = useState("A4_50x25");
+  const [templateKey, setTemplateKey] = useState("BROTHER_QL570_62X29_CLOTHING");
   const [options, setOptions] = useState<LabelOptions>(defaultOptions);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [page, setPage] = useState(1);
@@ -169,6 +219,10 @@ export default function AdminLabelsGenerator() {
     [quantities, selectedRows],
   );
   const hasTemplate = templates.some((template) => template.key === templateKey);
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.key === templateKey) ?? templates[0] ?? null,
+    [templateKey, templates],
+  );
   const allFilteredSelected = Boolean(
     filteredSelectionIds?.size &&
       [...filteredSelectionIds].every((id) => Boolean(selected[id])),
@@ -201,8 +255,8 @@ export default function AdminLabelsGenerator() {
       };
       setSelected(parsed.selected ?? {});
       setQuantities(parsed.quantities ?? {});
-      setTemplateKey(parsed.templateKey ?? "A4_50x25");
-      setOptions(parsed.options ?? defaultOptions);
+      setTemplateKey(parsed.templateKey ?? "BROTHER_QL570_62X29_CLOTHING");
+      setOptions(normalizeSavedOptions(parsed.options));
     } catch {
       window.sessionStorage.removeItem(storageKey);
     }
@@ -211,6 +265,19 @@ export default function AdminLabelsGenerator() {
   useEffect(() => {
     window.sessionStorage.setItem(storageKey, JSON.stringify({ selected, quantities, templateKey, options }));
   }, [selected, quantities, templateKey, options]);
+
+  useEffect(() => {
+    if (!priceSettings.hasTransferPrice && (options.priceMode === "transfer" || options.priceMode === "both")) {
+      setOptions((current) => ({ ...current, priceMode: "normal", showPrice: true }));
+    }
+  }, [options.priceMode, priceSettings.hasTransferPrice]);
+
+  useEffect(() => {
+    if (!selectedTemplate?.priceOptions?.length) return;
+    if (selectedTemplate.priceOptions.includes(options.priceMode)) return;
+    const nextPriceMode = selectedTemplate.priceOptions[0] ?? "normal";
+    setOptions((current) => ({ ...current, priceMode: nextPriceMode, showPrice: nextPriceMode !== "none" }));
+  }, [options.priceMode, selectedTemplate]);
 
   useEffect(() => {
     setPreview(null);
@@ -223,11 +290,18 @@ export default function AdminLabelsGenerator() {
   useEffect(() => {
     setLoadingBase(true);
     Promise.all([
-      api("/admin/labels/templates") as Promise<Template[]>,
+      api("/admin/labels/templates") as Promise<Template[] | { templates: Template[]; priceSettings: PriceSettings }>,
       api("/categories") as Promise<Category[]>,
     ])
       .then(([nextTemplates, nextCategories]) => {
-        setTemplates(nextTemplates);
+        const templatePayload = Array.isArray(nextTemplates)
+          ? { templates: nextTemplates, priceSettings: { hasTransferPrice: false, bankTransferDiscountPercentage: 0 } }
+          : nextTemplates;
+        setTemplates(templatePayload.templates);
+        setPriceSettings(templatePayload.priceSettings);
+        if (!templatePayload.templates.some((template) => template.key === templateKey)) {
+          setTemplateKey(templatePayload.templates[0]?.key ?? "BROTHER_QL570_62X29_CLOTHING");
+        }
         setCategories(nextCategories);
       })
       .catch((error) => {
@@ -523,19 +597,63 @@ export default function AdminLabelsGenerator() {
       ) : null}
 
       {step === 3 ? (
-        <div style={styles.templateGrid}>
+        <div style={styles.templatePanel}>
           {loadingBase && templates.length === 0 ? <div style={styles.stateRow}>Cargando plantillas...</div> : null}
-          {templates.map((template) => (
-            <button key={template.key} type="button" style={templateCardStyle(templateKey === template.key)} onClick={() => setTemplateKey(template.key)}>
-              <strong>{template.name}</strong>
-              <span>{template.label.widthMm} x {template.label.heightMm} mm</span>
-              <small>{template.grid.columns} columnas x {template.grid.rows} filas</small>
-            </button>
-          ))}
+          <div style={styles.templateControls}>
+            <Field label="Plantilla">
+              <select style={styles.input} value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>
+                {templates.map((template) => (
+                  <option key={template.key} value={template.key}>{template.name}</option>
+                ))}
+              </select>
+            </Field>
+            {selectedTemplate ? (
+              <div style={styles.templateSummary}>
+                <strong>{selectedTemplate.name}</strong>
+                <span>
+                  {selectedTemplate.label.widthMm} mm x {selectedTemplate.continuous ? "continuo" : `${selectedTemplate.label.heightMm} mm`}
+                </span>
+                <small>{templateUseCaseLabel(selectedTemplate)} · {selectedTemplate.fields?.join(", ")}</small>
+              </div>
+            ) : null}
+          </div>
           <div style={styles.optionsPanel}>
-            {(Object.keys(defaultOptions) as Array<keyof LabelOptions>).map((key) => (
+            <label style={styles.check}>
+              <input
+                type="checkbox"
+                checked={options.priceMode === "normal" || options.priceMode === "both"}
+                disabled={selectedTemplate?.priceOptions?.includes("normal") === false}
+                onChange={(event) => {
+                  const priceMode = nextPriceMode(options.priceMode, "normal", event.target.checked);
+                  setOptions({ ...options, showPrice: priceMode !== "none", priceMode });
+                }}
+              />
+              Precio normal
+            </label>
+            <label style={styles.check}>
+              <input
+                type="checkbox"
+                checked={options.priceMode === "transfer" || options.priceMode === "both"}
+                disabled={!priceSettings.hasTransferPrice || selectedTemplate?.priceOptions?.includes("transfer") === false}
+                onChange={(event) => {
+                  const priceMode = nextPriceMode(options.priceMode, "transfer", event.target.checked);
+                  setOptions({ ...options, showPrice: priceMode !== "none", priceMode });
+                }}
+              />
+              Precio transferencia
+            </label>
+            {priceSettings.hasTransferPrice ? (
+              <span style={styles.priceHint}>Transferencia: {priceSettings.bankTransferDiscountPercentage}% de descuento.</span>
+            ) : (
+              <span style={styles.priceHint}>La tienda no tiene descuento por transferencia configurado.</span>
+            )}
+            {(["showStoreName", "showProductName", "showVariantName", "showSku", "showLogo"] as const).map((key) => (
               <label key={key} style={styles.check}>
-                <input type="checkbox" checked={options[key]} onChange={(event) => setOptions({ ...options, [key]: event.target.checked })} />
+                <input
+                  type="checkbox"
+                  checked={Boolean(options[key])}
+                  onChange={(event) => setOptions({ ...options, [key]: event.target.checked })}
+                />
                 {optionLabels[key]}
               </label>
             ))}
@@ -554,20 +672,12 @@ export default function AdminLabelsGenerator() {
           </div>
           <div style={styles.previewGrid}>
             {(preview?.labels ?? []).map((label) => (
-              <div key={label.id} className="admin-label-preview-card" style={styles.previewCard}>
-                {preview?.options.showLogo ? (
-                  <div className="admin-label-preview-logo">
-                    <LabelLogo label={label} />
-                  </div>
-                ) : null}
-                <div className="admin-label-preview-copy">
-                  {preview?.options.showStoreName ? <strong title={label.storeName}>{label.storeName}</strong> : null}
-                  {preview?.options.showProductName ? <span title={label.productName}>{label.productName}</span> : null}
-                  {preview?.options.showVariantName ? <span title={label.variantName}>{label.variantName}</span> : null}
-                  {preview?.options.showPrice ? <b title={label.price}>{label.price}</b> : null}
-                </div>
-                <div className="admin-label-preview-barcode" style={styles.barcode} dangerouslySetInnerHTML={{ __html: label.barcodeSvg }} />
-                {preview?.options.showSku ? <code title={label.sku}>{label.sku}</code> : null}
+              <div
+                key={label.id}
+                className={`admin-label-preview-card admin-label-layout-${preview?.template.layout ?? "legacy"}`}
+                style={labelPreviewStyle(preview?.template)}
+              >
+                {renderPreviewLabel(label, preview)}
               </div>
             ))}
           </div>
@@ -586,6 +696,41 @@ export default function AdminLabelsGenerator() {
       <style jsx global>{`
         .admin-label-preview-card {
           font-family: Arial, Helvetica, sans-serif;
+          display: flex;
+          gap: 5px;
+        }
+
+        .admin-label-main-zone {
+          min-width: 0;
+          flex: 1 1 auto;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          overflow: hidden;
+        }
+
+        .admin-label-price-zone {
+          width: 34%;
+          min-width: 58px;
+          border-left: 1px dashed #111;
+          padding-left: 5px;
+          display: grid;
+          align-content: center;
+          gap: 4px;
+          text-align: right;
+          flex: 0 0 auto;
+        }
+
+        .admin-label-price-zone span {
+          display: grid;
+          gap: 3px;
+        }
+
+        .admin-label-price-zone small {
+          color: #111;
+          font-size: 8px;
+          font-weight: 700;
+          line-height: 1;
         }
 
         .admin-label-preview-logo {
@@ -634,6 +779,11 @@ export default function AdminLabelsGenerator() {
           font-weight: 700;
         }
 
+        .admin-label-price-zone b {
+          font-size: 14px;
+          line-height: 1;
+        }
+
         .admin-label-preview-card code {
           font-size: 7px;
           font-family: Arial, Helvetica, sans-serif;
@@ -648,6 +798,47 @@ export default function AdminLabelsGenerator() {
           height: 30px;
           display: block;
           flex: 0 0 auto;
+        }
+
+        .admin-label-layout-compact_cut_price {
+          gap: 4px;
+        }
+
+        .admin-label-layout-compact_cut_price .admin-label-preview-copy strong,
+        .admin-label-layout-compact_cut_price .admin-label-preview-copy span {
+          font-size: 6px;
+        }
+
+        .admin-label-layout-compact_cut_price .admin-label-preview-barcode svg {
+          height: 20px;
+        }
+
+        .admin-label-layout-compact_cut_price .admin-label-price-zone {
+          width: 31%;
+          min-width: 46px;
+          padding-left: 4px;
+          gap: 2px;
+        }
+
+        .admin-label-layout-compact_cut_price .admin-label-price-zone b {
+          font-size: 10px;
+        }
+
+        .admin-label-layout-shipping {
+          flex-direction: column;
+        }
+
+        .admin-label-layout-shipping .admin-label-preview-copy strong {
+          font-size: 14px;
+        }
+
+        .admin-label-layout-shipping .admin-label-preview-copy span {
+          font-size: 10px;
+        }
+
+        .admin-label-layout-shipping .admin-label-preview-barcode svg {
+          height: 58px;
+          margin-top: auto;
         }
       `}</style>
     </section>
@@ -674,18 +865,98 @@ function StateRow({ colSpan, label }: { colSpan: number; label: string }) {
   return <tr><td colSpan={colSpan} style={styles.stateCell}>{label}</td></tr>;
 }
 
+function renderPreviewLabel(label: PreviewLabel, preview: Preview | null) {
+  if (!preview) return null;
+  const { template, options } = preview;
+  const priceLines = previewPriceLines(label, options.priceMode);
+  const cutPriceLayout = template.layout === "product_cut_price" || template.layout === "compact_cut_price";
+
+  if (template.layout === "shipping") {
+    return (
+      <>
+        <div className="admin-label-preview-copy">
+          {options.showStoreName ? <strong title={label.storeName}>{label.storeName || "Pedido interno"}</strong> : null}
+          <span title={label.productName}>Producto: {label.productName}</span>
+          {label.variantName ? <span title={label.variantName}>Variante: {label.variantName}</span> : null}
+        </div>
+        <div className="admin-label-preview-barcode" dangerouslySetInnerHTML={{ __html: label.barcodeSvg }} />
+        <code title={label.sku}>{label.sku}</code>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="admin-label-main-zone">
+        {options.showLogo ? (
+          <div className="admin-label-preview-logo">
+            <LabelLogo label={label} />
+          </div>
+        ) : null}
+        <div className="admin-label-preview-copy">
+          {options.showStoreName ? <strong title={label.storeName}>{label.storeName}</strong> : null}
+          {options.showProductName ? <span title={label.productName}>{label.productName}</span> : null}
+          {options.showVariantName ? <span title={label.variantName}>{label.variantName}</span> : null}
+          {!cutPriceLayout && options.showPrice
+            ? priceLines.map((line) => <b key={`${line.caption}-${line.value}`}>{[line.caption, line.value].filter(Boolean).join(" ")}</b>)
+            : null}
+        </div>
+        <div className="admin-label-preview-barcode" dangerouslySetInnerHTML={{ __html: label.barcodeSvg }} />
+        {options.showSku ? <code title={label.sku}>{label.sku}</code> : null}
+      </div>
+      {cutPriceLayout && priceLines.length > 0 ? (
+        <div className="admin-label-price-zone">
+          {priceLines.map((line) => (
+            <span key={`${line.caption}-${line.value}`}>
+              {line.caption ? <small>{line.caption}</small> : null}
+              <b>{line.value}</b>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function previewPriceLines(label: PreviewLabel, priceMode: PriceMode) {
+  const normalPrice = label.normalPrice ?? label.price;
+  const transferPrice = label.transferPrice ?? normalPrice;
+
+  if (priceMode === "none") return [];
+  if (priceMode === "transfer") return [{ caption: "TRANSF.", value: transferPrice }];
+  if (priceMode === "both") {
+    return [
+      { caption: "LISTA", value: normalPrice },
+      { caption: "TRANSF.", value: transferPrice },
+    ];
+  }
+  return [{ caption: "", value: normalPrice }];
+}
+
+function labelPreviewStyle(template?: Template): React.CSSProperties {
+  const widthMm = template?.label.widthMm ?? 62;
+  const heightMm = template?.label.heightMm ?? 29;
+  const scale = template?.continuous ? 3.3 : widthMm <= 54 ? 4.6 : 4.4;
+
+  return {
+    ...styles.previewCard,
+    width: Math.round(widthMm * scale),
+    height: Math.round(heightMm * scale),
+  };
+}
+
 function stepButtonStyle(active: boolean): React.CSSProperties {
   return {
     flex: "1 1 160px",
     minHeight: 56,
     borderRadius: 16,
-    border: active ? "1px solid var(--accent-strong)" : "1px solid var(--checkout-border)",
-    background: active ? "var(--accent-strong)" : "var(--page-panel-strong-bg)",
-    color: active ? "var(--accent-contrast)" : "var(--account-text-muted)",
+    border: active ? "1px solid #73b5a5" : "1px solid rgba(26, 26, 26, 0.12)",
+    background: active ? "#a9d7cc" : "#edf7f4",
+    color: "#1a1a1a",
     cursor: "pointer",
     textAlign: "left",
     padding: 12,
-    boxShadow: active ? "0 10px 24px rgba(98, 55, 32, 0.16)" : "none",
+    boxShadow: active ? "0 10px 24px rgba(26, 26, 26, 0.08)" : "none",
   };
 }
 
@@ -697,23 +968,9 @@ function stepNumberStyle(active: boolean): React.CSSProperties {
     height: 26,
     marginRight: 8,
     borderRadius: "50%",
-    background: active ? "rgba(255,255,255,0.18)" : "rgba(109,64,40,0.1)",
-    color: active ? "var(--accent-contrast)" : "var(--accent-strong)",
-  };
-}
-
-function templateCardStyle(selected: boolean): React.CSSProperties {
-  return {
-    minHeight: 130,
-    display: "grid",
-    gap: 8,
-    textAlign: "left",
-    border: selected ? "1px solid rgba(109,64,40,0.5)" : "1px solid var(--checkout-border)",
-    borderRadius: 20,
-    background: selected ? "rgba(109,64,40,0.08)" : "var(--page-panel-strong-bg)",
-    color: "var(--account-text-strong)",
-    padding: 16,
-    cursor: "pointer",
+    background: active ? "rgba(255,255,255,0.34)" : "rgba(115, 181, 165, 0.18)",
+    color: "#000",
+    fontWeight: 700,
   };
 }
 
@@ -772,7 +1029,7 @@ const styles = {
   filters: { display: "grid", gap: 14, alignContent: "start", background: "var(--page-panel-strong-bg)", border: "1px solid var(--checkout-border)", borderRadius: 20, padding: 16 } satisfies React.CSSProperties,
   field: { display: "grid", gap: 8, color: "var(--account-text-muted)", fontSize: 14 } satisfies React.CSSProperties,
   input: { width: "100%", borderRadius: 16, color: "var(--account-text-strong)", padding: "14px 16px", background: "var(--muted-field-bg)", border: "1px solid var(--checkout-border)", outline: "none" } satisfies React.CSSProperties,
-  check: { display: "flex", alignItems: "center", gap: 8, color: "var(--account-text-muted)", fontSize: 14 } satisfies React.CSSProperties,
+  check: { display: "flex", alignItems: "center", gap: 8, color: "#1a1a1a", fontSize: 14 } satisfies React.CSSProperties,
   tableWrap: { minWidth: 0, overflowX: "auto" } satisfies React.CSSProperties,
   table: { width: "100%", borderCollapse: "collapse", minWidth: 760 } satisfies React.CSSProperties,
   th: { padding: 12, borderBottom: "1px solid var(--checkout-border)", textAlign: "left", verticalAlign: "middle", color: "var(--account-text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" } satisfies React.CSSProperties,
@@ -786,8 +1043,11 @@ const styles = {
   pagination: { display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, paddingTop: 14, color: "var(--account-text-muted)" } satisfies React.CSSProperties,
   quickActions: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 10 } satisfies React.CSSProperties,
   quantityInput: { width: 110, borderRadius: 12, border: "1px solid var(--checkout-border)", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", padding: 10 } satisfies React.CSSProperties,
-  templateGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14 } satisfies React.CSSProperties,
-  optionsPanel: { gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, background: "var(--page-panel-strong-bg)", border: "1px solid var(--checkout-border)", borderRadius: 20, padding: 16 } satisfies React.CSSProperties,
+  templatePanel: { display: "grid", gap: 14 } satisfies React.CSSProperties,
+  templateControls: { display: "grid", gridTemplateColumns: "minmax(240px, 380px) minmax(0, 1fr)", gap: 14, alignItems: "stretch" } satisfies React.CSSProperties,
+  templateSummary: { display: "grid", gap: 6, alignContent: "center", background: "#edf7f4", border: "1px solid rgba(26, 26, 26, 0.12)", borderRadius: 16, padding: 16, color: "#1a1a1a" } satisfies React.CSSProperties,
+  optionsPanel: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, background: "#edf7f4", border: "1px solid rgba(26, 26, 26, 0.12)", borderRadius: 20, padding: 16 } satisfies React.CSSProperties,
+  priceHint: { color: "#1a1a1a", fontSize: 13, alignSelf: "center" } satisfies React.CSSProperties,
   previewLayout: { display: "grid", gap: 18 } satisfies React.CSSProperties,
   previewMeta: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" } satisfies React.CSSProperties,
   previewBadges: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" } satisfies React.CSSProperties,
@@ -795,9 +1055,7 @@ const styles = {
   printNotice: { color: "var(--account-text-muted)", border: "1px solid var(--checkout-border)", borderRadius: 999, padding: "8px 12px" } satisfies React.CSSProperties,
   previewGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12, maxHeight: 620, overflow: "auto", paddingRight: 4 } satisfies React.CSSProperties,
   previewCard: {
-    height: 136,
     display: "flex",
-    flexDirection: "column",
     gap: 3,
     padding: 10,
     background: "#fff",

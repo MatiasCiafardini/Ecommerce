@@ -20,8 +20,8 @@ export class LabelsController {
   }
 
   @Get('templates')
-  templates() {
-    return this.labelsService.getTemplates();
+  templates(@Req() req) {
+    return this.labelsService.getTemplates(req.storeId);
   }
 
   @Post('preview')

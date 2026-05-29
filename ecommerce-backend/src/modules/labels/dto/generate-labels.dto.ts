@@ -7,12 +7,22 @@ import {
   IsInt,
   IsObject,
   IsOptional,
+  IsString,
   ValidateNested,
   Min,
 } from 'class-validator';
 import type { LabelTemplateKey } from '../templates/label-templates';
 
-const templateKeys = ['A4_50x25', 'A4_40x30', 'THERMAL_58', 'THERMAL_80'] as const;
+const templateKeys = [
+  'BROTHER_QL570_62X29_CLOTHING',
+  'BROTHER_QL570_54X17_ACCESSORY',
+  'BROTHER_DK2205_SHIPPING',
+  'A4_50x25',
+  'A4_40x30',
+  'THERMAL_58',
+  'THERMAL_80',
+] as const;
+const priceModes = ['normal', 'transfer', 'both', 'none'] as const;
 
 export class LabelItemDto {
   @ApiProperty()
@@ -56,6 +66,12 @@ export class LabelOptionsDto {
   @IsOptional()
   @IsBoolean()
   showLogo?: boolean;
+
+  @ApiPropertyOptional({ enum: priceModes })
+  @IsOptional()
+  @IsString()
+  @IsIn(priceModes)
+  priceMode?: (typeof priceModes)[number];
 }
 
 export class GenerateLabelsDto {
