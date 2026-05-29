@@ -498,13 +498,6 @@ export default function AdminLabelsGenerator() {
 
   return (
     <section style={styles.shell}>
-      <header style={styles.toolbar}>
-        <div>
-          <p style={styles.eyebrow}>Gestion</p>
-          <h2 style={styles.title}>Etiquetas</h2>
-        </div>
-      </header>
-
       {toast ? <div style={{ ...styles.toast, ...toastToneStyle(toast.type) }}>{toast.message}</div> : null}
       {notice ? <div style={styles.errorBox}>{notice}</div> : null}
       {validationMessage && (step > 1 || missingSkuRows.length > 0) ? <div style={styles.validation}>{validationMessage}</div> : null}

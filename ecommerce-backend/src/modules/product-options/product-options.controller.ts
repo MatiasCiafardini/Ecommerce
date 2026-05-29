@@ -18,6 +18,8 @@ import { AddProductOptionValueDto } from './dto/add-product-option-value.dto';
 import { UpdateProductOptionDto } from './dto/update-product-option.dto';
 import { RenameProductOptionValueDto } from './dto/rename-product-option-value.dto';
 import { RemoveProductOptionValueDto } from './dto/remove-product-option-value.dto';
+import { CreateReusableOptionValueDto } from './dto/create-reusable-option-value.dto';
+import { ReorderReusableOptionValuesDto } from './dto/reorder-reusable-option-values.dto';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
@@ -55,6 +57,19 @@ export class ProductOptionsController {
     return this.service.deleteOption(req.storeId, Number(id), force === 'true');
   }
 
+  @Delete('product-options/:id/products/:productId')
+  unlinkOptionFromProduct(
+    @Req() req,
+    @Param('id') id: string,
+    @Param('productId') productId: string,
+  ) {
+    return this.service.unlinkOptionFromProduct(
+      req.storeId,
+      Number(id),
+      Number(productId),
+    );
+  }
+
   @Post('product-options/:id/reusable-values/rename')
   renameReusableValue(
     @Req() req,
@@ -62,6 +77,24 @@ export class ProductOptionsController {
     @Body() dto: RenameProductOptionValueDto,
   ) {
     return this.service.renameReusableValue(req.storeId, Number(id), dto);
+  }
+
+  @Post('product-options/:id/reusable-values')
+  createReusableValue(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: CreateReusableOptionValueDto,
+  ) {
+    return this.service.createReusableValue(req.storeId, Number(id), dto);
+  }
+
+  @Patch('product-options/:id/reusable-values/reorder')
+  reorderReusableValues(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: ReorderReusableOptionValuesDto,
+  ) {
+    return this.service.reorderReusableValues(req.storeId, Number(id), dto);
   }
 
   @Post('product-options/:id/reusable-values/remove')

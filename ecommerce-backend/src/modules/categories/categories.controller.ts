@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Req, UseGuards, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards, Patch, Param, Delete, Query } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
@@ -29,7 +29,11 @@ export class CategoriesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Req() req) {
-    return this.service.remove(Number(id), req.storeId);
+  remove(@Param('id') id: string, @Req() req, @Query('reassignTo') reassignTo?: string) {
+    return this.service.remove(
+      Number(id),
+      req.storeId,
+      reassignTo ? Number(reassignTo) : undefined,
+    );
   }
 }

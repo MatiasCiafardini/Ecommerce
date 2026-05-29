@@ -24,6 +24,7 @@ export class ProductsService {
         packageHeightCm: data.packageHeightCm,
         packageWidthCm: data.packageWidthCm,
         packageLengthCm: data.packageLengthCm,
+        packagingTemplateId: data.packagingTemplateId?.trim() || null,
         storeId,
       },
     });
@@ -124,6 +125,7 @@ export class ProductsService {
       packageHeightCm?: number | null;
       packageWidthCm?: number | null;
       packageLengthCm?: number | null;
+      packagingTemplateId?: string | null;
     } = {};
 
     if (data.title !== undefined) {
@@ -155,6 +157,10 @@ export class ProductsService {
 
     if (data.packageLengthCm !== undefined) {
       payload.packageLengthCm = data.packageLengthCm ?? null;
+    }
+
+    if (data.packagingTemplateId !== undefined) {
+      payload.packagingTemplateId = data.packagingTemplateId?.trim() || null;
     }
 
     return this.prisma.product.updateMany({
@@ -227,6 +233,7 @@ export class ProductsService {
             packageHeightCm: data.packageHeightCm,
             packageWidthCm: data.packageWidthCm,
             packageLengthCm: data.packageLengthCm,
+            packagingTemplateId: data.packagingTemplateId,
           })
         : await this.createProductRecord(tx, storeId, {
             title: normalizedTitle,
@@ -236,6 +243,7 @@ export class ProductsService {
             packageHeightCm: data.packageHeightCm,
             packageWidthCm: data.packageWidthCm,
             packageLengthCm: data.packageLengthCm,
+            packagingTemplateId: data.packagingTemplateId,
           });
 
       await this.ensureCategoriesBelongToStore(tx, normalizedCategoryIds, storeId);
@@ -420,6 +428,7 @@ export class ProductsService {
       packageHeightCm?: number | null;
       packageWidthCm?: number | null;
       packageLengthCm?: number | null;
+      packagingTemplateId?: string | null;
     },
   ) {
     const slug = generateSlug(data.title);
@@ -435,6 +444,7 @@ export class ProductsService {
         packageHeightCm: data.packageHeightCm ?? null,
         packageWidthCm: data.packageWidthCm ?? null,
         packageLengthCm: data.packageLengthCm ?? null,
+        packagingTemplateId: data.packagingTemplateId?.trim() || null,
         storeId,
       },
     });
@@ -452,6 +462,7 @@ export class ProductsService {
       packageHeightCm?: number | null;
       packageWidthCm?: number | null;
       packageLengthCm?: number | null;
+      packagingTemplateId?: string | null;
     },
   ) {
     const existing = await tx.product.findFirst({
@@ -485,6 +496,7 @@ export class ProductsService {
         packageHeightCm: data.packageHeightCm ?? null,
         packageWidthCm: data.packageWidthCm ?? null,
         packageLengthCm: data.packageLengthCm ?? null,
+        packagingTemplateId: data.packagingTemplateId?.trim() || null,
       },
     });
   }
@@ -553,6 +565,8 @@ export class ProductsService {
       Color?: string | null;
       inventoryQuantity: number;
       weightGrams?: number | null;
+      width?: number | null;
+      length?: number | null;
       packageWidthCm?: number | null;
       packageHeightCm?: number | null;
       packageLengthCm?: number | null;
@@ -658,12 +672,16 @@ export class ProductsService {
       Size?: string | null;
       Color?: string | null;
       weightGrams?: number | null;
+      width?: number | null;
+      length?: number | null;
       packageWidthCm?: number | null;
       packageHeightCm?: number | null;
       packageLengthCm?: number | null;
     },
   ) {
     const weightGrams = this.normalizePositiveNumber(variant.weightGrams);
+    const width = this.normalizePositiveNumber(variant.width);
+    const length = this.normalizePositiveNumber(variant.length);
     const packageWidthCm = this.normalizePositiveNumber(variant.packageWidthCm);
     const packageHeightCm = this.normalizePositiveNumber(variant.packageHeightCm);
     const packageLengthCm = this.normalizePositiveNumber(variant.packageLengthCm);
@@ -676,12 +694,12 @@ export class ProductsService {
       Color: variant.Color?.trim() ? variant.Color.trim() : null,
       weightGrams,
       weight: weightGrams !== null ? Number((weightGrams / 1000).toFixed(3)) : null,
+      width,
+      length,
       packageWidthCm,
-      width: packageWidthCm,
       packageHeightCm,
-      height: packageHeightCm,
       packageLengthCm,
-      length: packageLengthCm,
+      height: null,
       deletedAt: null,
     };
   }
@@ -722,6 +740,8 @@ export class ProductsService {
       Color?: string | null;
       inventoryQuantity?: number;
       weightGrams?: number | null;
+      width?: number | null;
+      length?: number | null;
       packageWidthCm?: number | null;
       packageHeightCm?: number | null;
       packageLengthCm?: number | null;
@@ -752,6 +772,8 @@ export class ProductsService {
         Color: variant.Color,
         inventoryQuantity: Math.trunc(inventoryQuantity),
         weightGrams: variant.weightGrams,
+        width: variant.width,
+        length: variant.length,
         packageWidthCm: variant.packageWidthCm,
         packageHeightCm: variant.packageHeightCm,
         packageLengthCm: variant.packageLengthCm,

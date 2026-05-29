@@ -10,6 +10,8 @@ import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { AddProductOptionValueDto } from './dto/add-product-option-value.dto';
 import { UpdateProductOptionDto } from './dto/update-product-option.dto';
 import { RenameProductOptionValueDto } from './dto/rename-product-option-value.dto';
+import { CreateReusableOptionValueDto } from './dto/create-reusable-option-value.dto';
+import { ReorderReusableOptionValuesDto } from './dto/reorder-reusable-option-values.dto';
 
 @Injectable()
 export class ProductOptionsService {
@@ -21,11 +23,25 @@ export class ProductOptionsService {
     const options = await this.prisma.productOption.findMany({
       where: { storeId },
       include: {
+        reusableValues: {
+          orderBy: [{ position: 'asc' }, { value: 'asc' }],
+        },
         values: {
           select: {
             id: true,
             value: true,
             productId: true,
+            product: {
+              select: {
+                id: true,
+                title: true,
+                slug: true,
+                variants: {
+                  where: { deletedAt: null },
+                  select: { id: true },
+                },
+              },
+            },
           },
           orderBy: {
             value: 'asc',
@@ -42,25 +58,74 @@ export class ProductOptionsService {
       name: option.name,
       storeId: option.storeId,
       createdAt: option.createdAt,
+      updatedAt: option.updatedAt,
+      attributeType: option.attributeType,
       productsCount: new Set(option.values.map((value) => value.productId)).size,
       usageCount: option.values.length,
-      reusableValues: [
-        ...new Map(
-          option.values.map((value) => [
-            value.value.trim().toLowerCase(),
-            {
-              id: value.id,
-              value: value.value,
-              productsCount: option.values.filter(
-                (entry) =>
-                  entry.value.trim().toLowerCase() ===
-                  value.value.trim().toLowerCase(),
-              ).length,
-            },
-          ]),
-        ).values(),
-      ],
+      reusableValues: this.mergeReusableValues(option.reusableValues, option.values),
+      products: this.buildAssociatedProducts(option.values),
     }));
+  }
+
+  private buildAssociatedProducts(
+    productValues: Array<{
+      productId: number;
+      product: { id: number; title: string; slug: string; variants: Array<{ id: number }> };
+    }>,
+  ) {
+    const products = new Map<number, { id: number; title: string; slug: string; variantsCount: number }>();
+
+    for (const entry of productValues) {
+      products.set(entry.productId, {
+        id: entry.product.id,
+        title: entry.product.title,
+        slug: entry.product.slug,
+        variantsCount: entry.product.variants.length,
+      });
+    }
+
+    return [...products.values()].sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  private mergeReusableValues(
+    reusableValues: Array<{ id: number; value: string; position: number; visualColor: string | null }>,
+    productValues: Array<{ id: number; value: string; productId: number }>,
+  ) {
+    const usageByValue = new Map<string, { value: string; products: Set<number>; fallbackId: number }>();
+
+    for (const value of productValues) {
+      const key = value.value.trim().toLowerCase();
+      const current =
+        usageByValue.get(key) ??
+        { value: value.value, products: new Set<number>(), fallbackId: value.id };
+      current.products.add(value.productId);
+      usageByValue.set(key, current);
+    }
+
+    const merged = reusableValues.map((value) => {
+      const usage = usageByValue.get(value.value.trim().toLowerCase());
+      return {
+        id: value.id,
+        value: value.value,
+        productsCount: usage?.products.size ?? 0,
+        position: value.position,
+        visualColor: value.visualColor,
+      };
+    });
+
+    const definedKeys = new Set(reusableValues.map((value) => value.value.trim().toLowerCase()));
+    for (const [key, usage] of usageByValue.entries()) {
+      if (definedKeys.has(key)) continue;
+      merged.push({
+        id: usage.fallbackId,
+        value: usage.value,
+        productsCount: usage.products.size,
+        position: merged.length,
+        visualColor: null,
+      });
+    }
+
+    return merged.sort((a, b) => a.position - b.position || a.value.localeCompare(b.value));
   }
 
   async createOption(storeId: number, dto: CreateProductOptionDto) {
@@ -85,6 +150,7 @@ export class ProductOptionsService {
         data: {
           storeId,
           name: normalizedName,
+          attributeType: dto.attributeType ?? 'text',
         },
       });
     } catch (error) {
@@ -144,6 +210,7 @@ export class ProductOptionsService {
         },
         data: {
           name: normalizedName,
+          attributeType: dto.attributeType ?? 'text',
         },
       });
     } catch (error) {
@@ -154,6 +221,63 @@ export class ProductOptionsService {
       });
       throw error;
     }
+  }
+
+  async createReusableValue(
+    storeId: number,
+    optionId: number,
+    dto: CreateReusableOptionValueDto,
+  ) {
+    const normalizedValue = dto.value.trim();
+    const option = await this.prisma.productOption.findFirst({
+      where: { id: optionId, storeId },
+      select: { id: true },
+    });
+
+    if (!option) {
+      throw new NotFoundException('Product option not found');
+    }
+
+    const lastValue = await this.prisma.productOptionReusableValue.findFirst({
+      where: { productOptionId: optionId },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+
+    return this.prisma.productOptionReusableValue.create({
+      data: {
+        productOptionId: optionId,
+        value: normalizedValue,
+        visualColor: dto.visualColor?.trim() || null,
+        position: dto.position ?? (lastValue ? lastValue.position + 1 : 0),
+      },
+    });
+  }
+
+  async reorderReusableValues(
+    storeId: number,
+    optionId: number,
+    dto: ReorderReusableOptionValuesDto,
+  ) {
+    const option = await this.prisma.productOption.findFirst({
+      where: { id: optionId, storeId },
+      select: { id: true },
+    });
+
+    if (!option) {
+      throw new NotFoundException('Product option not found');
+    }
+
+    await this.prisma.$transaction(
+      dto.valueIds.map((id, position) =>
+        this.prisma.productOptionReusableValue.updateMany({
+          where: { id, productOptionId: optionId },
+          data: { position },
+        }),
+      ),
+    );
+
+    return { reordered: true };
   }
 
   async deleteOption(storeId: number, optionId: number, force = false) {
@@ -206,6 +330,32 @@ export class ProductOptionsService {
       removedValues: option.values.length,
       affectedProducts: productsCount,
     };
+  }
+
+  async unlinkOptionFromProduct(storeId: number, optionId: number, productId: number) {
+    const option = await this.prisma.productOption.findFirst({
+      where: { id: optionId, storeId },
+      select: { id: true, name: true },
+    });
+
+    if (!option) {
+      throw new NotFoundException('Product option not found');
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, storeId, deletedAt: null },
+      select: { id: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const deleted = await this.prisma.productOptionValue.deleteMany({
+      where: { productOptionId: optionId, productId },
+    });
+
+    return { unlinked: true, removedValues: deleted.count };
   }
 
   async addValueToProduct(
@@ -456,6 +606,19 @@ export class ProductOptionsService {
         },
       });
 
+      await tx.productOptionReusableValue.updateMany({
+        where: {
+          productOptionId: optionId,
+          value: {
+            equals: currentValue,
+            mode: 'insensitive',
+          },
+        },
+        data: {
+          value: nextValue,
+        },
+      });
+
       return {
         deletedCount: deleted.count,
         updatedCount: updated.count,
@@ -520,6 +683,16 @@ export class ProductOptionsService {
     }
 
     const deleted = await this.prisma.productOptionValue.deleteMany({
+      where: {
+        productOptionId: optionId,
+        value: {
+          equals: normalizedValue,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    await this.prisma.productOptionReusableValue.deleteMany({
       where: {
         productOptionId: optionId,
         value: {

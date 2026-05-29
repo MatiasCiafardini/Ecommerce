@@ -45,6 +45,7 @@ type Product = {
   packageHeightCm?: number | null;
   packageWidthCm?: number | null;
   packageLengthCm?: number | null;
+  packagingTemplateId?: string | null;
   images?: Array<{
     id: number;
     url: string;
@@ -53,28 +54,41 @@ type Product = {
     offsetY?: number;
     zoom?: number;
   }>;
-  variants?: Array<{ id: number }>;
+  variants?: Array<{
+    id: number;
+    price?: number | string | null;
+    inventories?: Array<{ quantity?: number | null }>;
+  }>;
   categories?: Array<{ category: { id: number; name: string } }>;
-};
-
-type ProductStockRow = {
-  id: number;
-  title: string;
-  slug: string;
-  published: boolean;
-  categories: string[];
-  variantsCount: number;
-  totalStock: number;
-  lowStockVariants: number;
+  optionValues?: Array<{ value?: string; productOptionId?: number }>;
 };
 
 type Category = {
   id: number;
   name: string;
   slug: string;
+  description?: string | null;
+  status?: "active" | "hidden";
+  parentId?: number | null;
+  parent?: { id: number; name: string; slug: string } | null;
   imageUrl?: string | null;
   productsCount?: number;
+  childrenCount?: number;
+  publishedProductsCount?: number;
+  outOfStockProductsCount?: number;
+  products?: Array<{ id: number; title: string; slug: string }>;
   storeId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+type CategoryDraft = {
+  id: number | null;
+  name: string;
+  slug: string;
+  description: string;
+  status: "active" | "hidden";
+  parentId: string;
+  imageUrl: string;
 };
 type Customer = {
   id: number;
@@ -86,9 +100,27 @@ type Customer = {
 type ProductOption = {
   id: number;
   name: string;
+  attributeType?: "text" | "color" | "number";
+  createdAt?: string;
+  updatedAt?: string;
   productsCount?: number;
   usageCount?: number;
-  reusableValues?: Array<{ id: number; value: string; productsCount?: number }>;
+  products?: Array<{ id: number; title: string; slug: string; variantsCount: number }>;
+  reusableValues?: Array<{
+    id: number;
+    value: string;
+    productsCount?: number;
+    position?: number;
+    visualColor?: string | null;
+  }>;
+};
+type AttributeDraft = {
+  id: number | null;
+  name: string;
+  attributeType: "text" | "color" | "number";
+  newValue: string;
+  newValueColor: string;
+  bulkValues: string;
 };
 type DraftVariant = {
   sku: string;
@@ -96,6 +128,23 @@ type DraftVariant = {
   Size: string;
   Color: string;
   inventoryQuantity: string;
+  weight: string;
+  width: string;
+  height: string;
+  length: string;
+};
+
+type ProductWizardStep =
+  | "info"
+  | "logistics"
+  | "images"
+  | "labels"
+  | "variants"
+  | "publish";
+
+type PackagingTemplate = {
+  id: string;
+  name: string;
   weight: string;
   width: string;
   height: string;
@@ -202,6 +251,24 @@ const emptyVariant = (): DraftVariant => ({
   height: "",
   length: "",
 });
+
+const productWizardSteps: Array<{ id: ProductWizardStep; label: string }> = [
+  { id: "info", label: "Informacion" },
+  { id: "logistics", label: "Logistica" },
+  { id: "images", label: "Imagenes" },
+  { id: "labels", label: "Atributos" },
+  { id: "variants", label: "Variantes" },
+  { id: "publish", label: "Publicacion" },
+];
+
+const packagingTemplates: PackagingTemplate[] = [
+  { id: "small-bag", name: "Bolsa ropa chica", weight: "250", width: "22", height: "4", length: "28" },
+  { id: "medium-bag", name: "Bolsa ropa mediana", weight: "450", width: "28", height: "6", length: "36" },
+  { id: "large-bag", name: "Bolsa ropa grande", weight: "750", width: "35", height: "9", length: "45" },
+  { id: "small-box", name: "Caja chica", weight: "700", width: "20", height: "10", length: "30" },
+  { id: "medium-box", name: "Caja mediana", weight: "1200", width: "30", height: "15", length: "40" },
+  { id: "large-box", name: "Caja grande", weight: "2200", width: "40", height: "25", length: "55" },
+];
 
 const defaultImageLayout = (position = 0): ImageLayoutState => ({
   position,
@@ -435,14 +502,6 @@ function AdminSettingsSection() {
 
   return (
     <section style={panelStyle}>
-      <div style={betweenStyle}>
-        <div>
-          <p style={eyebrowStyle}>Configuracion</p>
-          <h2 style={title2Style}>Ajustes de la tienda</h2>
-          <p style={copyStyle}>Gestiona los datos operativos que se reflejan en el checkout.</p>
-        </div>
-      </div>
-
       <div style={tabRailStyle}>
         <button
           type="button"
@@ -869,31 +928,56 @@ function AdminDeveloperSection({
 }
 
 type ProductAdminTab =
-  | "create"
   | "catalog"
-  | "stock"
+  | "create"
   | "options"
   | "categories";
 
+function getProductTotalStock(product: Product) {
+  return (product.variants ?? []).reduce(
+    (sum, variant) =>
+      sum + Number(variant.inventories?.[0]?.quantity ?? 0),
+    0,
+  );
+}
+
+function getProductPriceFrom(product: Product) {
+  const prices = (product.variants ?? [])
+    .map((variant) => Number(variant.price ?? 0))
+    .filter((price) => Number.isFinite(price) && price > 0);
+
+  return prices.length > 0 ? Math.min(...prices) : 0;
+}
+
+function getProductCatalogStatus(product: Product) {
+  if (getProductTotalStock(product) <= 0) return "Sin stock";
+  return product.published ? "Publicado" : "Borrador";
+}
+
+function getProductCategoryNames(product: Product) {
+  return (product.categories ?? []).map((entry) => entry.category.name);
+}
+
+function nextClothingSize(size: string) {
+  const sequence = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+  const current = size.trim().toUpperCase();
+  const index = sequence.indexOf(current);
+  if (index >= 0 && index < sequence.length - 1) return sequence[index + 1];
+  return current ? `${current} COPIA` : "";
+}
+
 function AdminProductsSection({
-  initialTab = "create",
+  initialTab = "catalog",
 }: {
   initialTab?: ProductAdminTab;
 }) {
   const { isTabletOrSmaller, isPhone } = useViewportFlags();
   const searchParams = useSearchParams();
   const formTopRef = useRef<HTMLDivElement | null>(null);
-  const optionInUseRef = useRef<HTMLElement | null>(null);
-  const optionIdleRef = useRef<HTMLElement | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [stockRows, setStockRows] = useState<ProductStockRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [options, setOptions] = useState<ProductOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stockLoading, setStockLoading] = useState(false);
-  const [publishingProductIds, setPublishingProductIds] = useState<number[]>(
-    [],
-  );
   const [saving, setSaving] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState<{
     total: number;
@@ -903,17 +987,19 @@ function AdminProductsSection({
   const [creatingOption, setCreatingOption] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(
+    null,
+  );
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeTab, setActiveTab] = useState<ProductAdminTab>(initialTab);
+  const [wizardStep, setWizardStep] = useState<ProductWizardStep>("info");
   const [newOptionName, setNewOptionName] = useState("");
   const [productQuery, setProductQuery] = useState("");
-  const [stockQuery, setStockQuery] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("all");
+  const [productStatusFilter, setProductStatusFilter] = useState<"all" | "published" | "draft" | "without-stock">("all");
   const [optionQuery, setOptionQuery] = useState("");
-  const [stockCategoryFilter, setStockCategoryFilter] = useState("all");
-  const [stockPublishedFilter, setStockPublishedFilter] = useState<
-    "all" | "published" | "draft"
-  >("all");
-  const [editingOptionId, setEditingOptionId] = useState<number | null>(null);
-  const [editingOptionName, setEditingOptionName] = useState("");
+  const [attributeDraft, setAttributeDraft] = useState<AttributeDraft | null>(null);
+  const [draggingAttributeValueId, setDraggingAttributeValueId] = useState<number | null>(null);
   const [editingValueKey, setEditingValueKey] = useState<string | null>(null);
   const [editingValueName, setEditingValueName] = useState("");
   const [savingOptionKey, setSavingOptionKey] = useState<string | null>(null);
@@ -937,6 +1023,16 @@ function AdminProductsSection({
     packageWidthCm: "",
     packageLengthCm: "",
   });
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [creatingCategoryInline, setCreatingCategoryInline] = useState(false);
+  const [packagingTemplateId, setPackagingTemplateId] = useState("");
+  const [selectedVariantIndexes, setSelectedVariantIndexes] = useState<number[]>([]);
+  const [bulkVariantPatch, setBulkVariantPatch] = useState({
+    price: "",
+    stock: "",
+    color: "",
+    size: "",
+  });
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [autoOpenedProductId, setAutoOpenedProductId] = useState<number | null>(
     null,
@@ -951,6 +1047,7 @@ function AdminProductsSection({
   const [selectedOptionValues, setSelectedOptionValues] = useState<
     Record<number, string[]>
   >({});
+  const [selectedVariantAttributeIds, setSelectedVariantAttributeIds] = useState<number[]>([]);
   const [loadedOptionValues, setLoadedOptionValues] = useState<
     ProductOptionValueEntry[]
   >([]);
@@ -1072,61 +1169,11 @@ function AdminProductsSection({
   useEffect(() => {
     return () => {
       revokeUploadImages(uploadImagesRef.current);
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
     };
   }, []);
-
-  const loadStockData = async (sourceProducts: Product[]) => {
-    setStockLoading(true);
-    try {
-      const rows = await Promise.all(
-        sourceProducts.map(async (product) => {
-          const variantsData = await api(`/variants/${product.id}`);
-          const variants = Array.isArray(variantsData) ? variantsData : [];
-          const totalStock = variants.reduce(
-            (sum, variant) =>
-              sum + Number(variant.inventories?.[0]?.quantity ?? 0),
-            0,
-          );
-          const lowStockVariants = variants.filter((variant) => {
-            const quantity = Number(variant.inventories?.[0]?.quantity ?? 0);
-            return quantity > 0 && quantity <= 3;
-          }).length;
-
-          return {
-            id: product.id,
-            title: product.title,
-            slug: product.slug,
-            published: product.published,
-            categories: (product.categories ?? []).map(
-              (entry) => entry.category.name,
-            ),
-            variantsCount: variants.length,
-            totalStock,
-            lowStockVariants,
-          };
-        }),
-      );
-
-      setStockRows(rows);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar stock.");
-    } finally {
-      setStockLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (
-      activeTab !== "stock" ||
-      loading ||
-      stockRows.length > 0 ||
-      products.length === 0
-    ) {
-      return;
-    }
-
-    void loadStockData(products);
-  }, [activeTab, loading, products, stockRows.length]);
 
   useEffect(() => {
     const rawProductId = searchParams.get("productId");
@@ -1158,45 +1205,46 @@ function AdminProductsSection({
   const filteredProducts = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
 
-    if (!query) {
-      return products;
-    }
-
     return products.filter((product) => {
       const categoryText = (product.categories ?? [])
         .map((entry) => entry.category.name)
         .join(" ")
         .toLowerCase();
-
-      return (
-        product.title.toLowerCase().includes(query) ||
-        product.slug.toLowerCase().includes(query) ||
-        categoryText.includes(query)
-      );
-    });
-  }, [productQuery, products]);
-
-  const filteredStockRows = useMemo(() => {
-    const query = stockQuery.trim().toLowerCase();
-
-    return stockRows.filter((row) => {
+      const tagText = (product as Product & { optionValues?: Array<{ value?: string }> }).optionValues
+        ?.map((entry) => entry.value ?? "")
+        .join(" ")
+        .toLowerCase() ?? "";
+      const totalStock = getProductTotalStock(product);
       const matchesQuery =
         !query ||
-        row.title.toLowerCase().includes(query) ||
-        row.slug.toLowerCase().includes(query) ||
-        row.categories.join(" ").toLowerCase().includes(query);
-
+        product.title.toLowerCase().includes(query) ||
+        product.slug.toLowerCase().includes(query) ||
+        categoryText.includes(query) ||
+        tagText.includes(query);
       const matchesCategory =
-        stockCategoryFilter === "all" ||
-        row.categories.includes(stockCategoryFilter);
+        productCategoryFilter === "all" ||
+        (product.categories ?? []).some((entry) => String(entry.category.id) === productCategoryFilter);
+      const matchesStatus =
+        productStatusFilter === "all" ||
+        (productStatusFilter === "published"
+          ? product.published && totalStock > 0
+          : productStatusFilter === "draft"
+            ? !product.published && totalStock > 0
+            : totalStock <= 0);
 
-      const matchesPublished =
-        stockPublishedFilter === "all" ||
-        (stockPublishedFilter === "published" ? row.published : !row.published);
-
-      return matchesQuery && matchesCategory && matchesPublished;
+      return matchesQuery && matchesCategory && matchesStatus;
     });
-  }, [stockCategoryFilter, stockPublishedFilter, stockQuery, stockRows]);
+  }, [productCategoryFilter, productQuery, productStatusFilter, products]);
+
+  const productMetrics = useMemo(
+    () => ({
+      total: products.length,
+      published: products.filter((product) => product.published).length,
+      draft: products.filter((product) => !product.published).length,
+      withoutStock: products.filter((product) => getProductTotalStock(product) <= 0).length,
+    }),
+    [products],
+  );
 
   const filteredOptions = useMemo(() => {
     const query = optionQuery.trim().toLowerCase();
@@ -1216,17 +1264,6 @@ function AdminProductsSection({
       );
     });
   }, [optionQuery, options]);
-
-  const optionGroups = useMemo(() => {
-    const inUse = filteredOptions.filter(
-      (option) => Number(option.productsCount ?? 0) > 0,
-    );
-    const idle = filteredOptions.filter(
-      (option) => Number(option.productsCount ?? 0) === 0,
-    );
-
-    return { inUse, idle };
-  }, [filteredOptions]);
 
   const variantAutocomplete = useMemo(() => {
     const collect = (selector: (variant: EditableVariant) => string) => [
@@ -1277,6 +1314,7 @@ function AdminProductsSection({
     setExistingImages([]);
     setOriginalImageIds([]);
     setSelectedOptionValues({});
+    setSelectedVariantAttributeIds([]);
     setLoadedOptionValues([]);
     setDraftOptionValues({});
     setVariantDraft(emptyVariant());
@@ -1284,7 +1322,36 @@ function AdminProductsSection({
     setVariantDraftInitialState(null);
     setPendingVariantSwitch(null);
     setVariants([]);
+    setWizardStep("info");
+    setPackagingTemplateId("");
+    setSelectedVariantIndexes([]);
+    setBulkVariantPatch({ price: "", stock: "", color: "", size: "" });
     setImageUploadProgress(null);
+    setAttributeDraft(null);
+  };
+
+  const showToast = (message: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    setToast({ id: Date.now(), message });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 2000);
+  };
+
+  const startNewProduct = () => {
+    resetForm();
+    setActiveTab("create");
+    setWizardStep("info");
+    formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const exitProductWizard = () => {
+    resetForm();
+    setActiveTab("catalog");
   };
 
   const toggleCategory = (categoryId: number) => {
@@ -1307,6 +1374,16 @@ function AdminProductsSection({
         return clone;
       }
       return { ...current, [optionId]: next };
+    });
+  };
+
+  const toggleVariantAttribute = (optionId: number) => {
+    setSelectedVariantAttributeIds((current) => {
+      if (current.includes(optionId)) {
+        return current.filter((id) => id !== optionId);
+      }
+
+      return [...current, optionId];
     });
   };
 
@@ -1383,7 +1460,7 @@ function AdminProductsSection({
             ...currentOption,
             reusableValues: [
               ...(currentOption.reusableValues ?? []),
-              { id: Date.now(), value },
+              { id: Date.now(), value, position: currentOption.reusableValues?.length ?? 0 },
             ],
           };
         }),
@@ -1424,9 +1501,108 @@ function AdminProductsSection({
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo guardar el valor de la etiqueta.",
+          : "No se pudo guardar el valor del atributo.",
       );
     }
+  };
+
+  const createReusableAttributeValue = async (optionId: number, explicitValue?: string, explicitColor?: string) => {
+    const value = (explicitValue ?? draftOptionValues[optionId] ?? "").trim();
+    if (!value) return;
+
+    try {
+      await api(`/product-options/${optionId}/reusable-values`, {
+        method: "POST",
+        body: JSON.stringify({ value, visualColor: explicitColor || undefined }),
+      });
+      setDraftOptionValues((current) => ({ ...current, [optionId]: "" }));
+      await loadOptions();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "No se pudo crear el valor.");
+    }
+  };
+
+  const reorderAttributeValue = async (
+    optionId: number,
+    draggedValueId: number,
+    targetValueId: number,
+  ) => {
+    if (draggedValueId === targetValueId) return;
+    const option = options.find((item) => item.id === optionId);
+    const values = option?.reusableValues ?? [];
+    const from = values.findIndex((value) => value.id === draggedValueId);
+    const to = values.findIndex((value) => value.id === targetValueId);
+    if (from < 0 || to < 0) return;
+
+    const nextValues = [...values];
+    const [moved] = nextValues.splice(from, 1);
+    nextValues.splice(to, 0, moved);
+    setOptions((current) =>
+      current.map((item) =>
+        item.id === optionId ? { ...item, reusableValues: nextValues } : item,
+      ),
+    );
+
+    try {
+      await api(`/product-options/${optionId}/reusable-values/reorder`, {
+        method: "PATCH",
+        body: JSON.stringify({ valueIds: nextValues.map((value) => value.id) }),
+      });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "No se pudo ordenar.");
+      await loadOptions();
+    }
+  };
+
+  const unlinkAttributeFromProduct = async (option: ProductOption, product: { id: number; title: string }) => {
+    const confirmed = window.confirm(
+      `Desea quitar el atributo "${option.name}" del producto "${product.title}"?\n\nEsta accion puede afectar variantes existentes y filtros asociados.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      await api(`/product-options/${option.id}/products/${product.id}`, { method: "DELETE" });
+      await loadOptions();
+      showToast("Atributo desvinculado del producto.");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "No se pudo quitar el atributo.");
+    }
+  };
+
+  const createCategoryInline = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+
+    try {
+      setCreatingCategoryInline(true);
+      setError("");
+      const created = await api("/categories", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      const nextCategory = created as Category;
+      setCategories((current) => [...current, nextCategory]);
+      setSelectedCategoryIds((current) => [...new Set([...current, nextCategory.id])]);
+      setNewCategoryName("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear la categoria.");
+    } finally {
+      setCreatingCategoryInline(false);
+    }
+  };
+
+  const applyPackagingTemplate = (templateId: string) => {
+    setPackagingTemplateId(templateId);
+    const template = packagingTemplates.find((item) => item.id === templateId);
+    if (!template) return;
+
+    setForm((current) => ({
+      ...current,
+      weightGrams: template.weight,
+      packageWidthCm: template.width,
+      packageHeightCm: template.height,
+      packageLengthCm: template.length,
+    }));
   };
 
   const normalizeVariant = (variant: EditableVariant): EditableVariant => ({
@@ -1512,7 +1688,7 @@ function AdminProductsSection({
     }));
   };
 
-  const loadVariantIntoDraft = (index: number) => {
+  const loadVariantIntoDraft = useCallback((index: number) => {
     const selected = variants[index];
 
     if (!selected) {
@@ -1526,7 +1702,7 @@ function AdminProductsSection({
     setVariantDraft(normalized);
     setEditingVariantIndex(index);
     setVariantDraftInitialState(normalized);
-  };
+  }, [variants]);
 
   const requestEditVariant = (index: number) => {
     if (index === editingVariantIndex) {
@@ -1541,17 +1717,18 @@ function AdminProductsSection({
     loadVariantIntoDraft(index);
   };
 
-  const clearVariantDraft = () => {
+  const clearVariantDraft = useCallback(() => {
     setVariantDraft(emptyVariant());
     setEditingVariantIndex(null);
     setVariantDraftInitialState(null);
-  };
+  }, []);
 
   const addVariant = () => {
     const normalized = normalizeVariant(variantDraft);
 
-    if (!normalized.sku || !normalized.price) {
-      setError("Cada variante necesita al menos SKU y precio.");
+    if (!normalized.sku || parsePriceInput(normalized.price) <= 0) {
+      showToast("Cada variante necesita SKU y precio.");
+      setError("");
       return false;
     }
 
@@ -1563,7 +1740,8 @@ function AdminProductsSection({
     );
 
     if (duplicateIndex >= 0) {
-      setError("Ya existe otra variante con ese SKU.");
+      showToast("Ya existe otra variante con ese SKU.");
+      setError("");
       return false;
     }
 
@@ -1586,14 +1764,111 @@ function AdminProductsSection({
     return true;
   };
 
-  const handleVariantDiscard = () => {
+  const generateVariantsFromMatrix = () => {
+    const selectedAttributes = options.filter((option) =>
+      selectedVariantAttributeIds.includes(option.id),
+    );
+    const selectedValuesByAttribute = selectedAttributes.map((option) => ({
+      option,
+      values: selectedOptionValues[option.id] ?? [],
+    })).filter((entry) => entry.values.length > 0);
+
+    if (selectedValuesByAttribute.length === 0) {
+      showToast("Elegí al menos un atributo y sus valores.");
+      return;
+    }
+
+    const basePrice = variantDraft.price.trim() || variants[0]?.price || "";
+    const baseStock = variantDraft.inventoryQuantity.trim() || "0";
+    const baseGarmentWidth = variantDraft.width.trim();
+    const baseGarmentLength = variantDraft.length.trim();
+    const slugBase = form.title.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "producto";
+    const combinations = selectedValuesByAttribute.reduce<string[][]>(
+      (acc, entry) => acc.flatMap((combo) => entry.values.map((value) => [...combo, value])),
+      [[]],
+    );
+
+    const generated = combinations.map((combo) => {
+        const colorIndex = selectedValuesByAttribute.findIndex((entry) => entry.option.name.trim().toLowerCase() === "color");
+        const sizeIndex = selectedValuesByAttribute.findIndex((entry) => ["talle", "size"].includes(entry.option.name.trim().toLowerCase()));
+        const parts = [slugBase, ...combo]
+          .filter(Boolean)
+          .map((part) => part.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 12));
+
+        return {
+          sku: parts.join("-").toUpperCase(),
+          price: basePrice,
+          Size: sizeIndex >= 0 ? combo[sizeIndex] : "",
+          Color: colorIndex >= 0 ? combo[colorIndex] : "",
+          inventoryQuantity: baseStock,
+          weight: "",
+          width: baseGarmentWidth,
+          height: "",
+          length: baseGarmentLength,
+        };
+    });
+
+    setVariants((current) => {
+      const existingKeys = new Set(current.map((variant) => variant.sku.trim().toLowerCase()));
+      const next = generated.filter((variant) => !existingKeys.has(variant.sku.trim().toLowerCase()));
+      return [...current, ...next];
+    });
+  };
+
+  const toggleVariantSelection = (index: number) => {
+    setSelectedVariantIndexes((current) =>
+      current.includes(index) ? current.filter((item) => item !== index) : [...current, index],
+    );
+  };
+
+  const applyBulkVariantPatch = () => {
+    if (selectedVariantIndexes.length === 0) return;
+
+    setVariants((current) =>
+      current.map((variant, index) => {
+        if (!selectedVariantIndexes.includes(index)) return variant;
+        return {
+          ...variant,
+          price: bulkVariantPatch.price.trim() || variant.price,
+          inventoryQuantity: bulkVariantPatch.stock.trim() || variant.inventoryQuantity,
+          Color: bulkVariantPatch.color.trim() || variant.Color,
+          Size: bulkVariantPatch.size.trim() || variant.Size,
+        };
+      }),
+    );
+  };
+
+  const updateVariantAt = (index: number, patch: Partial<EditableVariant>) => {
+    setVariants((current) =>
+      current.map((variant, itemIndex) =>
+        itemIndex === index ? { ...variant, ...patch } : variant,
+      ),
+    );
+  };
+
+  const duplicateVariantSmart = (index: number) => {
+    const source = variants[index];
+    if (!source) return;
+
+    const nextSize = nextClothingSize(source.Size);
+    const duplicate = {
+      ...source,
+      id: undefined,
+      Size: nextSize,
+      sku: source.sku ? `${source.sku.replace(/-[^-]*$/u, "")}-${nextSize || "COPIA"}` : "",
+    };
+
+    setVariants((current) => [...current.slice(0, index + 1), duplicate, ...current.slice(index + 1)]);
+  };
+
+  const handleVariantDiscard = useCallback(() => {
     const nextIndex = pendingVariantSwitch?.nextIndex ?? null;
     clearVariantDraft();
     setPendingVariantSwitch(null);
     if (nextIndex !== null) {
       loadVariantIntoDraft(nextIndex);
     }
-  };
+  }, [clearVariantDraft, loadVariantIntoDraft, pendingVariantSwitch]);
 
   const handleVariantSaveAndContinue = () => {
     const nextIndex = pendingVariantSwitch?.nextIndex ?? null;
@@ -1613,9 +1888,12 @@ function AdminProductsSection({
     const draftIsEmpty = isVariantEmpty(variantDraft);
     const normalizedDraft = normalizeVariant(variantDraft);
     let nextVariants = [...variants];
+    const shouldPersistDraft =
+      !draftIsEmpty &&
+      (Boolean(normalizedDraft.sku.trim()) || editingVariantIndex !== null);
 
-    if (!draftIsEmpty) {
-      if (!normalizedDraft.sku || !normalizedDraft.price) {
+    if (shouldPersistDraft) {
+      if (!normalizedDraft.sku || parsePriceInput(normalizedDraft.price) <= 0) {
         throw new Error("Cada variante necesita al menos SKU y precio.");
       }
 
@@ -1657,44 +1935,107 @@ function AdminProductsSection({
       setNewOptionName("");
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo crear la etiqueta.",
+        err instanceof Error ? err.message : "No se pudo crear el atributo.",
       );
     } finally {
       setCreatingOption(false);
     }
   };
 
-  const startEditingOption = (option: ProductOption) => {
-    setEditingOptionId(option.id);
-    setEditingOptionName(option.name);
+  const openAttributeModal = (option?: ProductOption) => {
+    setAttributeDraft({
+      id: option?.id ?? null,
+      name: option?.name ?? "",
+      attributeType: option?.attributeType ?? (option?.name.trim().toLowerCase() === "color" ? "color" : "text"),
+      newValue: "",
+      newValueColor: "#000000",
+      bulkValues: "",
+    });
+    setEditingValueKey(null);
+    setEditingValueName("");
   };
 
-  const saveOptionName = async (optionId: number) => {
-    const name = editingOptionName.trim();
-    if (!name) {
-      setError("La etiqueta necesita un nombre.");
+  const closeAttributeModal = () => {
+    setAttributeDraft(null);
+    setDraggingAttributeValueId(null);
+    setEditingValueKey(null);
+    setEditingValueName("");
+  };
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+
+      if (pendingRemoval) {
+        setPendingRemoval(null);
+        return;
+      }
+
+      if (duplicateSkuPrompt) {
+        setDuplicateSkuPrompt(null);
+        return;
+      }
+
+      if (attributeDraft) {
+        closeAttributeModal();
+        return;
+      }
+
+      if (pendingVariantSwitch || editingVariantIndex !== null) {
+        handleVariantDiscard();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [
+    attributeDraft,
+    duplicateSkuPrompt,
+    editingVariantIndex,
+    handleVariantDiscard,
+    pendingRemoval,
+    pendingVariantSwitch,
+  ]);
+
+  const saveAttributeDraft = async () => {
+    if (!attributeDraft?.name.trim()) {
+      showToast("El atributo necesita un nombre.");
       return;
     }
 
     try {
-      setSavingOptionKey(`option-${optionId}`);
-      setError("");
-      await api(`/product-options/${optionId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ name }),
-      });
+      const payload = {
+        name: attributeDraft.name.trim(),
+        attributeType: attributeDraft.attributeType,
+      };
+      const isCreating = !attributeDraft.id;
+      const saved = attributeDraft.id
+        ? await api(`/product-options/${attributeDraft.id}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })
+        : await api("/product-options", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+      const optionId = Number(saved?.id ?? attributeDraft.id);
+      const values = attributeDraft.bulkValues
+        .split(/[\n,;]+/u)
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      for (const value of values) {
+        await api(`/product-options/${optionId}/reusable-values`, {
+          method: "POST",
+          body: JSON.stringify({ value }),
+        });
+      }
+
       await loadOptions();
-      setEditingOptionId(null);
-      setEditingOptionName("");
-      setSuccess("Etiqueta actualizada.");
+      closeAttributeModal();
+      showToast(isCreating ? "Atributo creado." : "Atributo actualizado.");
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo actualizar la etiqueta.",
-      );
-    } finally {
-      setSavingOptionKey(null);
+      showToast(err instanceof Error ? err.message : "No se pudo guardar el atributo.");
     }
   };
 
@@ -1713,12 +2054,12 @@ function AdminProductsSection({
       await loadOptions();
       setSuccess(
         isInUse
-          ? "Etiqueta eliminada de todos los productos."
-          : "Etiqueta eliminada.",
+          ? "Atributo eliminado de todos los productos."
+          : "Atributo eliminado.",
       );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo eliminar la etiqueta.",
+        err instanceof Error ? err.message : "No se pudo eliminar el atributo.",
       );
     } finally {
       setSavingOptionKey(null);
@@ -1783,7 +2124,7 @@ function AdminProductsSection({
 
       if (updatedOption && (updatedOption.reusableValues?.length ?? 0) === 0) {
         setSuccess(
-          `Valor eliminado. La etiqueta "${updatedOption.name}" sigue creada y ahora aparece en "Etiquetas sin uso".`,
+          `Valor eliminado. El atributo "${updatedOption.name}" sigue creado.`,
         );
       } else {
         setSuccess(
@@ -1808,13 +2149,10 @@ function AdminProductsSection({
       await api(`/products/${productId}`, {
         method: "DELETE",
       });
-      const nextProducts = await loadData();
+      await loadData();
       setSuccess(`Producto "${productTitle}" eliminado.`);
       if (editingProductId === productId) {
         resetForm();
-      }
-      if (activeTab === "stock") {
-        await loadStockData(nextProducts);
       }
     } catch (err) {
       setError(
@@ -1832,14 +2170,11 @@ function AdminProductsSection({
       await api(`/categories/${categoryId}`, {
         method: "DELETE",
       });
-      const nextProducts = await loadData();
+      await loadData();
       setSelectedCategoryIds((current) =>
         current.filter((id) => id !== categoryId),
       );
       setSuccess(`Categoria "${categoryName}" eliminada.`);
-      if (activeTab === "stock") {
-        await loadStockData(nextProducts);
-      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -1896,12 +2231,6 @@ function AdminProductsSection({
     setPendingRemoval(null);
   };
 
-  const scrollToOptionGroup = (group: "inUse" | "idle") => {
-    const target =
-      group === "inUse" ? optionInUseRef.current : optionIdleRef.current;
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   const hydrateFormFromProduct = useCallback(
     async (product: Product) => {
       setLoadingEditId(product.id);
@@ -1926,6 +2255,7 @@ function AdminProductsSection({
           packageWidthCm: String(product.packageWidthCm ?? ""),
           packageLengthCm: String(product.packageLengthCm ?? ""),
         });
+        setPackagingTemplateId(product.packagingTemplateId ?? "");
         setSelectedCategoryIds(
           (product.categories ?? []).map((entry) => entry.category.id),
         );
@@ -1962,6 +2292,9 @@ function AdminProductsSection({
             return acc;
           }, {}),
         );
+        setSelectedVariantAttributeIds([
+          ...new Set(safeOptionValues.map((item) => item.productOptionId)),
+        ]);
         setDraftOptionValues({});
 
         const safeVariants = Array.isArray(productVariants)
@@ -1978,15 +2311,16 @@ function AdminProductsSection({
                 variant.weightGrams ??
                   (variant.weight ? Math.round(Number(variant.weight) * 1000) : ""),
               ),
-              width: String(variant.packageWidthCm ?? variant.width ?? ""),
+              width: String(variant.width ?? ""),
               height: String(variant.packageHeightCm ?? variant.height ?? ""),
-              length: String(variant.packageLengthCm ?? variant.length ?? ""),
+              length: String(variant.length ?? ""),
             }))
           : [];
 
         setVariants(safeVariants);
         clearVariantDraft();
         setActiveTab("create");
+        setWizardStep("info");
 
         formTopRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -2002,7 +2336,7 @@ function AdminProductsSection({
         setLoadingEditId(null);
       }
     },
-    [imageFiles],
+    [clearVariantDraft, imageFiles],
   );
 
   const duplicateProductDraft = useCallback(
@@ -2027,6 +2361,7 @@ function AdminProductsSection({
           packageWidthCm: String(product.packageWidthCm ?? ""),
           packageLengthCm: String(product.packageLengthCm ?? ""),
         });
+        setPackagingTemplateId(product.packagingTemplateId ?? "");
         setSelectedCategoryIds(
           (product.categories ?? []).map((entry) => entry.category.id),
         );
@@ -2048,6 +2383,9 @@ function AdminProductsSection({
             return acc;
           }, {}),
         );
+        setSelectedVariantAttributeIds([
+          ...new Set(safeOptionValues.map((item) => item.productOptionId)),
+        ]);
         setDraftOptionValues({});
 
         setVariants(
@@ -2064,14 +2402,15 @@ function AdminProductsSection({
                   variant.weightGrams ??
                     (variant.weight ? Math.round(Number(variant.weight) * 1000) : ""),
                 ),
-                width: String(variant.packageWidthCm ?? variant.width ?? ""),
+                width: String(variant.width ?? ""),
                 height: String(variant.packageHeightCm ?? variant.height ?? ""),
-                length: String(variant.packageLengthCm ?? variant.length ?? ""),
+                length: String(variant.length ?? ""),
               }))
             : [],
         );
         clearVariantDraft();
         setActiveTab("create");
+        setWizardStep("info");
         setSuccess("Copia preparada como borrador. Revisa los SKU antes de guardar.");
 
         formTopRef.current?.scrollIntoView({
@@ -2088,7 +2427,7 @@ function AdminProductsSection({
         setLoadingEditId(null);
       }
     },
-    [imageFiles],
+    [clearVariantDraft, imageFiles],
   );
 
   const syncExistingImages = async (productId: number) => {
@@ -2156,21 +2495,21 @@ function AdminProductsSection({
       };
 
       xhr.onerror = () => {
-        reject(new Error(`Sin conexión al subir ${fileEntry.name}. Revisá tu red y reintentá.`));
+        reject(new Error(`Sin conexiÃ³n al subir ${fileEntry.name}. RevisÃ¡ tu red y reintentÃ¡.`));
       };
 
       xhr.ontimeout = () => {
-        reject(new Error(`${fileEntry.name} tardó demasiado en subir. Intentá de nuevo con mejor señal.`));
+        reject(new Error(`${fileEntry.name} tardÃ³ demasiado en subir. IntentÃ¡ de nuevo con mejor seÃ±al.`));
       };
 
       xhr.onload = () => {
         if (xhr.status === 413) {
-          reject(new Error(`${fileEntry.name} superó el límite del servidor. Intentá con una imagen más pequeña.`));
+          reject(new Error(`${fileEntry.name} superÃ³ el lÃ­mite del servidor. IntentÃ¡ con una imagen mÃ¡s pequeÃ±a.`));
           return;
         }
 
         if (xhr.status < 200 || xhr.status >= 300) {
-          let errorMessage = `Error al subir ${fileEntry.name} (código ${xhr.status}).`;
+          let errorMessage = `Error al subir ${fileEntry.name} (cÃ³digo ${xhr.status}).`;
           try {
             const parsed = JSON.parse(xhr.responseText) as { message?: string | string[] };
             const msg = Array.isArray(parsed.message)
@@ -2178,7 +2517,7 @@ function AdminProductsSection({
               : parsed.message;
             if (msg) errorMessage = msg;
           } catch {
-            // Response is not JSON (e.g. nginx HTML error) — use the generic message
+            // Response is not JSON (e.g. nginx HTML error) â€” use the generic message
           }
           reject(new Error(errorMessage));
           return;
@@ -2494,21 +2833,24 @@ function AdminProductsSection({
     packageLengthCm: form.packageLengthCm.trim()
       ? Number(form.packageLengthCm)
       : null,
+    packagingTemplateId: packagingTemplateId || null,
     categoryIds: selectedCategoryIds,
     optionValues: buildOptionValuesToPersist(),
     variants: variantsToSync.map((variant) => ({
       ...(variant.id ? { id: variant.id } : {}),
       sku: variant.sku.trim(),
-      price: Number(variant.price),
+      price: parsePriceInput(variant.price),
       Size: variant.Size.trim() || null,
       Color: variant.Color.trim() || null,
       inventoryQuantity: variant.inventoryQuantity.trim()
         ? Number(variant.inventoryQuantity)
         : 0,
       weightGrams: variant.weight.trim() ? Number(variant.weight) : null,
-      packageWidthCm: variant.width.trim() ? Number(variant.width) : null,
-      packageHeightCm: variant.height.trim() ? Number(variant.height) : null,
-      packageLengthCm: variant.length.trim() ? Number(variant.length) : null,
+      width: variant.width.trim() ? Number(variant.width) : null,
+      length: variant.length.trim() ? Number(variant.length) : null,
+      packageWidthCm: null,
+      packageHeightCm: null,
+      packageLengthCm: null,
     })),
   });
 
@@ -2527,8 +2869,9 @@ function AdminProductsSection({
       packageLengthCm: form.packageLengthCm.trim()
         ? Number(form.packageLengthCm)
         : undefined,
+      packagingTemplateId: packagingTemplateId || undefined,
     }),
-    [form],
+    [form, packagingTemplateId],
   );
 
   const ensureProductExistsForImageUploads = useCallback(async () => {
@@ -2596,10 +2939,11 @@ function AdminProductsSection({
 
       if (
         baseVariantsToSync.some(
-          (variant) => !variant.sku.trim() || !variant.price.trim(),
+          (variant) => !variant.sku.trim() || parsePriceInput(variant.price) <= 0,
         )
       ) {
-        setError("Cada variante cargada necesita al menos SKU y precio.");
+        showToast("Cada variante necesita SKU y precio.");
+        setError("");
         setSaving(false);
         return;
       }
@@ -2641,9 +2985,6 @@ function AdminProductsSection({
       }
 
       const nextProducts = await loadData();
-      if (activeTab === "stock") {
-        await loadStockData(nextProducts);
-      }
       const refreshedProduct = nextProducts.find((item) => item.id === productId);
 
       if (wasEditing && refreshedProduct && !hasPendingImageUploads) {
@@ -2654,11 +2995,12 @@ function AdminProductsSection({
 
       if (imageSyncError) {
         setError(imageSyncError);
-        setSuccess(
+        showToast(
           wasEditing
             ? "El producto se actualizo, pero algunas imagenes no se pudieron guardar."
             : "El producto se creo, pero algunas imagenes no se pudieron guardar.",
         );
+        setSuccess("");
         return;
       }
 
@@ -2668,19 +3010,27 @@ function AdminProductsSection({
         }
 
         void processPendingImageUploads(productId);
-        setSuccess(
+        showToast(
           wasEditing
             ? "Producto actualizado. Las imagenes siguen subiendo en segundo plano."
             : "Producto creado. Las imagenes siguen subiendo en segundo plano.",
         );
+        setSuccess("");
+        setActiveTab("catalog");
+        setWizardStep("info");
+        formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
 
-      setSuccess(
+      showToast(
         wasEditing
-          ? "Producto actualizado desde el formulario principal."
-          : "Producto creado con su carga completa.",
+          ? "Producto actualizado."
+          : "Producto creado.",
       );
+      setSuccess("");
+      resetForm();
+      setActiveTab("catalog");
+      formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "No se pudo guardar el producto.";
@@ -2696,56 +3046,10 @@ function AdminProductsSection({
       if (!editingProductId && productId) {
         setEditingProductId(productId);
       }
-      setError(message);
+      showToast(message);
+      setError("");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const updateProductPublishedState = async (
-    productId: number,
-    published: boolean,
-  ) => {
-    const previousProducts = products;
-    const previousStockRows = stockRows;
-
-    try {
-      setError("");
-      setPublishingProductIds((current) => [
-        ...new Set([...current, productId]),
-      ]);
-      setProducts((current) =>
-        current.map((product) =>
-          product.id === productId ? { ...product, published } : product,
-        ),
-      );
-      setStockRows((current) =>
-        current.map((row) =>
-          row.id === productId ? { ...row, published } : row,
-        ),
-      );
-
-      await api(`/products/${productId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ published }),
-      });
-      setSuccess(
-        published
-          ? "Producto publicado desde la vista de stock."
-          : "Producto despublicado desde la vista de stock.",
-      );
-    } catch (err) {
-      setProducts(previousProducts);
-      setStockRows(previousStockRows);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo actualizar la publicacion.",
-      );
-    } finally {
-      setPublishingProductIds((current) =>
-        current.filter((id) => id !== productId),
-      );
     }
   };
 
@@ -2756,65 +3060,536 @@ function AdminProductsSection({
     window.location.href = `/account?${params.toString()}`;
   };
 
+  const currentWizardIndex = productWizardSteps.findIndex((step) => step.id === wizardStep);
+  const goWizard = (direction: 1 | -1) => {
+    const nextIndex = Math.min(
+      productWizardSteps.length - 1,
+      Math.max(0, currentWizardIndex + direction),
+    );
+    setWizardStep(productWizardSteps[nextIndex]?.id ?? "info");
+  };
+
+  const renderProductWizard = () => (
+    <div style={modernWorkspaceStyle}>
+      {editingProductId ? (
+        <div style={editingBannerStyle}>
+          <div>
+            <p style={eyebrowStyle}>Editando</p>
+            <strong style={{ color: "var(--account-text-strong)" }}>
+              {form.title || "Producto sin titulo"}
+            </strong>
+          </div>
+          <button type="button" onClick={exitProductWizard} style={ghostButtonStyle}>
+            Cancelar edicion
+          </button>
+        </div>
+      ) : null}
+
+      <div style={wizardStepperStyle}>
+        {productWizardSteps.map((step, index) => (
+          <button
+            key={step.id}
+            type="button"
+            onClick={() => setWizardStep(step.id)}
+            style={wizardStepButtonStyle(wizardStep === step.id)}
+          >
+            <span>{index + 1}</span>
+            {step.label}
+          </button>
+        ))}
+      </div>
+
+      {wizardStep === "info" ? (
+        <section style={wizardPanelStyle}>
+          <div>
+            <p style={eyebrowStyle}>Paso 1</p>
+            <h3 style={title3Style}>Informacion</h3>
+          </div>
+          <input
+            value={form.title}
+            onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+            placeholder="Nombre del producto"
+            style={largeFieldStyle}
+          />
+          <textarea
+            value={form.description}
+            onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+            placeholder="Descripcion"
+            style={{ ...largeFieldStyle, minHeight: 180, resize: "vertical" }}
+          />
+        </section>
+      ) : null}
+
+      {wizardStep === "logistics" ? (
+        <section style={wizardPanelStyle}>
+          <div>
+            <p style={eyebrowStyle}>Paso 2</p>
+            <h3 style={title3Style}>Categorias y logistica</h3>
+          </div>
+          <div style={wizardTwoColumnStyle}>
+            <div style={wizardSubpanelStyle}>
+              <strong>Categorias</strong>
+              <div style={chipRowStyle}>
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => toggleCategory(category.id)}
+                    style={chipToggleStyle(selectedCategoryIds.includes(category.id))}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+              <div style={rowWrapStyle}>
+                <input
+                  value={newCategoryName}
+                  onChange={(event) => setNewCategoryName(event.target.value)}
+                  placeholder="Nueva categoria"
+                  style={smallFieldStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => void createCategoryInline()}
+                  disabled={creatingCategoryInline || !newCategoryName.trim()}
+                  style={secondaryButtonStyle}
+                >
+                  {creatingCategoryInline ? "Creando..." : "Crear"}
+                </button>
+              </div>
+            </div>
+            <div style={wizardSubpanelStyle}>
+              <strong>Tipo de empaquetado</strong>
+              <select
+                value={packagingTemplateId}
+                onChange={(event) => applyPackagingTemplate(event.target.value)}
+                style={selectStyle}
+              >
+                <option value="">Seleccionar plantilla</option>
+                {packagingTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+              <label style={checkStyle}>
+                <input type="checkbox" defaultChecked />
+                Utilizar siempre estas medidas para calcular envios
+              </label>
+              <div style={variantGridStyle}>
+                <SuggestionInput value={form.weightGrams} onChange={(value) => setForm((current) => ({ ...current, weightGrams: value }))} placeholder="Peso envio (g)" suggestions={[]} sanitize={sanitizeDecimalInput} />
+                <SuggestionInput value={form.packageWidthCm} onChange={(value) => setForm((current) => ({ ...current, packageWidthCm: value }))} placeholder="Ancho paquete (cm)" suggestions={[]} sanitize={sanitizeDecimalInput} />
+                <SuggestionInput value={form.packageHeightCm} onChange={(value) => setForm((current) => ({ ...current, packageHeightCm: value }))} placeholder="Alto paquete (cm)" suggestions={[]} sanitize={sanitizeDecimalInput} />
+                <SuggestionInput value={form.packageLengthCm} onChange={(value) => setForm((current) => ({ ...current, packageLengthCm: value }))} placeholder="Largo paquete (cm)" suggestions={[]} sanitize={sanitizeDecimalInput} />
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {wizardStep === "images" ? (
+        <section style={wizardPanelStyle}>
+          <div>
+            <p style={eyebrowStyle}>Paso 3</p>
+            <h3 style={title3Style}>Imagenes</h3>
+            <p style={copyStyle}>Hasta 10 imagenes. La primera es la portada. Usa los controles de orden de cada imagen y arrastra dentro del marco para encuadrar.</p>
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(event) => {
+              void appendImageFiles(Array.from(event.target.files ?? []));
+              event.currentTarget.value = "";
+            }}
+            style={fieldStyle}
+          />
+          {existingImages.length > 0 ? (
+            <div style={responsiveImageEditorGridStyle}>
+              {existingImages.map((image, index) => (
+                <CatalogImageLayoutEditor
+                  key={image.id}
+                  src={resolveAssetUrl(image.url) ?? image.url}
+                  label={index === 0 ? "Portada" : `Imagen ${index + 1}`}
+                  secondaryText=""
+                  value={image}
+                  gridLines={imageGridLines}
+                  orderLabel={`Orden ${index + 1}`}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < existingImages.length - 1}
+                  onMoveUp={() => moveExistingImage(image.id, -1)}
+                  onMoveDown={() => moveExistingImage(image.id, 1)}
+                  onChange={(nextLayout) => updateExistingImageLayout(image.id, nextLayout)}
+                  onRemove={() => setExistingImages((current) => current.filter((item) => item.id !== image.id))}
+                />
+              ))}
+            </div>
+          ) : null}
+          {imageFiles.length > 0 ? (
+            <div style={responsiveImageEditorGridStyle}>
+              {imageFiles.map((entry, index) => (
+                <CatalogImageLayoutEditor
+                  key={entry.clientId}
+                  src={entry.previewUrl}
+                  label={existingImages.length + index === 0 ? "Portada" : entry.name}
+                  secondaryText={entry.status === "uploading" ? `Subiendo ${entry.progress}%` : entry.status === "error" ? entry.errorMessage ?? "Fallo la subida" : "Pendiente"}
+                  value={entry}
+                  gridLines={imageGridLines}
+                  orderLabel={`Orden ${existingImages.length + index + 1}`}
+                  canMoveUp={index > 0 && entry.status !== "uploading"}
+                  canMoveDown={index < imageFiles.length - 1 && entry.status !== "uploading"}
+                  onMoveUp={() => moveUploadImage(index, -1)}
+                  onMoveDown={() => moveUploadImage(index, 1)}
+                  onChange={(nextLayout) => updateUploadImageLayout(index, nextLayout)}
+                  onRemove={() => removeUploadImage(index)}
+                />
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {wizardStep === "labels" ? (
+        <section style={wizardPanelStyle}>
+          <div>
+            <p style={eyebrowStyle}>Paso 4</p>
+            <h3 style={title3Style}>Atributos</h3>
+          </div>
+          <div style={rowWrapStyle}>
+            <input value={newOptionName} onChange={(event) => setNewOptionName(event.target.value)} placeholder="Nuevo atributo" style={smallFieldStyle} />
+            <button type="button" onClick={createOption} disabled={creatingOption || !newOptionName.trim()} style={secondaryButtonStyle}>
+              {creatingOption ? "Creando..." : "Crear atributo"}
+            </button>
+          </div>
+          <div style={responsiveOptionGridStyle}>
+            {options.map((option) => (
+              <article key={option.id} style={optionCardStyle}>
+                <strong>{option.name}</strong>
+                <div style={chipRowStyle}>
+                  {(option.reusableValues ?? []).map((value) => (
+                    <button
+                      key={`${option.id}-${value.id}`}
+                      type="button"
+                      onClick={() => toggleOptionValue(option.id, value.value)}
+                      style={chipToggleStyle((selectedOptionValues[option.id] ?? []).includes(value.value))}
+                    >
+                      {value.value}
+                    </button>
+                  ))}
+                </div>
+                <div style={rowWrapStyle}>
+                  <input value={draftOptionValues[option.id] ?? ""} onChange={(event) => setDraftOptionValues((current) => ({ ...current, [option.id]: event.target.value }))} placeholder="Nuevo valor" style={smallFieldStyle} />
+                  <button type="button" onClick={() => addOptionValue(option.id)} style={secondaryButtonStyle}>Agregar</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {wizardStep === "variants" ? (
+        <section style={wizardPanelStyle}>
+          <div>
+            <p style={eyebrowStyle}>Paso 5</p>
+            <h3 style={title3Style}>Variantes y stock</h3>
+          </div>
+          <div style={wizardSubpanelStyle}>
+            <strong>Generador rapido</strong>
+            <span style={metaStyle}>
+              Elegí los atributos de este producto y sus valores para generar combinaciones automaticamente.
+            </span>
+            <div style={attributePickerGridStyle}>
+              {options.map((option) => (
+                <div key={option.id} style={attributePickerStyle}>
+                  <label style={checkStyle}>
+                    <input
+                      type="checkbox"
+                      checked={selectedVariantAttributeIds.includes(option.id)}
+                      onChange={() => toggleVariantAttribute(option.id)}
+                    />
+                    {option.name}
+                  </label>
+                  {selectedVariantAttributeIds.includes(option.id) ? (
+                    <div style={chipRowStyle}>
+                      {(option.reusableValues ?? []).map((value) => (
+                        <button
+                          key={value.id}
+                          type="button"
+                          onClick={() => toggleOptionValue(option.id, value.value)}
+                          style={chipToggleStyle((selectedOptionValues[option.id] ?? []).includes(value.value))}
+                        >
+                          {value.visualColor ? <span style={colorSwatchStyle(value.visualColor)} /> : null}
+                          {value.value}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div style={responsiveVariantGridStyle}>
+              <SuggestionInput value={variantDraft.price} onChange={(value) => setVariantDraft((current) => ({ ...current, price: value }))} placeholder="Precio base" suggestions={variantAutocomplete.price} />
+              <SuggestionInput value={variantDraft.inventoryQuantity} onChange={(value) => setVariantDraft((current) => ({ ...current, inventoryQuantity: value }))} placeholder="Stock base" suggestions={variantAutocomplete.inventoryQuantity} />
+              <SuggestionInput value={variantDraft.width} onChange={(value) => setVariantDraft((current) => ({ ...current, width: value }))} placeholder="Ancho prenda base (cm)" suggestions={variantAutocomplete.width} sanitize={sanitizeDecimalInput} />
+              <SuggestionInput value={variantDraft.length} onChange={(value) => setVariantDraft((current) => ({ ...current, length: value }))} placeholder="Largo prenda base (cm)" suggestions={variantAutocomplete.length} sanitize={sanitizeDecimalInput} />
+            </div>
+            <button type="button" onClick={generateVariantsFromMatrix} style={primaryButtonStyle}>Generar variantes</button>
+          </div>
+          {selectedVariantIndexes.length > 0 ? (
+            <div style={wizardSubpanelStyle}>
+              <strong>Edicion masiva ({selectedVariantIndexes.length})</strong>
+              <div style={variantGridStyle}>
+                <input value={bulkVariantPatch.price} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, price: event.target.value }))} placeholder="Cambiar precio" style={fieldStyle} />
+                <input value={bulkVariantPatch.stock} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, stock: event.target.value }))} placeholder="Cambiar stock" style={fieldStyle} />
+                <input value={bulkVariantPatch.color} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, color: event.target.value }))} placeholder="Cambiar color" style={fieldStyle} />
+                <input value={bulkVariantPatch.size} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, size: event.target.value }))} placeholder="Cambiar talle" style={fieldStyle} />
+              </div>
+              <button type="button" onClick={applyBulkVariantPatch} style={secondaryButtonStyle}>Aplicar cambios</button>
+            </div>
+          ) : null}
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}></th>
+                  <th style={thStyle}>SKU</th>
+                  <th style={thStyle}>Color</th>
+                  <th style={thStyle}>Talle</th>
+                  <th style={thStyle}>Precio</th>
+                  <th style={thStyle}>Stock</th>
+                  <th style={thStyle}>Ancho prenda</th>
+                  <th style={thStyle}>Largo prenda</th>
+                  <th style={thStyle}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {variants.map((variant, index) => (
+                  <tr key={`${variant.sku}-${index}`}>
+                    <td style={tdStyle}><input type="checkbox" checked={selectedVariantIndexes.includes(index)} onChange={() => toggleVariantSelection(index)} /></td>
+                    <td style={tdStyle}>{variant.sku}</td>
+                    <td style={tdStyle}>{variant.Color}</td>
+                    <td style={tdStyle}>{variant.Size}</td>
+                    <td style={tdStyle}>{money(variant.price)}</td>
+                    <td style={tdStyle}>
+                      <input
+                        value={variant.inventoryQuantity}
+                        onChange={(event) => updateVariantAt(index, { inventoryQuantity: sanitizeIntegerInput(event.target.value) })}
+                        placeholder="0"
+                        style={compactCellInputStyle}
+                      />
+                    </td>
+                    <td style={tdStyle}>
+                      <input
+                        value={variant.width}
+                        onChange={(event) => updateVariantAt(index, { width: sanitizeDecimalInput(event.target.value) })}
+                        placeholder="cm"
+                        style={compactCellInputStyle}
+                      />
+                    </td>
+                    <td style={tdStyle}>
+                      <input
+                        value={variant.length}
+                        onChange={(event) => updateVariantAt(index, { length: sanitizeDecimalInput(event.target.value) })}
+                        placeholder="cm"
+                        style={compactCellInputStyle}
+                      />
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={iconActionsStyle}>
+                        <button type="button" title="Duplicar variante" aria-label="Duplicar variante" onClick={() => duplicateVariantSmart(index)} style={iconButtonStyle}>&#10697;</button>
+                        <button type="button" title="Eliminar variante" aria-label="Eliminar variante" onClick={() => setPendingRemoval({ kind: "variant", variantIndex: index, variantLabel: variant.sku || `Variante ${index + 1}`, productsCount: 0 })} style={iconButtonStyle}>&times;</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {wizardStep === "publish" ? (
+        <section style={wizardPanelStyle}>
+          <div>
+            <p style={eyebrowStyle}>Paso 6</p>
+            <h3 style={title3Style}>Publicacion</h3>
+          </div>
+          <div style={publicationGridStyle}>
+            <button type="button" onClick={() => setForm((current) => ({ ...current, published: true }))} style={publicationChoiceStyle(form.published)}>Publicar ahora</button>
+            <button type="button" onClick={() => setForm((current) => ({ ...current, published: false }))} style={publicationChoiceStyle(!form.published)}>Guardar como borrador</button>
+            <button type="button" onClick={() => setForm((current) => ({ ...current, published: false }))} style={publicationChoiceStyle(false)}>Solo inventario local</button>
+          </div>
+        </section>
+      ) : null}
+
+      <div style={footerStyle}>
+        <div>
+          {error ? <p style={errorStyle}>{error}</p> : null}
+        </div>
+        <div style={rowWrapStyle}>
+          <button type="button" style={ghostButtonStyle} onClick={exitProductWizard}>
+            Volver al catalogo
+          </button>
+          <button type="button" style={ghostButtonStyle} disabled={currentWizardIndex <= 0} onClick={() => goWizard(-1)}>Atras</button>
+          {currentWizardIndex < productWizardSteps.length - 1 ? (
+            <button type="button" style={primaryButtonStyle} onClick={() => goWizard(1)}>Siguiente</button>
+          ) : (
+            <button type="button" onClick={() => void saveProduct()} disabled={saving || !form.title.trim()} style={primaryButtonStyle}>
+              {saving ? "Guardando..." : editingProductId ? "Guardar cambios" : "Guardar producto"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderModernCatalog = () => (
+    <div style={modernWorkspaceStyle}>
+      <div style={catalogToolbarStyle}>
+        <input value={productQuery} onChange={(event) => setProductQuery(event.target.value)} placeholder="Buscar productos" style={responsiveSearchFieldStyle} />
+        <select value={productCategoryFilter} onChange={(event) => setProductCategoryFilter(event.target.value)} style={responsiveSelectStyle}>
+          <option value="all">Todas las categorias</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        <select value={productStatusFilter} onChange={(event) => setProductStatusFilter(event.target.value as typeof productStatusFilter)} style={responsiveSelectStyle}>
+          <option value="all">Todos los estados</option>
+          <option value="published">Publicado</option>
+          <option value="draft">Borrador</option>
+          <option value="without-stock">Sin stock</option>
+        </select>
+        <button type="button" onClick={startNewProduct} style={primaryButtonStyle}>+ Crear nuevo producto</button>
+      </div>
+      <div style={statsGridStyle}>
+        <Stat label="Productos totales" value={String(productMetrics.total)} />
+        <Stat label="Publicados" value={String(productMetrics.published)} />
+        <Stat label="Borradores" value={String(productMetrics.draft)} />
+        <Stat label="Sin stock" value={String(productMetrics.withoutStock)} />
+      </div>
+      <div style={tableWrapStyle}>
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Imagen</th>
+              <th style={thStyle}>Producto</th>
+              <th style={thStyle}>Categoria</th>
+              <th style={thStyle}>Variantes</th>
+              <th style={thStyle}>Stock total</th>
+              <th style={thStyle}>Estado</th>
+              <th style={thStyle}>Precio desde</th>
+              <th style={thStyle}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={8} style={tdStyle}>Cargando catalogo...</td></tr>
+            ) : filteredProducts.map((product) => (
+              <tr key={product.id}>
+                <td style={tdStyle}>
+                  {product.images?.[0]?.url ? (
+                    <Image
+                      src={resolveAssetUrl(product.images[0].url) ?? product.images[0].url}
+                      alt={product.title}
+                      width={48}
+                      height={48}
+                      unoptimized
+                      style={productThumbStyle}
+                    />
+                  ) : <span style={productThumbEmptyStyle} />}
+                </td>
+                <td style={tdStyle}>
+                  <strong style={{ color: "var(--account-text-strong)" }}>{product.title}</strong>
+                  <span style={metaStyle}>/{product.slug}</span>
+                </td>
+                <td style={tdStyle}>{getProductCategoryNames(product).join(", ") || "Sin categoria"}</td>
+                <td style={tdStyle}>{product.variants?.length ?? 0}</td>
+                <td style={tdStyle}>{getProductTotalStock(product)}</td>
+                <td style={tdStyle}><span style={productCatalogStatusStyle(getProductCatalogStatus(product))}>{getProductCatalogStatus(product)}</span></td>
+                <td style={tdStyle}>{getProductPriceFrom(product) ? money(getProductPriceFrom(product)) : "-"}</td>
+                <td style={tdStyle}>
+                  <div style={iconActionsStyle}>
+                    <button type="button" title="Editar" aria-label="Editar producto" onClick={() => void hydrateFormFromProduct(product)} style={iconButtonStyle}>&#9998;</button>
+                    <button type="button" title="Duplicar" aria-label="Duplicar producto" onClick={() => void duplicateProductDraft(product)} style={iconButtonStyle}>&#10697;</button>
+                    <button type="button" title="Eliminar" aria-label="Eliminar producto" onClick={() => setPendingRemoval({ kind: "product", productId: product.id, productTitle: product.title, productsCount: 0 })} style={iconButtonStyle}>&times;</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   return (
     <section style={panelStyle}>
-      <Header
-        title="Productos"
-        copy="Gestiona altas, catalogo, stock, etiquetas y categorias."
-      />
+      <style>
+        {`
+          @keyframes productToastIn {
+            from {
+              opacity: 0;
+              transform: translateY(18px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          .attribute-table-row {
+            transition:
+              background 160ms ease,
+              box-shadow 160ms ease,
+              color 160ms ease;
+          }
+
+          .attribute-table-row:hover {
+            background: rgba(116, 184, 168, 0.22);
+            box-shadow: inset 4px 0 0 var(--brand-accent);
+          }
+
+          .attribute-table-row:hover td {
+            color: var(--account-text-strong);
+          }
+        `}
+      </style>
       <div ref={formTopRef} />
       <section style={stackedSectionStyle}>
-        <div style={{ display: "grid", gap: 14, minWidth: 0, width: "100%" }}>
-          <div>
-            <p style={eyebrowStyle}>Gestion del catalogo</p>
-            <h3 style={{ ...title3Style, marginTop: 8 }}>
-              Alta, catalogo y stock
-            </h3>
+        {activeTab !== "create" ? (
+          <div style={{ display: "grid", gap: 14, minWidth: 0, width: "100%" }}>
+            <h2 style={catalogTitleStyle}>Gestión del catálogo</h2>
+            <div style={responsiveTabRailStyle}>
+              <button
+                type="button"
+                onClick={() => setActiveTab("catalog")}
+                style={workspaceTabStyle(activeTab === "catalog")}
+              >
+                Productos
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("options")}
+                style={workspaceTabStyle(activeTab === "options")}
+              >
+                Atributos
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("categories")}
+                style={workspaceTabStyle(activeTab === "categories")}
+              >
+                Categorias
+              </button>
+            </div>
           </div>
-          <div style={responsiveTabRailStyle}>
-            <button
-              type="button"
-              onClick={() => setActiveTab("create")}
-              style={workspaceTabStyle(activeTab === "create")}
-            >
-              Alta
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("catalog")}
-              style={workspaceTabStyle(activeTab === "catalog")}
-            >
-              Catalogo
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("stock")}
-              style={workspaceTabStyle(activeTab === "stock")}
-            >
-              Stock
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("options")}
-              style={workspaceTabStyle(activeTab === "options")}
-            >
-              Etiquetas
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("categories")}
-              style={workspaceTabStyle(activeTab === "categories")}
-            >
-              Categorias
-            </button>
-          </div>
-        </div>
+        ) : null}
         <section
           style={{
             ...responsiveShellStyle,
             display: activeTab === "create" ? "grid" : "none",
           }}
         >
+          {renderProductWizard()}
+          <div style={{ display: "none" }}>
           {editingProductId ? (
             <div style={editingBannerStyle}>
               <div>
@@ -3041,7 +3816,7 @@ function AdminProductsSection({
                     key={entry.clientId}
                     src={entry.previewUrl}
                     label={entry.name}
-                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB · ${
+                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB Â· ${
                       entry.status === "uploading"
                         ? `Subiendo ${entry.progress}%`
                         : entry.status === "error"
@@ -3069,12 +3844,12 @@ function AdminProductsSection({
             ) : null}
           </Step>
 
-          <Step title="Etiquetas reutilizables">
+          <Step title="Atributos reutilizables">
             <div style={rowWrapStyle}>
               <input
                 value={newOptionName}
                 onChange={(event) => setNewOptionName(event.target.value)}
-                placeholder="Crear nueva etiqueta"
+                placeholder="Crear nuevo atributo"
                 style={smallFieldStyle}
               />
               <button
@@ -3415,6 +4190,7 @@ function AdminProductsSection({
               </button>
             </div>
           </div>
+          </div>
         </section>
 
         <section
@@ -3423,6 +4199,8 @@ function AdminProductsSection({
             display: activeTab === "catalog" ? "grid" : "none",
           }}
         >
+          {renderModernCatalog()}
+          <div style={{ display: "none" }}>
           <div style={betweenStyle}>
             <div>
               <p style={eyebrowStyle}>Catalogo actual</p>
@@ -3474,7 +4252,7 @@ function AdminProductsSection({
                           .join(", ") || "Sin categorias"}
                       </span>
                       <span style={copyStyle}>
-                        {product.images?.length ?? 0} imagenes · {product.variants?.length ?? 0} variantes
+                        {product.images?.length ?? 0} imagenes Â· {product.variants?.length ?? 0} variantes
                       </span>
                     </div>
                     <div style={rowWrapStyle}>
@@ -3614,223 +4392,7 @@ function AdminProductsSection({
               </div>
             )
           )}
-        </section>
-        <section
-          style={{
-            ...stackedSectionStyle,
-            display: activeTab === "stock" ? "grid" : "none",
-          }}
-        >
-          <div style={betweenStyle}>
-            <div>
-              <p style={eyebrowStyle}>Stock operativo</p>
-              <h3 style={{ ...title3Style, marginTop: 8 }}>
-                Busqueda, filtros y visibilidad
-              </h3>
-            </div>
-            <div style={rowWrapStyle}>
-              <input
-                value={stockQuery}
-                onChange={(event) => setStockQuery(event.target.value)}
-                placeholder="Buscar por nombre, slug o categoria"
-                style={responsiveSearchFieldStyle}
-              />
-              <select
-                className="theme-select"
-                value={stockCategoryFilter}
-                onChange={(event) => setStockCategoryFilter(event.target.value)}
-                style={responsiveSelectStyle}
-              >
-                <option value="all">Todas las categorias</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.name}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="theme-select"
-                value={stockPublishedFilter}
-                onChange={(event) =>
-                  setStockPublishedFilter(
-                    event.target.value as "all" | "published" | "draft",
-                  )
-                }
-                style={responsiveSelectStyle}
-              >
-                <option value="all">Todos</option>
-                <option value="published">Publicados</option>
-                <option value="draft">No publicados</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => void loadStockData(products)}
-                style={secondaryButtonStyle}
-              >
-                Recargar stock
-              </button>
-            </div>
           </div>
-          {stockLoading ? (
-            <StateCard label="Cargando stock..." />
-          ) : (
-            isTabletOrSmaller ? (
-              <div style={{ display: "grid", gap: 12 }}>
-                {filteredStockRows.map((row) => (
-                  <article key={row.id} style={{ ...itemStyle, padding: isPhone ? 16 : 18 }}>
-                    <div style={betweenStyle}>
-                      <div>
-                        <strong style={{ display: "block", color: "#111" }}>
-                          {row.title}
-                        </strong>
-                        <span style={{ ...metaStyle, color: "#111" }}>/{row.slug}</span>
-                      </div>
-                      <strong style={{ color: row.totalStock <= 0 ? "#c73a3a" : "#111" }}>
-                        {row.totalStock}
-                      </strong>
-                    </div>
-                    <div style={{ display: "grid", gap: 6 }}>
-                      <span style={{ ...metaStyle, color: "#111" }}>
-                        {row.categories.join(", ") || "Sin categorias"}
-                      </span>
-                      <span style={{ ...copyStyle, color: "#111" }}>
-                        {row.variantsCount} variantes ·{" "}
-                        {row.lowStockVariants > 0
-                          ? `${row.lowStockVariants} con stock bajo`
-                          : row.totalStock <= 0
-                            ? "Sin stock"
-                            : "Stock OK"}
-                      </span>
-                    </div>
-                    <div style={betweenStyle}>
-                      <label style={publishToggleCellStyle}>
-                        <input
-                          type="checkbox"
-                          checked={row.published}
-                          disabled={publishingProductIds.includes(row.id)}
-                          onChange={() =>
-                            void updateProductPublishedState(
-                              row.id,
-                              !row.published,
-                            )
-                          }
-                        />
-                        <span style={{ ...metaStyle, color: "#111" }}>
-                          {publishingProductIds.includes(row.id)
-                            ? "Guardando..."
-                            : row.published
-                              ? "Publicado"
-                              : "Borrador"}
-                        </span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const product = products.find((item) => item.id === row.id);
-                          if (product) {
-                            void hydrateFormFromProduct(product);
-                          }
-                        }}
-                        style={ghostButtonStyle}
-                      >
-                        Editar
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={thStyle}>Producto</th>
-                      <th style={thStyle}>Categorias</th>
-                      <th style={thStyle}>Variantes</th>
-                      <th style={thStyle}>Stock total</th>
-                      <th style={thStyle}>Stock bajo</th>
-                      <th style={thStyle}>Publicar</th>
-                      <th style={thStyle}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredStockRows.map((row) => (
-                      <tr key={row.id}>
-                        <td style={tdStyle}>
-                          <strong style={{ display: "block", color: "#111" }}>
-                            {row.title}
-                          </strong>
-                          <span style={{ ...metaStyle, color: "#111" }}>/{row.slug}</span>
-                        </td>
-                        <td style={tdStyle}>
-                          {row.categories.join(", ") || "Sin categorias"}
-                        </td>
-                        <td style={tdStyle}>{row.variantsCount}</td>
-                        <td style={tdStyle}>
-                          <strong
-                            style={{
-                              color: row.totalStock <= 0 ? "#c73a3a" : "#111",
-                            }}
-                          >
-                            {row.totalStock}
-                          </strong>
-                        </td>
-                        <td style={tdStyle}>
-                          {row.lowStockVariants > 0
-                            ? `${row.lowStockVariants} variante${row.lowStockVariants === 1 ? "" : "s"} con poco stock`
-                            : row.totalStock <= 0
-                              ? "Sin stock"
-                              : "Stock OK"}
-                        </td>
-                        <td style={tdStyle}>
-                          <label style={publishToggleCellStyle}>
-                            <input
-                              type="checkbox"
-                              checked={row.published}
-                              disabled={publishingProductIds.includes(row.id)}
-                              onChange={() =>
-                                void updateProductPublishedState(
-                                  row.id,
-                                  !row.published,
-                                )
-                              }
-                            />
-                            <span style={{ ...metaStyle, color: "#111" }}>
-                              {publishingProductIds.includes(row.id)
-                                ? "Guardando..."
-                                : row.published
-                                  ? "Si"
-                                  : "No"}
-                            </span>
-                          </label>
-                        </td>
-                        <td style={tdStyle}>
-                          <div style={rowWrapStyle}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const product = products.find(
-                                  (item) => item.id === row.id,
-                                );
-                                if (product) {
-                                  void hydrateFormFromProduct(product);
-                                }
-                              }}
-                              style={ghostButtonStyle}
-                            >
-                              Editar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          )}
-          {error ? <p style={errorStyle}>{error}</p> : null}
-          {success ? <p style={successStyle}>{success}</p> : null}
         </section>
         <section
           style={{
@@ -3838,137 +4400,47 @@ function AdminProductsSection({
             display: activeTab === "options" ? "grid" : "none",
           }}
         >
-          <div style={betweenStyle}>
-            <div>
-              <p style={eyebrowStyle}>Base de catalogo</p>
-              <h3 style={{ ...title3Style, marginTop: 8 }}>
-                Etiquetas y valores
-              </h3>
-              <p style={copyStyle}>
-                Las etiquetas se pueden renombrar o eliminar. Si una etiqueta o
-                un valor ya esta en uso, la interfaz te avisa antes de quitarlo
-                de los productos.
-              </p>
-            </div>
-            <div style={rowWrapStyle}>
-              <input
-                value={optionQuery}
-                onChange={(event) => setOptionQuery(event.target.value)}
-                placeholder="Buscar por etiqueta o valor"
-                style={responsiveSearchFieldStyle}
-              />
-              <button
-                type="button"
-                onClick={() => void loadOptions()}
-                style={secondaryButtonStyle}
-              >
-                Recargar etiquetas
-              </button>
-            </div>
-          </div>
-
-          <div style={{ ...blockStyle, padding: 16 }}>
-            <div style={rowWrapStyle}>
-              <input
-                value={newOptionName}
-                onChange={(event) => setNewOptionName(event.target.value)}
-                placeholder="Crear nueva etiqueta"
-                style={smallFieldStyle}
-              />
-              <button
-                type="button"
-                onClick={createOption}
-                disabled={creatingOption || !newOptionName.trim()}
-                style={secondaryButtonStyle}
-              >
-                {creatingOption ? "Creando..." : "Crear etiqueta"}
-              </button>
-            </div>
-            <span style={metaStyle}>
-              Los valores se generan cuando se asignan a productos y desde aca
-              despues los podes renombrar o quitar.
-            </span>
-          </div>
-
-          <div style={statsGridStyle}>
-            <button
-              type="button"
-              onClick={() => scrollToOptionGroup("inUse")}
-              style={metricCardButtonStyle}
-            >
-              <Stat
-                label="Etiquetas en uso"
-                value={String(optionGroups.inUse.length)}
-              />
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToOptionGroup("idle")}
-              style={metricCardButtonStyle}
-            >
-              <Stat
-                label="Etiquetas sin uso"
-                value={String(optionGroups.idle.length)}
-              />
-            </button>
-            <Stat
-              label="Valores totales"
-              value={String(
-                filteredOptions.reduce(
-                  (sum, option) => sum + (option.reusableValues?.length ?? 0),
-                  0,
-                ),
-              )}
+          <div style={catalogToolbarStyle}>
+            <input
+              value={optionQuery}
+              onChange={(event) => setOptionQuery(event.target.value)}
+              placeholder="Buscar atributos"
+              style={responsiveSearchFieldStyle}
             />
+            <button
+              type="button"
+              onClick={() => openAttributeModal()}
+              style={primaryButtonStyle}
+            >
+              + Nuevo atributo
+            </button>
           </div>
 
-          {filteredOptions.length ? (
-            <>
-              <OptionGroupSection
-                sectionRef={optionInUseRef}
-                title="Etiquetas en uso"
-                copy="Estas impactan productos publicados o en borrador, asi que cualquier eliminacion requiere confirmacion."
-                options={optionGroups.inUse}
-                editingOptionId={editingOptionId}
-                editingOptionName={editingOptionName}
-                setEditingOptionName={setEditingOptionName}
-                saveOptionName={saveOptionName}
-                setEditingOptionId={setEditingOptionId}
-                setEditingValueKey={setEditingValueKey}
-                setEditingValueName={setEditingValueName}
-                startEditingOption={startEditingOption}
-                savingOptionKey={savingOptionKey}
-                setPendingRemoval={setPendingRemoval}
-                editingValueKey={editingValueKey}
-                editingValueName={editingValueName}
-                saveOptionValue={saveOptionValue}
-                startEditingValue={startEditingValue}
-              />
-
-              <OptionGroupSection
-                sectionRef={optionIdleRef}
-                title="Etiquetas sin uso"
-                copy="Estas no estan asociadas a productos en este momento. Son buenas candidatas para limpiar o renombrar."
-                options={optionGroups.idle}
-                editingOptionId={editingOptionId}
-                editingOptionName={editingOptionName}
-                setEditingOptionName={setEditingOptionName}
-                saveOptionName={saveOptionName}
-                setEditingOptionId={setEditingOptionId}
-                setEditingValueKey={setEditingValueKey}
-                setEditingValueName={setEditingValueName}
-                startEditingOption={startEditingOption}
-                savingOptionKey={savingOptionKey}
-                setPendingRemoval={setPendingRemoval}
-                editingValueKey={editingValueKey}
-                editingValueName={editingValueName}
-                saveOptionValue={saveOptionValue}
-                startEditingValue={startEditingValue}
-              />
-            </>
-          ) : (
-            <StateCard label="No encontramos etiquetas con ese filtro." />
-          )}
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Nombre</th>
+                  <th style={thStyle}>Valores</th>
+                  <th style={thStyle}>Productos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOptions.map((option) => (
+                  <tr
+                    key={option.id}
+                    className="attribute-table-row"
+                    onClick={() => openAttributeModal(option)}
+                    style={selectableRowStyle}
+                  >
+                    <td style={tdStyle}><strong>{option.name}</strong></td>
+                    <td style={tdStyle}>{option.reusableValues?.length ?? 0}</td>
+                    <td style={tdStyle}>{option.productsCount ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {error ? <p style={errorStyle}>{error}</p> : null}
           {success ? <p style={successStyle}>{success}</p> : null}
@@ -3979,18 +4451,9 @@ function AdminProductsSection({
             display: activeTab === "categories" ? "grid" : "none",
           }}
         >
-          <div style={betweenStyle}>
-            <div>
-              <p style={eyebrowStyle}>Gestion centralizada</p>
-              <h3 style={{ ...title3Style, marginTop: 8 }}>Categorias</h3>
-            </div>
-          </div>
           <AdminCategoriesManager
             onCategoriesChange={async () => {
-              const nextProducts = await loadData();
-              if (activeTab === "stock") {
-                await loadStockData(nextProducts);
-              }
+              await loadData();
             }}
           />
         </section>
@@ -4015,7 +4478,7 @@ function AdminProductsSection({
                 style={{ color: "var(--account-text-strong)", fontSize: 22, lineHeight: 1.1 }}
               >
                 {pendingRemoval.kind === "option"
-                  ? `Eliminar etiqueta "${pendingRemoval.optionName}"`
+                  ? `Eliminar atributo "${pendingRemoval.optionName}"`
                   : pendingRemoval.kind === "value"
                     ? `Eliminar valor "${pendingRemoval.value}"`
                     : pendingRemoval.kind === "variant"
@@ -4027,11 +4490,11 @@ function AdminProductsSection({
               <p style={copyStyle}>
                 {pendingRemoval.kind === "option"
                   ? pendingRemoval.productsCount > 0
-                    ? `Esta etiqueta esta usada por ${pendingRemoval.productsCount} producto(s). Si confirmas, se quitara de todos esos productos.`
+                    ? `Este atributo esta usado por ${pendingRemoval.productsCount} producto(s). Si confirmas, se quitara de todos esos productos.`
                     : "No hay productos afectados. La eliminacion es segura."
                   : pendingRemoval.kind === "value"
                     ? pendingRemoval.productsCount > 0
-                      ? `Este valor esta usado por ${pendingRemoval.productsCount} producto(s) en la etiqueta "${pendingRemoval.optionName}". Si confirmas, se quitara de todos esos productos.`
+                      ? `Este valor esta usado por ${pendingRemoval.productsCount} producto(s) en el atributo "${pendingRemoval.optionName}". Si confirmas, se quitara de todos esos productos.`
                       : "No hay productos afectados. La eliminacion es segura."
                     : pendingRemoval.kind === "variant"
                       ? "La variante se quitara del borrador actual del producto."
@@ -4142,6 +4605,198 @@ function AdminProductsSection({
           </section>
         </div>
       ) : null}
+      {attributeDraft ? (
+        <div style={modalOverlayStyle} role="presentation" onClick={closeAttributeModal}>
+          <section
+            style={attributeModalStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="attribute-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {(() => {
+              const option = attributeDraft.id
+                ? options.find((item) => item.id === attributeDraft.id)
+                : null;
+
+              return (
+                <>
+                  <div style={betweenStyle}>
+                    <div>
+                      <p style={eyebrowStyle}>{attributeDraft.id ? "Editando atributo" : "Nuevo atributo"}</p>
+                      <h3 id="attribute-modal-title" style={{ ...title3Style, marginTop: 6 }}>
+                        {attributeDraft.name.trim() || "Atributo"}
+                      </h3>
+                    </div>
+                    <button type="button" onClick={closeAttributeModal} style={ghostButtonStyle}>Cerrar</button>
+                  </div>
+
+                  <div style={responsiveVariantGridStyle}>
+                    <input
+                      value={attributeDraft.name}
+                      onChange={(event) => setAttributeDraft((current) => current ? { ...current, name: event.target.value } : current)}
+                      placeholder="Nombre del atributo"
+                      style={fieldStyle}
+                    />
+                    <select
+                      value={attributeDraft.attributeType}
+                      onChange={(event) => setAttributeDraft((current) => current ? { ...current, attributeType: event.target.value as AttributeDraft["attributeType"] } : current)}
+                      style={selectStyle}
+                    >
+                      <option value="text">Texto</option>
+                      <option value="color">Color visual</option>
+                      <option value="number">Numero</option>
+                    </select>
+                  </div>
+
+                  {!attributeDraft.id ? (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <textarea
+                        value={attributeDraft.bulkValues}
+                        onChange={(event) => setAttributeDraft((current) => current ? { ...current, bulkValues: event.target.value } : current)}
+                        placeholder={"Valores iniciales\nBeige\nBlanco\nNegro\nChocolate"}
+                        style={{ ...fieldStyle, minHeight: 130, resize: "vertical" }}
+                      />
+                      <span style={helperTextStyle}>Separá cada valor con Enter.</span>
+                    </div>
+                  ) : null}
+
+                  {option ? (
+                    <>
+                      <div style={statsGridStyle}>
+                        <Stat label="Valores" value={String(option.reusableValues?.length ?? 0)} />
+                        <Stat label="Productos" value={String(option.productsCount ?? 0)} />
+                        <Stat label="Creado" value={option.createdAt ? new Date(option.createdAt).toLocaleDateString("es-AR") : "-"} />
+                        <Stat label="Actualizado" value={option.updatedAt ? new Date(option.updatedAt).toLocaleDateString("es-AR") : "-"} />
+                      </div>
+
+                      <section style={attributeModalSectionStyle}>
+                        <strong>Valores</strong>
+                        <div style={attributeChipGridStyle}>
+                          {(option.reusableValues ?? []).map((value) => (
+                            <div
+                              key={value.id}
+                              draggable
+                              onDragStart={() => setDraggingAttributeValueId(value.id)}
+                              onDragOver={(event) => event.preventDefault()}
+                              onDrop={() => {
+                                if (draggingAttributeValueId) void reorderAttributeValue(option.id, draggingAttributeValueId, value.id);
+                                setDraggingAttributeValueId(null);
+                              }}
+                              style={attributeValueChipStyle}
+                            >
+                              {option.attributeType === "color" && value.visualColor ? <span style={colorSwatchStyle(value.visualColor)} /> : null}
+                              {editingValueKey === `${option.id}:${value.value}` ? (
+                                <input
+                                  value={editingValueName}
+                                  onChange={(event) => setEditingValueName(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") void saveOptionValue(option.id, value.value);
+                                  }}
+                                  style={chipInputStyle}
+                                />
+                              ) : (
+                                <span>{value.value}</span>
+                              )}
+                              <span style={attributeChipActionsStyle}>
+                                <button type="button" title="Renombrar" onClick={() => startEditingValue(option.id, value.value)} style={chipIconButtonStyle}>&#9998;</button>
+                                <button type="button" title="Eliminar" onClick={() => setPendingRemoval({ kind: "value", optionId: option.id, optionName: option.name, value: value.value, productsCount: value.productsCount ?? 0 })} style={chipIconButtonStyle}>&times;</button>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={rowWrapStyle}>
+                          <input
+                            value={attributeDraft.newValue}
+                            onChange={(event) => setAttributeDraft((current) => current ? { ...current, newValue: event.target.value } : current)}
+                            onKeyDown={async (event) => {
+                              if (event.key !== "Enter" || !attributeDraft.newValue.trim()) return;
+                              await createReusableAttributeValue(
+                                option.id,
+                                attributeDraft.newValue,
+                                option.attributeType === "color" ? attributeDraft.newValueColor : undefined,
+                              );
+                              setAttributeDraft((current) => current ? { ...current, newValue: "" } : current);
+                            }}
+                            placeholder="+ Agregar valor"
+                            style={{ ...fieldStyle, flex: "1 1 260px" }}
+                          />
+                          {option.attributeType === "color" ? (
+                            <input
+                              type="color"
+                              value={attributeDraft.newValueColor}
+                              onChange={(event) => setAttributeDraft((current) => current ? { ...current, newValueColor: event.target.value } : current)}
+                              aria-label="Color visual"
+                              style={colorPickerStyle}
+                            />
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await createReusableAttributeValue(
+                                option.id,
+                                attributeDraft.newValue,
+                                option.attributeType === "color" ? attributeDraft.newValueColor : undefined,
+                              );
+                              setAttributeDraft((current) => current ? { ...current, newValue: "" } : current);
+                            }}
+                            style={secondaryButtonStyle}
+                          >
+                            Agregar valor
+                          </button>
+                        </div>
+                      </section>
+
+                      <section style={attributeModalSectionStyle}>
+                        <strong>Productos que utilizan este atributo</strong>
+                        <div style={attributeProductsTableWrapStyle}>
+                          <table style={tableStyle}>
+                            <thead>
+                              <tr>
+                                <th style={thStyle}>Producto</th>
+                                <th style={thStyle}>Variantes</th>
+                                <th style={thStyle}>Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(option.products ?? []).map((product) => (
+                                <tr key={product.id}>
+                                  <td style={tdStyle}>{product.title}</td>
+                                  <td style={tdStyle}>{product.variantsCount}</td>
+                                  <td style={tdStyle}>
+                                    <button type="button" onClick={() => void unlinkAttributeFromProduct(option, product)} style={ghostButtonStyle}>
+                                      Quitar atributo
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+                    </>
+                  ) : null}
+
+                  <div style={modalActionsStyle}>
+                    {attributeDraft.id ? (
+                      <button type="button" onClick={() => setPendingRemoval({ kind: "option", optionId: attributeDraft.id!, optionName: attributeDraft.name, productsCount: option?.productsCount ?? 0 })} style={ghostButtonStyle}>
+                        Eliminar
+                      </button>
+                    ) : null}
+                    <button type="button" onClick={closeAttributeModal} style={ghostButtonStyle}>Cancelar</button>
+                    <button type="button" onClick={() => void saveAttributeDraft()} style={primaryButtonStyle}>Guardar</button>
+                  </div>
+                </>
+              );
+            })()}
+          </section>
+        </div>
+      ) : null}
+      {toast ? (
+        <div key={toast.id} role="status" aria-live="polite" style={toastStyle}>
+          {toast.message}
+        </div>
+      ) : null}
       {duplicateSkuPrompt ? (
         <div
           style={modalOverlayStyle}
@@ -4192,289 +4847,113 @@ function AdminProductsSection({
   );
 }
 
-function OptionGroupSection({
-  sectionRef,
-  title,
-  copy,
-  options,
-  editingOptionId,
-  editingOptionName,
-  setEditingOptionName,
-  saveOptionName,
-  setEditingOptionId,
-  setEditingValueKey,
-  setEditingValueName,
-  startEditingOption,
-  savingOptionKey,
-  setPendingRemoval,
-  editingValueKey,
-  editingValueName,
-  saveOptionValue,
-  startEditingValue,
-}: {
-  sectionRef?: React.RefObject<HTMLElement | null>;
-  title: string;
-  copy: string;
-  options: ProductOption[];
-  editingOptionId: number | null;
-  editingOptionName: string;
-  setEditingOptionName: (value: string) => void;
-  saveOptionName: (optionId: number) => Promise<void>;
-  setEditingOptionId: (value: number | null) => void;
-  setEditingValueKey: (value: string | null) => void;
-  setEditingValueName: (value: string) => void;
-  startEditingOption: (option: ProductOption) => void;
-  savingOptionKey: string | null;
-  setPendingRemoval: (value: PendingOptionRemoval | null) => void;
-  editingValueKey: string | null;
-  editingValueName: string;
-  saveOptionValue: (optionId: number, currentValue: string) => Promise<void>;
-  startEditingValue: (optionId: number, value: string) => void;
-}) {
-  return (
-    <section ref={sectionRef} style={groupPanelStyle}>
-      <div style={betweenStyle}>
-        <div>
-          <p style={eyebrowStyle}>{title}</p>
-          <p style={copyStyle}>{copy}</p>
-        </div>
-        <span style={softChipStyle}>{options.length} etiqueta(s)</span>
-      </div>
-
-      {options.length ? (
-        <div style={optionGridStyle}>
-          {options.map((option) => (
-            <article
-              key={option.id}
-              style={{ ...optionCardStyle, minHeight: 0 }}
-            >
-              <div style={betweenStyle}>
-                <div style={{ display: "grid", gap: 6 }}>
-                  {editingOptionId === option.id ? (
-                    <div style={rowWrapStyle}>
-                      <input
-                        value={editingOptionName}
-                        onChange={(event) =>
-                          setEditingOptionName(event.target.value)
-                        }
-                        style={smallFieldStyle}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void saveOptionName(option.id)}
-                        disabled={
-                          savingOptionKey === `option-${option.id}` ||
-                          !editingOptionName.trim()
-                        }
-                        style={secondaryButtonStyle}
-                      >
-                        {savingOptionKey === `option-${option.id}`
-                          ? "Guardando..."
-                          : "Guardar"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingOptionId(null);
-                          setEditingOptionName("");
-                        }}
-                        style={ghostButtonStyle}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <strong style={{ color: "var(--account-text-strong)" }}>{option.name}</strong>
-                      <span style={metaStyle}>
-                        {option.productsCount ?? 0} producto(s) -{" "}
-                        {(option.reusableValues ?? []).length} valor(es)
-                      </span>
-                    </>
-                  )}
-                </div>
-                {editingOptionId !== option.id ? (
-                  <div style={rowWrapStyle}>
-                    <button
-                      type="button"
-                      onClick={() => startEditingOption(option)}
-                      style={ghostButtonStyle}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPendingRemoval({
-                          kind: "option",
-                          optionId: option.id,
-                          optionName: option.name,
-                          productsCount: Number(option.productsCount ?? 0),
-                        })
-                      }
-                      disabled={savingOptionKey === `option-${option.id}`}
-                      style={ghostButtonStyle}
-                    >
-                      {savingOptionKey === `option-${option.id}`
-                        ? "Eliminando..."
-                        : "Eliminar"}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              {(option.reusableValues ?? []).length ? (
-                <div style={{ display: "grid", gap: 10 }}>
-                  {(option.reusableValues ?? []).map((value) => {
-                    const valueKey = `${option.id}:${value.value.toLowerCase()}`;
-                    const isEditingValue = editingValueKey === valueKey;
-                    const isSavingValue =
-                      savingOptionKey === `value-${valueKey}`;
-
-                    return (
-                      <div key={valueKey} style={valueItemStyle}>
-                        {isEditingValue ? (
-                          <>
-                            <div style={{ display: "grid", gap: 10 }}>
-                              <input
-                                value={editingValueName}
-                                onChange={(event) =>
-                                  setEditingValueName(event.target.value)
-                                }
-                                style={smallFieldStyle}
-                              />
-                            </div>
-                            <div style={valueActionsRowStyle}>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void saveOptionValue(option.id, value.value)
-                                }
-                                disabled={
-                                  isSavingValue || !editingValueName.trim()
-                                }
-                                style={compactActionButtonStyle}
-                              >
-                                {isSavingValue ? "Guardando..." : "Guardar"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingValueKey(null);
-                                  setEditingValueName("");
-                                }}
-                                style={compactGhostButtonStyle}
-                              >
-                                Cancelar
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div style={{ display: "grid", gap: 4 }}>
-                              <strong style={{ color: "var(--account-text-strong)" }}>
-                                {value.value}
-                              </strong>
-                              <span style={metaStyle}>
-                                {value.productsCount ?? 0} producto(s) usando
-                                este valor
-                              </span>
-                            </div>
-                            <div style={valueActionsRowStyle}>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  startEditingValue(option.id, value.value)
-                                }
-                                style={compactGhostButtonStyle}
-                              >
-                                Renombrar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setPendingRemoval({
-                                    kind: "value",
-                                    optionId: option.id,
-                                    optionName: option.name,
-                                    value: value.value,
-                                    productsCount: Number(
-                                      value.productsCount ?? 0,
-                                    ),
-                                  })
-                                }
-                                disabled={isSavingValue}
-                                style={compactGhostButtonStyle}
-                              >
-                                {isSavingValue ? "Eliminando..." : "Eliminar"}
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <StateCard label="Todavia no hay valores generados para esta etiqueta." />
-              )}
-            </article>
-          ))}
-        </div>
-      ) : (
-        <StateCard label="No hay etiquetas en este grupo." />
-      )}
-    </section>
-  );
-}
-
 function AdminCategoriesManager({
   onCategoriesChange,
 }: {
   onCategoriesChange?: () => Promise<void> | void;
 }) {
-  const { isTabletOrSmaller } = useViewportFlags();
   const [categories, setCategories] = useState<Category[]>([]);
-  const [name, setName] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(
-    null,
-  );
+  const [query, setQuery] = useState("");
+  const [draft, setDraft] = useState<CategoryDraft | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [pendingRemoval, setPendingRemoval] = useState<Category | null>(null);
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    category: Category;
+    action: "delete" | "reassign";
+    reassignToId: string;
+  } | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setError("");
-        const data = await api("/categories");
-        setCategories(Array.isArray(data) ? scopeCategoriesToActiveStore(data as Category[]) : []);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudieron cargar categorias.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
+  const showCategoryToast = useCallback((message: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast({ id: Date.now(), message });
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 2000);
   }, []);
 
-  const create = async () => {
+  const loadCategories = useCallback(async () => {
+    try {
+      setError("");
+      const data = await api("/categories");
+      setCategories(Array.isArray(data) ? scopeCategoriesToActiveStore(data as Category[]) : []);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudieron cargar categorias.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const openCategoryModal = (category?: Category) => {
+    setPendingImageFile(null);
+    setDraft({
+      id: category?.id ?? null,
+      name: category?.name ?? "",
+      slug: category?.slug ?? "",
+      description: category?.description ?? "",
+      status: category?.status ?? "active",
+      parentId: category?.parentId ? String(category.parentId) : "",
+      imageUrl: category?.imageUrl ?? "",
+    });
+  };
+
+  const uploadCategoryImage = async () => {
+    if (!pendingImageFile) {
+      return draft?.imageUrl ?? "";
+    }
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", pendingImageFile);
+      const uploaded = await api("/store/admin/assets/upload", {
+        method: "POST",
+        body: formData,
+      });
+      return typeof uploaded?.url === "string" ? uploaded.url : "";
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const saveCategory = async () => {
+    if (!draft?.name.trim()) {
+      showCategoryToast("La categoria necesita un nombre.");
+      return;
+    }
+
     try {
       setSaving(true);
-      setError("");
+      const imageUrl = await uploadCategoryImage();
       const payload = {
-        name: name.trim(),
-        imageUrl: imageUrl.trim() || undefined,
+        name: draft.name.trim(),
+        description: draft.description.trim() || null,
+        status: draft.status,
+        parentId: draft.parentId ? Number(draft.parentId) : null,
+        imageUrl: imageUrl || null,
       };
-      const created = editingCategoryId
-        ? await api(`/categories/${editingCategoryId}`, {
+      const created = draft.id
+        ? await api(`/categories/${draft.id}`, {
             method: "PATCH",
             body: JSON.stringify(payload),
           })
@@ -4484,20 +4963,19 @@ function AdminCategoriesManager({
           });
 
       setCategories((current) =>
-        editingCategoryId
+        draft.id
           ? current.map((category) =>
-              category.id === editingCategoryId ? created : category,
+              category.id === draft.id ? (created as Category) : category,
             )
-          : [created, ...current],
+          : [created as Category, ...current],
       );
-      const wasEditing = editingCategoryId !== null;
-      setName("");
-      setImageUrl("");
-      setEditingCategoryId(null);
+      setDraft(null);
+      setPendingImageFile(null);
       await onCategoriesChange?.();
-      setSuccess(wasEditing ? "Categoria actualizada." : "Categoria creada.");
+      await loadCategories();
+      showCategoryToast(draft.id ? "Categoria actualizada." : "Categoria creada.");
     } catch (err) {
-      setError(
+      showCategoryToast(
         err instanceof Error ? err.message : "No se pudo guardar la categoria.",
       );
     } finally {
@@ -4513,22 +4991,23 @@ function AdminCategoriesManager({
     try {
       setSaving(true);
       setError("");
-      await api(`/categories/${pendingRemoval.id}`, {
+      const reassignQuery =
+        pendingRemoval.action === "reassign" && pendingRemoval.reassignToId
+          ? `?reassignTo=${pendingRemoval.reassignToId}`
+          : "";
+      await api(`/categories/${pendingRemoval.category.id}${reassignQuery}`, {
         method: "DELETE",
       });
       setCategories((current) =>
-        current.filter((category) => category.id !== pendingRemoval.id),
+        current.filter((category) => category.id !== pendingRemoval.category.id),
       );
-      if (editingCategoryId === pendingRemoval.id) {
-        setEditingCategoryId(null);
-        setName("");
-        setImageUrl("");
-      }
+      setDraft(null);
       await onCategoriesChange?.();
-      setSuccess(`Categoria "${pendingRemoval.name}" eliminada.`);
+      await loadCategories();
+      showCategoryToast(`Categoria "${pendingRemoval.category.name}" eliminada.`);
       setPendingRemoval(null);
     } catch (err) {
-      setError(
+      showCategoryToast(
         err instanceof Error
           ? err.message
           : "No se pudo eliminar la categoria.",
@@ -4538,131 +5017,276 @@ function AdminCategoriesManager({
     }
   };
 
+  const filteredCategories = categories.filter((category) => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return true;
+    return (
+      category.name.toLowerCase().includes(normalized) ||
+      category.slug.toLowerCase().includes(normalized)
+    );
+  });
+
+  const availableParents = categories.filter((category) => category.id !== draft?.id);
+  const replacementCategories = categories.filter(
+    (category) => category.id !== pendingRemoval?.category.id,
+  );
+  const categoryPreviewUrl = useMemo(() => {
+    if (pendingImageFile) {
+      return URL.createObjectURL(pendingImageFile);
+    }
+    return draft?.imageUrl ? resolveAssetUrl(draft.imageUrl) ?? draft.imageUrl : "";
+  }, [draft?.imageUrl, pendingImageFile]);
+
+  useEffect(() => {
+    return () => {
+      if (categoryPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(categoryPreviewUrl);
+      }
+    };
+  }, [categoryPreviewUrl]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+
+      if (pendingRemoval) {
+        setPendingRemoval(null);
+        return;
+      }
+
+      if (draft) {
+        setDraft(null);
+        setPendingImageFile(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [draft, pendingRemoval]);
+
   return (
     <>
-      <div style={{ ...twoColumnStyle, gridTemplateColumns: isTabletOrSmaller ? "minmax(0, 1fr)" : twoColumnStyle.gridTemplateColumns }}>
-        <div style={blockStyle}>
-          {editingCategoryId ? (
-            <span style={metaStyle}>
-              Editando categoria #{editingCategoryId}
-            </span>
-          ) : null}
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Nombre de categoria"
-            style={fieldStyle}
-          />
-          <input
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="Ruta de imagen"
-            style={fieldStyle}
-          />
-          <div style={rowWrapStyle}>
-            <button
-              type="button"
-              onClick={create}
-              disabled={saving || !name.trim()}
-              style={primaryButtonStyle}
-            >
-              {saving
-                ? "Guardando..."
-                : editingCategoryId
-                  ? "Guardar categoria"
-                  : "Crear categoria"}
-            </button>
-            {editingCategoryId ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingCategoryId(null);
-                  setName("");
-                  setImageUrl("");
-                }}
-                style={ghostButtonStyle}
-              >
-                Cancelar
-              </button>
-            ) : null}
-          </div>
-          {imageUrl ? (
-            <div style={{ ...itemStyle, padding: 12 }}>
-              <Image
-                src={resolveAssetUrl(imageUrl) ?? imageUrl}
-                alt="Vista previa de categoria"
-                width={1200}
-                height={640}
-                unoptimized
-                style={{
-                  width: "100%",
-                  height: 160,
-                  objectFit: "cover",
-                  borderRadius: 18,
-                }}
-              />
-            </div>
-          ) : null}
-          <span style={metaStyle}>
-            Ejemplo: /images/seed-categories/remeras.svg
-          </span>
-          {error ? <p style={errorStyle}>{error}</p> : null}
-          {success ? <p style={successStyle}>{success}</p> : null}
+      <div style={catalogToolbarStyle}>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar categorias"
+          style={searchFieldStyle}
+        />
+        <button type="button" onClick={() => openCategoryModal()} style={primaryButtonStyle}>
+          + Nueva categoria
+        </button>
+      </div>
+
+      {loading ? (
+        <StateCard label="Cargando categorias..." />
+      ) : (
+        <div style={tableWrapStyle}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Categoria</th>
+                <th style={thStyle}>Productos</th>
+                <th style={thStyle}>Subcategorias</th>
+                <th style={thStyle}>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCategories.map((category) => (
+                <tr
+                  key={category.id}
+                  className="attribute-table-row"
+                  onClick={() => openCategoryModal(category)}
+                  style={selectableRowStyle}
+                >
+                  <td style={tdStyle}>
+                    <div style={categoryCellStyle}>
+                      {category.imageUrl ? (
+                        <Image
+                          src={resolveAssetUrl(category.imageUrl) ?? category.imageUrl}
+                          alt={category.name}
+                          width={96}
+                          height={64}
+                          unoptimized
+                          style={categoryThumbStyle}
+                        />
+                      ) : (
+                        <span style={categoryThumbPlaceholderStyle} />
+                      )}
+                      <div>
+                        <strong>{category.name}</strong>
+                        <span style={metaStyle}>/{category.slug}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={tdStyle}>{category.productsCount ?? 0}</td>
+                  <td style={tdStyle}>{category.childrenCount ?? 0}</td>
+                  <td style={tdStyle}>{category.status === "hidden" ? "Oculta" : "Activa"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div style={blockStyle}>
-          {loading ? (
-            <StateCard label="Cargando categorias..." />
-          ) : (
-            categories.map((category) => (
-              <div key={category.id} style={itemStyle}>
-                {category.imageUrl ? (
-                  <Image
-                    src={
-                      resolveAssetUrl(category.imageUrl) ?? category.imageUrl
-                    }
-                    alt={category.name}
-                    width={1200}
-                    height={720}
-                    unoptimized
-                    style={{
-                      width: "100%",
-                      height: 120,
-                      objectFit: "cover",
-                      borderRadius: 18,
-                    }}
+      )}
+
+      {error ? <p style={errorStyle}>{error}</p> : null}
+
+      {draft ? (
+        <div style={modalOverlayStyle} role="presentation" onClick={() => setDraft(null)}>
+          <section
+            style={categoryModalStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="category-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={betweenStyle}>
+              <div>
+                <p style={eyebrowStyle}>{draft.id ? "Editando categoria" : "Nueva categoria"}</p>
+                <h3 id="category-modal-title" style={{ ...title3Style, marginTop: 6 }}>
+                  {draft.name.trim() || "Categoria"}
+                </h3>
+              </div>
+              <button type="button" onClick={() => setDraft(null)} style={ghostButtonStyle}>
+                Cerrar
+              </button>
+            </div>
+
+            <div style={statsGridStyle}>
+              <Stat label="Productos" value={String(categories.find((item) => item.id === draft.id)?.productsCount ?? 0)} />
+              <Stat label="Publicados" value={String(categories.find((item) => item.id === draft.id)?.publishedProductsCount ?? 0)} />
+              <Stat label="Sin stock" value={String(categories.find((item) => item.id === draft.id)?.outOfStockProductsCount ?? 0)} />
+            </div>
+
+            <section style={attributeModalSectionStyle}>
+              <strong>Informacion general</strong>
+              <div style={variantGridStyle}>
+                <input
+                  value={draft.name}
+                  onChange={(event) => setDraft((current) => current ? { ...current, name: event.target.value } : current)}
+                  placeholder="Nombre"
+                  style={fieldStyle}
+                />
+                <input value={draft.slug} placeholder="Slug automatico" style={fieldStyle} disabled />
+                <select
+                  value={draft.status}
+                  onChange={(event) => setDraft((current) => current ? { ...current, status: event.target.value as CategoryDraft["status"] } : current)}
+                  style={selectStyle}
+                >
+                  <option value="active">Activa</option>
+                  <option value="hidden">Oculta</option>
+                </select>
+                <select
+                  value={draft.parentId}
+                  onChange={(event) => setDraft((current) => current ? { ...current, parentId: event.target.value } : current)}
+                  style={selectStyle}
+                >
+                  <option value="">Categoria padre: Ninguna</option>
+                  {availableParents.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <textarea
+                value={draft.description}
+                onChange={(event) => setDraft((current) => current ? { ...current, description: event.target.value } : current)}
+                placeholder="Descripcion"
+                style={{ ...fieldStyle, minHeight: 110, resize: "vertical" }}
+              />
+            </section>
+
+            <section style={attributeModalSectionStyle}>
+              <strong>Imagen</strong>
+              {categoryPreviewUrl ? (
+                <Image
+                  src={categoryPreviewUrl}
+                  alt={draft.name || "Categoria"}
+                  width={1200}
+                  height={720}
+                  unoptimized
+                  style={categoryPreviewImageStyle}
+                />
+              ) : (
+                <div style={categoryImageEmptyStyle}>Sin imagen</div>
+              )}
+              <div style={rowWrapStyle}>
+                <label style={secondaryButtonStyle}>
+                  {draft.imageUrl || pendingImageFile ? "Cambiar imagen" : "Subir imagen"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => setPendingImageFile(event.target.files?.[0] ?? null)}
+                    style={{ display: "none" }}
                   />
-                ) : null}
-                <strong style={{ color: "#111" }}>{category.name}</strong>
-                <span style={{ ...metaStyle, color: "#111" }}>/{category.slug}</span>
-                <span style={{ ...metaStyle, color: "#111" }}>
-                  {category.imageUrl || "Sin imagen cargada"}
-                </span>
-                <div style={rowWrapStyle}>
+                </label>
+                {(draft.imageUrl || pendingImageFile) ? (
                   <button
                     type="button"
                     onClick={() => {
-                      setEditingCategoryId(category.id);
-                      setName(category.name);
-                      setImageUrl(category.imageUrl ?? "");
+                      setPendingImageFile(null);
+                      setDraft((current) => current ? { ...current, imageUrl: "" } : current);
                     }}
                     style={ghostButtonStyle}
                   >
-                    Editar
+                    Eliminar imagen
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setPendingRemoval(category)}
-                    style={ghostButtonStyle}
-                    disabled={saving}
-                  >
-                    Eliminar
-                  </button>
-                </div>
+                ) : null}
               </div>
-            ))
-          )}
+            </section>
+
+            {draft.id ? (
+              <section style={attributeModalSectionStyle}>
+                <strong>Productos en esta categoria</strong>
+                <div style={attributeProductsTableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>Producto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(categories.find((item) => item.id === draft.id)?.products ?? []).map((product) => (
+                        <tr key={product.id}>
+                          <td style={tdStyle}>{product.title}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
+
+            <div style={modalActionsStyle}>
+              {draft.id ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const category = categories.find((item) => item.id === draft.id);
+                    if (category) setPendingRemoval({ category, action: "delete", reassignToId: "" });
+                  }}
+                  style={ghostButtonStyle}
+                >
+                  Eliminar
+                </button>
+              ) : null}
+              <button type="button" onClick={() => setDraft(null)} style={ghostButtonStyle}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveCategory()}
+                style={primaryButtonStyle}
+                disabled={saving || uploadingImage}
+              >
+                {saving || uploadingImage ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </section>
         </div>
-      </div>
+      ) : null}
+
       {pendingRemoval ? (
         <div
           style={modalOverlayStyle}
@@ -4682,13 +5306,47 @@ function AdminCategoriesManager({
                 id="category-confirmation-title"
                 style={{ color: "var(--account-text-strong)", fontSize: 22, lineHeight: 1.1 }}
               >
-                {`Eliminar categoria "${pendingRemoval.name}"`}
+                {`Eliminar categoria "${pendingRemoval.category.name}"`}
               </strong>
               <p style={copyStyle}>
-                {Number(pendingRemoval.productsCount ?? 0) > 0
-                  ? `La categoria esta usada por ${pendingRemoval.productsCount} producto(s). Si confirmas, se quitara de todos esos productos y dejara de aparecer en el admin.`
-                  : "No hay productos afectados. La categoria se ocultara del catalogo y dejara de aparecer en el admin."}
+                {Number(pendingRemoval.category.productsCount ?? 0) > 0
+                  ? `Esta categoria esta siendo utilizada por ${pendingRemoval.category.productsCount} productos.`
+                  : "No hay productos afectados."}
               </p>
+              {Number(pendingRemoval.category.productsCount ?? 0) > 0 ? (
+                <div style={{ display: "grid", gap: 10 }}>
+                  <label style={checkboxLabelStyle}>
+                    <input
+                      type="radio"
+                      checked={pendingRemoval.action === "delete"}
+                      onChange={() => setPendingRemoval((current) => current ? { ...current, action: "delete" } : current)}
+                    />
+                    Eliminar categoria y quitarla de los productos
+                  </label>
+                  <label style={checkboxLabelStyle}>
+                    <input
+                      type="radio"
+                      checked={pendingRemoval.action === "reassign"}
+                      onChange={() => setPendingRemoval((current) => current ? { ...current, action: "reassign" } : current)}
+                    />
+                    Reasignar productos a otra categoria
+                  </label>
+                  {pendingRemoval.action === "reassign" ? (
+                    <select
+                      value={pendingRemoval.reassignToId}
+                      onChange={(event) => setPendingRemoval((current) => current ? { ...current, reassignToId: event.target.value } : current)}
+                      style={selectStyle}
+                    >
+                      <option value="">Elegir categoria destino</option>
+                      {replacementCategories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div style={modalActionsStyle}>
               <button
@@ -4702,12 +5360,18 @@ function AdminCategoriesManager({
                 type="button"
                 onClick={() => void removeCategory()}
                 style={primaryButtonStyle}
-                disabled={saving}
+                disabled={saving || (pendingRemoval.action === "reassign" && !pendingRemoval.reassignToId)}
               >
-                {saving ? "Eliminando..." : "Confirmar eliminacion"}
+                {saving ? "Eliminando..." : pendingRemoval.action === "reassign" ? "Reasignar y eliminar" : "Eliminar categoria"}
               </button>
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {toast ? (
+        <div key={toast.id} role="status" aria-live="polite" style={toastStyle}>
+          {toast.message}
         </div>
       ) : null}
     </>
@@ -4892,7 +5556,7 @@ function AdminOrdersPanelSection() {
                 <div style={{ display: "grid", gap: 8 }}>
                   <p style={copyStyle}>{customerName}</p>
                   <p style={copyStyle}>
-                    {units} unidad{units === 1 ? "" : "es"} ·{" "}
+                    {units} unidad{units === 1 ? "" : "es"} Â·{" "}
                     {isNewOrder ? "Pedido pendiente" : orderStatusLabel(order.status)}
                   </p>
                 </div>
@@ -5007,7 +5671,7 @@ function AdminOrdersSection() {
               <strong style={{ color: "var(--account-text-strong)" }}>{money(order.total)}</strong>
             </div>
             <p style={copyStyle}>
-              {order.items.length} item{order.items.length === 1 ? "" : "s"} â€¢{" "}
+              {order.items.length} item{order.items.length === 1 ? "" : "s"} Ã¢â‚¬Â¢{" "}
               {orderStatusLabel(order.status)}
             </p>
             <select
@@ -5363,7 +6027,7 @@ function AdminCustomersSection() {
                         </div>
                         <div style={{ display: "grid", gap: 4 }}>
                           <span style={copyStyle}>
-                            {row.ordersCount} pedidos · Promedio {money(row.averageTicket)}
+                            {row.ordersCount} pedidos Â· Promedio {money(row.averageTicket)}
                           </span>
                           <strong style={{ color: "var(--account-text-strong)" }}>{money(row.totalSpent)}</strong>
                           <span style={metaStyle}>
@@ -5477,20 +6141,16 @@ function AdminCustomersSection() {
 }
 
 function Header({
-  title,
-  copy,
   actions,
 }: {
-  title: string;
+  title?: string;
   copy?: string;
   actions?: React.ReactNode;
 }) {
+  if (!actions) return null;
+
   return (
     <div style={{ ...betweenStyle, minWidth: 0, width: "100%" }}>
-      <div style={{ minWidth: 0, maxWidth: "100%" }}>
-        <p style={eyebrowStyle}>Gestion</p>
-        <h2 style={title2Style}>{title}</h2>
-      </div>
       <div
         style={{
           display: "grid",
@@ -5503,19 +6163,6 @@ function Header({
         }}
       >
         {actions}
-        {copy ? (
-          <p
-            style={{
-              ...copyStyle,
-              width: "100%",
-              maxWidth: "100%",
-              textAlign: "right",
-              overflowWrap: "anywhere",
-            }}
-          >
-            {copy}
-          </p>
-        ) : null}
       </div>
     </div>
   );
@@ -5594,6 +6241,8 @@ function CatalogImageLayoutEditor({
     width: number;
     height: number;
   } | null>(null);
+  const activePointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
@@ -5625,7 +6274,15 @@ function CatalogImageLayoutEditor({
 
   const stopDragging = () => {
     dragStateRef.current = null;
+    activePointersRef.current.clear();
+    pinchStateRef.current = null;
     setDragging(false);
+  };
+
+  const getPinchDistance = () => {
+    const pointers = [...activePointersRef.current.values()];
+    if (pointers.length < 2) return 0;
+    return Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
   };
 
   return (
@@ -5640,6 +6297,22 @@ function CatalogImageLayoutEditor({
           onPointerDown={(event) => {
             const rect = frameRef.current?.getBoundingClientRect();
             if (!rect) {
+              return;
+            }
+            activePointersRef.current.set(event.pointerId, {
+              x: event.clientX,
+              y: event.clientY,
+            });
+
+            if (activePointersRef.current.size === 2) {
+              pinchStateRef.current = {
+                distance: getPinchDistance(),
+                zoom: value.zoom,
+              };
+              dragStateRef.current = null;
+              setDragging(false);
+              event.currentTarget.setPointerCapture(event.pointerId);
+              event.preventDefault();
               return;
             }
 
@@ -5657,6 +6330,25 @@ function CatalogImageLayoutEditor({
             event.preventDefault();
           }}
           onPointerMove={(event) => {
+            if (activePointersRef.current.has(event.pointerId)) {
+              activePointersRef.current.set(event.pointerId, {
+                x: event.clientX,
+                y: event.clientY,
+              });
+            }
+
+            if (pinchStateRef.current && activePointersRef.current.size >= 2) {
+              const distance = getPinchDistance();
+              if (pinchStateRef.current.distance > 0) {
+                onChange({
+                  zoom: clampImageZoom(
+                    pinchStateRef.current.zoom * (distance / pinchStateRef.current.distance),
+                  ),
+                });
+              }
+              return;
+            }
+
             if (!dragStateRef.current) {
               return;
             }
@@ -5676,7 +6368,15 @@ function CatalogImageLayoutEditor({
               ),
             });
           }}
-          onPointerUp={stopDragging}
+          onPointerUp={(event) => {
+            activePointersRef.current.delete(event.pointerId);
+            if (activePointersRef.current.size < 2) {
+              pinchStateRef.current = null;
+            }
+            if (activePointersRef.current.size === 0) {
+              stopDragging();
+            }
+          }}
           onPointerCancel={stopDragging}
         >
           <Image
@@ -5705,48 +6405,37 @@ function CatalogImageLayoutEditor({
           <div style={imageEditorHeaderStyle}>
             <div style={{ display: "grid", gap: 4 }}>
               <strong style={{ color: "var(--account-text-strong)" }}>{label}</strong>
-              <span style={metaStyle}>{secondaryText}</span>
+              {secondaryText ? <span style={metaStyle}>{secondaryText}</span> : null}
             </div>
-            <span style={imageOrderBadgeStyle}>{orderLabel}</span>
-          </div>
-          <div style={rowWrapStyle}>
-            <button
-              type="button"
-              onClick={onMoveUp}
-              disabled={!canMoveUp}
-              style={ghostButtonStyle}
-            >
-              Subir
-            </button>
-            <button
-              type="button"
-              onClick={onMoveDown}
-              disabled={!canMoveDown}
-              style={ghostButtonStyle}
-            >
-              Bajar
-            </button>
+            <div style={imageOrderControlStyle} aria-label={`Cambiar ${orderLabel.toLowerCase()}`}>
+              <button
+                type="button"
+                onClick={onMoveUp}
+                disabled={!canMoveUp}
+                title="Mover antes"
+                aria-label="Mover antes"
+                style={imageOrderButtonStyle(!canMoveUp)}
+              >
+                &larr;
+              </button>
+              <span style={imageOrderBadgeStyle}>{orderLabel}</span>
+              <button
+                type="button"
+                onClick={onMoveDown}
+                disabled={!canMoveDown}
+                title="Mover despues"
+                aria-label="Mover despues"
+                style={imageOrderButtonStyle(!canMoveDown)}
+              >
+                &rarr;
+              </button>
+            </div>
           </div>
         </div>
         <span style={metaStyle}>
-          Arrastra desde cualquier punto de la imagen para moverla. Usa el
-          control de zoom o la rueda del mouse para acercar y alejar.
+          Arrastra desde cualquier punto de la imagen para moverla. Usa la
+          rueda del mouse o pinch en pantalla tactil para acercar y alejar.
         </span>
-
-        <label style={imageZoomControlStyle}>
-          <span style={metaStyle}>Zoom {Math.round(value.zoom * 100)}%</span>
-          <input
-            type="range"
-            min={1}
-            max={2.5}
-            step={0.01}
-            value={value.zoom}
-            onChange={(event) =>
-              onChange({ zoom: clampImageZoom(Number(event.target.value)) })
-            }
-            style={imageZoomSliderStyle}
-          />
-        </label>
 
         <div style={rowWrapStyle}>
           <button
@@ -5786,6 +6475,33 @@ function sanitizeDecimalInput(value: string) {
     normalized.slice(0, firstDotIndex + 1) +
     normalized.slice(firstDotIndex + 1).replace(/\./g, "")
   );
+}
+
+function parsePriceInput(value: string | number | null | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+
+  const cleaned = raw.replace(/[^\d.,-]/g, "");
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  const decimalSeparator =
+    lastComma > lastDot ? "," : lastDot > lastComma ? "." : "";
+  const normalized = decimalSeparator
+    ? cleaned
+        .replace(new RegExp(`\\${decimalSeparator === "," ? "." : ","}`, "g"), "")
+        .replace(decimalSeparator, ".")
+    : cleaned.replace(/[.,]/g, "");
+  const parsed = Number(normalized);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sanitizeIntegerInput(value: string) {
+  return value.replace(/\D/g, "");
 }
 
 function SuggestionInput({
@@ -5997,6 +6713,84 @@ const chipRowStyle: React.CSSProperties = {
   gap: 10,
   flexWrap: "wrap",
 };
+const attributePickerGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};
+const attributePickerStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  alignContent: "start",
+  minWidth: 0,
+};
+const attributeDetailStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 16,
+  padding: 18,
+  borderRadius: 18,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-bg)",
+};
+const attributeModalSectionStyle: React.CSSProperties = {
+  ...attributeDetailStyle,
+  padding: 16,
+};
+const attributeChipGridStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 10,
+};
+const attributeValueChipStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 38,
+  padding: "8px 10px 8px 12px",
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "grab",
+};
+const attributeChipActionsStyle: React.CSSProperties = {
+  display: "inline-flex",
+  gap: 4,
+};
+const chipIconButtonStyle: React.CSSProperties = {
+  width: 24,
+  height: 24,
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  lineHeight: 1,
+};
+const chipInputStyle: React.CSSProperties = {
+  width: 120,
+  border: "none",
+  outline: "none",
+  background: "transparent",
+  color: "var(--account-text-strong)",
+};
+const colorSwatchStyle = (color: string): React.CSSProperties => ({
+  width: 14,
+  height: 14,
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border-strong)",
+  background: color,
+  flex: "0 0 auto",
+});
+const colorPickerStyle: React.CSSProperties = {
+  width: 52,
+  minHeight: 48,
+  padding: 6,
+  border: "1px solid var(--checkout-border)",
+  borderRadius: 14,
+  background: "var(--muted-field-bg)",
+  cursor: "pointer",
+};
 const rowWrapStyle: React.CSSProperties = {
   display: "flex",
   gap: 10,
@@ -6038,6 +6832,51 @@ const tableWrapStyle: React.CSSProperties = {
   overflowX: "auto",
   boxSizing: "border-box",
 };
+const categoryCellStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  minWidth: 220,
+};
+const categoryThumbStyle: React.CSSProperties = {
+  width: 52,
+  height: 38,
+  borderRadius: 10,
+  objectFit: "cover",
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  flex: "0 0 auto",
+};
+const categoryThumbPlaceholderStyle: React.CSSProperties = {
+  ...categoryThumbStyle,
+  display: "inline-block",
+};
+const categoryPreviewImageStyle: React.CSSProperties = {
+  width: "100%",
+  maxHeight: 240,
+  objectFit: "cover",
+  borderRadius: 18,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+};
+const categoryImageEmptyStyle: React.CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  minHeight: 150,
+  borderRadius: 18,
+  border: "1px dashed var(--checkout-border-strong)",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-soft)",
+};
+const attributeProductsTableWrapStyle: React.CSSProperties = {
+  ...tableWrapStyle,
+  maxHeight: 360,
+  overflowY: "auto",
+  borderBottom: "1px solid var(--checkout-border)",
+};
+const selectableRowStyle: React.CSSProperties = {
+  cursor: "pointer",
+};
 const fieldStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: "100%",
@@ -6066,6 +6905,122 @@ const selectStyle: React.CSSProperties = {
   background: "var(--select-bg)",
   color: "var(--select-color)",
   appearance: "auto",
+};
+const largeFieldStyle: React.CSSProperties = {
+  ...fieldStyle,
+  minHeight: 58,
+  fontSize: 18,
+};
+const modernWorkspaceStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 18,
+  width: "100%",
+  minWidth: 0,
+};
+const wizardStepperStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: 10,
+};
+const wizardStepButtonStyle = (active: boolean): React.CSSProperties => ({
+  minHeight: 52,
+  borderRadius: 14,
+  border: active ? "1px solid var(--accent-strong)" : "1px solid var(--checkout-border)",
+  background: active ? "var(--accent-strong)" : "var(--page-panel-strong-bg)",
+  color: active ? "var(--accent-contrast)" : "var(--account-text-strong)",
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "10px 12px",
+  cursor: "pointer",
+  fontWeight: 700,
+});
+const wizardPanelStyle: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-bg)",
+  padding: 20,
+  display: "grid",
+  gap: 14,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  minHeight: 460,
+  alignContent: "start",
+};
+const wizardTwoColumnStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))",
+  gap: 16,
+  alignItems: "start",
+};
+const wizardSubpanelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  minWidth: 0,
+};
+const publicationGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 14,
+};
+const publicationChoiceStyle = (active: boolean): React.CSSProperties => ({
+  minHeight: 120,
+  borderRadius: 18,
+  border: active ? "2px solid var(--accent-strong)" : "1px solid var(--checkout-border)",
+  background: active ? "rgba(115, 181, 165, 0.72)" : "rgba(115, 181, 165, 0.22)",
+  color: "var(--account-text-strong)",
+  fontWeight: 800,
+  cursor: "pointer",
+});
+const catalogToolbarStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+const iconActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+};
+const iconButtonStyle: React.CSSProperties = {
+  width: 36,
+  height: 36,
+  borderRadius: 10,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-strong-bg)",
+  color: "var(--account-text-strong)",
+  display: "inline-grid",
+  placeItems: "center",
+  cursor: "pointer",
+  fontWeight: 800,
+};
+const productThumbStyle: React.CSSProperties = {
+  width: 48,
+  height: 48,
+  borderRadius: 10,
+  objectFit: "cover",
+  border: "1px solid var(--checkout-border)",
+};
+const productThumbEmptyStyle: React.CSSProperties = {
+  display: "inline-block",
+  width: 48,
+  height: 48,
+  borderRadius: 10,
+  background: "var(--muted-field-bg)",
+  border: "1px solid var(--checkout-border)",
+};
+const compactCellInputStyle: React.CSSProperties = {
+  width: 92,
+  padding: "9px 10px",
+  borderRadius: 10,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  outline: "none",
+  boxSizing: "border-box",
 };
 const imageEditorGridStyle: React.CSSProperties = {
   display: "grid",
@@ -6164,14 +7119,6 @@ const catalogPreviewCenterGuideStyle: React.CSSProperties = {
   background: "var(--admin-preview-guide-bg)",
   pointerEvents: "none",
 };
-const imageZoomControlStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 8,
-};
-const imageZoomSliderStyle: React.CSSProperties = {
-  width: "100%",
-  accentColor: "var(--account-text-strong)",
-};
 const imageEditorHeaderStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "minmax(0, 1fr) auto",
@@ -6180,14 +7127,38 @@ const imageEditorHeaderStyle: React.CSSProperties = {
 };
 const imageOrderBadgeStyle: React.CSSProperties = {
   width: "fit-content",
-  justifySelf: "end",
-  padding: "8px 10px",
+  padding: "8px 9px",
   borderRadius: 999,
   border: "1px solid var(--checkout-border)",
   background: "var(--muted-field-bg)",
   color: "var(--account-text-muted)",
   fontSize: 12,
+  whiteSpace: "nowrap",
 };
+const imageOrderControlStyle: React.CSSProperties = {
+  justifySelf: "end",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: 4,
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-bg)",
+};
+const imageOrderButtonStyle = (disabled: boolean): React.CSSProperties => ({
+  width: 32,
+  height: 32,
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border-strong)",
+  background: disabled ? "transparent" : "var(--muted-field-bg)",
+  color: disabled ? "var(--account-text-soft)" : "var(--account-text-strong)",
+  cursor: disabled ? "not-allowed" : "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 18,
+  lineHeight: 1,
+});
 const suggestionFieldWrapStyle: React.CSSProperties = { position: "relative" };
 const suggestionDropdownStyle: React.CSSProperties = {
   position: "absolute",
@@ -6293,6 +7264,15 @@ const modalCardStyle: React.CSSProperties = {
   display: "grid",
   gap: 20,
 };
+const attributeModalStyle: React.CSSProperties = {
+  ...modalCardStyle,
+  width: "min(100%, 980px)",
+  maxHeight: "min(92vh, 900px)",
+};
+const categoryModalStyle: React.CSSProperties = {
+  ...attributeModalStyle,
+  width: "min(100%, 1040px)",
+};
 const modalActionsStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-end",
@@ -6322,21 +7302,20 @@ const stateStyle: React.CSSProperties = {
   padding: 24,
   color: "var(--account-text-muted)",
 };
-const metricCardButtonStyle: React.CSSProperties = {
-  appearance: "none",
-  background: "transparent",
-  border: "none",
-  padding: 0,
-  margin: 0,
-  textAlign: "inherit",
-  cursor: "pointer",
-  borderRadius: 24,
-  overflow: "hidden",
-  display: "block",
-};
 const metaStyle: React.CSSProperties = {
   color: "var(--account-text-soft)",
   fontSize: 13,
+};
+const helperTextStyle: React.CSSProperties = {
+  color: "var(--account-text-soft)",
+  fontSize: 13,
+  lineHeight: 1.4,
+};
+const checkboxLabelStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 10,
+  color: "var(--account-text-strong)",
 };
 const copyStyle: React.CSSProperties = {
   margin: 0,
@@ -6351,15 +7330,16 @@ const eyebrowStyle: React.CSSProperties = {
   fontSize: 12,
   color: "var(--account-text-soft)",
 };
-const title2Style: React.CSSProperties = {
-  margin: "10px 0 0",
-  fontSize: "clamp(1.8rem,2vw,2.6rem)",
-  letterSpacing: "-0.05em",
-};
 const title3Style: React.CSSProperties = {
   margin: "8px 0 0",
   fontSize: 22,
   color: "var(--account-text-strong)",
+};
+const catalogTitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: "var(--account-text-strong)",
+  fontSize: 26,
+  fontWeight: 800,
 };
 const checkStyle: React.CSSProperties = {
   display: "flex",
@@ -6369,6 +7349,21 @@ const checkStyle: React.CSSProperties = {
 };
 const errorStyle: React.CSSProperties = { margin: 0, color: "#ff9f9f" };
 const successStyle: React.CSSProperties = { margin: 0, color: "#b8f5c2" };
+const toastStyle: React.CSSProperties = {
+  position: "fixed",
+  right: 24,
+  bottom: 24,
+  zIndex: 1200,
+  maxWidth: "min(360px, calc(100vw - 32px))",
+  padding: "14px 18px",
+  borderRadius: 18,
+  border: "1px solid var(--checkout-border-strong)",
+  background: "var(--page-panel-strong-bg)",
+  color: "var(--account-text-strong)",
+  boxShadow: "0 18px 44px rgba(0, 0, 0, 0.18)",
+  fontWeight: 800,
+  animation: "productToastIn 180ms ease-out",
+};
 const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
@@ -6406,6 +7401,32 @@ const statusStyle = (published: boolean): React.CSSProperties => ({
     ? "var(--admin-tone-success-color)"
     : "var(--admin-status-idle-color)",
   fontSize: 12,
+});
+const productCatalogStatusStyle = (status: string): React.CSSProperties => ({
+  display: "inline-flex",
+  padding: "8px 12px",
+  borderRadius: 999,
+  border:
+    status === "Publicado"
+      ? "1px solid var(--admin-tone-success-border)"
+      : status === "Sin stock"
+        ? "1px solid var(--admin-danger-border)"
+        : "1px solid var(--admin-status-idle-border)",
+  background:
+    status === "Publicado"
+      ? "var(--admin-tone-success-bg)"
+      : status === "Sin stock"
+        ? "var(--admin-danger-bg)"
+        : "var(--admin-status-idle-bg)",
+  color:
+    status === "Publicado"
+      ? "var(--admin-tone-success-color)"
+      : status === "Sin stock"
+        ? "var(--admin-danger-color)"
+        : "var(--admin-status-idle-color)",
+  fontSize: 12,
+  fontWeight: 700,
+  whiteSpace: "nowrap",
 });
 const statusChipStyle = (status: string): React.CSSProperties => ({
   display: "inline-flex",
@@ -6468,44 +7489,6 @@ const softChipStyle: React.CSSProperties = {
   color: "var(--account-text-muted)",
   fontSize: 12,
 };
-const publishToggleCellStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 10,
-  color: "var(--account-text-strong)",
-};
-const valueItemStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateRows: "minmax(0, 1fr) auto",
-  alignContent: "space-between",
-  gap: 12,
-  borderRadius: 18,
-  border: "1px solid var(--checkout-border)",
-  background: "var(--page-panel-strong-bg)",
-  padding: 14,
-  minHeight: 132,
-  maxHeight: 148,
-  overflow: "hidden",
-};
-const valueActionsRowStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 8,
-  alignSelf: "end",
-  marginTop: "auto",
-};
-const compactActionButtonStyle: React.CSSProperties = {
-  ...secondaryButtonStyle,
-  width: "100%",
-  padding: "9px 12px",
-  borderRadius: 14,
-};
-const compactGhostButtonStyle: React.CSSProperties = {
-  ...ghostButtonStyle,
-  width: "100%",
-  padding: "9px 12px",
-  borderRadius: 14,
-};
 const workspaceTabStyle = (active: boolean): React.CSSProperties => ({
   flex: "0 0 auto",
   padding: "10px 14px",
@@ -6563,6 +7546,10 @@ const customerSegmentStyle = (
   };
 };
 const chipToggleStyle = (selected: boolean): React.CSSProperties => ({
+  flex: "0 0 auto",
+  minWidth: 44,
+  maxWidth: 128,
+  height: 40,
   padding: "9px 12px",
   borderRadius: 999,
   border: selected
@@ -6576,6 +7563,12 @@ const chipToggleStyle = (selected: boolean): React.CSSProperties => ({
     : "var(--admin-chip-color)",
   boxShadow: selected ? "var(--admin-chip-selected-shadow)" : "none",
   cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 });
 const removeChipStyle: React.CSSProperties = {
   padding: "8px 12px",

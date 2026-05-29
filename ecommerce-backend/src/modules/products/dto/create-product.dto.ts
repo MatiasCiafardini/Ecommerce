@@ -35,4 +35,9 @@ export class CreateProductDto {
   @IsOptional()
   @IsNumber()
   packageLengthCm?: number;
+
+  @ApiPropertyOptional({ example: 'small-bag' })
+  @IsOptional()
+  @IsString()
+  packagingTemplateId?: string | null;
 }

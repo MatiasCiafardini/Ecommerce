@@ -1,12 +1,27 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 
 export class CreateCategoryDto {
   @ApiProperty({ example: 'Zapatillas' })
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({ example: '/images/seed-categories/remeras.svg' })
+  @ApiPropertyOptional({ example: 'Prendas livianas para todos los dias' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ example: 'active', enum: ['active', 'hidden'] })
+  @IsOptional()
+  @IsIn(['active', 'hidden'])
+  status?: string;
+
+  @ApiPropertyOptional({ example: 3 })
+  @IsOptional()
+  @IsInt()
+  parentId?: number | null;
+
+  @ApiPropertyOptional({ example: '/uploads/category.jpg' })
   @IsOptional()
   @IsString()
   imageUrl?: string;

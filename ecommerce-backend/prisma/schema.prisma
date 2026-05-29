@@ -46,16 +46,23 @@ model Category {
   id               Int                @id @default(autoincrement())
   name             String
   slug             String
+  description      String?
+  status           String             @default("active")
+  parentId         Int?
   storeId          Int
   createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
   deletedAt        DateTime?
   imageUrl         String?
+  parent           Category?          @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children         Category[]         @relation("CategoryHierarchy")
   store            Store              @relation(fields: [storeId], references: [id])
   discountTargets  DiscountCategory[]
   products         ProductCategory[]
 
   @@unique([slug, storeId])
   @@index([storeId])
+  @@index([parentId])
 }
 
 model ProductCategory {
@@ -76,6 +83,7 @@ model Product {
   packageHeightCm Float?
   packageWidthCm  Float?
   packageLengthCm Float?
+  packagingTemplateId String?
   createdAt       DateTime             @default(now())
   published       Boolean              @default(false)
   slug            String
@@ -129,14 +137,30 @@ model ProductOption {
   id                  Int                   @id @default(autoincrement())
   name                String
   storeId             Int
+  attributeType       String                @default("text")
   createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
   discountTargets     DiscountOption[]
   optionValueTargets  DiscountOptionValue[]
+  reusableValues      ProductOptionReusableValue[]
   store               Store                 @relation(fields: [storeId], references: [id])
   values              ProductOptionValue[]
 
   @@unique([storeId, name])
   @@index([storeId])
+}
+
+model ProductOptionReusableValue {
+  id              Int           @id @default(autoincrement())
+  productOptionId Int
+  value           String
+  position        Int           @default(0)
+  visualColor     String?
+  createdAt       DateTime      @default(now())
+  productOption   ProductOption @relation(fields: [productOptionId], references: [id], onDelete: Cascade)
+
+  @@unique([productOptionId, value])
+  @@index([productOptionId, position])
 }
 
 model ProductOptionValue {

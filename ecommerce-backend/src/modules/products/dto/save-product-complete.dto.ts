@@ -54,6 +54,16 @@ class SaveProductVariantDto {
   @IsNumber()
   weightGrams?: number | null;
 
+  @ApiPropertyOptional({ example: 52 })
+  @IsOptional()
+  @IsNumber()
+  width?: number | null;
+
+  @ApiPropertyOptional({ example: 68 })
+  @IsOptional()
+  @IsNumber()
+  length?: number | null;
+
   @ApiPropertyOptional({ example: 20 })
   @IsOptional()
   @IsNumber()
@@ -104,6 +114,11 @@ export class SaveProductCompleteDto {
   @IsOptional()
   @IsNumber()
   packageLengthCm?: number | null;
+
+  @ApiPropertyOptional({ example: 'small-bag' })
+  @IsOptional()
+  @IsString()
+  packagingTemplateId?: string | null;
 
   @ApiPropertyOptional({ example: [1, 2, 3], type: [Number] })
   @IsOptional()
