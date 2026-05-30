@@ -49,6 +49,7 @@ type PreviewLabel = {
   variantName: string;
   sku: string;
   storeName: string;
+  storeAddress?: string | null;
   price: string;
   normalPrice?: string;
   transferPrice?: string | null;
@@ -891,6 +892,7 @@ function renderPreviewLabel(label: PreviewLabel, preview: Preview | null) {
       <>
         <div className="admin-label-preview-copy">
           {options.showStoreName ? <strong title={label.storeName}>{label.storeName || "Pedido interno"}</strong> : null}
+          {options.showStoreName && label.storeAddress ? <span title={label.storeAddress}>{label.storeAddress}</span> : null}
           <span title={label.productName}>Producto: {label.productName}</span>
           {label.variantName ? <span title={label.variantName}>Variante: {label.variantName}</span> : null}
         </div>
@@ -910,6 +912,7 @@ function renderPreviewLabel(label: PreviewLabel, preview: Preview | null) {
         ) : null}
         <div className="admin-label-preview-copy">
           {options.showStoreName ? <strong title={label.storeName}>{label.storeName}</strong> : null}
+          {options.showStoreName && label.storeAddress ? <span title={label.storeAddress}>{label.storeAddress}</span> : null}
           {options.showProductName ? <span title={label.productName}>{label.productName}</span> : null}
           {options.showVariantName ? <span title={label.variantName}>{label.variantName}</span> : null}
           {!cutPriceLayout && options.showPrice

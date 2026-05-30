@@ -230,6 +230,7 @@ export class LabelsService {
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const labels: PrintableLabel[] = [];
     const logoUrl = this.resolveStoreLogoUrl(store?.storefrontConfig);
+    const storeAddress = this.resolveStoreAddress(storeId, store?.name);
     const bankTransferDiscountPercentage = this.normalizeDiscountPercentage(
       store?.bankTransferDiscountPercentage,
     );
@@ -249,6 +250,7 @@ export class LabelsService {
           normalPrice: this.formatMoney(normalPrice),
           transferPrice: transferPrice ? this.formatMoney(transferPrice) : null,
           storeName: store?.name ?? '',
+          storeAddress,
           logoUrl,
         });
       }
@@ -282,6 +284,16 @@ export class LabelsService {
     };
 
     return themeLogos[theme] ?? null;
+  }
+
+  private resolveStoreAddress(storeId: number, storeName: string | null | undefined) {
+    const normalizedName = storeName?.trim().toLowerCase() ?? '';
+
+    if (storeId === 1 || storeId === 7 || normalizedName === 'como vos y yo') {
+      return 'Alsina 289 y Alsina 222';
+    }
+
+    return null;
   }
 
   private normalizeItems(items: GenerateLabelsDto['items']) {

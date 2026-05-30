@@ -966,6 +966,31 @@ function nextClothingSize(size: string) {
   return current ? `${current} COPIA` : "";
 }
 
+function splitVariantValues(value: string) {
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function normalizeComparableName(value: string) {
+  return value.trim().toLocaleLowerCase("es-AR");
+}
+
+function attributeSaveErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (message.toLowerCase().includes("product option already exists")) {
+    return "Ya existe un atributo con ese nombre. Usá el existente o elegí otro nombre.";
+  }
+
+  return message || "No se pudo guardar el atributo.";
+}
+
 function AdminProductsSection({
   initialTab = "catalog",
 }: {
@@ -1773,7 +1798,27 @@ function AdminProductsSection({
       values: selectedOptionValues[option.id] ?? [],
     })).filter((entry) => entry.values.length > 0);
 
-    if (selectedValuesByAttribute.length === 0) {
+    const colorDraftValues = splitVariantValues(variantDraft.Color);
+    const sizeDraftValues = splitVariantValues(variantDraft.Size);
+    const hasColorAttribute = selectedValuesByAttribute.some(
+      (entry) => entry.option.name.trim().toLowerCase() === "color",
+    );
+    const hasSizeAttribute = selectedValuesByAttribute.some((entry) =>
+      ["talle", "talles", "size", "sizes"].includes(
+        entry.option.name.trim().toLowerCase(),
+      ),
+    );
+    const matrixValues = [
+      ...selectedValuesByAttribute,
+      ...(!hasColorAttribute && colorDraftValues.length > 0
+        ? [{ option: { id: -1, name: "Color" }, values: colorDraftValues }]
+        : []),
+      ...(!hasSizeAttribute && sizeDraftValues.length > 0
+        ? [{ option: { id: -2, name: "Talle" }, values: sizeDraftValues }]
+        : []),
+    ];
+
+    if (matrixValues.length === 0) {
       showToast("Elegí al menos un atributo y sus valores.");
       return;
     }
@@ -1783,14 +1828,14 @@ function AdminProductsSection({
     const baseGarmentWidth = variantDraft.width.trim();
     const baseGarmentLength = variantDraft.length.trim();
     const slugBase = form.title.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "producto";
-    const combinations = selectedValuesByAttribute.reduce<string[][]>(
+    const combinations = matrixValues.reduce<string[][]>(
       (acc, entry) => acc.flatMap((combo) => entry.values.map((value) => [...combo, value])),
       [[]],
     );
 
     const generated = combinations.map((combo) => {
-        const colorIndex = selectedValuesByAttribute.findIndex((entry) => entry.option.name.trim().toLowerCase() === "color");
-        const sizeIndex = selectedValuesByAttribute.findIndex((entry) => ["talle", "size"].includes(entry.option.name.trim().toLowerCase()));
+        const colorIndex = matrixValues.findIndex((entry) => entry.option.name.trim().toLowerCase() === "color");
+        const sizeIndex = matrixValues.findIndex((entry) => ["talle", "talles", "size", "sizes"].includes(entry.option.name.trim().toLowerCase()));
         const parts = [slugBase, ...combo]
           .filter(Boolean)
           .map((part) => part.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 12));
@@ -1925,6 +1970,17 @@ function AdminProductsSection({
   const createOption = async () => {
     const name = newOptionName.trim();
     if (!name) return;
+    const alreadyExists = options.some(
+      (option) => normalizeComparableName(option.name) === normalizeComparableName(name),
+    );
+
+    if (alreadyExists) {
+      const message = "Ya existe un atributo con ese nombre. Usá el existente o elegí otro nombre.";
+      setError(message);
+      showToast(message);
+      return;
+    }
+
     try {
       setCreatingOption(true);
       await api("/product-options", {
@@ -1934,9 +1990,9 @@ function AdminProductsSection({
       await loadOptions();
       setNewOptionName("");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "No se pudo crear el atributo.",
-      );
+      const message = attributeSaveErrorMessage(err);
+      setError(message);
+      showToast(message);
     } finally {
       setCreatingOption(false);
     }
@@ -2003,9 +2059,21 @@ function AdminProductsSection({
       return;
     }
 
+    const attributeName = attributeDraft.name.trim();
+    const alreadyExists = options.some(
+      (option) =>
+        option.id !== attributeDraft.id &&
+        normalizeComparableName(option.name) === normalizeComparableName(attributeName),
+    );
+
+    if (alreadyExists) {
+      showToast("Ya existe un atributo con ese nombre. Usá el existente o elegí otro nombre.");
+      return;
+    }
+
     try {
       const payload = {
-        name: attributeDraft.name.trim(),
+        name: attributeName,
         attributeType: attributeDraft.attributeType,
       };
       const isCreating = !attributeDraft.id;
@@ -2035,7 +2103,7 @@ function AdminProductsSection({
       closeAttributeModal();
       showToast(isCreating ? "Atributo creado." : "Atributo actualizado.");
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "No se pudo guardar el atributo.");
+      showToast(attributeSaveErrorMessage(err));
     }
   };
 
@@ -3330,6 +3398,8 @@ function AdminProductsSection({
             <div style={responsiveVariantGridStyle}>
               <SuggestionInput value={variantDraft.price} onChange={(value) => setVariantDraft((current) => ({ ...current, price: value }))} placeholder="Precio base" suggestions={variantAutocomplete.price} />
               <SuggestionInput value={variantDraft.inventoryQuantity} onChange={(value) => setVariantDraft((current) => ({ ...current, inventoryQuantity: value }))} placeholder="Stock base" suggestions={variantAutocomplete.inventoryQuantity} />
+              <SuggestionInput value={variantDraft.Color} onChange={(value) => setVariantDraft((current) => ({ ...current, Color: value }))} placeholder="Color/es (Negro, Blanco)" suggestions={variantAutocomplete.color} />
+              <SuggestionInput value={variantDraft.Size} onChange={(value) => setVariantDraft((current) => ({ ...current, Size: value }))} placeholder="Talle/s (S, M, L)" suggestions={variantAutocomplete.size} />
               <SuggestionInput value={variantDraft.width} onChange={(value) => setVariantDraft((current) => ({ ...current, width: value }))} placeholder="Ancho prenda base (cm)" suggestions={variantAutocomplete.width} sanitize={sanitizeDecimalInput} />
               <SuggestionInput value={variantDraft.length} onChange={(value) => setVariantDraft((current) => ({ ...current, length: value }))} placeholder="Largo prenda base (cm)" suggestions={variantAutocomplete.length} sanitize={sanitizeDecimalInput} />
             </div>

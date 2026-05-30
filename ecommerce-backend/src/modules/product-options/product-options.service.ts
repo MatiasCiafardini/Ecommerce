@@ -19,6 +19,16 @@ export class ProductOptionsService {
 
   constructor(private prisma: PrismaService) {}
 
+  private normalizeOptionName(name: string | undefined | null) {
+    const normalizedName = name?.trim() ?? '';
+
+    if (!normalizedName) {
+      throw new BadRequestException('Product option name is required');
+    }
+
+    return normalizedName;
+  }
+
   async findAllOptions(storeId: number) {
     const options = await this.prisma.productOption.findMany({
       where: { storeId },
@@ -129,7 +139,7 @@ export class ProductOptionsService {
   }
 
   async createOption(storeId: number, dto: CreateProductOptionDto) {
-    const normalizedName = dto.name.trim();
+    const normalizedName = this.normalizeOptionName(dto.name);
 
     const existing = await this.prisma.productOption.findFirst({
       where: {
@@ -168,7 +178,7 @@ export class ProductOptionsService {
     optionId: number,
     dto: UpdateProductOptionDto,
   ) {
-    const normalizedName = dto.name.trim();
+    const normalizedName = this.normalizeOptionName(dto.name);
     const option = await this.prisma.productOption.findFirst({
       where: {
         id: optionId,

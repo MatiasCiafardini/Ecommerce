@@ -1,0 +1,4240 @@
+{
+  "storeId": 7,
+  "backedUpAt": "2026-05-30T13:20:10.025Z",
+  "products": [
+    {
+      "id": 1751,
+      "title": "Camisa oversize lino",
+      "description": "Camisa liviana de lino con calce amplio y caida suave para looks relajados.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.145Z",
+      "published": true,
+      "slug": "camisa-oversize-lino",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1751,
+          "categoryId": 217,
+          "category": {
+            "id": 217,
+            "name": "Camisas",
+            "slug": "camisas",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/camisa-oversize-lino.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3470,
+          "productId": 1751,
+          "url": "/images/comovosyyo/products/camisa-oversize-lino.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        },
+        {
+          "id": 3494,
+          "productId": 1751,
+          "url": "/uploads/1780080122596-659021306.jpg",
+          "position": 1,
+          "offsetX": 40,
+          "offsetY": 14.70886589571921,
+          "zoom": 1.24
+        },
+        {
+          "id": 3495,
+          "productId": 1751,
+          "url": "/uploads/1780080128228-39500687.jpg",
+          "position": 2,
+          "offsetX": -34.90566037735849,
+          "offsetY": 29.55974842767295,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9213,
+          "productOptionId": 57,
+          "productId": 1751,
+          "value": "Beige",
+          "createdAt": "2026-05-29T18:47:05.419Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9214,
+          "productOptionId": 57,
+          "productId": 1751,
+          "value": "Blanco",
+          "createdAt": "2026-05-29T18:47:05.419Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9215,
+          "productOptionId": 58,
+          "productId": 1751,
+          "value": "L",
+          "createdAt": "2026-05-29T18:47:05.419Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9216,
+          "productOptionId": 58,
+          "productId": 1751,
+          "value": "M",
+          "createdAt": "2026-05-29T18:47:05.419Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9217,
+          "productOptionId": 58,
+          "productId": 1751,
+          "value": "S",
+          "createdAt": "2026-05-29T18:47:05.419Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9218,
+          "productOptionId": 58,
+          "productId": 1751,
+          "value": "XL",
+          "createdAt": "2026-05-29T18:47:05.419Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11117,
+          "productId": 1751,
+          "sku": "CVY-001-BLA-S",
+          "price": "64990",
+          "weightGrams": 720,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11389,
+              "variantId": 11117,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:47:05.455Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11118,
+          "productId": 1751,
+          "sku": "CVY-001-BLA-M",
+          "price": "65490",
+          "weightGrams": 760,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11390,
+              "variantId": 11118,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:47:05.465Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11119,
+          "productId": 1751,
+          "sku": "CVY-001-BLA-L",
+          "price": "65990",
+          "weightGrams": 800,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 30,
+          "weight": 0.8,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11391,
+              "variantId": 11119,
+              "quantity": 11,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:47:05.481Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11120,
+          "productId": 1751,
+          "sku": "CVY-001-BLA-XL",
+          "price": "66490",
+          "weightGrams": 840,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11392,
+              "variantId": 11120,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:47:05.486Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11121,
+          "productId": 1751,
+          "sku": "CVY-001-BEI-S",
+          "price": "66490",
+          "weightGrams": 720,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11393,
+              "variantId": 11121,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:47:05.491Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11122,
+          "productId": 1751,
+          "sku": "CVY-001-BEI-M",
+          "price": "66990",
+          "weightGrams": 760,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11394,
+              "variantId": 11122,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:47:05.497Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11123,
+          "productId": 1751,
+          "sku": "CVY-001-BEI-L",
+          "price": "67490",
+          "weightGrams": 800,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 30,
+          "weight": 0.8,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11395,
+              "variantId": 11123,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:47:05.501Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11124,
+          "productId": 1751,
+          "sku": "CVY-001-BEI-XL",
+          "price": "67990",
+          "weightGrams": 840,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11396,
+              "variantId": 11124,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:47:05.505Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1752,
+      "title": "Jean wide leg",
+      "description": "Jean tiro alto de pierna amplia, ideal para combinar con basicos y sastreria.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.174Z",
+      "published": true,
+      "slug": "jean-wide-leg",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1752,
+          "categoryId": 218,
+          "category": {
+            "id": 218,
+            "name": "Pantalones",
+            "slug": "pantalones",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/jean-wide-leg.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3471,
+          "productId": 1752,
+          "url": "/images/comovosyyo/products/jean-wide-leg.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9219,
+          "productOptionId": 57,
+          "productId": 1752,
+          "value": "Jean",
+          "createdAt": "2026-05-29T18:59:29.228Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9220,
+          "productOptionId": 57,
+          "productId": 1752,
+          "value": "Negro",
+          "createdAt": "2026-05-29T18:59:29.228Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9221,
+          "productOptionId": 58,
+          "productId": 1752,
+          "value": "L",
+          "createdAt": "2026-05-29T18:59:29.228Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9222,
+          "productOptionId": 58,
+          "productId": 1752,
+          "value": "M",
+          "createdAt": "2026-05-29T18:59:29.228Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9223,
+          "productOptionId": 58,
+          "productId": 1752,
+          "value": "S",
+          "createdAt": "2026-05-29T18:59:29.228Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9224,
+          "productOptionId": 58,
+          "productId": 1752,
+          "value": "XL",
+          "createdAt": "2026-05-29T18:59:29.228Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11125,
+          "productId": 1752,
+          "sku": "CVY-002-JEA-S",
+          "price": "78990",
+          "weightGrams": 720,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Jean",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11397,
+              "variantId": 11125,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:59:29.249Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11126,
+          "productId": 1752,
+          "sku": "CVY-002-JEA-M",
+          "price": "79490",
+          "weightGrams": 760,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Jean",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11398,
+              "variantId": 11126,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:59:29.261Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11127,
+          "productId": 1752,
+          "sku": "CVY-002-JEA-L",
+          "price": "79990",
+          "weightGrams": 800,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 30,
+          "weight": 0.8,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Jean",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11399,
+              "variantId": 11127,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:59:29.266Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11128,
+          "productId": 1752,
+          "sku": "CVY-002-JEA-XL",
+          "price": "80490",
+          "weightGrams": 840,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Jean",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11400,
+              "variantId": 11128,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:59:29.271Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11129,
+          "productId": 1752,
+          "sku": "CVY-002-NEG-S",
+          "price": "80490",
+          "weightGrams": 720,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11401,
+              "variantId": 11129,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:59:29.275Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11130,
+          "productId": 1752,
+          "sku": "CVY-002-NEG-M",
+          "price": "80990",
+          "weightGrams": 760,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11402,
+              "variantId": 11130,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:59:29.280Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11131,
+          "productId": 1752,
+          "sku": "CVY-002-NEG-L",
+          "price": "81490",
+          "weightGrams": 800,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 30,
+          "weight": 0.8,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11403,
+              "variantId": 11131,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:59:29.285Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11132,
+          "productId": 1752,
+          "sku": "CVY-002-NEG-XL",
+          "price": "81990",
+          "weightGrams": 840,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11404,
+              "variantId": 11132,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T18:59:29.300Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1753,
+      "title": "Chaleco sastrero",
+      "description": "Chaleco estructurado con linea limpia para sumar capas elegantes.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.183Z",
+      "published": true,
+      "slug": "chaleco-sastrero",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1753,
+          "categoryId": 220,
+          "category": {
+            "id": 220,
+            "name": "Abrigos",
+            "slug": "abrigos",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/blazer-clasico.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3472,
+          "productId": 1753,
+          "url": "/images/comovosyyo/products/chaleco-sastrero.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9087,
+          "productOptionId": 58,
+          "productId": 1753,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.183Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9088,
+          "productOptionId": 58,
+          "productId": 1753,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.183Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9089,
+          "productOptionId": 58,
+          "productId": 1753,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.183Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9090,
+          "productOptionId": 58,
+          "productId": 1753,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.183Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9091,
+          "productOptionId": 57,
+          "productId": 1753,
+          "value": "Beige",
+          "createdAt": "2026-05-18T17:57:32.183Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9092,
+          "productOptionId": 57,
+          "productId": 1753,
+          "value": "Negro",
+          "createdAt": "2026-05-18T17:57:32.183Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11133,
+          "productId": 1753,
+          "sku": "CVY-003-BEI-S",
+          "price": "69990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11405,
+              "variantId": 11133,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.183Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11134,
+          "productId": 1753,
+          "sku": "CVY-003-BEI-M",
+          "price": "70490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11406,
+              "variantId": 11134,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.183Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11135,
+          "productId": 1753,
+          "sku": "CVY-003-BEI-L",
+          "price": "70990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11407,
+              "variantId": 11135,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.183Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11136,
+          "productId": 1753,
+          "sku": "CVY-003-BEI-XL",
+          "price": "71490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11408,
+              "variantId": 11136,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.183Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11137,
+          "productId": 1753,
+          "sku": "CVY-003-NEG-S",
+          "price": "71490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11409,
+              "variantId": 11137,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.183Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11138,
+          "productId": 1753,
+          "sku": "CVY-003-NEG-M",
+          "price": "71990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11410,
+              "variantId": 11138,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.183Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11139,
+          "productId": 1753,
+          "sku": "CVY-003-NEG-L",
+          "price": "72490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11411,
+              "variantId": 11139,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.183Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11140,
+          "productId": 1753,
+          "sku": "CVY-003-NEG-XL",
+          "price": "72990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11412,
+              "variantId": 11140,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.183Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1754,
+      "title": "Sweater tejido",
+      "description": "Sweater suave de punto con textura delicada y calce relajado.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.191Z",
+      "published": true,
+      "slug": "sweater-tejido",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1754,
+          "categoryId": 220,
+          "category": {
+            "id": 220,
+            "name": "Abrigos",
+            "slug": "abrigos",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/blazer-clasico.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3473,
+          "productId": 1754,
+          "url": "/images/comovosyyo/products/sweater-tejido.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9093,
+          "productOptionId": 58,
+          "productId": 1754,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.191Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9094,
+          "productOptionId": 58,
+          "productId": 1754,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.191Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9095,
+          "productOptionId": 58,
+          "productId": 1754,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.191Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9096,
+          "productOptionId": 58,
+          "productId": 1754,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.191Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9097,
+          "productOptionId": 57,
+          "productId": 1754,
+          "value": "Verde",
+          "createdAt": "2026-05-18T17:57:32.191Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9098,
+          "productOptionId": 57,
+          "productId": 1754,
+          "value": "Crudo",
+          "createdAt": "2026-05-18T17:57:32.191Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11141,
+          "productId": 1754,
+          "sku": "CVY-004-VER-S",
+          "price": "71990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Verde",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11413,
+              "variantId": 11141,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.191Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11142,
+          "productId": 1754,
+          "sku": "CVY-004-VER-M",
+          "price": "72490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Verde",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11414,
+              "variantId": 11142,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.191Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11143,
+          "productId": 1754,
+          "sku": "CVY-004-VER-L",
+          "price": "72990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Verde",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11415,
+              "variantId": 11143,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.191Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11144,
+          "productId": 1754,
+          "sku": "CVY-004-VER-XL",
+          "price": "73490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Verde",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11416,
+              "variantId": 11144,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.191Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11145,
+          "productId": 1754,
+          "sku": "CVY-004-CRU-S",
+          "price": "73490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Crudo",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11417,
+              "variantId": 11145,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.191Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11146,
+          "productId": 1754,
+          "sku": "CVY-004-CRU-M",
+          "price": "73990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Crudo",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11418,
+              "variantId": 11146,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.191Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11147,
+          "productId": 1754,
+          "sku": "CVY-004-CRU-L",
+          "price": "74490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Crudo",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11419,
+              "variantId": 11147,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.191Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11148,
+          "productId": 1754,
+          "sku": "CVY-004-CRU-XL",
+          "price": "74990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Crudo",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11420,
+              "variantId": 11148,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.191Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1755,
+      "title": "Blazer clasico",
+      "description": "Blazer sastrero atemporal para elevar prendas simples de todos los dias.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.198Z",
+      "published": true,
+      "slug": "blazer-clasico",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1755,
+          "categoryId": 220,
+          "category": {
+            "id": 220,
+            "name": "Abrigos",
+            "slug": "abrigos",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/blazer-clasico.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3474,
+          "productId": 1755,
+          "url": "/images/comovosyyo/products/blazer-clasico.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9099,
+          "productOptionId": 58,
+          "productId": 1755,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.198Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9100,
+          "productOptionId": 58,
+          "productId": 1755,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.198Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9101,
+          "productOptionId": 58,
+          "productId": 1755,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.198Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9102,
+          "productOptionId": 58,
+          "productId": 1755,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.198Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9103,
+          "productOptionId": 57,
+          "productId": 1755,
+          "value": "Negro",
+          "createdAt": "2026-05-18T17:57:32.198Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9104,
+          "productOptionId": 57,
+          "productId": 1755,
+          "value": "Chocolate",
+          "createdAt": "2026-05-18T17:57:32.198Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11149,
+          "productId": 1755,
+          "sku": "CVY-005-NEG-S",
+          "price": "98990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11421,
+              "variantId": 11149,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.198Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11150,
+          "productId": 1755,
+          "sku": "CVY-005-NEG-M",
+          "price": "99490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11422,
+              "variantId": 11150,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.198Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11151,
+          "productId": 1755,
+          "sku": "CVY-005-NEG-L",
+          "price": "99990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11423,
+              "variantId": 11151,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.198Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11152,
+          "productId": 1755,
+          "sku": "CVY-005-NEG-XL",
+          "price": "100490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11424,
+              "variantId": 11152,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.198Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11153,
+          "productId": 1755,
+          "sku": "CVY-005-CHO-S",
+          "price": "100490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11425,
+              "variantId": 11153,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.198Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11154,
+          "productId": 1755,
+          "sku": "CVY-005-CHO-M",
+          "price": "100990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11426,
+              "variantId": 11154,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.198Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11155,
+          "productId": 1755,
+          "sku": "CVY-005-CHO-L",
+          "price": "101490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11427,
+              "variantId": 11155,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.198Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11156,
+          "productId": 1755,
+          "sku": "CVY-005-CHO-XL",
+          "price": "101990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11428,
+              "variantId": 11156,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.198Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1756,
+      "title": "Pantalon sastrero",
+      "description": "Pantalon de tiro alto con pinzas y caida elegante para oficina o salida.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.204Z",
+      "published": true,
+      "slug": "pantalon-sastrero",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1756,
+          "categoryId": 218,
+          "category": {
+            "id": 218,
+            "name": "Pantalones",
+            "slug": "pantalones",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/jean-wide-leg.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3475,
+          "productId": 1756,
+          "url": "/images/comovosyyo/products/pantalon-sastrero.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9105,
+          "productOptionId": 58,
+          "productId": 1756,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.204Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9106,
+          "productOptionId": 58,
+          "productId": 1756,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.204Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9107,
+          "productOptionId": 58,
+          "productId": 1756,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.204Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9108,
+          "productOptionId": 58,
+          "productId": 1756,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.204Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9109,
+          "productOptionId": 57,
+          "productId": 1756,
+          "value": "Chocolate",
+          "createdAt": "2026-05-18T17:57:32.204Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9110,
+          "productOptionId": 57,
+          "productId": 1756,
+          "value": "Negro",
+          "createdAt": "2026-05-18T17:57:32.204Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11157,
+          "productId": 1756,
+          "sku": "CVY-006-CHO-S",
+          "price": "82990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11429,
+              "variantId": 11157,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.204Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11158,
+          "productId": 1756,
+          "sku": "CVY-006-CHO-M",
+          "price": "83490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11430,
+              "variantId": 11158,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.204Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11159,
+          "productId": 1756,
+          "sku": "CVY-006-CHO-L",
+          "price": "83990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11431,
+              "variantId": 11159,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.204Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11160,
+          "productId": 1756,
+          "sku": "CVY-006-CHO-XL",
+          "price": "84490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11432,
+              "variantId": 11160,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.204Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11161,
+          "productId": 1756,
+          "sku": "CVY-006-NEG-S",
+          "price": "84490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11433,
+              "variantId": 11161,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.204Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11162,
+          "productId": 1756,
+          "sku": "CVY-006-NEG-M",
+          "price": "84990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11434,
+              "variantId": 11162,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.204Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11163,
+          "productId": 1756,
+          "sku": "CVY-006-NEG-L",
+          "price": "85490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11435,
+              "variantId": 11163,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.204Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11164,
+          "productId": 1756,
+          "sku": "CVY-006-NEG-XL",
+          "price": "85990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11436,
+              "variantId": 11164,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.204Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1757,
+      "title": "Remera basica",
+      "description": "Remera de algodon suave, cuello redondo y calce comodo para todos los dias.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.210Z",
+      "published": true,
+      "slug": "remera-basica",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1757,
+          "categoryId": 216,
+          "category": {
+            "id": 216,
+            "name": "Remeras",
+            "slug": "remeras",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/remera-basica.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3476,
+          "productId": 1757,
+          "url": "/images/comovosyyo/products/remera-basica.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9111,
+          "productOptionId": 58,
+          "productId": 1757,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.210Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9112,
+          "productOptionId": 58,
+          "productId": 1757,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.210Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9113,
+          "productOptionId": 58,
+          "productId": 1757,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.210Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9114,
+          "productOptionId": 58,
+          "productId": 1757,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.210Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9115,
+          "productOptionId": 57,
+          "productId": 1757,
+          "value": "Blanco",
+          "createdAt": "2026-05-18T17:57:32.210Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9116,
+          "productOptionId": 57,
+          "productId": 1757,
+          "value": "Negro",
+          "createdAt": "2026-05-18T17:57:32.210Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11165,
+          "productId": 1757,
+          "sku": "CVY-007-BLA-S",
+          "price": "32990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11437,
+              "variantId": 11165,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.210Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11166,
+          "productId": 1757,
+          "sku": "CVY-007-BLA-M",
+          "price": "33490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11438,
+              "variantId": 11166,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.210Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11167,
+          "productId": 1757,
+          "sku": "CVY-007-BLA-L",
+          "price": "33990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11439,
+              "variantId": 11167,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.210Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11168,
+          "productId": 1757,
+          "sku": "CVY-007-BLA-XL",
+          "price": "34490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11440,
+              "variantId": 11168,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.210Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11169,
+          "productId": 1757,
+          "sku": "CVY-007-NEG-S",
+          "price": "34490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11441,
+              "variantId": 11169,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.210Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11170,
+          "productId": 1757,
+          "sku": "CVY-007-NEG-M",
+          "price": "34990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11442,
+              "variantId": 11170,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.210Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11171,
+          "productId": 1757,
+          "sku": "CVY-007-NEG-L",
+          "price": "35490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11443,
+              "variantId": 11171,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.210Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11172,
+          "productId": 1757,
+          "sku": "CVY-007-NEG-XL",
+          "price": "35990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11444,
+              "variantId": 11172,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.210Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1758,
+      "title": "Buzo urbano",
+      "description": "Buzo relajado de frisa liviana para sumar abrigo sin perder prolijidad.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.216Z",
+      "published": true,
+      "slug": "buzo-urbano",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1758,
+          "categoryId": 220,
+          "category": {
+            "id": 220,
+            "name": "Abrigos",
+            "slug": "abrigos",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/blazer-clasico.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3477,
+          "productId": 1758,
+          "url": "/images/comovosyyo/products/buzo-urbano.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9117,
+          "productOptionId": 58,
+          "productId": 1758,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.216Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9118,
+          "productOptionId": 58,
+          "productId": 1758,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.216Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9119,
+          "productOptionId": 58,
+          "productId": 1758,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.216Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9120,
+          "productOptionId": 58,
+          "productId": 1758,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.216Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9121,
+          "productOptionId": 57,
+          "productId": 1758,
+          "value": "Beige",
+          "createdAt": "2026-05-18T17:57:32.216Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9122,
+          "productOptionId": 57,
+          "productId": 1758,
+          "value": "Verde",
+          "createdAt": "2026-05-18T17:57:32.216Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11173,
+          "productId": 1758,
+          "sku": "CVY-008-BEI-S",
+          "price": "58990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11445,
+              "variantId": 11173,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.216Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11174,
+          "productId": 1758,
+          "sku": "CVY-008-BEI-M",
+          "price": "59490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11446,
+              "variantId": 11174,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.216Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11175,
+          "productId": 1758,
+          "sku": "CVY-008-BEI-L",
+          "price": "59990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11447,
+              "variantId": 11175,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.216Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11176,
+          "productId": 1758,
+          "sku": "CVY-008-BEI-XL",
+          "price": "60490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11448,
+              "variantId": 11176,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.216Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11177,
+          "productId": 1758,
+          "sku": "CVY-008-VER-S",
+          "price": "60490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Verde",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11449,
+              "variantId": 11177,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.216Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11178,
+          "productId": 1758,
+          "sku": "CVY-008-VER-M",
+          "price": "60990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Verde",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11450,
+              "variantId": 11178,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.216Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11179,
+          "productId": 1758,
+          "sku": "CVY-008-VER-L",
+          "price": "61490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Verde",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11451,
+              "variantId": 11179,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.216Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11180,
+          "productId": 1758,
+          "sku": "CVY-008-VER-XL",
+          "price": "61990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Verde",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11452,
+              "variantId": 11180,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.216Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1759,
+      "title": "Vestido midi",
+      "description": "Vestido midi de silueta fluida, femenino y facil de llevar.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.222Z",
+      "published": true,
+      "slug": "vestido-midi",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1759,
+          "categoryId": 221,
+          "category": {
+            "id": 221,
+            "name": "Vestidos",
+            "slug": "vestidos",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/vestido-midi.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3478,
+          "productId": 1759,
+          "url": "/images/comovosyyo/products/vestido-midi.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9123,
+          "productOptionId": 58,
+          "productId": 1759,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.222Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9124,
+          "productOptionId": 58,
+          "productId": 1759,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.222Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9125,
+          "productOptionId": 58,
+          "productId": 1759,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.222Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9126,
+          "productOptionId": 58,
+          "productId": 1759,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.222Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9127,
+          "productOptionId": 57,
+          "productId": 1759,
+          "value": "Negro",
+          "createdAt": "2026-05-18T17:57:32.222Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9128,
+          "productOptionId": 57,
+          "productId": 1759,
+          "value": "Chocolate",
+          "createdAt": "2026-05-18T17:57:32.222Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11181,
+          "productId": 1759,
+          "sku": "CVY-009-NEG-S",
+          "price": "84990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11453,
+              "variantId": 11181,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.222Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11182,
+          "productId": 1759,
+          "sku": "CVY-009-NEG-M",
+          "price": "85490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11454,
+              "variantId": 11182,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.222Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11183,
+          "productId": 1759,
+          "sku": "CVY-009-NEG-L",
+          "price": "85990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11455,
+              "variantId": 11183,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.222Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11184,
+          "productId": 1759,
+          "sku": "CVY-009-NEG-XL",
+          "price": "86490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11456,
+              "variantId": 11184,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.222Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11185,
+          "productId": 1759,
+          "sku": "CVY-009-CHO-S",
+          "price": "86490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11457,
+              "variantId": 11185,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.222Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11186,
+          "productId": 1759,
+          "sku": "CVY-009-CHO-M",
+          "price": "86990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11458,
+              "variantId": 11186,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.222Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11187,
+          "productId": 1759,
+          "sku": "CVY-009-CHO-L",
+          "price": "87490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11459,
+              "variantId": 11187,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.222Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11188,
+          "productId": 1759,
+          "sku": "CVY-009-CHO-XL",
+          "price": "87990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11460,
+              "variantId": 11188,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.222Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1760,
+      "title": "Campera de jean",
+      "description": "Campera denim clasica con lavado medio y estructura versatil.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.228Z",
+      "published": true,
+      "slug": "campera-de-jean",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1760,
+          "categoryId": 220,
+          "category": {
+            "id": 220,
+            "name": "Abrigos",
+            "slug": "abrigos",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/blazer-clasico.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3479,
+          "productId": 1760,
+          "url": "/images/comovosyyo/products/campera-de-jean.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9129,
+          "productOptionId": 58,
+          "productId": 1760,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.228Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9130,
+          "productOptionId": 58,
+          "productId": 1760,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.228Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9131,
+          "productOptionId": 58,
+          "productId": 1760,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.228Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9132,
+          "productOptionId": 58,
+          "productId": 1760,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.228Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9133,
+          "productOptionId": 57,
+          "productId": 1760,
+          "value": "Jean",
+          "createdAt": "2026-05-18T17:57:32.228Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9134,
+          "productOptionId": 57,
+          "productId": 1760,
+          "value": "Negro",
+          "createdAt": "2026-05-18T17:57:32.228Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11189,
+          "productId": 1760,
+          "sku": "CVY-010-JEA-S",
+          "price": "89990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Jean",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11461,
+              "variantId": 11189,
+              "quantity": 14,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.228Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11190,
+          "productId": 1760,
+          "sku": "CVY-010-JEA-M",
+          "price": "90490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Jean",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11462,
+              "variantId": 11190,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.228Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11191,
+          "productId": 1760,
+          "sku": "CVY-010-JEA-L",
+          "price": "90990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Jean",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11463,
+              "variantId": 11191,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.228Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11192,
+          "productId": 1760,
+          "sku": "CVY-010-JEA-XL",
+          "price": "91490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Jean",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11464,
+              "variantId": 11192,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.228Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11193,
+          "productId": 1760,
+          "sku": "CVY-010-NEG-S",
+          "price": "91490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11465,
+              "variantId": 11193,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.228Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11194,
+          "productId": 1760,
+          "sku": "CVY-010-NEG-M",
+          "price": "91990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11466,
+              "variantId": 11194,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.228Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11195,
+          "productId": 1760,
+          "sku": "CVY-010-NEG-L",
+          "price": "92490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11467,
+              "variantId": 11195,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.228Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11196,
+          "productId": 1760,
+          "sku": "CVY-010-NEG-XL",
+          "price": "92990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11468,
+              "variantId": 11196,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.228Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1761,
+      "title": "Blusa satinada",
+      "description": "Blusa de caida suave con brillo sutil para looks mas arreglados.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.236Z",
+      "published": true,
+      "slug": "blusa-satinada",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1761,
+          "categoryId": 217,
+          "category": {
+            "id": 217,
+            "name": "Camisas",
+            "slug": "camisas",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/camisa-oversize-lino.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3480,
+          "productId": 1761,
+          "url": "/images/comovosyyo/products/blusa-satinada.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9135,
+          "productOptionId": 58,
+          "productId": 1761,
+          "value": "S",
+          "createdAt": "2026-05-18T17:57:32.236Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9136,
+          "productOptionId": 58,
+          "productId": 1761,
+          "value": "M",
+          "createdAt": "2026-05-18T17:57:32.236Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9137,
+          "productOptionId": 58,
+          "productId": 1761,
+          "value": "L",
+          "createdAt": "2026-05-18T17:57:32.236Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9138,
+          "productOptionId": 58,
+          "productId": 1761,
+          "value": "XL",
+          "createdAt": "2026-05-18T17:57:32.236Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9139,
+          "productOptionId": 57,
+          "productId": 1761,
+          "value": "Blanco",
+          "createdAt": "2026-05-18T17:57:32.236Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9140,
+          "productOptionId": 57,
+          "productId": 1761,
+          "value": "Chocolate",
+          "createdAt": "2026-05-18T17:57:32.236Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11197,
+          "productId": 1761,
+          "sku": "CVY-011-BLA-S",
+          "price": "67990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11469,
+              "variantId": 11197,
+              "quantity": 16,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.236Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11198,
+          "productId": 1761,
+          "sku": "CVY-011-BLA-M",
+          "price": "68490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11470,
+              "variantId": 11198,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.236Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11199,
+          "productId": 1761,
+          "sku": "CVY-011-BLA-L",
+          "price": "68990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11471,
+              "variantId": 11199,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.236Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11200,
+          "productId": 1761,
+          "sku": "CVY-011-BLA-XL",
+          "price": "69490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 6,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Blanco",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11472,
+              "variantId": 11200,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.236Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11201,
+          "productId": 1761,
+          "sku": "CVY-011-CHO-S",
+          "price": "69490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 28,
+          "weight": 0.72,
+          "width": 34,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11473,
+              "variantId": 11201,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.236Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11202,
+          "productId": 1761,
+          "sku": "CVY-011-CHO-M",
+          "price": "69990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 29,
+          "weight": 0.76,
+          "width": 35,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11474,
+              "variantId": 11202,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.236Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11203,
+          "productId": 1761,
+          "sku": "CVY-011-CHO-L",
+          "price": "70490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 30,
+          "weight": 0.7999999999999999,
+          "width": 36,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11475,
+              "variantId": 11203,
+              "quantity": 10,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.236Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11204,
+          "productId": 1761,
+          "sku": "CVY-011-CHO-XL",
+          "price": "70990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 7,
+          "length": 31,
+          "weight": 0.84,
+          "width": 37,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "XL",
+          "inventories": [
+            {
+              "id": 11476,
+              "variantId": 11204,
+              "quantity": 12,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.236Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1762,
+      "title": "Tote bag",
+      "description": "Bolso amplio y estructurado para acompanar la rutina diaria.",
+      "storeId": 7,
+      "weightGrams": null,
+      "packageHeightCm": null,
+      "packageWidthCm": null,
+      "packageLengthCm": null,
+      "packagingTemplateId": null,
+      "createdAt": "2026-05-18T17:57:32.242Z",
+      "published": true,
+      "slug": "tote-bag",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1762,
+          "categoryId": 219,
+          "category": {
+            "id": 219,
+            "name": "Accesorios",
+            "slug": "accesorios",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/tote-bag.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3481,
+          "productId": 1762,
+          "url": "/images/comovosyyo/products/tote-bag.png",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9141,
+          "productOptionId": 58,
+          "productId": 1762,
+          "value": "Unico",
+          "createdAt": "2026-05-18T17:57:32.242Z",
+          "productOption": {
+            "id": 58,
+            "name": "Talle",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        },
+        {
+          "id": 9142,
+          "productOptionId": 57,
+          "productId": 1762,
+          "value": "Beige",
+          "createdAt": "2026-05-18T17:57:32.242Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        },
+        {
+          "id": 9143,
+          "productOptionId": 57,
+          "productId": 1762,
+          "value": "Chocolate",
+          "createdAt": "2026-05-18T17:57:32.242Z",
+          "productOption": {
+            "id": 57,
+            "name": "Color",
+            "storeId": 7,
+            "attributeType": "color",
+            "createdAt": "2026-05-18T17:57:32.140Z",
+            "updatedAt": "2026-05-29T21:08:42.199Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11205,
+          "productId": 1762,
+          "sku": "CVY-012-BEI-UNI",
+          "price": "45990",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 28,
+          "length": 14,
+          "weight": 0.6,
+          "width": 38,
+          "deletedAt": null,
+          "Color": "Beige",
+          "Size": "Unico",
+          "inventories": [
+            {
+              "id": 11477,
+              "variantId": 11205,
+              "quantity": 18,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.242Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11206,
+          "productId": 1762,
+          "sku": "CVY-012-CHO-UNI",
+          "price": "47490",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": 28,
+          "length": 14,
+          "weight": 0.6,
+          "width": 38,
+          "deletedAt": null,
+          "Color": "Chocolate",
+          "Size": "Unico",
+          "inventories": [
+            {
+              "id": 11478,
+              "variantId": 11206,
+              "quantity": 8,
+              "reserved": 0,
+              "updatedAt": "2026-05-18T17:57:32.242Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1775,
+      "title": "Remera test",
+      "description": "Esto es una remera test",
+      "storeId": 7,
+      "weightGrams": 250,
+      "packageHeightCm": 4,
+      "packageWidthCm": 22,
+      "packageLengthCm": 28,
+      "packagingTemplateId": "small-bag",
+      "createdAt": "2026-05-29T19:28:09.782Z",
+      "published": true,
+      "slug": "remera-test",
+      "deletedAt": null,
+      "categories": [
+        {
+          "productId": 1775,
+          "categoryId": 216,
+          "category": {
+            "id": 216,
+            "name": "Remeras",
+            "slug": "remeras",
+            "description": null,
+            "status": "active",
+            "parentId": null,
+            "storeId": 7,
+            "createdAt": "2026-05-18T17:57:32.083Z",
+            "updatedAt": "2026-05-29T18:25:13.901Z",
+            "deletedAt": null,
+            "imageUrl": "/images/comovosyyo/products/remera-basica.png"
+          }
+        }
+      ],
+      "images": [
+        {
+          "id": 3496,
+          "productId": 1775,
+          "url": "/uploads/1780082889863-939320007.jpg",
+          "position": 0,
+          "offsetX": 0,
+          "offsetY": 0,
+          "zoom": 1
+        },
+        {
+          "id": 3497,
+          "productId": 1775,
+          "url": "/uploads/1780082892230-495623531.jpg",
+          "position": 1,
+          "offsetX": -8.051143564415073,
+          "offsetY": -6.155467907946324,
+          "zoom": 2.360000000000001
+        },
+        {
+          "id": 3498,
+          "productId": 1775,
+          "url": "/uploads/1780082894142-809587986.jpg",
+          "position": 2,
+          "offsetX": -40,
+          "offsetY": -4.716981132075472,
+          "zoom": 1
+        }
+      ],
+      "optionValues": [
+        {
+          "id": 9227,
+          "productOptionId": 61,
+          "productId": 1775,
+          "value": "Verano",
+          "createdAt": "2026-05-29T19:43:17.705Z",
+          "productOption": {
+            "id": 61,
+            "name": "Estacion",
+            "storeId": 7,
+            "attributeType": "text",
+            "createdAt": "2026-05-29T19:28:56.752Z",
+            "updatedAt": "2026-05-29T17:16:16.826Z"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "id": 11297,
+          "productId": 1775,
+          "sku": "REMERA-TEST-NEGRO-S",
+          "price": "15000",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 45,
+          "weight": null,
+          "width": 23,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "S",
+          "inventories": [
+            {
+              "id": 11585,
+              "variantId": 11297,
+              "quantity": 5,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T19:43:17.739Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11298,
+          "productId": 1775,
+          "sku": "REMERA-TEST-NEGRO-M",
+          "price": "15000",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 46,
+          "weight": null,
+          "width": 23,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "M",
+          "inventories": [
+            {
+              "id": 11586,
+              "variantId": 11298,
+              "quantity": 3,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T19:43:17.747Z",
+              "storeId": 7
+            }
+          ]
+        },
+        {
+          "id": 11299,
+          "productId": 1775,
+          "sku": "REMERA-TEST-NEGRO-L",
+          "price": "15000",
+          "weightGrams": null,
+          "packageHeightCm": null,
+          "packageWidthCm": null,
+          "packageLengthCm": null,
+          "height": null,
+          "length": 47,
+          "weight": null,
+          "width": 23,
+          "deletedAt": null,
+          "Color": "Negro",
+          "Size": "L",
+          "inventories": [
+            {
+              "id": 11587,
+              "variantId": 11299,
+              "quantity": 5,
+              "reserved": 0,
+              "updatedAt": "2026-05-29T19:43:17.751Z",
+              "storeId": 7
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

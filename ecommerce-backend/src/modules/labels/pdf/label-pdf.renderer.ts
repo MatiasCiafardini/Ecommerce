@@ -17,6 +17,7 @@ export type PrintableLabel = {
   normalPrice: string;
   transferPrice: string | null;
   storeName: string;
+  storeAddress?: string | null;
   logoUrl?: string | null;
 };
 
@@ -165,6 +166,19 @@ export class LabelPdfRenderer {
           });
           cursorY -= this.lineStep(template, 4.4);
         }
+
+        if (label.storeAddress) {
+          const addressSize = this.fontSize(template, 3.8);
+          if (this.hasRoom(cursorY, addressSize, contentBottom)) {
+            this.drawText(page, fonts, {
+              x: innerX,
+              y: cursorY,
+              text: this.fitText(label.storeAddress, innerWidth, addressSize),
+              size: addressSize,
+            });
+            cursorY -= this.lineStep(template, 3.5);
+          }
+        }
       }
 
       if (options.showProductName) {
@@ -307,6 +321,17 @@ export class LabelPdfRenderer {
         bold: true,
       });
       cursorY -= metaSize + 2;
+
+      if (label.storeAddress) {
+        const addressSize = this.fontSize(template, 3.5);
+        this.drawText(page, fonts, {
+          x: contentX,
+          y: cursorY,
+          text: this.fitText(label.storeAddress, contentWidth, addressSize),
+          size: addressSize,
+        });
+        cursorY -= addressSize + 1.6;
+      }
     }
 
     if (options.showProductName) {
@@ -421,6 +446,17 @@ export class LabelPdfRenderer {
       bold: true,
     });
     cursorY -= titleSize + 8;
+
+    if (label.storeAddress) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: cursorY,
+        text: this.fitText(label.storeAddress, contentWidth, bodySize),
+        size: bodySize,
+        bold: true,
+      });
+      cursorY -= bodySize + 5;
+    }
 
     [
       `Producto: ${label.productName}`,

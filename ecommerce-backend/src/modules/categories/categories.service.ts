@@ -8,11 +8,18 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateCategoryDto, storeId: number) {
-    const name = dto.name.trim();
-    if (!name) {
+  private normalizeCategoryName(name: string | undefined | null) {
+    const normalizedName = name?.trim() ?? '';
+
+    if (!normalizedName) {
       throw new BadRequestException('Category name is required');
     }
+
+    return normalizedName;
+  }
+
+  async create(dto: CreateCategoryDto, storeId: number) {
+    const name = this.normalizeCategoryName(dto.name);
 
     await this.ensureValidParent(dto.parentId, storeId);
     const baseSlug = generateSlug(name);
@@ -59,8 +66,10 @@ export class CategoriesService {
 
     let slug = current.slug;
 
-    if (dto.name && dto.name.trim() && dto.name.trim() !== current.name) {
-      const baseSlug = generateSlug(dto.name);
+    const nextName = dto.name === undefined ? current.name : this.normalizeCategoryName(dto.name);
+
+    if (nextName !== current.name) {
+      const baseSlug = generateSlug(nextName);
       slug = baseSlug;
       let counter = 1;
 
@@ -80,7 +89,7 @@ export class CategoriesService {
     return this.prisma.category.update({
       where: { id },
       data: {
-        name: dto.name?.trim() || current.name,
+        name: nextName,
         slug,
         description:
           dto.description !== undefined ? dto.description.trim() || null : current.description,

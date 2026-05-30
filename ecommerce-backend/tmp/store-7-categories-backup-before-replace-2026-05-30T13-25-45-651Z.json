@@ -1,0 +1,204 @@
+{
+  "storeId": 7,
+  "backedUpAt": "2026-05-30T13:25:45.703Z",
+  "categories": [
+    {
+      "id": 216,
+      "name": "Remeras",
+      "slug": "remeras",
+      "description": null,
+      "status": "active",
+      "parentId": null,
+      "storeId": 7,
+      "createdAt": "2026-05-18T17:57:32.083Z",
+      "updatedAt": "2026-05-29T18:25:13.901Z",
+      "deletedAt": null,
+      "imageUrl": "/images/comovosyyo/products/remera-basica.png",
+      "products": [
+        {
+          "productId": 1757,
+          "categoryId": 216
+        },
+        {
+          "productId": 1775,
+          "categoryId": 216
+        }
+      ],
+      "children": [],
+      "parent": null,
+      "discountTargets": []
+    },
+    {
+      "id": 217,
+      "name": "Camisas",
+      "slug": "camisas",
+      "description": null,
+      "status": "active",
+      "parentId": null,
+      "storeId": 7,
+      "createdAt": "2026-05-18T17:57:32.083Z",
+      "updatedAt": "2026-05-29T18:25:13.901Z",
+      "deletedAt": null,
+      "imageUrl": "/images/comovosyyo/products/camisa-oversize-lino.png",
+      "products": [
+        {
+          "productId": 1751,
+          "categoryId": 217
+        },
+        {
+          "productId": 1761,
+          "categoryId": 217
+        }
+      ],
+      "children": [],
+      "parent": null,
+      "discountTargets": []
+    },
+    {
+      "id": 218,
+      "name": "Pantalones",
+      "slug": "pantalones",
+      "description": null,
+      "status": "active",
+      "parentId": null,
+      "storeId": 7,
+      "createdAt": "2026-05-18T17:57:32.083Z",
+      "updatedAt": "2026-05-29T18:25:13.901Z",
+      "deletedAt": null,
+      "imageUrl": "/images/comovosyyo/products/jean-wide-leg.png",
+      "products": [
+        {
+          "productId": 1752,
+          "categoryId": 218
+        },
+        {
+          "productId": 1756,
+          "categoryId": 218
+        }
+      ],
+      "children": [],
+      "parent": null,
+      "discountTargets": []
+    },
+    {
+      "id": 219,
+      "name": "Accesorios",
+      "slug": "accesorios",
+      "description": null,
+      "status": "active",
+      "parentId": null,
+      "storeId": 7,
+      "createdAt": "2026-05-18T17:57:32.083Z",
+      "updatedAt": "2026-05-29T18:25:13.901Z",
+      "deletedAt": null,
+      "imageUrl": "/images/comovosyyo/products/tote-bag.png",
+      "products": [
+        {
+          "productId": 1762,
+          "categoryId": 219
+        },
+        {
+          "productId": 1776,
+          "categoryId": 219
+        }
+      ],
+      "children": [],
+      "parent": null,
+      "discountTargets": []
+    },
+    {
+      "id": 220,
+      "name": "Abrigos",
+      "slug": "abrigos",
+      "description": null,
+      "status": "active",
+      "parentId": null,
+      "storeId": 7,
+      "createdAt": "2026-05-18T17:57:32.083Z",
+      "updatedAt": "2026-05-29T18:25:13.901Z",
+      "deletedAt": null,
+      "imageUrl": "/images/comovosyyo/products/blazer-clasico.png",
+      "products": [
+        {
+          "productId": 1753,
+          "categoryId": 220
+        },
+        {
+          "productId": 1754,
+          "categoryId": 220
+        },
+        {
+          "productId": 1755,
+          "categoryId": 220
+        },
+        {
+          "productId": 1758,
+          "categoryId": 220
+        },
+        {
+          "productId": 1760,
+          "categoryId": 220
+        }
+      ],
+      "children": [],
+      "parent": null,
+      "discountTargets": []
+    },
+    {
+      "id": 221,
+      "name": "Vestidos",
+      "slug": "vestidos",
+      "description": null,
+      "status": "active",
+      "parentId": null,
+      "storeId": 7,
+      "createdAt": "2026-05-18T17:57:32.083Z",
+      "updatedAt": "2026-05-29T18:25:13.901Z",
+      "deletedAt": null,
+      "imageUrl": "/images/comovosyyo/products/vestido-midi.png",
+      "products": [
+        {
+          "productId": 1759,
+          "categoryId": 221
+        }
+      ],
+      "children": [],
+      "parent": null,
+      "discountTargets": []
+    },
+    {
+      "id": 228,
+      "name": "CodexCat1780147420709",
+      "slug": "codexcat1780147420709",
+      "description": null,
+      "status": "active",
+      "parentId": null,
+      "storeId": 7,
+      "createdAt": "2026-05-30T13:23:40.839Z",
+      "updatedAt": "2026-05-30T13:23:40.875Z",
+      "deletedAt": "2026-05-30T13:23:40.873Z",
+      "imageUrl": null,
+      "products": [],
+      "children": [],
+      "parent": null,
+      "discountTargets": []
+    },
+    {
+      "id": 229,
+      "name": "CodexCatVerify1780147490427",
+      "slug": "codexcatverify1780147490427",
+      "description": null,
+      "status": "active",
+      "parentId": null,
+      "storeId": 7,
+      "createdAt": "2026-05-30T13:24:50.532Z",
+      "updatedAt": "2026-05-30T13:24:50.559Z",
+      "deletedAt": "2026-05-30T13:24:50.558Z",
+      "imageUrl": null,
+      "products": [],
+      "children": [],
+      "parent": null,
+      "discountTargets": []
+    }
+  ]
+}
