@@ -294,7 +294,7 @@ async function main() {
 
   await prisma.store.update({
     where: { id: STORE_ID },
-    data: { storefrontConfig: storefrontConfig as any },
+    data: { storefrontConfig: storefrontConfig as any, manualSalesEnabled: true },
   });
 
   await resetStoreCatalog(STORE_ID);

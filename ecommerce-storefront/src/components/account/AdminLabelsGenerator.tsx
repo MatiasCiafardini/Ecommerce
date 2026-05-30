@@ -667,7 +667,7 @@ export default function AdminLabelsGenerator() {
             {(preview?.labels ?? []).map((label) => (
               <div
                 key={label.id}
-                className={`admin-label-preview-card admin-label-layout-${preview?.template.layout ?? "legacy"}`}
+                className={`admin-label-preview-card admin-label-layout-${preview?.template.layout ?? "legacy"} admin-label-template-${preview?.template.key.toLowerCase() ?? "unknown"}`}
                 style={labelPreviewStyle(preview?.template)}
               >
                 {renderPreviewLabel(label, preview)}
@@ -788,7 +788,7 @@ export default function AdminLabelsGenerator() {
 
         .admin-label-preview-barcode svg {
           width: 100%;
-          height: 30px;
+          height: 40px;
           display: block;
           flex: 0 0 auto;
         }
@@ -799,11 +799,16 @@ export default function AdminLabelsGenerator() {
 
         .admin-label-layout-compact_cut_price .admin-label-preview-copy strong,
         .admin-label-layout-compact_cut_price .admin-label-preview-copy span {
-          font-size: 6px;
+          font-size: 8px;
         }
 
         .admin-label-layout-compact_cut_price .admin-label-preview-barcode svg {
-          height: 20px;
+          height: 40px;
+        }
+
+        .admin-label-template-brother_ql570_62x29_clothing .admin-label-preview-barcode svg,
+        .admin-label-template-brother_ql570_29x90 .admin-label-preview-barcode svg {
+          height: 56px;
         }
 
         .admin-label-layout-compact_cut_price .admin-label-price-zone {
@@ -814,7 +819,24 @@ export default function AdminLabelsGenerator() {
         }
 
         .admin-label-layout-compact_cut_price .admin-label-price-zone b {
+          font-size: 12px;
+        }
+
+        .admin-label-template-brother_ql570_29x90 .admin-label-preview-card,
+        .admin-label-template-brother_ql570_29x90 {
+          gap: 6px;
+        }
+
+        .admin-label-template-brother_ql570_29x90 .admin-label-preview-copy strong {
           font-size: 10px;
+        }
+
+        .admin-label-template-brother_ql570_29x90 .admin-label-preview-copy span {
+          font-size: 9px;
+        }
+
+        .admin-label-template-brother_ql570_29x90 .admin-label-price-zone b {
+          font-size: 16px;
         }
 
         .admin-label-layout-shipping {

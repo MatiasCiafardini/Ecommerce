@@ -210,7 +210,7 @@ export class LabelPdfRenderer {
         }
       }
 
-      this.drawBarcode(page, label.sku, innerX, barcodeY, innerWidth, barcodeHeight);
+      this.drawBarcode(page, label.sku, innerX, barcodeY, innerWidth, barcodeHeight, template);
 
       if (options.showSku) {
         this.drawText(page, fonts, {
@@ -239,18 +239,29 @@ export class LabelPdfRenderer {
     });
   }
 
-  private drawBarcode(page: PDFPage, sku: string, x: number, y: number, width: number, height: number) {
+  private drawBarcode(
+    page: PDFPage,
+    sku: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    template: LabelTemplate,
+  ) {
     const vector = this.barcode.toVector(sku);
     if (!vector.width || !vector.height) return;
 
     const scaleX = width / vector.width;
     const scaleY = height / vector.height;
+    const barWidthRatio = this.barWidthRatio(template);
 
     vector.bars.forEach((bar) => {
+      const scaledWidth = bar.width * scaleX;
+      const adjustedWidth = Math.max(0.18, scaledWidth * barWidthRatio);
       page.drawRectangle({
-        x: x + bar.x * scaleX,
+        x: x + bar.x * scaleX + (scaledWidth - adjustedWidth) / 2,
         y: y + (vector.height - bar.y - bar.height) * scaleY,
-        width: Math.max(0.35, bar.width * scaleX),
+        width: adjustedWidth,
         height: Math.max(0.35, bar.height * scaleY),
         color: rgb(0, 0, 0),
       });
@@ -269,7 +280,7 @@ export class LabelPdfRenderer {
     const dividerX = box.x + box.width - priceWidth;
     const contentX = box.x + box.padding;
     const contentWidth = box.width - priceWidth - box.padding * 2 - mmToPt(1);
-    const barcodeHeight = mmToPt(7.6);
+    const barcodeHeight = mmToPt(this.cutPriceBarcodeHeightMm(template, false));
     const barcodeY = box.y + box.padding + (options.showSku ? mmToPt(3.1) : 0);
     const titleSize = this.fontSize(template, 5.2);
     const metaSize = this.fontSize(template, 4.2);
@@ -283,6 +294,7 @@ export class LabelPdfRenderer {
         width: priceWidth - mmToPt(2),
         height: box.height - box.padding * 2,
         compact: false,
+        template,
       });
     }
 
@@ -317,7 +329,7 @@ export class LabelPdfRenderer {
       });
     }
 
-    this.drawBarcode(page, label.sku, contentX, barcodeY, contentWidth, barcodeHeight);
+    this.drawBarcode(page, label.sku, contentX, barcodeY, contentWidth, barcodeHeight, template);
 
     if (options.showSku) {
       this.drawText(page, fonts, {
@@ -343,7 +355,7 @@ export class LabelPdfRenderer {
     const contentWidth = box.width - priceWidth - box.padding * 2 - mmToPt(0.8);
     const titleSize = this.fontSize(template, 4);
     const skuSize = this.fontSize(template, 3.4);
-    const barcodeHeight = mmToPt(5);
+    const barcodeHeight = mmToPt(this.cutPriceBarcodeHeightMm(template, true));
 
     if (options.priceMode !== 'none') {
       this.drawCutLine(page, dividerX, box.y, box.height);
@@ -353,6 +365,7 @@ export class LabelPdfRenderer {
         width: priceWidth - mmToPt(1.4),
         height: box.height - box.padding * 2,
         compact: true,
+        template,
       });
     }
 
@@ -366,7 +379,15 @@ export class LabelPdfRenderer {
       });
     }
 
-    this.drawBarcode(page, label.sku, contentX, box.y + box.padding + mmToPt(2.8), contentWidth, barcodeHeight);
+    this.drawBarcode(
+      page,
+      label.sku,
+      contentX,
+      box.y + box.padding + mmToPt(2.8),
+      contentWidth,
+      barcodeHeight,
+      template,
+    );
 
     if (options.showSku) {
       this.drawText(page, fonts, {
@@ -417,7 +438,7 @@ export class LabelPdfRenderer {
         cursorY -= bodySize + 5;
       });
 
-    this.drawBarcode(page, label.sku, contentX, box.y + box.padding + mmToPt(8), contentWidth, mmToPt(18));
+    this.drawBarcode(page, label.sku, contentX, box.y + box.padding + mmToPt(8), contentWidth, mmToPt(18), template);
     this.drawText(page, fonts, {
       x: contentX,
       y: box.y + box.padding,
@@ -431,11 +452,12 @@ export class LabelPdfRenderer {
     fonts: PdfFonts,
     label: PrintableLabel,
     options: Required<LabelOptionsDto>,
-    box: { x: number; y: number; width: number; height: number; compact: boolean },
+    box: { x: number; y: number; width: number; height: number; compact: boolean; template: LabelTemplate },
   ) {
     const priceLines = this.resolvePriceLines(label, options);
-    const labelSize = box.compact ? 3.7 : 4.4;
-    const priceSize = box.compact ? 6.2 : 8.4;
+    const scale = this.readabilityScale(box.template);
+    const labelSize = (box.compact ? 3.7 : 4.4) * scale;
+    const priceSize = (box.compact ? 6.2 : 8.4) * scale;
     const captionGap = box.compact ? 1 : 1.6;
     const groupGap = box.compact ? 1.8 : 2.8;
     const blockHeight = priceLines.reduce(
@@ -583,7 +605,35 @@ export class LabelPdfRenderer {
   }
 
   private fontSize(template: LabelTemplate, base: number) {
+    if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') {
+      return base + 0.8;
+    }
+
+    if (template.key === 'BROTHER_QL570_29X90') {
+      return base + 1.1;
+    }
+
     return template.key.startsWith('THERMAL') ? base + 1.4 : base;
+  }
+
+  private readabilityScale(template: LabelTemplate) {
+    if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') return 1.15;
+    if (template.key === 'BROTHER_QL570_29X90') return 1.15;
+    return 1;
+  }
+
+  private cutPriceBarcodeHeightMm(template: LabelTemplate, compact: boolean) {
+    if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') return 9;
+    if (template.key === 'BROTHER_QL570_62X29_CLOTHING') return 14;
+    if (template.key === 'BROTHER_QL570_29X90') return 14;
+    return compact ? 5 : 7.6;
+  }
+
+  private barWidthRatio(template: LabelTemplate) {
+    if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') return 0.72;
+    if (template.key === 'BROTHER_QL570_62X29_CLOTHING') return 0.76;
+    if (template.key === 'BROTHER_QL570_29X90') return 0.76;
+    return 0.86;
   }
 
   private lineStep(template: LabelTemplate, base: number) {

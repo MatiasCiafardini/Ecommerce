@@ -851,6 +851,7 @@ async function ensureDevelopmentStores() {
                     definition.id === 7
                       ? (COMOVOSYYO_STOREFRONT_CONFIG as any)
                       : (MILASHOES_STOREFRONT_CONFIG as any),
+                  ...(definition.id === 7 ? { manualSalesEnabled: true } : {}),
                 }
               : {}),
           },
@@ -869,6 +870,7 @@ async function ensureDevelopmentStores() {
                     definition.id === 7
                       ? (COMOVOSYYO_STOREFRONT_CONFIG as any)
                       : (MILASHOES_STOREFRONT_CONFIG as any),
+                  ...(definition.id === 7 ? { manualSalesEnabled: true } : {}),
                 }
               : {}),
           },

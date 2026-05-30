@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import ThemeSelect from "@/components/ui/ThemeSelect";
 import { money } from "./order-utils";
@@ -73,6 +73,9 @@ const getProductBasePrice = (product: ManualSaleProduct) => {
   return prices.length > 0 ? Math.min(...prices) : 0;
 };
 
+const normalizeScannerSkuInput = (value: string) =>
+  value.replace(/['’‘`´ʼʹ′＇]/g, "-");
+
 export default function AdminManualSalesSection({
   onSaleRegistered,
 }: {
@@ -94,6 +97,7 @@ export default function AdminManualSalesSection({
   const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<Record<number, string>>(
     {},
   );
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -111,15 +115,16 @@ export default function AdminManualSalesSection({
   }, []);
 
   const filteredProducts = useMemo(() => {
-    const query = productQuery.trim().toLowerCase();
+    const query = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
 
     return products.filter((product) => {
       if (!query) return true;
 
-      const variantsText = (product.variants ?? [])
+      const variantsText = normalizeScannerSkuInput(
+        (product.variants ?? [])
         .map((variant) => [variant.sku, variant.Size, variant.Color].filter(Boolean).join(" "))
-        .join(" ")
-        .toLowerCase();
+          .join(" "),
+      ).toLowerCase();
 
       return (
         product.title.toLowerCase().includes(query) ||
@@ -178,6 +183,43 @@ export default function AdminManualSalesSection({
         },
       ];
     });
+  };
+
+  const focusSearchInput = () => {
+    window.requestAnimationFrame(() => searchInputRef.current?.focus());
+  };
+
+  const addScannedVariant = () => {
+    const normalizedQuery = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
+    if (!normalizedQuery) return;
+
+    if (filteredProducts.length !== 1) {
+      setError("El escaneo debe dejar una unica coincidencia antes de agregar.");
+      focusSearchInput();
+      return;
+    }
+
+    const product = filteredProducts[0];
+    const variant = (product.variants ?? []).find(
+      (entry) =>
+        normalizeScannerSkuInput(String(entry.sku ?? "")).trim().toLowerCase() ===
+        normalizedQuery,
+    );
+
+    if (!variant) {
+      setError("No encontramos una variante con ese SKU exacto.");
+      focusSearchInput();
+      return;
+    }
+
+    addVariant(product, variant);
+    setProductQuery("");
+    setSelectedVariantByProduct((current) => {
+      const next = { ...current };
+      delete next[product.id];
+      return next;
+    });
+    focusSearchInput();
   };
 
   const handleVariantSelectionChange = (productId: number, value: string) => {
@@ -315,8 +357,25 @@ export default function AdminManualSalesSection({
             </div>
 
             <input
+              ref={searchInputRef}
               value={productQuery}
-              onChange={(event) => setProductQuery(event.target.value)}
+              onChange={(event) => {
+                const normalizedValue = normalizeScannerSkuInput(event.target.value);
+                event.currentTarget.value = normalizedValue;
+                setProductQuery(normalizedValue);
+              }}
+              onInput={(event) => {
+                const normalizedValue = normalizeScannerSkuInput(event.currentTarget.value);
+                if (event.currentTarget.value !== normalizedValue) {
+                  event.currentTarget.value = normalizedValue;
+                  setProductQuery(normalizedValue);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                addScannedVariant();
+              }}
               placeholder="Buscar por nombre, slug o SKU"
               style={fieldStyle}
             />

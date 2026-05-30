@@ -2,6 +2,7 @@ export type LabelTemplateKey =
   | 'BROTHER_QL570_62X29_CLOTHING'
   | 'BROTHER_QL570_54X17_ACCESSORY'
   | 'BROTHER_DK2205_SHIPPING'
+  | 'BROTHER_QL570_29X90'
   | 'A4_50x25'
   | 'A4_40x30'
   | 'THERMAL_58'
@@ -62,14 +63,14 @@ export const LABEL_TEMPLATES: Record<LabelTemplateKey, LabelTemplate> = {
   BROTHER_QL570_54X17_ACCESSORY: {
     key: 'BROTHER_QL570_54X17_ACCESSORY',
     id: 'BROTHER_QL570_54X17_ACCESSORY',
-    name: 'Etiqueta chica accesorios 54x17 mm',
+    name: 'Etiqueta chica accesorios 54x16.9 mm',
     type: 'accessory',
     useCase: 'accessory',
     layout: 'compact_cut_price',
     fields: ['productName', 'sku', 'barcode', 'price'],
     priceOptions: ['normal', 'transfer', 'both', 'none'],
-    page: { widthMm: 54, heightMm: 17 },
-    label: { widthMm: 54, heightMm: 17, paddingMm: 1.4 },
+    page: { widthMm: 54, heightMm: 16.9 },
+    label: { widthMm: 54, heightMm: 16.9, paddingMm: 1.2 },
     margins: { topMm: 0, rightMm: 0, bottomMm: 0, leftMm: 0 },
     grid: { columns: 1, rows: 1, columnSpacingMm: 0, rowSpacingMm: 0 },
   },
@@ -85,6 +86,20 @@ export const LABEL_TEMPLATES: Record<LabelTemplateKey, LabelTemplate> = {
     priceOptions: ['none'],
     page: { widthMm: 62, heightMm: 90 },
     label: { widthMm: 62, heightMm: 90, paddingMm: 3 },
+    margins: { topMm: 0, rightMm: 0, bottomMm: 0, leftMm: 0 },
+    grid: { columns: 1, rows: 1, columnSpacingMm: 0, rowSpacingMm: 0 },
+  },
+  BROTHER_QL570_29X90: {
+    key: 'BROTHER_QL570_29X90',
+    id: 'BROTHER_QL570_29X90',
+    name: 'Etiqueta 89.83x28.96 mm horizontal',
+    type: 'generic',
+    useCase: 'generic',
+    layout: 'product_cut_price',
+    fields: ['storeName', 'productName', 'variantName', 'sku', 'barcode', 'price'],
+    priceOptions: ['normal', 'transfer', 'both', 'none'],
+    page: { widthMm: 89.83, heightMm: 28.96 },
+    label: { widthMm: 89.83, heightMm: 28.96, paddingMm: 2 },
     margins: { topMm: 0, rightMm: 0, bottomMm: 0, leftMm: 0 },
     grid: { columns: 1, rows: 1, columnSpacingMm: 0, rowSpacingMm: 0 },
   },
