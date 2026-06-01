@@ -24,6 +24,11 @@ export class CreateVariantDto {
   @IsString()
   Color?: string;
 
+  @ApiPropertyOptional({ example: 'Cintura 38' })
+  @IsOptional()
+  @IsString()
+  waistSize?: string;
+
   @ApiPropertyOptional({ example: 0.4 })
   @IsOptional()
   @IsNumber()

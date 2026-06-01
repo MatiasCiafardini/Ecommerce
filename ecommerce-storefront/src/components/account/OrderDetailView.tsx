@@ -16,6 +16,8 @@ import {
   orderShippingAddressLines,
   orderShippingRecipient,
   orderStatusLabel,
+  paymentDisplayLabel,
+  paymentStatusLabel,
   shipmentTimeline,
 } from "./order-utils";
 
@@ -125,7 +127,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
         body: JSON.stringify({}),
       });
       await reloadOrder();
-      setActionSuccess("El pedido se cancel� correctamente.");
+      setActionSuccess("El pedido se canceló correctamente.");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "No se pudo cancelar el pedido.");
     } finally {
@@ -143,7 +145,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
         .filter((item) => item.quantity > 0);
 
       if (items.length === 0) {
-        setActionError("Eleg� al menos un item y una cantidad para solicitar la devoluci�n.");
+        setActionError("Elegí al menos un item y una cantidad para solicitar la devolución.");
         return;
       }
 
@@ -163,9 +165,9 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
       await reloadOrder();
       setReturnReason("");
       setReturnQuantities({});
-      setActionSuccess("La solicitud de devoluci�n qued� registrada.");
+      setActionSuccess("La solicitud de devolución quedó registrada.");
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "No se pudo crear la devoluci�n.");
+      setActionError(error instanceof Error ? error.message : "No se pudo crear la devolución.");
     } finally {
       setActionLoading(null);
     }
@@ -184,10 +186,10 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
       });
       await reloadOrder();
       setCancellationReason("");
-      setActionSuccess("La solicitud de cancelaci�n fue enviada para revisi�n.");
+      setActionSuccess("La solicitud de cancelación fue enviada para revisión.");
     } catch (error) {
       setActionError(
-        error instanceof Error ? error.message : "No se pudo crear la solicitud de cancelaci�n.",
+        error instanceof Error ? error.message : "No se pudo crear la solicitud de cancelación.",
       );
     } finally {
       setActionLoading(null);
@@ -201,7 +203,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
       const file = returnShipmentFiles[returnId] ?? null;
 
       if (!carrier && !trackingNumber && !file) {
-        setActionError("Carg� al menos un correo, tracking o comprobante para avisar el despacho.");
+        setActionError("Cargá al menos un correo, tracking o comprobante para avisar el despacho.");
         return;
       }
 
@@ -231,7 +233,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
       setReturnShipmentFiles((current) => ({ ...current, [returnId]: null }));
       setActionSuccess("Avisamos al comercio que ya despachaste el producto devuelto.");
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "No se pudo informar el despacho de la devoluci�n.");
+      setActionError(error instanceof Error ? error.message : "No se pudo informar el despacho de la devolución.");
     } finally {
       setActionLoading(null);
     }
@@ -429,8 +431,8 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                   >
                     <strong style={{ fontSize: 20 }}>Cancelar pedido</strong>
                     <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.7 }}>
-                      Todav�a estamos a tiempo de frenarlo porque no entr� en una etapa irreversible
-                      de operaci�n.
+                      Todavía estamos a tiempo de frenarlo porque no entró en una etapa irreversible
+                      de operación.
                     </p>
                     <div>
                       <button
@@ -463,15 +465,15 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                       gap: 12,
                     }}
                   >
-                    <strong style={{ fontSize: 20 }}>Solicitar cancelaci�n</strong>
+                    <strong style={{ fontSize: 20 }}>Solicitar cancelación</strong>
                     <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.7 }}>
-                      Como el pedido ya avanz� despu�s del pago, lo revisar� el equipo antes de
-                      confirmar la cancelaci�n y el posible reintegro.
+                      Como el pedido ya avanzó después del pago, lo revisará el equipo antes de
+                      confirmar la cancelación y el posible reintegro.
                     </p>
                     <textarea
                       value={cancellationReason}
                       onChange={(event) => setCancellationReason(event.target.value)}
-                      placeholder="Contanos por qu� quer�s cancelar este pedido"
+                      placeholder="Contanos por qué querés cancelar este pedido"
                       style={{
                         width: "100%",
                         minHeight: 92,
@@ -497,7 +499,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                           cursor: "pointer",
                         }}
                       >
-                        {actionLoading === "cancel" ? "Enviando..." : "Enviar ticket de cancelaci�n"}
+                        {actionLoading === "cancel" ? "Enviando..." : "Enviar ticket de cancelación"}
                       </button>
                     </div>
                   </div>
@@ -514,10 +516,10 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                       gap: 14,
                     }}
                   >
-                    <strong style={{ fontSize: 20 }}>Solicitar devoluci�n</strong>
+                    <strong style={{ fontSize: 20 }}>Solicitar devolución</strong>
                     <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.7 }}>
-                      Eleg� los items y cantidades que quer�s devolver. Si el equipo la aprueba,
-                      ac� mismo vas a ver las instrucciones para reenviar el producto.
+                      Elegí los items y cantidades que querés devolver. Si el equipo la aprueba,
+                      acá mismo vas a ver las instrucciones para reenviar el producto.
                     </p>
 
                     <div style={{ display: "grid", gap: 12 }}>
@@ -575,7 +577,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                     <textarea
                       value={returnReason}
                       onChange={(event) => setReturnReason(event.target.value)}
-                      placeholder="Contanos brevemente el motivo de la devoluci�n"
+                      placeholder="Contanos brevemente el motivo de la devolución"
                       style={{
                         width: "100%",
                         minHeight: 100,
@@ -625,7 +627,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                         }}
                       >
                         <strong style={{ color: "var(--text-strong)" }}>
-                          Solicitud #{entry.id} � {entry.status}
+                          Solicitud #{entry.id} · {entry.status}
                         </strong>
                         {entry.reason ? (
                           <span style={{ color: "var(--text-muted)" }}>{entry.reason}</span>
@@ -652,7 +654,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                         ) : null}
                         {entry.customerShipmentCarrier ? (
                           <span style={{ color: "var(--text-muted)" }}>
-                            Correo o m�todo: {entry.customerShipmentCarrier}
+                            Correo o método: {entry.customerShipmentCarrier}
                           </span>
                         ) : null}
                         {entry.customerShipmentTracking ? (
@@ -666,7 +668,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                             target="_blank"
                             style={{ color: "var(--text-strong)", textDecoration: "underline" }}
                           >
-                            Ver comprobante de env�o
+                            Ver comprobante de envío
                           </Link>
                         ) : null}
                         {entry.receivedAt ? (
@@ -701,7 +703,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                                   [entry.id]: event.target.value,
                                 }))
                               }
-                              placeholder="Correo o m�todo de env�o"
+                              placeholder="Correo o método de envío"
                               style={{
                                 width: "100%",
                                 padding: "12px 14px",
@@ -719,7 +721,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                                   [entry.id]: event.target.value,
                                 }))
                               }
-                              placeholder="N�mero de tracking"
+                              placeholder="Número de tracking"
                               style={{
                                 width: "100%",
                                 padding: "12px 14px",
@@ -763,7 +765,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                                   cursor: "pointer",
                                 }}
                               >
-                                {actionLoading === "ship" ? "Enviando..." : "Ya despach� el producto"}
+                                {actionLoading === "ship" ? "Enviando..." : "Ya despaché el producto"}
                               </button>
                             </div>
                           </div>
@@ -775,7 +777,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
 
                 {order.cancellationRequests?.length ? (
                   <div style={{ display: "grid", gap: 12 }}>
-                    <strong style={{ fontSize: 20 }}>Solicitudes de cancelaci�n</strong>
+                    <strong style={{ fontSize: 20 }}>Solicitudes de cancelación</strong>
                     {order.cancellationRequests.map((entry) => (
                       <div
                         key={`cancellation-${entry.id}`}
@@ -789,7 +791,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                         }}
                       >
                         <strong style={{ color: "var(--text-strong)" }}>
-                          Ticket #{entry.id} � {entry.status}
+                          Ticket #{entry.id} · {entry.status}
                         </strong>
                         {entry.reason ? (
                           <span style={{ color: "var(--text-muted)" }}>{entry.reason}</span>
@@ -877,7 +879,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                         {item.variant.product.title}
                       </strong>
                       <span style={{ display: "block", marginTop: 8, color: "var(--text-muted)" }}>
-                        x{item.quantity} � {item.variant.Size ?? "UN"} � {item.variant.Color ?? "Sin color"}
+                        x{item.quantity} · {item.variant.Size ?? "UN"} · {item.variant.Color ?? "Sin color"}
                       </span>
                     </div>
                     <strong>{money(item.price)}</strong>
@@ -926,7 +928,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
             >
               <strong style={{ fontSize: 22 }}>Envio</strong>
               <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.8 }}>
-                Metodo: {order.shippingProvider ?? "A confirmar"} {order.shippingMethod ? `� ${order.shippingMethod}` : ""}
+                Metodo: {order.shippingProvider ?? "A confirmar"} {order.shippingMethod ? `· ${order.shippingMethod}` : ""}
                 <br />
                 Tracking: {order.shipment?.trackingNumber ?? "Sin asignar"}
                 {hasOrderShippingSnapshot(order) ? (
@@ -934,7 +936,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                     <br />
                     Destinatario: {orderShippingRecipient(order)}
                     <br />
-                    {shippingAddressLines.join(" � ")}
+                    {shippingAddressLines.join(" · ")}
                   </>
                 ) : null}
               </p>
@@ -983,11 +985,10 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                     }}
                   >
                     <strong style={{ display: "block", color: "var(--text-strong)" }}>
-                      {payment.provider}
-                      {payment.method ? ` � ${payment.method}` : ""}
+                      {paymentDisplayLabel(payment)}
                     </strong>
                     <span style={{ display: "block", marginTop: 8, color: "var(--text-muted)" }}>
-                      {payment.status} � {money(payment.amount)}
+                      {paymentStatusLabel(payment.status)} · {money(payment.amount)}
                     </span>
                     {payment.reference ? (
                       <span style={{ display: "block", marginTop: 8, color: "var(--text-muted)" }}>
@@ -1018,7 +1019,7 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                 ))
               ) : (
                 <p style={{ margin: 0, color: "var(--text-muted)" }}>
-                  No hay pagos registrados todav�a.
+                  No hay pagos registrados todavía.
                 </p>
               )}
             </section>

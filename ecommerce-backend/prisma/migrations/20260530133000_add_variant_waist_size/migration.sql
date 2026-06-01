@@ -1,0 +1,2 @@
+ALTER TABLE "ProductVariant"
+ADD COLUMN IF NOT EXISTS "waistSize" TEXT;

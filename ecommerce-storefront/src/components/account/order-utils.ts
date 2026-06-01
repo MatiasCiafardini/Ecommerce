@@ -171,6 +171,69 @@ export type CustomerOrder = {
 
 export const money = (value: string | number | null | undefined) => formatCurrency(value);
 
+export type OrderPayment = NonNullable<CustomerOrder["payments"]>[number];
+
+export const paymentProviderLabel = (provider?: string | null) => {
+  const normalized = provider?.trim().toLowerCase() ?? "";
+
+  const labels: Record<string, string> = {
+    cash: "Efectivo al retirar",
+    manual: "Pago manual",
+    bank_transfer: "Transferencia bancaria",
+    mercadopago: "Mercado Pago",
+  };
+
+  return labels[normalized] ?? provider?.trim() ?? "Pago";
+};
+
+export const paymentMethodLabel = (method?: string | null) => {
+  const normalized = method?.trim().toLowerCase() ?? "";
+
+  const labels: Record<string, string> = {
+    cash: "Efectivo",
+    cash_on_pickup: "Efectivo al retirar",
+    efectivo: "Efectivo",
+    bank_transfer: "Transferencia bancaria",
+    transfer: "Transferencia",
+    card: "Tarjeta",
+    credit_card: "Tarjeta de crédito",
+    debit_card: "Tarjeta de débito",
+  };
+
+  return labels[normalized] ?? method?.trim() ?? "";
+};
+
+export const paymentStatusLabel = (status?: string | null) => {
+  const normalized = status?.trim().toLowerCase() ?? "";
+
+  const labels: Record<string, string> = {
+    pending: "Pendiente",
+    approved: "Aprobado",
+    rejected: "Rechazado",
+    cancelled: "Cancelado",
+    canceled: "Cancelado",
+    in_process: "En revisión",
+    paid: "Pagado",
+    refunded: "Reintegrado",
+  };
+
+  return labels[normalized] ?? status?.trim() ?? "Sin estado";
+};
+
+export const paymentDisplayLabel = (payment: OrderPayment) => {
+  const providerLabel = paymentProviderLabel(payment.provider);
+  const methodLabel = paymentMethodLabel(payment.method);
+  const provider = payment.provider.trim().toLowerCase();
+  const method = payment.method?.trim().toLowerCase() ?? "";
+  const methodRepeatsProvider =
+    !method ||
+    provider === method ||
+    (provider === "cash" && ["cash", "cash_on_pickup", "efectivo"].includes(method)) ||
+    (provider === "bank_transfer" && method === "bank_transfer");
+
+  return methodRepeatsProvider ? providerLabel : `${providerLabel} · ${methodLabel}`;
+};
+
 export const orderCustomerName = (order: CustomerOrder) =>
   [
     order.customerFirstNameSnapshot ?? order.customer?.firstName,

@@ -521,12 +521,12 @@ export class LabelPdfRenderer {
   private resolvePriceLines(label: PrintableLabel, options: Required<LabelOptionsDto>) {
     if (options.priceMode === 'none') return [];
     if (options.priceMode === 'transfer') {
-      return [{ caption: 'TRANSF.', value: label.transferPrice ?? label.normalPrice }];
+      return [{ caption: 'EFECT/TRANSF', value: label.transferPrice ?? label.normalPrice }];
     }
     if (options.priceMode === 'both') {
       return [
-        { caption: 'LISTA', value: label.normalPrice },
-        { caption: 'TRANSF.', value: label.transferPrice ?? label.normalPrice },
+        { caption: 'TARJETA', value: label.normalPrice },
+        { caption: 'EFECT/TRANSF', value: label.transferPrice ?? label.normalPrice },
       ];
     }
 

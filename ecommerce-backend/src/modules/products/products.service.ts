@@ -275,6 +275,16 @@ export class ProductsService {
     const deletedAt = new Date();
 
     await this.prisma.$transaction([
+      this.prisma.productCategory.deleteMany({
+        where: {
+          productId,
+        },
+      }),
+      this.prisma.productOptionValue.deleteMany({
+        where: {
+          productId,
+        },
+      }),
       this.prisma.product.update({
         where: {
           id: productId,
@@ -563,6 +573,7 @@ export class ProductsService {
       price: number;
       Size?: string | null;
       Color?: string | null;
+      waistSize?: string | null;
       inventoryQuantity: number;
       weightGrams?: number | null;
       width?: number | null;
@@ -671,6 +682,7 @@ export class ProductsService {
       price: number;
       Size?: string | null;
       Color?: string | null;
+      waistSize?: string | null;
       weightGrams?: number | null;
       width?: number | null;
       length?: number | null;
@@ -692,6 +704,7 @@ export class ProductsService {
       price: variant.price,
       Size: variant.Size?.trim() ? variant.Size.trim() : null,
       Color: variant.Color?.trim() ? variant.Color.trim() : null,
+      waistSize: variant.waistSize?.trim() ? variant.waistSize.trim() : null,
       weightGrams,
       weight: weightGrams !== null ? Number((weightGrams / 1000).toFixed(3)) : null,
       width,
@@ -738,6 +751,7 @@ export class ProductsService {
       price: number;
       Size?: string | null;
       Color?: string | null;
+      waistSize?: string | null;
       inventoryQuantity?: number;
       weightGrams?: number | null;
       width?: number | null;
@@ -770,6 +784,7 @@ export class ProductsService {
         price,
         Size: variant.Size,
         Color: variant.Color,
+        waistSize: variant.waistSize,
         inventoryQuantity: Math.trunc(inventoryQuantity),
         weightGrams: variant.weightGrams,
         width: variant.width,

@@ -215,7 +215,11 @@ export class LabelsService {
 
     const variantWithoutSku = variants.find((variant) => !variant.sku?.trim());
     if (variantWithoutSku) {
-      const variantName = [variantWithoutSku.product.title, variantWithoutSku.Color, variantWithoutSku.Size]
+      const variantName = [
+        variantWithoutSku.product.title,
+        variantWithoutSku.Color,
+        variantWithoutSku.Size,
+      ]
         .filter(Boolean)
         .join(' ');
       throw new BadRequestException(
@@ -391,7 +395,8 @@ export class LabelsService {
 
   private resolveTransferPrice(price: number, discountPercentage: number) {
     if (!Number.isFinite(price) || price <= 0 || discountPercentage <= 0) return null;
-    return Math.max(0, Math.round(price * (1 - discountPercentage / 100)));
+    const discountedPrice = price * (1 - discountPercentage / 100);
+    return Math.max(0, Math.round(discountedPrice / 100) * 100);
   }
 
   private formatMoney(value: Prisma.Decimal | number) {

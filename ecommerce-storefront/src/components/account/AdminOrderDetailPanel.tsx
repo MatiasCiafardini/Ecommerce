@@ -18,6 +18,9 @@ import {
   orderShippingRecipient,
   orderStatusLabel,
   orderStatusTone,
+  paymentDisplayLabel,
+  paymentMethodLabel,
+  paymentStatusLabel,
   shipmentTimeline,
   type CustomerOrder,
 } from "./order-utils";
@@ -273,7 +276,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       ...(order.payments?.length
         ? order.payments.map(
             (payment, index) =>
-              `${index + 1}. ${payment.provider} | ${payment.status} | ${money(payment.amount)}`,
+              `${index + 1}. ${paymentDisplayLabel(payment)} | ${paymentStatusLabel(payment.status)} | ${money(payment.amount)}`,
           )
         : ["No hay pagos registrados."]),
       "",
@@ -641,10 +644,9 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                   {order.payments.map((payment) => (
                     <article key={payment.id} style={paymentCardStyle}>
                       <strong style={{ color: "var(--account-text-strong)" }}>
-                        {payment.provider}
-                        {payment.method ? ` · ${payment.method}` : ""}
+                        {paymentDisplayLabel(payment)}
                       </strong>
-                      <span style={metaStyle}>{payment.status}</span>
+                      <span style={metaStyle}>{paymentStatusLabel(payment.status)}</span>
                       <strong>{money(payment.amount)}</strong>
                       {payment.externalId ? (
                         <span style={metaStyle}>Pago externo: {payment.externalId}</span>
@@ -804,7 +806,7 @@ function buildMercadoPagoRows(payment: NonNullable<CustomerOrder["payments"]>[nu
     },
     {
       label: "Tipo",
-      value: metadata?.paymentTypeId,
+      value: paymentMethodLabel(metadata?.paymentTypeId),
     },
     {
       label: "Cuotas",

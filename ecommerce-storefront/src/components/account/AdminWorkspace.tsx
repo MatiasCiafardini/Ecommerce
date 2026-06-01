@@ -56,6 +56,10 @@ type Product = {
   }>;
   variants?: Array<{
     id: number;
+    sku?: string | null;
+    Size?: string | null;
+    Color?: string | null;
+    waistSize?: string | null;
     price?: number | string | null;
     inventories?: Array<{ quantity?: number | null }>;
   }>;
@@ -127,6 +131,7 @@ type DraftVariant = {
   price: string;
   Size: string;
   Color: string;
+  waistSize: string;
   inventoryQuantity: string;
   weight: string;
   width: string;
@@ -245,6 +250,7 @@ const emptyVariant = (): DraftVariant => ({
   price: "",
   Size: "",
   Color: "",
+  waistSize: "",
   inventoryQuantity: "",
   weight: "",
   width: "",
@@ -999,6 +1005,7 @@ function AdminProductsSection({
   const { isTabletOrSmaller, isPhone } = useViewportFlags();
   const searchParams = useSearchParams();
   const formTopRef = useRef<HTMLDivElement | null>(null);
+  const catalogAutoReloadAttemptedRef = useRef(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [options, setOptions] = useState<ProductOption[]>([]);
@@ -1032,6 +1039,11 @@ function AdminProductsSection({
     useState<PendingOptionRemoval | null>(null);
   const [duplicateSkuPrompt, setDuplicateSkuPrompt] =
     useState<DuplicateSkuPromptState | null>(null);
+  const [pendingLabelPrintPrompt, setPendingLabelPrintPrompt] = useState<{
+    productId: number;
+    productTitle: string;
+  } | null>(null);
+  const [regenerateSkusOnNextSave, setRegenerateSkusOnNextSave] = useState(false);
   const [editingVariantIndex, setEditingVariantIndex] = useState<number | null>(
     null,
   );
@@ -1057,6 +1069,7 @@ function AdminProductsSection({
     stock: "",
     color: "",
     size: "",
+    waistSize: "",
   });
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [autoOpenedProductId, setAutoOpenedProductId] = useState<number | null>(
@@ -1172,6 +1185,7 @@ function AdminProductsSection({
       setProducts(nextProducts);
       setCategories(Array.isArray(c) ? scopeCategoriesToActiveStore(c as Category[]) : []);
       setOptions(Array.isArray(o) ? o : []);
+      setError("");
       return nextProducts;
     } catch (err) {
       setError(
@@ -1188,6 +1202,37 @@ function AdminProductsSection({
   }, []);
 
   useEffect(() => {
+    if (activeTab !== "catalog") {
+      catalogAutoReloadAttemptedRef.current = false;
+      return;
+    }
+
+    if (loading || products.length > 0 || catalogAutoReloadAttemptedRef.current) {
+      return;
+    }
+
+    catalogAutoReloadAttemptedRef.current = true;
+    void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, loading, products.length]);
+
+  useEffect(() => {
+    const reloadEmptyCatalogOnFocus = () => {
+      if (document.visibilityState !== "visible") return;
+      if (activeTab !== "catalog" || loading || products.length > 0) return;
+      void loadData();
+    };
+
+    window.addEventListener("focus", reloadEmptyCatalogOnFocus);
+    document.addEventListener("visibilitychange", reloadEmptyCatalogOnFocus);
+    return () => {
+      window.removeEventListener("focus", reloadEmptyCatalogOnFocus);
+      document.removeEventListener("visibilitychange", reloadEmptyCatalogOnFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, loading, products.length]);
+
+  useEffect(() => {
     uploadImagesRef.current = imageFiles;
   }, [imageFiles]);
 
@@ -1201,6 +1246,11 @@ function AdminProductsSection({
   }, []);
 
   useEffect(() => {
+    if (searchParams.get("section") === "admin-labels") {
+      setAutoOpenedProductId(null);
+      return;
+    }
+
     const rawProductId = searchParams.get("productId");
     const nextProductId = rawProductId ? Number(rawProductId) : NaN;
 
@@ -1302,6 +1352,7 @@ function AdminProductsSection({
       price: collect((variant) => variant.price),
       size: collect((variant) => variant.Size),
       color: collect((variant) => variant.Color),
+      waistSize: collect((variant) => variant.waistSize),
       inventoryQuantity: collect((variant) => variant.inventoryQuantity),
       weight: collect((variant) => variant.weight),
       width: collect((variant) => variant.width),
@@ -1350,9 +1401,10 @@ function AdminProductsSection({
     setWizardStep("info");
     setPackagingTemplateId("");
     setSelectedVariantIndexes([]);
-    setBulkVariantPatch({ price: "", stock: "", color: "", size: "" });
+    setBulkVariantPatch({ price: "", stock: "", color: "", size: "", waistSize: "" });
     setImageUploadProgress(null);
     setAttributeDraft(null);
+    setRegenerateSkusOnNextSave(false);
   };
 
   const showToast = (message: string) => {
@@ -1636,6 +1688,7 @@ function AdminProductsSection({
     price: variant.price.trim(),
     Size: variant.Size.trim(),
     Color: variant.Color.trim(),
+    waistSize: variant.waistSize.trim(),
     inventoryQuantity: variant.inventoryQuantity.trim(),
     weight: variant.weight.trim(),
     width: variant.width.trim(),
@@ -1650,6 +1703,7 @@ function AdminProductsSection({
       normalized.price,
       normalized.Size,
       normalized.Color,
+      normalized.waistSize,
       normalized.inventoryQuantity,
       normalized.weight,
       normalized.width,
@@ -1668,6 +1722,7 @@ function AdminProductsSection({
         normalizedDraft.price !== normalizedInitial.price ||
         normalizedDraft.Size !== normalizedInitial.Size ||
         normalizedDraft.Color !== normalizedInitial.Color ||
+        normalizedDraft.waistSize !== normalizedInitial.waistSize ||
         normalizedDraft.inventoryQuantity !== normalizedInitial.inventoryQuantity ||
         normalizedDraft.weight !== normalizedInitial.weight ||
         normalizedDraft.width !== normalizedInitial.width ||
@@ -1688,29 +1743,77 @@ function AdminProductsSection({
     productTitle: string,
     variant: EditableVariant,
     index: number,
-    seed: number,
+    usedSkus: Set<string>,
   ) => {
-    const base = [productTitle, variant.Size, variant.Color]
-      .filter(Boolean)
-      .join(" ")
+    const productPrefix = productTitle
       .trim()
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 36);
+      .split("-")
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("-");
+    const base = [productPrefix, variant.Color, variant.Size]
+      .filter(Boolean)
+      .join("-")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 28);
 
-    const prefix = base || "trojani";
-    return `${prefix}-${seed}-${index + 1}`;
+    const prefix = (base || `producto-${index + 1}`).toUpperCase();
+    let candidate = prefix;
+    let suffix = 2;
+    while (usedSkus.has(candidate.toLowerCase())) {
+      candidate = `${prefix}-${suffix}`;
+      suffix += 1;
+    }
+    usedSkus.add(candidate.toLowerCase());
+    return candidate;
   };
 
-  const generateAutomaticSkus = (variantsToUpdate: EditableVariant[]) => {
-    const seed = Date.now().toString().slice(-6);
+  const collectExistingSkuKeys = (variantsToUpdate: EditableVariant[]) => {
+    const currentVariantIds = new Set(
+      variantsToUpdate
+        .map((variant) => variant.id)
+        .filter((id): id is number => typeof id === "number"),
+    );
+
+    return new Set(
+      products.flatMap((product) =>
+        (product.variants ?? [])
+          .filter((variant) => !currentVariantIds.has(variant.id))
+          .map((variant) => String(variant.sku ?? "").trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+  };
+
+  const generateAutomaticSkusForTitle = (
+    productTitle: string,
+    variantsToUpdate: EditableVariant[],
+  ) => {
+    const usedSkus = collectExistingSkuKeys(variantsToUpdate);
     return variantsToUpdate.map((variant, index) => ({
       ...variant,
-      sku: buildAutomaticSku(form.title.trim(), variant, index, Number(seed)),
+      sku: buildAutomaticSku(productTitle, variant, index, usedSkus),
     }));
+  };
+
+  const generateAutomaticSkus = (variantsToUpdate: EditableVariant[]) =>
+    generateAutomaticSkusForTitle(form.title.trim(), variantsToUpdate);
+
+  const handleProductTitleChange = (title: string) => {
+    setForm((current) => ({ ...current, title }));
+    setVariants((current) =>
+      current.length > 0 ? generateAutomaticSkusForTitle(title.trim(), current) : current,
+    );
   };
 
   const loadVariantIntoDraft = useCallback((index: number) => {
@@ -1800,11 +1903,18 @@ function AdminProductsSection({
 
     const colorDraftValues = splitVariantValues(variantDraft.Color);
     const sizeDraftValues = splitVariantValues(variantDraft.Size);
+    const waistDraftValues = splitVariantValues(variantDraft.waistSize);
+    const baseWaistSize = variantDraft.waistSize.trim();
     const hasColorAttribute = selectedValuesByAttribute.some(
       (entry) => entry.option.name.trim().toLowerCase() === "color",
     );
     const hasSizeAttribute = selectedValuesByAttribute.some((entry) =>
       ["talle", "talles", "size", "sizes"].includes(
+        entry.option.name.trim().toLowerCase(),
+      ),
+    );
+    const hasWaistAttribute = selectedValuesByAttribute.some((entry) =>
+      ["talle cintura", "talles cintura", "cintura", "waist", "waist size"].includes(
         entry.option.name.trim().toLowerCase(),
       ),
     );
@@ -1815,6 +1925,9 @@ function AdminProductsSection({
         : []),
       ...(!hasSizeAttribute && sizeDraftValues.length > 0
         ? [{ option: { id: -2, name: "Talle" }, values: sizeDraftValues }]
+        : []),
+      ...(!hasWaistAttribute && waistDraftValues.length > 0
+        ? [{ option: { id: -3, name: "Talle cintura" }, values: waistDraftValues }]
         : []),
     ];
 
@@ -1827,24 +1940,39 @@ function AdminProductsSection({
     const baseStock = variantDraft.inventoryQuantity.trim() || "0";
     const baseGarmentWidth = variantDraft.width.trim();
     const baseGarmentLength = variantDraft.length.trim();
-    const slugBase = form.title.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "producto";
+    const slugBase = form.title.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").split("-").filter(Boolean).slice(0, 2).join("-") || "producto";
     const combinations = matrixValues.reduce<string[][]>(
       (acc, entry) => acc.flatMap((combo) => entry.values.map((value) => [...combo, value])),
       [[]],
     );
+    const usedGeneratedSkus = new Set(variants.map((variant) => variant.sku.trim().toLowerCase()).filter(Boolean));
 
     const generated = combinations.map((combo) => {
         const colorIndex = matrixValues.findIndex((entry) => entry.option.name.trim().toLowerCase() === "color");
         const sizeIndex = matrixValues.findIndex((entry) => ["talle", "talles", "size", "sizes"].includes(entry.option.name.trim().toLowerCase()));
-        const parts = [slugBase, ...combo]
+        const waistIndex = matrixValues.findIndex((entry) => ["talle cintura", "talles cintura", "cintura", "waist", "waist size"].includes(entry.option.name.trim().toLowerCase()));
+        const parts = [
+          slugBase,
+          colorIndex >= 0 ? combo[colorIndex] : "",
+          sizeIndex >= 0 ? combo[sizeIndex] : "",
+        ]
           .filter(Boolean)
           .map((part) => part.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 12));
+        const baseSku = parts.join("-").toUpperCase();
+        let sku = baseSku || `PRODUCTO-${usedGeneratedSkus.size + 1}`;
+        let suffix = 2;
+        while (usedGeneratedSkus.has(sku.toLowerCase())) {
+          sku = `${baseSku}-${suffix}`;
+          suffix += 1;
+        }
+        usedGeneratedSkus.add(sku.toLowerCase());
 
         return {
-          sku: parts.join("-").toUpperCase(),
+          sku,
           price: basePrice,
           Size: sizeIndex >= 0 ? combo[sizeIndex] : "",
           Color: colorIndex >= 0 ? combo[colorIndex] : "",
+          waistSize: waistIndex >= 0 ? combo[waistIndex] : baseWaistSize,
           inventoryQuantity: baseStock,
           weight: "",
           width: baseGarmentWidth,
@@ -1878,6 +2006,7 @@ function AdminProductsSection({
           inventoryQuantity: bulkVariantPatch.stock.trim() || variant.inventoryQuantity,
           Color: bulkVariantPatch.color.trim() || variant.Color,
           Size: bulkVariantPatch.size.trim() || variant.Size,
+          waistSize: bulkVariantPatch.waistSize.trim() || variant.waistSize,
         };
       }),
     );
@@ -2032,6 +2161,11 @@ function AdminProductsSection({
         return;
       }
 
+      if (pendingLabelPrintPrompt) {
+        setPendingLabelPrintPrompt(null);
+        return;
+      }
+
       if (attributeDraft) {
         closeAttributeModal();
         return;
@@ -2049,6 +2183,7 @@ function AdminProductsSection({
     duplicateSkuPrompt,
     editingVariantIndex,
     handleVariantDiscard,
+    pendingLabelPrintPrompt,
     pendingRemoval,
     pendingVariantSwitch,
   ]);
@@ -2314,6 +2449,7 @@ function AdminProductsSection({
           ]);
 
         setEditingProductId(product.id);
+        setRegenerateSkusOnNextSave(false);
         setForm({
           title: product.title,
           description: product.description ?? "",
@@ -2372,6 +2508,7 @@ function AdminProductsSection({
               price: String(variant.price ?? ""),
               Size: String(variant.Size ?? ""),
               Color: String(variant.Color ?? ""),
+              waistSize: String(variant.waistSize ?? ""),
               inventoryQuantity: String(
                 variant.inventories?.[0]?.quantity ?? "",
               ),
@@ -2420,6 +2557,7 @@ function AdminProductsSection({
         ]);
 
         setEditingProductId(null);
+        setRegenerateSkusOnNextSave(true);
         setForm({
           title: `Copia de ${product.title}`,
           description: product.description ?? "",
@@ -2463,6 +2601,7 @@ function AdminProductsSection({
                 price: String(variant.price ?? ""),
                 Size: String(variant.Size ?? ""),
                 Color: String(variant.Color ?? ""),
+                waistSize: String(variant.waistSize ?? ""),
                 inventoryQuantity: String(
                   variant.inventories?.[0]?.quantity ?? "",
                 ),
@@ -2563,21 +2702,21 @@ function AdminProductsSection({
       };
 
       xhr.onerror = () => {
-        reject(new Error(`Sin conexiÃ³n al subir ${fileEntry.name}. RevisÃ¡ tu red y reintentÃ¡.`));
+        reject(new Error(`Sin conexión al subir ${fileEntry.name}. Revisá tu red y reintentá.`));
       };
 
       xhr.ontimeout = () => {
-        reject(new Error(`${fileEntry.name} tardÃ³ demasiado en subir. IntentÃ¡ de nuevo con mejor seÃ±al.`));
+        reject(new Error(`${fileEntry.name} tardó demasiado en subir. Intentá de nuevo con mejor señal.`));
       };
 
       xhr.onload = () => {
         if (xhr.status === 413) {
-          reject(new Error(`${fileEntry.name} superÃ³ el lÃ­mite del servidor. IntentÃ¡ con una imagen mÃ¡s pequeÃ±a.`));
+          reject(new Error(`${fileEntry.name} superó el límite del servidor. Intentá con una imagen más pequeña.`));
           return;
         }
 
         if (xhr.status < 200 || xhr.status >= 300) {
-          let errorMessage = `Error al subir ${fileEntry.name} (cÃ³digo ${xhr.status}).`;
+          let errorMessage = `Error al subir ${fileEntry.name} (código ${xhr.status}).`;
           try {
             const parsed = JSON.parse(xhr.responseText) as { message?: string | string[] };
             const msg = Array.isArray(parsed.message)
@@ -2585,7 +2724,7 @@ function AdminProductsSection({
               : parsed.message;
             if (msg) errorMessage = msg;
           } catch {
-            // Response is not JSON (e.g. nginx HTML error) â€” use the generic message
+            // Response is not JSON (e.g. nginx HTML error) - use the generic message
           }
           reject(new Error(errorMessage));
           return;
@@ -2910,6 +3049,7 @@ function AdminProductsSection({
       price: parsePriceInput(variant.price),
       Size: variant.Size.trim() || null,
       Color: variant.Color.trim() || null,
+      waistSize: variant.waistSize.trim() || null,
       inventoryQuantity: variant.inventoryQuantity.trim()
         ? Number(variant.inventoryQuantity)
         : 0,
@@ -2990,6 +3130,10 @@ function AdminProductsSection({
     }
 
     let productId = editingProductId;
+    let labelPrintPromptAfterSave: {
+      productId: number;
+      productTitle: string;
+    } | null = null;
 
     if (!form.title.trim()) {
       setError("El producto necesita un titulo.");
@@ -3003,20 +3147,22 @@ function AdminProductsSection({
       setDuplicateSkuPrompt(null);
 
       const wasEditing = editingProductId;
+      const savedProductTitle = form.title.trim();
       const baseVariantsToSync = buildVariantsToPersist();
+      const shouldGenerateSkus = autoGenerateSkus || regenerateSkusOnNextSave;
 
       if (
         baseVariantsToSync.some(
-          (variant) => !variant.sku.trim() || parsePriceInput(variant.price) <= 0,
+          (variant) => (!shouldGenerateSkus && !variant.sku.trim()) || parsePriceInput(variant.price) <= 0,
         )
       ) {
-        showToast("Cada variante necesita SKU y precio.");
+        showToast(shouldGenerateSkus ? "Cada variante necesita precio." : "Cada variante necesita SKU y precio.");
         setError("");
         setSaving(false);
         return;
       }
 
-      const variantsToSync = autoGenerateSkus
+      const variantsToSync = shouldGenerateSkus
         ? generateAutomaticSkus(baseVariantsToSync)
         : baseVariantsToSync;
 
@@ -3039,6 +3185,7 @@ function AdminProductsSection({
       if (!wasEditing && savedProduct?.id) {
         setEditingProductId(savedProduct.id);
       }
+      setRegenerateSkusOnNextSave(false);
 
       let imageSyncError = "";
       const hasPendingImageUploads = imageFiles.length > 0;
@@ -3078,6 +3225,10 @@ function AdminProductsSection({
         }
 
         void processPendingImageUploads(productId);
+        labelPrintPromptAfterSave = {
+          productId,
+          productTitle: savedProductTitle || "Producto guardado",
+        };
         showToast(
           wasEditing
             ? "Producto actualizado. Las imagenes siguen subiendo en segundo plano."
@@ -3098,6 +3249,10 @@ function AdminProductsSection({
       setSuccess("");
       resetForm();
       setActiveTab("catalog");
+      labelPrintPromptAfterSave = {
+        productId,
+        productTitle: savedProductTitle || "Producto guardado",
+      };
       formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       const message =
@@ -3118,10 +3273,17 @@ function AdminProductsSection({
       setError("");
     } finally {
       setSaving(false);
+      if (labelPrintPromptAfterSave) {
+        setPendingLabelPrintPrompt(labelPrintPromptAfterSave);
+      }
     }
   };
 
   const openLabelsForProduct = (productId: number) => {
+    setPendingLabelPrintPrompt(null);
+    resetForm();
+    setActiveTab("catalog");
+    setWizardStep("info");
     const params = new URLSearchParams(window.location.search);
     params.set("section", "admin-labels");
     params.set("productId", String(productId));
@@ -3175,7 +3337,7 @@ function AdminProductsSection({
           </div>
           <input
             value={form.title}
-            onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+            onChange={(event) => handleProductTitleChange(event.target.value)}
             placeholder="Nombre del producto"
             style={largeFieldStyle}
           />
@@ -3400,6 +3562,7 @@ function AdminProductsSection({
               <SuggestionInput value={variantDraft.inventoryQuantity} onChange={(value) => setVariantDraft((current) => ({ ...current, inventoryQuantity: value }))} placeholder="Stock base" suggestions={variantAutocomplete.inventoryQuantity} />
               <SuggestionInput value={variantDraft.Color} onChange={(value) => setVariantDraft((current) => ({ ...current, Color: value }))} placeholder="Color/es (Negro, Blanco)" suggestions={variantAutocomplete.color} />
               <SuggestionInput value={variantDraft.Size} onChange={(value) => setVariantDraft((current) => ({ ...current, Size: value }))} placeholder="Talle/s (S, M, L)" suggestions={variantAutocomplete.size} />
+              <SuggestionInput value={variantDraft.waistSize} onChange={(value) => setVariantDraft((current) => ({ ...current, waistSize: value }))} placeholder="Talle cintura/s (36, 38, 40)" suggestions={variantAutocomplete.waistSize} />
               <SuggestionInput value={variantDraft.width} onChange={(value) => setVariantDraft((current) => ({ ...current, width: value }))} placeholder="Ancho prenda base (cm)" suggestions={variantAutocomplete.width} sanitize={sanitizeDecimalInput} />
               <SuggestionInput value={variantDraft.length} onChange={(value) => setVariantDraft((current) => ({ ...current, length: value }))} placeholder="Largo prenda base (cm)" suggestions={variantAutocomplete.length} sanitize={sanitizeDecimalInput} />
             </div>
@@ -3413,6 +3576,7 @@ function AdminProductsSection({
                 <input value={bulkVariantPatch.stock} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, stock: event.target.value }))} placeholder="Cambiar stock" style={fieldStyle} />
                 <input value={bulkVariantPatch.color} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, color: event.target.value }))} placeholder="Cambiar color" style={fieldStyle} />
                 <input value={bulkVariantPatch.size} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, size: event.target.value }))} placeholder="Cambiar talle" style={fieldStyle} />
+                <input value={bulkVariantPatch.waistSize} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, waistSize: event.target.value }))} placeholder="Cambiar talle cintura" style={fieldStyle} />
               </div>
               <button type="button" onClick={applyBulkVariantPatch} style={secondaryButtonStyle}>Aplicar cambios</button>
             </div>
@@ -3425,6 +3589,7 @@ function AdminProductsSection({
                   <th style={thStyle}>SKU</th>
                   <th style={thStyle}>Color</th>
                   <th style={thStyle}>Talle</th>
+                  <th style={thStyle}>Talle cintura</th>
                   <th style={thStyle}>Precio</th>
                   <th style={thStyle}>Stock</th>
                   <th style={thStyle}>Ancho prenda</th>
@@ -3439,6 +3604,14 @@ function AdminProductsSection({
                     <td style={tdStyle}>{variant.sku}</td>
                     <td style={tdStyle}>{variant.Color}</td>
                     <td style={tdStyle}>{variant.Size}</td>
+                    <td style={tdStyle}>
+                      <input
+                        value={variant.waistSize}
+                        onChange={(event) => updateVariantAt(index, { waistSize: event.target.value })}
+                        placeholder="Talle cintura"
+                        style={compactCellInputStyle}
+                      />
+                    </td>
                     <td style={tdStyle}>{money(variant.price)}</td>
                     <td style={tdStyle}>
                       <input
@@ -3552,6 +3725,17 @@ function AdminProductsSection({
           <tbody>
             {loading ? (
               <tr><td colSpan={8} style={tdStyle}>Cargando catalogo...</td></tr>
+            ) : filteredProducts.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={tdStyle}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <span>No hay productos para mostrar.</span>
+                    <button type="button" onClick={() => void loadData()} style={ghostButtonStyle}>
+                      Recargar productos
+                    </button>
+                  </div>
+                </td>
+              </tr>
             ) : filteredProducts.map((product) => (
               <tr key={product.id}>
                 <td style={tdStyle}>
@@ -3695,12 +3879,7 @@ function AdminProductsSection({
               </label>
               <input
                 value={form.title}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    title: event.target.value,
-                  }))
-                }
+                onChange={(event) => handleProductTitleChange(event.target.value)}
                 placeholder="Nombre del producto"
                 style={fieldStyle}
               />
@@ -3886,7 +4065,7 @@ function AdminProductsSection({
                     key={entry.clientId}
                     src={entry.previewUrl}
                     label={entry.name}
-                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB Â· ${
+                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB · ${
                       entry.status === "uploading"
                         ? `Subiendo ${entry.progress}%`
                         : entry.status === "error"
@@ -4042,6 +4221,14 @@ function AdminProductsSection({
                 suggestions={variantAutocomplete.color}
               />
               <SuggestionInput
+                value={variantDraft.waistSize}
+                onChange={(value) =>
+                  setVariantDraft((current) => ({ ...current, waistSize: value }))
+                }
+                placeholder="Talle cintura"
+                suggestions={variantAutocomplete.waistSize}
+              />
+              <SuggestionInput
                 value={variantDraft.inventoryQuantity}
                 onChange={(value) =>
                   setVariantDraft((current) => ({
@@ -4125,7 +4312,7 @@ function AdminProductsSection({
                       </div>
                       <div style={{ display: "grid", gap: 6 }}>
                         <span style={metaStyle}>
-                          {[variant.Size, variant.Color].filter(Boolean).join(" / ") || "Base"}
+                          {[variant.Size, variant.Color, variant.waistSize].filter(Boolean).join(" / ") || "Base"}
                         </span>
                         <strong style={{ color: "var(--account-text-strong)" }}>{money(variant.price)}</strong>
                       </div>
@@ -4144,7 +4331,7 @@ function AdminProductsSection({
                               kind: "variant",
                               variantIndex: index,
                               variantLabel:
-                                [variant.sku, variant.Size, variant.Color]
+                                [variant.sku, variant.Size, variant.Color, variant.waistSize]
                                   .filter(Boolean)
                                   .join(" - ") || `Variante ${index + 1}`,
                               productsCount: 0,
@@ -4177,7 +4364,7 @@ function AdminProductsSection({
                         >
                           <td style={tdStyle}>{variant.sku}</td>
                           <td style={tdStyle}>
-                            {[variant.Size, variant.Color]
+                            {[variant.Size, variant.Color, variant.waistSize]
                               .filter(Boolean)
                               .join(" / ") || "Base"}
                           </td>
@@ -4201,7 +4388,7 @@ function AdminProductsSection({
                                     kind: "variant",
                                     variantIndex: index,
                                     variantLabel:
-                                      [variant.sku, variant.Size, variant.Color]
+                                      [variant.sku, variant.Size, variant.Color, variant.waistSize]
                                         .filter(Boolean)
                                         .join(" - ") || `Variante ${index + 1}`,
                                     productsCount: 0,
@@ -4322,7 +4509,7 @@ function AdminProductsSection({
                           .join(", ") || "Sin categorias"}
                       </span>
                       <span style={copyStyle}>
-                        {product.images?.length ?? 0} imagenes Â· {product.variants?.length ?? 0} variantes
+                        {product.images?.length ?? 0} imagenes · {product.variants?.length ?? 0} variantes
                       </span>
                     </div>
                     <div style={rowWrapStyle}>
@@ -4865,6 +5052,51 @@ function AdminProductsSection({
       {toast ? (
         <div key={toast.id} role="status" aria-live="polite" style={toastStyle}>
           {toast.message}
+        </div>
+      ) : null}
+      {pendingLabelPrintPrompt ? (
+        <div
+          style={modalOverlayStyle}
+          role="presentation"
+          onClick={() => setPendingLabelPrintPrompt(null)}
+        >
+          <div
+            style={modalCardStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="label-print-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <p style={eyebrowStyle}>Impresion de etiquetas</p>
+              <strong
+                id="label-print-title"
+                style={{ color: "var(--account-text-strong)", fontSize: 22, lineHeight: 1.1 }}
+              >
+                Queres imprimir etiquetas?
+              </strong>
+              <p style={copyStyle}>
+                Puedo abrir el generador con todas las variantes de &quot;
+                {pendingLabelPrintPrompt.productTitle}&quot; seleccionadas.
+              </p>
+            </div>
+            <div style={modalActionsStyle}>
+              <button
+                type="button"
+                onClick={() => setPendingLabelPrintPrompt(null)}
+                style={ghostButtonStyle}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => openLabelsForProduct(pendingLabelPrintPrompt.productId)}
+                style={primaryButtonStyle}
+              >
+                Si
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
       {duplicateSkuPrompt ? (
@@ -5626,7 +5858,7 @@ function AdminOrdersPanelSection() {
                 <div style={{ display: "grid", gap: 8 }}>
                   <p style={copyStyle}>{customerName}</p>
                   <p style={copyStyle}>
-                    {units} unidad{units === 1 ? "" : "es"} Â·{" "}
+                    {units} unidad{units === 1 ? "" : "es"} ·{" "}
                     {isNewOrder ? "Pedido pendiente" : orderStatusLabel(order.status)}
                   </p>
                 </div>
@@ -5741,7 +5973,7 @@ function AdminOrdersSection() {
               <strong style={{ color: "var(--account-text-strong)" }}>{money(order.total)}</strong>
             </div>
             <p style={copyStyle}>
-              {order.items.length} item{order.items.length === 1 ? "" : "s"} Ã¢â‚¬Â¢{" "}
+              {order.items.length} item{order.items.length === 1 ? "" : "s"} ·{" "}
               {orderStatusLabel(order.status)}
             </p>
             <select
@@ -6097,7 +6329,7 @@ function AdminCustomersSection() {
                         </div>
                         <div style={{ display: "grid", gap: 4 }}>
                           <span style={copyStyle}>
-                            {row.ordersCount} pedidos Â· Promedio {money(row.averageTicket)}
+                            {row.ordersCount} pedidos · Promedio {money(row.averageTicket)}
                           </span>
                           <strong style={{ color: "var(--account-text-strong)" }}>{money(row.totalSpent)}</strong>
                           <span style={metaStyle}>

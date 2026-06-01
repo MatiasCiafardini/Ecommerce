@@ -126,6 +126,7 @@ model ProductVariant {
   deletedAt       DateTime?
   Color           String?
   Size            String?
+  waistSize       String?
   cartItems       CartItem[]
   discountTargets DiscountVariant[]
   inventories     Inventory[]

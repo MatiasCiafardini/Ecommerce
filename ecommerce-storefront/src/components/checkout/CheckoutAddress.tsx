@@ -31,19 +31,33 @@ export default function CheckoutAddress({
 }: {
   onNext: (address: Address) => void;
 }) {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selected, setSelected] = useState<Address | null>(null);
   const [saving, setSaving] = useState(false);
+  const [continuing, setContinuing] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     firstName: user?.firstName ?? "",
     lastName: user?.lastName ?? "",
+    phone: user?.phone ?? "",
     address1: "",
     city: "Buenos Aires",
     state: "Buenos Aires",
     zip: "",
     country: "Argentina",
   });
+  const accountPhone = user?.phone?.trim() ?? "";
+  const checkoutPhone = accountPhone || form.phone.trim();
+  const canSaveAddress =
+    form.firstName.trim() &&
+    form.lastName.trim() &&
+    form.address1.trim() &&
+    form.city.trim() &&
+    form.state.trim() &&
+    form.zip.trim() &&
+    form.country.trim() &&
+    checkoutPhone;
 
   useEffect(() => {
     const loadAddresses = async () => {
@@ -61,22 +75,69 @@ export default function CheckoutAddress({
     loadAddresses();
   }, []);
 
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      firstName: current.firstName || user?.firstName || "",
+      lastName: current.lastName || user?.lastName || "",
+      phone: user?.phone ?? current.phone,
+    }));
+  }, [user?.firstName, user?.lastName, user?.phone]);
+
+  const ensureAccountPhone = async () => {
+    const phone = checkoutPhone.trim();
+
+    if (!phone) {
+      throw new Error("Carga un telefono para continuar con la compra.");
+    }
+
+    if (accountPhone) {
+      return accountPhone;
+    }
+
+    const updatedUser = await api("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify({ phone }),
+    });
+    setUser(updatedUser);
+    return phone;
+  };
+
   const saveAddress = async () => {
     try {
       setSaving(true);
+      setError("");
+      const phone = await ensureAccountPhone();
       const address = await api("/customer-addresses/me", {
         method: "POST",
         body: JSON.stringify({
           ...form,
-          phone: user?.phone ?? undefined,
+          phone,
         }),
       });
 
       setAddresses((prev) => [address, ...prev]);
       setSelected(address);
-      setForm((prev) => ({ ...prev, address1: "", zip: "" }));
+      setForm((prev) => ({ ...prev, phone, address1: "", zip: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la direccion.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const continueWithSelectedAddress = async () => {
+    if (!selected) return;
+
+    try {
+      setContinuing(true);
+      setError("");
+      const phone = await ensureAccountPhone();
+      onNext({ ...selected, phone: selected.phone?.trim() || phone });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo continuar con la compra.");
+    } finally {
+      setContinuing(false);
     }
   };
 
@@ -243,6 +304,24 @@ export default function CheckoutAddress({
         </div>
 
         <input
+          placeholder="Telefono"
+          value={accountPhone || form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          disabled={Boolean(accountPhone)}
+          style={fieldStyle}
+        />
+
+        {accountPhone ? (
+          <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.6 }}>
+            Usaremos el telefono guardado en tu cuenta.
+          </p>
+        ) : (
+          <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.6 }}>
+            Necesitamos un telefono para coordinar la entrega o el retiro. Al continuar, queda guardado en tu cuenta.
+          </p>
+        )}
+
+        <input
           placeholder="Direccion"
           value={form.address1}
           onChange={(e) => setForm({ ...form, address1: e.target.value })}
@@ -282,7 +361,7 @@ export default function CheckoutAddress({
 
         <button
           onClick={saveAddress}
-          disabled={saving || !form.state.trim()}
+          disabled={saving || !canSaveAddress}
           style={{
             border: "1px solid var(--checkout-border)",
             borderRadius: 999,
@@ -295,9 +374,15 @@ export default function CheckoutAddress({
           {saving ? "Guardando..." : "Agregar direccion"}
         </button>
 
+        {error ? (
+          <p style={{ margin: 0, color: "var(--checkout-error-color, #b42318)", lineHeight: 1.6 }}>
+            {error}
+          </p>
+        ) : null}
+
         <button
-          disabled={!selected || !selected.state?.trim()}
-          onClick={() => selected && onNext(selected)}
+          disabled={!selected || !selected.state?.trim() || !checkoutPhone || continuing}
+          onClick={() => void continueWithSelectedAddress()}
           style={{
             border: "none",
             borderRadius: 999,
@@ -312,10 +397,14 @@ export default function CheckoutAddress({
             padding: "15px 18px",
             fontWeight: 700,
             cursor:
-              selected && selected.state?.trim() ? "pointer" : "not-allowed",
+              selected && selected.state?.trim() && checkoutPhone && !continuing ? "pointer" : "not-allowed",
           }}
         >
-          {selected && !selected.state?.trim()
+          {continuing
+            ? "Guardando telefono..."
+            : !checkoutPhone
+              ? "Carga un telefono para continuar"
+            : selected && !selected.state?.trim()
             ? "Completa la provincia para continuar"
             : "Continuar con esta direccion"}
         </button>

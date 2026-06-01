@@ -68,11 +68,12 @@ type PriceSettings = {
 };
 type Toast = { type: "success" | "error" | "info"; message: string };
 
-const storageKey = "labels-wizard-state-v2";
+const storageKey = "labels-wizard-state-v5";
+const defaultTemplateKey = "BROTHER_QL570_29X90";
 const defaultOptions: LabelOptions = {
   showPrice: true,
-  priceMode: "normal",
-  showStoreName: true,
+  priceMode: "both",
+  showStoreName: false,
   showProductName: true,
   showVariantName: true,
   showSku: true,
@@ -186,7 +187,7 @@ export default function AdminLabelsGenerator() {
   });
   const [selected, setSelected] = useState<Record<number, VariantRow>>({});
   const [quantities, setQuantities] = useState<Record<number, number>>({});
-  const [templateKey, setTemplateKey] = useState("BROTHER_QL570_62X29_CLOTHING");
+  const [templateKey, setTemplateKey] = useState(defaultTemplateKey);
   const [options, setOptions] = useState<LabelOptions>(defaultOptions);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [page, setPage] = useState(1);
@@ -256,7 +257,7 @@ export default function AdminLabelsGenerator() {
       };
       setSelected(parsed.selected ?? {});
       setQuantities(parsed.quantities ?? {});
-      setTemplateKey(parsed.templateKey ?? "BROTHER_QL570_62X29_CLOTHING");
+      setTemplateKey(parsed.templateKey ?? defaultTemplateKey);
       setOptions(normalizeSavedOptions(parsed.options));
     } catch {
       window.sessionStorage.removeItem(storageKey);
@@ -328,11 +329,9 @@ export default function AdminLabelsGenerator() {
       .then((payload) => {
         const itemsPayload = (payload as { items: VariantRow[] }).items;
         if (itemsPayload.length === 0) return;
-        setSelected((current) => ({ ...current, ...Object.fromEntries(itemsPayload.map((row) => [row.id, row])) }));
-        setQuantities((current) => ({
-          ...current,
-          ...Object.fromEntries(itemsPayload.map((row) => [row.id, Math.max(1, row.stock)])),
-        }));
+        setSelected(Object.fromEntries(itemsPayload.map((row) => [row.id, row])));
+        setQuantities(Object.fromEntries(itemsPayload.map((row) => [row.id, Math.max(1, row.stock)])));
+        setFilteredSelectionIds(new Set(itemsPayload.map((row) => row.id)));
       })
       .catch((error) => setNotice(error instanceof Error ? error.message : "No se pudo preseleccionar."));
   }, []);
@@ -941,11 +940,11 @@ function previewPriceLines(label: PreviewLabel, priceMode: PriceMode) {
   const transferPrice = label.transferPrice ?? normalPrice;
 
   if (priceMode === "none") return [];
-  if (priceMode === "transfer") return [{ caption: "TRANSF.", value: transferPrice }];
+  if (priceMode === "transfer") return [{ caption: "EFECT/TRANSF", value: transferPrice }];
   if (priceMode === "both") {
     return [
-      { caption: "LISTA", value: normalPrice },
-      { caption: "TRANSF.", value: transferPrice },
+      { caption: "TARJETA", value: normalPrice },
+      { caption: "EFECT/TRANSF", value: transferPrice },
     ];
   }
   return [{ caption: "", value: normalPrice }];

@@ -37,6 +37,11 @@ export class ProductOptionsService {
           orderBy: [{ position: 'asc' }, { value: 'asc' }],
         },
         values: {
+          where: {
+            product: {
+              deletedAt: null,
+            },
+          },
           select: {
             id: true,
             value: true,

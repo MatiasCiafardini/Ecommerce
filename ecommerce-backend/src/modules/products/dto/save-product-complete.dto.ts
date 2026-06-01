@@ -44,6 +44,11 @@ class SaveProductVariantDto {
   @IsString()
   Color?: string | null;
 
+  @ApiPropertyOptional({ example: 'Cintura 38' })
+  @IsOptional()
+  @IsString()
+  waistSize?: string | null;
+
   @ApiPropertyOptional({ example: 12 })
   @IsOptional()
   @IsInt()

@@ -112,6 +112,23 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
     router.push("/");
   };
 
+  const handleSectionChange = (nextSection: AccountSection) => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("section", nextSection);
+
+      if (nextSection !== "admin-labels") {
+        url.searchParams.delete("productId");
+        url.searchParams.delete("variantIds");
+      }
+
+      const nextSearch = url.searchParams.toString();
+      window.history.replaceState(null, "", `${url.pathname}${nextSearch ? `?${nextSearch}` : ""}${url.hash}`);
+    }
+
+    onSectionChange(nextSection);
+  };
+
   const shouldCollapseSidebar = sidebarCollapsed && !isNarrowViewport;
   const showSidebar = !isNarrowViewport;
   const useAdminSidebar = Boolean(isAdmin && showSidebar);
@@ -346,7 +363,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                     title="Administracion"
                     items={adminNavigationSections}
                     activeSection={section}
-                    onSectionChange={onSectionChange}
+                    onSectionChange={handleSectionChange}
                     collapsed={shouldCollapseSidebar}
                     mode={useAdminSidebar ? "wordpress" : "card"}
                   />
@@ -357,7 +374,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                     title="Cuenta"
                     items={customerSections}
                     activeSection={section}
-                    onSectionChange={onSectionChange}
+                    onSectionChange={handleSectionChange}
                     collapsed={false}
                   />
                 ) : null}
@@ -460,7 +477,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
             style={{ display: "grid", gap: isCompactViewport ? 18 : 24, minWidth: 0, alignSelf: "start" }}
             data-account-content
           >
-            {renderSection(section, user, onSectionChange)}
+            {renderSection(section, user, handleSectionChange)}
           </div>
         </div>
       </div>

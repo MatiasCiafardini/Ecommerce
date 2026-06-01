@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import AdminManualSalesSection from "@/components/account/AdminManualSalesSection";
 import ThemeSelect from "@/components/ui/ThemeSelect";
-import { money, orderStatusLabel } from "@/components/account/order-utils";
+import { money, orderStatusLabel, paymentMethodLabel } from "@/components/account/order-utils";
 
 type ManualSaleOrder = {
   id: number;
@@ -661,10 +661,8 @@ function getDisplayName(order: ManualSaleOrder) {
 }
 
 function getManualPaymentMethod(order: ManualSaleOrder) {
-  return (
-    (order.payments ?? []).find((payment) => payment.provider === "manual")?.method ??
-    "Pago manual"
-  );
+  const method = (order.payments ?? []).find((payment) => payment.provider === "manual")?.method;
+  return paymentMethodLabel(method) || "Pago manual";
 }
 
 function getManualDiscountType(order: ManualSaleOrder): "percentage" | "fixed" {

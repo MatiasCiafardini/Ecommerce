@@ -750,17 +750,6 @@ export default function CheckoutReview({
         }
       }
 
-      if (isCashPayment) {
-        await api(`/store/payments/${order.id}`, {
-          method: "POST",
-          body: JSON.stringify({
-            provider: "cash",
-            method: "cash",
-            idempotencyKey: crypto.randomUUID(),
-          }),
-        });
-      }
-
       setCompletedPaymentStatus("pending");
       const loadedOrder = await loadCompletedOrderWithFallback(order.id);
 

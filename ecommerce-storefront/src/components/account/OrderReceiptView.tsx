@@ -10,6 +10,8 @@ import {
   orderShippingAddressLines,
   orderShippingRecipient,
   orderStatusLabel,
+  paymentDisplayLabel,
+  paymentStatusLabel,
 } from "./order-utils";
 
 export default function OrderReceiptView({ orderId }: { orderId: number }) {
@@ -211,7 +213,7 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
                 <strong>Pago</strong>
                 {order.payments?.length ? (
                   <p style={{ margin: 0, color: "rgba(17,17,17,0.72)", lineHeight: 1.7 }}>
-                    {order.payments[0].provider} · {order.payments[0].status}
+                    {paymentDisplayLabel(order.payments[0])} · {paymentStatusLabel(order.payments[0].status)}
                     <br />
                     {money(order.payments[0].amount)}
                   </p>

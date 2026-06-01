@@ -103,6 +103,7 @@ export class ProductVariantsService {
           price: data.price,
           Size: data.Size,
           Color: data.Color,
+          waistSize: data.waistSize,
           weight: weightGrams !== null ? Number((weightGrams / 1000).toFixed(3)) : data.weight,
           weightGrams,
           width: packageWidthCm ?? data.width,
@@ -162,6 +163,7 @@ export class ProductVariantsService {
       price?: number;
       Size?: string | null;
       Color?: string | null;
+      waistSize?: string | null;
       weight?: number | null;
       weightGrams?: number | null;
       width?: number | null;
@@ -176,6 +178,7 @@ export class ProductVariantsService {
     if (data.price !== undefined) payload.price = data.price;
     if (data.Size !== undefined) payload.Size = data.Size ?? null;
     if (data.Color !== undefined) payload.Color = data.Color ?? null;
+    if (data.waistSize !== undefined) payload.waistSize = data.waistSize ?? null;
     if (data.weight !== undefined || data.weightGrams !== undefined) {
       const weightGrams = this.normalizeWeightGrams(data);
       payload.weightGrams = weightGrams;

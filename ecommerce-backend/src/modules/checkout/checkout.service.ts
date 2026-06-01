@@ -106,6 +106,12 @@ export class CheckoutService {
       throw new BadRequestException('Cart is empty');
     }
 
+    const checkoutPhone = shippingAddress.phone?.trim() || customer.phone?.trim();
+
+    if (!checkoutPhone) {
+      throw new BadRequestException('Phone is required for checkout');
+    }
+
     const {
       baseSubtotal: subtotal,
       itemScopedDiscountAmount,
@@ -182,6 +188,7 @@ export class CheckoutService {
     });
 
     const total = roundCurrency(subtotal - discountAmount + finalShippingCost);
+    const cashPayment = this.isCashPaymentMethod(paymentMethod);
 
     return this.prisma.$transaction(async (tx) => {
       for (const item of cart.items) {
@@ -237,11 +244,10 @@ export class CheckoutService {
           customerEmailSnapshot: customer.email,
           customerFirstNameSnapshot: customer.firstName ?? null,
           customerLastNameSnapshot: customer.lastName ?? null,
-          customerPhoneSnapshot: customer.phone ?? null,
+          customerPhoneSnapshot: checkoutPhone,
           shippingFirstNameSnapshot: shippingAddress.firstName,
           shippingLastNameSnapshot: shippingAddress.lastName,
-          shippingPhoneSnapshot:
-            shippingAddress.phone ?? customer.phone ?? null,
+          shippingPhoneSnapshot: checkoutPhone,
           shippingAddress1Snapshot: shippingAddress.address1,
           shippingAddress2Snapshot: shippingAddress.address2 ?? null,
           shippingCitySnapshot: shippingAddress.city,
@@ -260,6 +266,26 @@ export class CheckoutService {
             quantity: item.quantity,
             price: Number(item.variant.price),
             discountAmount: discountByVariantId.get(item.variantId) ?? 0,
+          },
+        });
+      }
+
+      if (cashPayment) {
+        await tx.payment.create({
+          data: {
+            storeId,
+            orderId: order.id,
+            provider: 'cash',
+            method: 'cash',
+            status: 'pending',
+            amount: total,
+            idempotencyKey: idempotencyKey
+              ? `cash-checkout:${idempotencyKey}`
+              : `cash-checkout:order-${order.id}`,
+            metadata: {
+              source: 'checkout',
+              channel: 'cash_on_pickup',
+            },
           },
         });
       }
@@ -284,6 +310,15 @@ export class CheckoutService {
           },
           data: {
             consumedAt: new Date(),
+          },
+        });
+      }
+
+      if (!customer.phone?.trim() && shippingAddress.phone?.trim()) {
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: {
+            phone: checkoutPhone,
           },
         });
       }
@@ -534,11 +569,7 @@ export class CheckoutService {
       shippingMethod: params.shippingMethod,
     });
 
-    if (
-      paymentMethod === 'cash' ||
-      paymentMethod === 'cash_on_pickup' ||
-      paymentMethod === 'efectivo'
-    ) {
+    if (this.isCashPaymentMethod(paymentMethod)) {
       if (!pickupOrder) {
         throw new BadRequestException(
           'Cash payments are only available for pickup orders',
@@ -554,6 +585,16 @@ export class CheckoutService {
     ) {
       throw new BadRequestException('Unsupported payment method for checkout');
     }
+  }
+
+  private isCashPaymentMethod(paymentMethod?: string | null) {
+    const normalized = paymentMethod?.trim().toLowerCase() ?? '';
+
+    return (
+      normalized === 'cash' ||
+      normalized === 'cash_on_pickup' ||
+      normalized === 'efectivo'
+    );
   }
 
   private isPickupOrder(order: {

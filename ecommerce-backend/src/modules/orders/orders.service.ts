@@ -562,6 +562,7 @@ export class OrdersService {
         },
         include: {
           shipment: true,
+          payments: true,
           items: {
             include: {
               variant: true,
@@ -610,6 +611,19 @@ export class OrdersService {
       });
 
       const requiresShipping = !isPickupOrder;
+
+      if (status === OrderStatus.paid) {
+        await this.reconcilePaymentForPaidStatus(tx, order, isPickupOrder);
+
+        for (const item of order.items) {
+          await this.inventoryLockService.confirmStockTx(
+            tx,
+            storeId,
+            item.variantId,
+            item.quantity,
+          );
+        }
+      }
 
       if (
         (status === 'processing' || status === 'packed') &&
@@ -684,6 +698,79 @@ export class OrdersService {
     );
 
     return this.withCancellationRequests(result);
+  }
+
+  private async reconcilePaymentForPaidStatus(
+    tx: any,
+    order: {
+      id: number;
+      storeId: number;
+      total: any;
+      payments?: Array<{
+        id: number;
+        provider: string;
+        method?: string | null;
+        status: string;
+      }>;
+    },
+    isPickupOrder: boolean,
+  ) {
+    const payments = order.payments ?? [];
+    const approvedPayment = payments.find(
+      (payment) => payment.status.trim().toLowerCase() === 'approved',
+    );
+
+    if (approvedPayment) {
+      return;
+    }
+
+    const pendingCashPayment = payments.find((payment) => {
+      const provider = payment.provider.trim().toLowerCase();
+      const method = payment.method?.trim().toLowerCase() ?? '';
+
+      return (
+        payment.status.trim().toLowerCase() === 'pending' &&
+        (provider === 'cash' ||
+          method === 'cash' ||
+          method === 'cash_on_pickup' ||
+          method === 'efectivo')
+      );
+    });
+
+    if (pendingCashPayment) {
+      await tx.payment.update({
+        where: { id: pendingCashPayment.id },
+        data: {
+          status: 'approved',
+          reviewedAt: new Date(),
+        },
+      });
+      return;
+    }
+
+    if (payments.length === 0 && isPickupOrder) {
+      await tx.payment.create({
+        data: {
+          storeId: order.storeId,
+          orderId: order.id,
+          provider: 'cash',
+          method: 'cash',
+          status: 'approved',
+          amount: order.total,
+          reviewedAt: new Date(),
+          metadata: {
+            source: 'admin_status_transition',
+            channel: 'cash_on_pickup',
+            recoveredMissingPayment: true,
+          },
+        },
+      });
+      return;
+    }
+
+    throw new BadRequestException(
+      'Cannot mark order as paid without an approved payment',
+    );
   }
 
   findAll(storeId: number) {
