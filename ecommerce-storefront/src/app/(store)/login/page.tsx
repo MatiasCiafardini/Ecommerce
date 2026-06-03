@@ -4,7 +4,6 @@ import { type FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { useAuth } from "@/context/auth-context";
-import { getClientStoreId } from "@/lib/tenant/store-context";
 
 export default function LoginPage() {
   return (
@@ -32,7 +31,7 @@ function LoginPageInner() {
 
   useEffect(() => {
     try {
-      setShowGoogleAuth(getClientStoreId() !== 7);
+      setShowGoogleAuth(true);
     } catch {
       setShowGoogleAuth(false);
     }

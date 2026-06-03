@@ -3,7 +3,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { User } from "@/context/auth-context";
 import { getGoogleClientId } from "@/lib/runtime-config";
-import { getClientStoreId } from "@/lib/tenant/store-context";
 
 type GoogleCredentialResponse = {
   credential?: string;
@@ -129,11 +128,7 @@ export function GoogleSignInButton({
   );
 
   useEffect(() => {
-    try {
-      setIsAvailableForStore(getClientStoreId() !== 7);
-    } catch {
-      setIsAvailableForStore(false);
-    }
+    setIsAvailableForStore(true);
   }, []);
 
   useEffect(() => {

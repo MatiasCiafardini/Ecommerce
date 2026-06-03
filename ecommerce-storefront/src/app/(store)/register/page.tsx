@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
-import { getClientStoreId } from "@/lib/tenant/store-context";
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) {
@@ -34,7 +33,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     try {
-      setShowGoogleAuth(getClientStoreId() !== 7);
+      setShowGoogleAuth(true);
     } catch {
       setShowGoogleAuth(false);
     }
