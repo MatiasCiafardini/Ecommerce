@@ -180,6 +180,17 @@ export class AuthService {
       throw new UnauthorizedException('Google account email is not verified');
     }
 
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        storeId,
+        email,
+      },
+    });
+
+    if (existingUser) {
+      return existingUser;
+    }
+
     const existingByGoogleId = await this.prisma.customer.findFirst({
       where: {
         storeId,

@@ -131,8 +131,12 @@ export default function RegisterPage() {
                 loginWithGoogle={loginWithGoogle}
                 onBusyChange={setLoading}
                 onError={setError}
-                onSuccess={() => {
-                  router.push("/account?section=orders");
+                onSuccess={(user) => {
+                  router.push(
+                    user.role && ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user.role)
+                      ? "/account?section=admin-overview"
+                      : "/account?section=orders",
+                  );
                 }}
               />
 
