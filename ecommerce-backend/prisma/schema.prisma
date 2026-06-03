@@ -228,12 +228,15 @@ model Order {
   shippingBranchId            String?
   shippingProviderConfigId    String?
   shippingQuoteId             String?
+  customerNotesSnapshot       String?
+  reservationExpiresAt        DateTime?
   cancellationRequest         CancellationRequest?
   customer                    Customer                     @relation(fields: [customerId], references: [id])
   discount                    Discount?                    @relation(fields: [discountId], references: [id])
   storeShippingProviderConfig StoreShippingProviderConfig? @relation(fields: [shippingProviderConfigId], references: [id])
   shippingQuote               ShippingQuote?               @relation(fields: [shippingQuoteId], references: [id])
   store                       Store                        @relation(fields: [storeId], references: [id])
+  events                      OrderEvent[]
   items                       OrderItem[]
   payments                    Payment[]
   refunds                     Refund[]
@@ -244,6 +247,24 @@ model Order {
   @@index([storeId])
   @@index([shippingProviderConfigId])
   @@index([shippingQuoteId])
+}
+
+model OrderEvent {
+  id        Int      @id @default(autoincrement())
+  storeId   Int
+  orderId   Int
+  type      String
+  title     String
+  message   String?
+  actorType String?
+  actorId   Int?
+  actorName String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, orderId, createdAt])
+  @@index([storeId, type])
 }
 
 model OrderItem {
@@ -686,6 +707,9 @@ model StoreShippingMethod {
   freeShippingMinimumAmount Decimal?  @db.Decimal(10, 2)
   estimatedDays             Int?
   description               String?
+  pickupAddress             String?
+  pickupHours               String?
+  pickupInstructions        String?
   active                    Boolean   @default(true)
   displayOrder              Int       @default(0)
   deletedAt                 DateTime?
@@ -735,6 +759,8 @@ enum OrderStatus {
   cancelled
   processing
   packed
+  ready_for_pickup
+  picked_up
   delivered
   refunded
 }

@@ -4,6 +4,8 @@
   "scripts": {
     "dev:up": "powershell -ExecutionPolicy Bypass -File scripts/dev-up.ps1",
     "dev:down": "powershell -ExecutionPolicy Bypass -File scripts/dev-down.ps1",
-    "dev:status": "powershell -ExecutionPolicy Bypass -File scripts/dev-status.ps1"
+    "dev:status": "powershell -ExecutionPolicy Bypass -File scripts/dev-status.ps1",
+    "dev:redis:up": "powershell -ExecutionPolicy Bypass -File scripts/dev-redis-up.ps1",
+    "dev:redis:down": "powershell -ExecutionPolicy Bypass -File scripts/dev-redis-down.ps1"
   }
 }

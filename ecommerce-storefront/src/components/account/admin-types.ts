@@ -51,6 +51,9 @@ export type AdminStoreShippingMethod = {
   freeShippingMinimumAmount?: number | null;
   estimatedDays?: number | null;
   description?: string | null;
+  pickupAddress?: string | null;
+  pickupHours?: string | null;
+  pickupInstructions?: string | null;
   active: boolean;
   displayOrder: number;
   deletedAt?: string | null;

@@ -19,6 +19,9 @@ type ShippingMethodFormState = {
   freeShippingMinimumAmount: string;
   estimatedDays: string;
   description: string;
+  pickupAddress: string;
+  pickupHours: string;
+  pickupInstructions: string;
   active: boolean;
   displayOrder: string;
 };
@@ -38,6 +41,9 @@ const emptyShippingMethodForm: ShippingMethodFormState = {
   freeShippingMinimumAmount: "",
   estimatedDays: "",
   description: "",
+  pickupAddress: "",
+  pickupHours: "",
+  pickupInstructions: "",
   active: true,
   displayOrder: "0",
 };
@@ -78,6 +84,9 @@ export default function AdminShippingMethodsCard({
           ? String(method.estimatedDays)
           : "",
       description: method.description ?? "",
+      pickupAddress: method.pickupAddress ?? "",
+      pickupHours: method.pickupHours ?? "",
+      pickupInstructions: method.pickupInstructions ?? "",
       active: method.active,
       displayOrder: String(method.displayOrder ?? 0),
     });
@@ -107,6 +116,10 @@ export default function AdminShippingMethodsCard({
             ? null
             : Math.max(Number(form.estimatedDays || 0), 0),
         description: form.description.trim() || undefined,
+        pickupAddress: form.type === "pickup" ? form.pickupAddress.trim() || null : undefined,
+        pickupHours: form.type === "pickup" ? form.pickupHours.trim() || null : undefined,
+        pickupInstructions:
+          form.type === "pickup" ? form.pickupInstructions.trim() || null : undefined,
         active: form.active,
         displayOrder: Number(form.displayOrder || 0),
       };
@@ -276,6 +289,45 @@ export default function AdminShippingMethodsCard({
             style={textareaStyle}
           />
         </div>
+
+        {form.type === "pickup" ? (
+          <>
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={labelStyle}>Direccion de retiro</label>
+              <input
+                value={form.pickupAddress}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, pickupAddress: event.target.value }))
+                }
+                placeholder="Ej. Av. Siempre Viva 123"
+                style={fieldStyle}
+              />
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={labelStyle}>Horarios de retiro</label>
+              <input
+                value={form.pickupHours}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, pickupHours: event.target.value }))
+                }
+                placeholder="Ej. Lun a Vie 10 a 18"
+                style={fieldStyle}
+              />
+            </div>
+            <div style={{ display: "grid", gap: 8, gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Instrucciones de retiro</label>
+              <textarea
+                value={form.pickupInstructions}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, pickupInstructions: event.target.value }))
+                }
+                rows={3}
+                placeholder="Ej. Traer DNI o avisar si retira otra persona."
+                style={textareaStyle}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
 
       <div style={hintCardStyle}>
@@ -333,6 +385,15 @@ export default function AdminShippingMethodsCard({
                 </p>
               ) : null}
               {method.description ? <p style={metaStyle}>{method.description}</p> : null}
+              {method.type === "pickup" && method.pickupAddress ? (
+                <p style={metaStyle}>Direccion: {method.pickupAddress}</p>
+              ) : null}
+              {method.type === "pickup" && method.pickupHours ? (
+                <p style={metaStyle}>Horarios: {method.pickupHours}</p>
+              ) : null}
+              {method.type === "pickup" && method.pickupInstructions ? (
+                <p style={metaStyle}>{method.pickupInstructions}</p>
+              ) : null}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" onClick={() => editMethod(method)} style={secondaryButtonStyle}>
                   Editar

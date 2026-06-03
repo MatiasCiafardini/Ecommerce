@@ -40,7 +40,7 @@ function LoginPageInner() {
 
   const redirectAfterLogin = (role?: string) => {
     const defaultRedirect =
-      role && role !== "CUSTOMER"
+      role && ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(role)
         ? "/account?section=admin-overview"
         : "/account?section=orders";
 

@@ -50,6 +50,10 @@ declare global {
 }
 
 let googleScriptPromise: Promise<void> | null = null;
+let initializedGoogleClientId = "";
+let latestGoogleCredentialHandler:
+  | ((response: GoogleCredentialResponse) => void | Promise<void>)
+  | null = null;
 
 function loadGoogleScript() {
   if (typeof window === "undefined") {
@@ -147,7 +151,7 @@ export function GoogleSignInButton({
 
         setLoadError(null);
 
-        const handleCredential = async (response: GoogleCredentialResponse) => {
+        latestGoogleCredentialHandler = async (response: GoogleCredentialResponse) => {
           if (!response.credential) {
             emitError("Google no devolvio una credencial valida.");
             return;
@@ -171,10 +175,15 @@ export function GoogleSignInButton({
           }
         };
 
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleCredential,
-        });
+        if (initializedGoogleClientId !== clientId) {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: (response) => {
+              void latestGoogleCredentialHandler?.(response);
+            },
+          });
+          initializedGoogleClientId = clientId;
+        }
 
         buttonRef.current.innerHTML = "";
         const buttonWidth = Math.min(

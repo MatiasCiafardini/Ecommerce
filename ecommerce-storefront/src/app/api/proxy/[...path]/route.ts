@@ -93,13 +93,15 @@ async function proxyRequest(
     );
   }
 
-  console.info("[proxy] forwarding request", {
-    incomingHost: tenant.host,
-    resolvedStoreId: tenant.storeId,
-    forwardedStoreHost: tenant.host,
-    method: request.method,
-    path,
-  });
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[proxy] forwarding request", {
+      incomingHost: tenant.host,
+      resolvedStoreId: tenant.storeId,
+      forwardedStoreHost: tenant.host,
+      method: request.method,
+      path,
+    });
+  }
 
   const upstreamResponse = await fetch(targetUrl, {
     method: request.method,

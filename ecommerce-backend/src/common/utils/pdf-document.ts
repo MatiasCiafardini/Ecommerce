@@ -31,6 +31,7 @@ type DrawFilledRectOptions = {
   y: number;
   width: number;
   height: number;
+  color?: 'black' | 'white';
 };
 
 type DrawLineOptions = {
@@ -181,8 +182,12 @@ export class SimplePdfDocument {
   }
 
   drawFilledRect(options: DrawFilledRectOptions) {
+    const colorCommand = options.color === 'white' ? '1 1 1 rg' : '0 0 0 rg';
     this.currentPage().push(
+      'q',
+      colorCommand,
       `${options.x.toFixed(2)} ${options.y.toFixed(2)} ${options.width.toFixed(2)} ${options.height.toFixed(2)} re f`,
+      'Q',
     );
   }
 

@@ -44,7 +44,7 @@ function AccountPageInner() {
 
   useEffect(() => {
     const requestedSection = searchParams.get("section");
-    const isAdmin = user?.role && user.role !== "CUSTOMER";
+    const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
     const manualSalesEnabled = Boolean(
       user?.storeFeatures?.manualSalesEnabled || user?.storeId === 3,
     );
@@ -56,7 +56,7 @@ function AccountPageInner() {
 
   const section = useMemo<AccountSection>(() => {
     const requestedSection = searchParams.get("section") as AccountSection | null;
-    const isAdmin = user?.role && user.role !== "CUSTOMER";
+    const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
     const enabledAdminSections = adminSections;
     const allowedSections = isAdmin
       ? [...customerSections, ...enabledAdminSections]
@@ -80,6 +80,13 @@ function AccountPageInner() {
       onSectionChange={(nextSection) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set("section", nextSection);
+        if (nextSection !== "admin-labels") {
+          params.delete("productId");
+          params.delete("variantIds");
+        }
+        if (nextSection === "admin-orders") {
+          params.delete("orderId");
+        }
         router.replace(`/account?${params.toString()}`);
       }}
     />

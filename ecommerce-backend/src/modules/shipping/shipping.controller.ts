@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 
 import { ShippingService } from './shipping.service';
@@ -10,6 +10,11 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('store/shipping')
 export class ShippingController {
   constructor(private readonly shippingService: ShippingService) {}
+
+  @Get('methods')
+  async getMethods(@Req() req: Request & { storeId: number }) {
+    return this.shippingService.getStoreMethods(req.storeId);
+  }
 
   @Post('options')
   async getOptions(
@@ -25,6 +30,7 @@ export class ShippingController {
         state: dto.state,
         city: dto.city,
         country: dto.country,
+        deliveryMode: dto.deliveryMode,
       },
     );
   }

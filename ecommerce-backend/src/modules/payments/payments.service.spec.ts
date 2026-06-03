@@ -8,6 +8,9 @@ describe('PaymentsService', () => {
       findFirst: jest.Mock;
       update: jest.Mock;
     };
+    orderEvent: {
+      create: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
   let mercadopago: {
@@ -24,6 +27,9 @@ describe('PaymentsService', () => {
       payment: {
         findFirst: jest.fn(),
         update: jest.fn(),
+      },
+      orderEvent: {
+        create: jest.fn(),
       },
       $transaction: jest.fn(),
     };
@@ -69,6 +75,9 @@ describe('PaymentsService', () => {
           ],
         }),
         update: jest.fn().mockResolvedValue({ id: 41, status: OrderStatus.cancelled }),
+      },
+      orderEvent: {
+        create: jest.fn(),
       },
     };
 
@@ -130,6 +139,9 @@ describe('PaymentsService', () => {
           items: [{ variantId: 501, quantity: 3 }],
         }),
         update: jest.fn().mockResolvedValue({ id: 77, status: OrderStatus.cancelled }),
+      },
+      orderEvent: {
+        create: jest.fn(),
       },
     };
 
@@ -204,11 +216,21 @@ describe('PaymentsService', () => {
       },
     };
 
-    (prisma as any).payment.create = jest.fn().mockResolvedValue(createdPayment);
     (prisma as any).order = {
       findFirst: jest.fn().mockResolvedValue(order),
     };
     prisma.payment.findFirst.mockResolvedValue(null);
+    const tx = {
+      payment: {
+        create: jest.fn().mockResolvedValue(createdPayment),
+      },
+      orderEvent: {
+        create: jest.fn(),
+      },
+    };
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof tx) => Promise<void>) =>
+      callback(tx),
+    );
 
     const result = await service.createPayment(
       4,
@@ -222,7 +244,7 @@ describe('PaymentsService', () => {
     );
 
     expect(result).toBe(createdPayment);
-    expect((prisma as any).payment.create).toHaveBeenCalledWith({
+    expect(tx.payment.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         storeId: 4,
         orderId: 88,

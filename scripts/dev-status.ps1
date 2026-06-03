@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $workspaceRoot = Split-Path -Parent $PSScriptRoot
 $pidDir = Join-Path $workspaceRoot ".local-runtime\\pids"
 $services = @(
+  @{ Name = "redis"; Port = 6379; Url = "redis://localhost:6379" },
   @{ Name = "backend"; Port = 3000; Url = "http://localhost:3000/docs" },
   @{ Name = "store1"; Port = 3001; Url = "http://localhost:3001" },
   @{ Name = "store2"; Port = 3002; Url = "http://localhost:3002" },

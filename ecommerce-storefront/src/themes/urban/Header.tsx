@@ -17,7 +17,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const router = useRouter();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const manualSalesEnabled = Boolean(
-    user?.role && user.role !== "CUSTOMER" && user.storeFeatures?.manualSalesEnabled,
+    ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "") &&
+      user?.storeFeatures?.manualSalesEnabled,
   );
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

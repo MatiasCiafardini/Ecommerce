@@ -52,9 +52,9 @@ export class ReturnsService {
       throw new ForbiddenException('You cannot request a return for this order');
     }
 
-    if (order.status !== 'delivered') {
+    if (!['delivered', 'picked_up'].includes(order.status)) {
       throw new BadRequestException(
-        'Returns are only available after the order is delivered',
+        'Returns are only available after the order is delivered or picked up',
       );
     }
 

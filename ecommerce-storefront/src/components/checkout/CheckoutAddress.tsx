@@ -26,9 +26,20 @@ const fieldStyle = {
   color: "var(--checkout-field-color)",
 } as const;
 
+const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
+
+const isValidCheckoutPhone = (value: string) => normalizePhoneDigits(value).length >= 8;
+
 export default function CheckoutAddress({
+  initialContact,
   onNext,
 }: {
+  initialContact?: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    customerNotes?: string;
+  } | null;
   onNext: (address: Address) => void;
 }) {
   const { user, setUser } = useAuth();
@@ -38,9 +49,9 @@ export default function CheckoutAddress({
   const [continuing, setContinuing] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
-    firstName: user?.firstName ?? "",
-    lastName: user?.lastName ?? "",
-    phone: user?.phone ?? "",
+    firstName: initialContact?.firstName ?? user?.firstName ?? "",
+    lastName: initialContact?.lastName ?? user?.lastName ?? "",
+    phone: initialContact?.phone ?? user?.phone ?? "",
     address1: "",
     city: "Buenos Aires",
     state: "Buenos Aires",
@@ -49,6 +60,7 @@ export default function CheckoutAddress({
   });
   const accountPhone = user?.phone?.trim() ?? "";
   const checkoutPhone = accountPhone || form.phone.trim();
+  const phoneIsValid = isValidCheckoutPhone(checkoutPhone);
   const canSaveAddress =
     form.firstName.trim() &&
     form.lastName.trim() &&
@@ -57,7 +69,7 @@ export default function CheckoutAddress({
     form.state.trim() &&
     form.zip.trim() &&
     form.country.trim() &&
-    checkoutPhone;
+    phoneIsValid;
 
   useEffect(() => {
     const loadAddresses = async () => {
@@ -78,17 +90,17 @@ export default function CheckoutAddress({
   useEffect(() => {
     setForm((current) => ({
       ...current,
-      firstName: current.firstName || user?.firstName || "",
-      lastName: current.lastName || user?.lastName || "",
-      phone: user?.phone ?? current.phone,
+      firstName: current.firstName || initialContact?.firstName || user?.firstName || "",
+      lastName: current.lastName || initialContact?.lastName || user?.lastName || "",
+      phone: user?.phone ?? initialContact?.phone ?? current.phone,
     }));
-  }, [user?.firstName, user?.lastName, user?.phone]);
+  }, [initialContact?.firstName, initialContact?.lastName, initialContact?.phone, user?.firstName, user?.lastName, user?.phone]);
 
   const ensureAccountPhone = async () => {
     const phone = checkoutPhone.trim();
 
-    if (!phone) {
-      throw new Error("Carga un telefono para continuar con la compra.");
+    if (!isValidCheckoutPhone(phone)) {
+      throw new Error("Carga un telefono valido para continuar con la compra.");
     }
 
     if (accountPhone) {
@@ -213,7 +225,9 @@ export default function CheckoutAddress({
                     border: active
                       ? "1px solid var(--checkout-border-strong)"
                       : "1px solid var(--checkout-border)",
-                    background: active ? "var(--checkout-card-alt-bg)" : "var(--checkout-card-bg)",
+                    background: active
+                      ? "color-mix(in srgb, var(--checkout-primary-bg) 18%, var(--checkout-card-bg))"
+                      : "var(--checkout-card-bg)",
                     padding: 22,
                     cursor: "pointer",
                     color: "var(--checkout-text-strong)",
@@ -228,7 +242,7 @@ export default function CheckoutAddress({
                       color: active ? "var(--checkout-text-strong)" : "var(--checkout-text-muted)",
                     }}
                   >
-                    {active ? "Seleccionada" : "Disponible"}
+                    Direccion guardada
                   </p>
                   <h3
                     style={{
@@ -304,7 +318,7 @@ export default function CheckoutAddress({
         </div>
 
         <input
-          placeholder="Telefono"
+          placeholder="Ej: 11 1234-5678"
           value={accountPhone || form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
           disabled={Boolean(accountPhone)}
@@ -317,7 +331,8 @@ export default function CheckoutAddress({
           </p>
         ) : (
           <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.6 }}>
-            Necesitamos un telefono para coordinar la entrega o el retiro. Al continuar, queda guardado en tu cuenta.
+            Usamos este telefono para coordinar la entrega. Al continuar, queda guardado en tu cuenta.
+            {checkoutPhone && !phoneIsValid ? " Revisa el numero: faltan digitos." : ""}
           </p>
         )}
 
@@ -381,7 +396,7 @@ export default function CheckoutAddress({
         ) : null}
 
         <button
-          disabled={!selected || !selected.state?.trim() || !checkoutPhone || continuing}
+          disabled={!selected || !selected.state?.trim() || !phoneIsValid || continuing}
           onClick={() => void continueWithSelectedAddress()}
           style={{
             border: "none",
@@ -397,13 +412,13 @@ export default function CheckoutAddress({
             padding: "15px 18px",
             fontWeight: 700,
             cursor:
-              selected && selected.state?.trim() && checkoutPhone && !continuing ? "pointer" : "not-allowed",
+            selected && selected.state?.trim() && phoneIsValid && !continuing ? "pointer" : "not-allowed",
           }}
         >
           {continuing
-            ? "Guardando telefono..."
-            : !checkoutPhone
-              ? "Carga un telefono para continuar"
+            ? "Guardando datos..."
+            : !phoneIsValid
+              ? "Carga un telefono valido"
             : selected && !selected.state?.trim()
             ? "Completa la provincia para continuar"
             : "Continuar con esta direccion"}

@@ -21,7 +21,6 @@ import { ShippingModule } from './modules/shipping/shipping.module';
 import { InventoryLockModule } from './modules/inventory-lock/inventory-lock.module';
 import { DiscountsModule } from './modules/discounts/discounts.module';
 import { FulfillmentModule } from './modules/fulfillment/fulfillment.module';
-import { OrderManagementModule } from './modules/order-management/order-management.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { EventBusModule } from './modules/event-bus/event-bus.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
@@ -63,7 +62,6 @@ import { PrismaModule } from './prisma/prisma.module';
     InventoryLockModule,
     DiscountsModule,
     FulfillmentModule,
-    OrderManagementModule,
     ReturnsModule,
     EventBusModule,
     WebhooksModule,

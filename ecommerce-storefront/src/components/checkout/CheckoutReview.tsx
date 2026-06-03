@@ -6,7 +6,12 @@ import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import { CustomerOrder, money, openReceipt } from "@/components/account/order-utils";
+import {
+  canDownloadOrderReceipt,
+  CustomerOrder,
+  money,
+  openReceipt,
+} from "@/components/account/order-utils";
 import MercadoPagoCardPayment from "@/components/checkout/MercadoPagoCardPayment";
 import { roundCurrency } from "@/lib/currency";
 import { getClientStoreContext } from "@/lib/tenant/store-context";
@@ -44,6 +49,29 @@ const getCheckoutShippingLabel = (option: ShippingOption | null) => {
   return [option.provider, option.method].filter(Boolean).join(" · ");
 };
 
+const getCompletedOrderShippingLabel = (
+  order: Pick<CustomerOrder, "shippingProvider" | "shippingMethod">,
+) => {
+  const provider = order.shippingProvider?.trim() ?? "";
+  const method = order.shippingMethod?.trim() ?? "";
+  const normalizedProvider = provider.toLowerCase();
+  const normalizedMethod = method.toLowerCase();
+
+  if (
+    normalizedProvider === "store" ||
+    normalizedMethod.includes("retiro") ||
+    normalizedMethod.includes("pickup")
+  ) {
+    return ["Tienda", method || "Retiro en local"].join(" · ");
+  }
+
+  if (normalizedProvider === "manual") {
+    return method || "Entrega a coordinar";
+  }
+
+  return [provider, method].filter(Boolean).join(" · ") || "Entrega a coordinar";
+};
+
 const getCheckoutShippingEta = (option: ShippingOption | null) => {
   if (!option) return "La fecha de entrega se confirmara despues de la compra.";
 
@@ -63,6 +91,36 @@ const getCheckoutShippingEta = (option: ShippingOption | null) => {
   }
 
   return `Entrega estimada en ${option.estimatedDays} dia${option.estimatedDays === 1 ? "" : "s"}.`;
+};
+
+const isCheckoutPickup = (option: ShippingOption | null) => {
+  const provider = option?.provider?.trim().toLowerCase() ?? "";
+  const method = option?.method?.trim().toLowerCase() ?? "";
+  const serviceCode = option?.serviceCode?.trim().toLowerCase() ?? "";
+  const modalityCode = option?.modalityCode?.trim().toLowerCase() ?? "";
+  const dispatchType = option?.dispatchType?.trim().toLowerCase() ?? "";
+
+  return (
+    provider === "store" ||
+    method.includes("retiro") ||
+    method.includes("pickup") ||
+    serviceCode === "pickup" ||
+    modalityCode === "pickup" ||
+    dispatchType === "pickup"
+  );
+};
+
+const isCheckoutCoordinatedShipping = (option: ShippingOption | null) => {
+  const provider = option?.provider?.trim().toLowerCase() ?? "";
+  const method = option?.method?.trim().toLowerCase() ?? "";
+  const serviceCode = option?.serviceCode?.trim().toLowerCase() ?? "";
+  const looksFree = method.includes("gratis") || serviceCode === "free";
+
+  return (
+    method.includes("coordinar") ||
+    serviceCode === "coordinar" ||
+    (provider === "manual" && Number(option?.price ?? 0) <= 0 && !looksFree)
+  );
 };
 
 type CheckoutCartItem = {
@@ -274,6 +332,7 @@ export default function CheckoutReview({
   paymentMethod,
   paymentLabel,
   shippingOption,
+  customerNotes,
 }: {
   cart: CheckoutCartItem[];
   cartId: number;
@@ -281,6 +340,7 @@ export default function CheckoutReview({
   paymentMethod: string | null;
   paymentLabel: string | null;
   shippingOption: ShippingOption | null;
+  customerNotes?: string | null;
 }) {
   const { clearCart } = useCart();
   const { user } = useAuth();
@@ -314,6 +374,8 @@ export default function CheckoutReview({
   const total = roundCurrency(Math.max(subtotal - discountAmount + shippingCost, 0));
   const isBankTransfer = paymentMethod === "bank_transfer";
   const isCashPayment = paymentMethod === "cash";
+  const isPickupDelivery = isCheckoutPickup(shippingOption);
+  const isCoordinatedShipping = isCheckoutCoordinatedShipping(shippingOption);
   const useDarkCompletionPopup = user?.storeId === 1 || user?.storeId === 3;
   const paymentDisplayLabel =
     paymentLabel ??
@@ -324,6 +386,9 @@ export default function CheckoutReview({
         : paymentMethod === "cash"
           ? "Efectivo al retirar"
         : "A confirmar");
+  const canDownloadCompletedReceipt = completedOrder
+    ? canDownloadOrderReceipt(completedOrder)
+    : false;
 
   useEffect(() => {
     if (!isBankTransfer) {
@@ -488,6 +553,7 @@ export default function CheckoutReview({
         couponCode:
           discountPreview?.source === "coupon" ? discountPreview.code ?? undefined : undefined,
         paymentMethod: paymentMethod ?? undefined,
+        customerNotes: customerNotes?.trim() || undefined,
         idempotencyKey: crypto.randomUUID(),
       }),
     });
@@ -955,7 +1021,9 @@ export default function CheckoutReview({
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
                 <span style={{ color: "var(--checkout-text-muted)" }}>Envio</span>
                 <strong>
-                  {discountPreview?.freeShipping && baseShippingCost > 0
+                  {isCoordinatedShipping
+                    ? "A coordinar"
+                    : discountPreview?.freeShipping && baseShippingCost > 0
                     ? "Gratis"
                     : money(shippingCost)}
                 </strong>
@@ -1149,7 +1217,9 @@ export default function CheckoutReview({
           }}
         >
           <div style={summaryCardStyle}>
-            <strong style={{ fontSize: 18 }}>Direccion de entrega</strong>
+            <strong style={{ fontSize: 18 }}>
+              {isPickupDelivery ? "Contacto para retiro" : "Direccion de entrega"}
+            </strong>
             <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.8 }}>
               {address.firstName} {address.lastName}
               {address.phone ? (
@@ -1158,19 +1228,28 @@ export default function CheckoutReview({
                   {address.phone}
                 </>
               ) : null}
-              <br />
-              {address.address1}
-              {address.address2 ? (
+              {isPickupDelivery ? (
                 <>
                   <br />
-                  {address.address2}
+                  Retiro en local. No hace falta domicilio para esta compra.
                 </>
-              ) : null}
-              <br />
-              {address.city}
-              {address.state ? `, ${address.state}` : ""}, {address.country}
-              <br />
-              CP {address.zip}
+              ) : (
+                <>
+                  <br />
+                  {address.address1}
+                  {address.address2 ? (
+                    <>
+                      <br />
+                      {address.address2}
+                    </>
+                  ) : null}
+                  <br />
+                  {address.city}
+                  {address.state ? `, ${address.state}` : ""}, {address.country}
+                  <br />
+                  CP {address.zip}
+                </>
+              )}
             </p>
           </div>
 
@@ -1198,6 +1277,14 @@ export default function CheckoutReview({
               </div>
             </div>
           </div>
+          {customerNotes?.trim() ? (
+            <div style={summaryCardStyle}>
+              <strong style={{ fontSize: 18 }}>Nota del pedido</strong>
+              <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.8 }}>
+                {customerNotes.trim()}
+              </p>
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -1266,12 +1353,12 @@ export default function CheckoutReview({
                 }}
               >
                 {isBankTransfer
-                  ? `Tu pedido #${completedOrder.id} ya quedo registrado. El comercio recibio tu comprobante y ahora puede validar la transferencia.`
+                  ? "Tu compra ya quedo registrada. La tienda recibio tu comprobante y ahora puede validar la transferencia."
                   : isCashPayment
-                    ? `Tu pedido #${completedOrder.id} ya quedo registrado para retiro en local. El pago quedo marcado como pendiente para abonarlo en efectivo al retirar.`
+                    ? "Tu compra ya quedo registrada para retiro en local. Vas a poder abonarla en efectivo cuando pases por la tienda."
                   : completedPaymentStatus === "pending" || completedPaymentStatus === "in_process"
-                    ? `Tu pedido #${completedOrder.id} ya quedo registrado. Mercado Pago indico que el pago sigue pendiente de confirmacion, asi que vas a poder seguir su estado desde el detalle del pedido.`
-                    : `Tu pedido #${completedOrder.id} ya quedo registrado y el pago figura como confirmado. Desde aca puedes abrir el detalle para revisar productos, direccion, comprobante y seguimiento.`}
+                    ? "Tu compra ya quedo registrada. Mercado Pago indico que el pago sigue pendiente de confirmacion, asi que vas a poder seguir su estado desde el detalle."
+                    : "Tu compra ya quedo registrada y el pago figura como confirmado. Desde aca puedes abrir el detalle para revisar productos, entrega, comprobante y seguimiento."}
               </p>
             </div>
 
@@ -1292,7 +1379,7 @@ export default function CheckoutReview({
               ) : null}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                 <span style={{ color: useDarkCompletionPopup ? "rgba(245,239,231,0.66)" : "rgba(247,241,232,0.66)" }}>Entrega</span>
-                <strong>{[completedOrder.shippingProvider, completedOrder.shippingMethod].filter(Boolean).join(" · ")}</strong>
+                <strong>{getCompletedOrderShippingLabel(completedOrder)}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                 <span style={{ color: useDarkCompletionPopup ? "rgba(245,239,231,0.66)" : "rgba(247,241,232,0.66)" }}>Pago</span>
@@ -1301,22 +1388,24 @@ export default function CheckoutReview({
             </div>
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={() => void openReceipt(completedOrder.id)}
-                style={
-                  useDarkCompletionPopup
-                    ? {
-                        ...primaryActionStyle,
-                        background: "#f5efe7",
-                        color: "#121212",
-                        border: "1px solid rgba(255,255,255,0.12)",
-                      }
-                    : primaryActionStyle
-                }
-              >
-                Descargar comprobante
-              </button>
+              {canDownloadCompletedReceipt ? (
+                <button
+                  type="button"
+                  onClick={() => void openReceipt(completedOrder.id)}
+                  style={
+                    useDarkCompletionPopup
+                      ? {
+                          ...primaryActionStyle,
+                          background: "#f5efe7",
+                          color: "#121212",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                        }
+                      : primaryActionStyle
+                  }
+                >
+                  Descargar comprobante
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => goToOrderDetail(completedOrder.id)}

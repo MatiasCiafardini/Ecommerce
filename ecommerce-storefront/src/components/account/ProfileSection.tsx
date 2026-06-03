@@ -15,7 +15,7 @@ type ProfileForm = {
 
 export default function ProfileSection({ user }: { user: User }) {
   const { setUser } = useAuth();
-  const isAdmin = Boolean(user.role && user.role !== "CUSTOMER");
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user.role ?? "");
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");

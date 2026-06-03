@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, apiBlob } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import {
+  canDownloadOrderReceipt,
   canCustomerCancelOrder,
   canCustomerRequestCancellation,
   canCustomerRequestReturn,
@@ -15,7 +16,7 @@ import {
   openReceipt,
   orderShippingAddressLines,
   orderShippingRecipient,
-  orderStatusLabel,
+  orderStatusLabelForDelivery,
   paymentDisplayLabel,
   paymentStatusLabel,
   shipmentTimeline,
@@ -94,6 +95,8 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
   const cancellable = canCustomerCancelOrder(order);
   const cancellationRequestable = canCustomerRequestCancellation(order);
   const returnable = canCustomerRequestReturn(order);
+  const receiptAvailable = canDownloadOrderReceipt(order);
+  const reservationExpiry = formatReservationExpiry(order.reservationExpiresAt);
   const selectableItems = order.items.filter(
     (item) => Number(item.quantity ?? 0) - Number(item.returnedQuantity ?? 0) > 0,
   );
@@ -298,20 +301,22 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
             >
               Volver al historial
             </Link>
-            <button
-              onClick={() => void openReceipt(order.id)}
-              style={{
-                border: "none",
-                borderRadius: 999,
-                background: "var(--text-strong)",
-                color: "var(--page-panel-bg)",
-                padding: "12px 16px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Descargar comprobante
-            </button>
+            {receiptAvailable ? (
+              <button
+                onClick={() => void openReceipt(order.id)}
+                style={{
+                  border: "none",
+                  borderRadius: 999,
+                  background: "var(--text-strong)",
+                  color: "var(--page-panel-bg)",
+                  padding: "12px 16px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Descargar comprobante
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -340,8 +345,13 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                   Estado actual
                 </p>
                 <h2 style={{ margin: "10px 0 0", fontSize: 28 }}>
-                  {orderStatusLabel(order.status)}
+                  {orderStatusLabelForDelivery(order)}
                 </h2>
+                {reservationExpiry && order.status === "pending" ? (
+                  <p style={{ margin: "10px 0 0", color: "var(--text-muted)", lineHeight: 1.7 }}>
+                    Stock reservado hasta {reservationExpiry}.
+                  </p>
+                ) : null}
               </div>
 
               <div style={{ display: "grid", gap: 16 }}>
@@ -388,6 +398,34 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
                 ))}
               </div>
             </section>
+
+            {order.customerNotesSnapshot?.trim() ? (
+              <section
+                style={{
+                  borderRadius: 32,
+                  border: "1px solid var(--border-soft)",
+                  background: "var(--page-panel-bg)",
+                  padding: 28,
+                  display: "grid",
+                  gap: 12,
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.22em",
+                    fontSize: 11,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  Nota del pedido
+                </p>
+                <p style={{ margin: 0, color: "var(--text-muted)", lineHeight: 1.8 }}>
+                  {order.customerNotesSnapshot.trim()}
+                </p>
+              </section>
+            ) : null}
 
             {(cancellable || cancellationRequestable || returnable || (order.returns?.length ?? 0) > 0 || (order.cancellationRequests?.length ?? 0) > 0) ? (
               <section
@@ -1028,4 +1066,17 @@ export default function OrderDetailView({ orderId }: { orderId: number }) {
       </div>
     </section>
   );
+}
+
+function formatReservationExpiry(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toLocaleString("es-AR");
 }

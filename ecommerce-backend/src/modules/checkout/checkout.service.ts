@@ -41,6 +41,7 @@ export class CheckoutService {
       idempotencyKey,
       shippingAddress,
       shippingSelection,
+      customerNotes,
     } = dto;
 
     if (idempotencyKey) {
@@ -108,8 +109,8 @@ export class CheckoutService {
 
     const checkoutPhone = shippingAddress.phone?.trim() || customer.phone?.trim();
 
-    if (!checkoutPhone) {
-      throw new BadRequestException('Phone is required for checkout');
+    if (!this.isValidCheckoutPhone(checkoutPhone)) {
+      throw new BadRequestException('A valid phone is required for checkout');
     }
 
     const {
@@ -189,6 +190,7 @@ export class CheckoutService {
 
     const total = roundCurrency(subtotal - discountAmount + finalShippingCost);
     const cashPayment = this.isCashPaymentMethod(paymentMethod);
+    const reservationExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
     return this.prisma.$transaction(async (tx) => {
       for (const item of cart.items) {
@@ -254,8 +256,36 @@ export class CheckoutService {
           shippingStateSnapshot: shippingAddress.state ?? null,
           shippingPostalCodeSnapshot: shippingAddress.zip,
           shippingCountrySnapshot: shippingAddress.country,
+          customerNotesSnapshot: customerNotes?.trim() || null,
+          reservationExpiresAt,
           idempotencyKey: idempotencyKey ?? null,
         } as any,
+      });
+
+      await tx.orderEvent.create({
+        data: {
+          storeId,
+          orderId: order.id,
+          type: 'order.created',
+          title: 'Pedido creado desde checkout',
+          message: customerNotes?.trim()
+            ? 'El cliente dejo una nota para este pedido.'
+            : 'El pedido quedo registrado y con stock reservado.',
+          actorType: 'customer',
+          actorId: customerId,
+          actorName:
+            [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim() ||
+            customer.email,
+          metadata: {
+            shippingMethod:
+              validatedShipping?.shippingMethod ?? shippingMethod ?? null,
+            shippingProvider:
+              validatedShipping?.shippingProvider ?? shippingProvider ?? null,
+            paymentMethod: paymentMethod ?? null,
+            reservationExpiresAt: reservationExpiresAt.toISOString(),
+            hasCustomerNotes: Boolean(customerNotes?.trim()),
+          },
+        },
       });
 
       for (const item of cart.items) {
@@ -271,7 +301,7 @@ export class CheckoutService {
       }
 
       if (cashPayment) {
-        await tx.payment.create({
+        const payment = await tx.payment.create({
           data: {
             storeId,
             orderId: order.id,
@@ -285,6 +315,26 @@ export class CheckoutService {
             metadata: {
               source: 'checkout',
               channel: 'cash_on_pickup',
+            },
+          },
+        });
+
+        await tx.orderEvent.create({
+          data: {
+            storeId,
+            orderId: order.id,
+            type: 'payment.created',
+            title: 'Pago en efectivo pendiente',
+            message: 'El cliente eligio abonar en efectivo al retirar.',
+            actorType: 'customer',
+            actorId: customerId,
+            actorName:
+              [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim() ||
+              customer.email,
+            metadata: {
+              paymentId: payment.id,
+              provider: payment.provider,
+              status: payment.status,
             },
           },
         });
@@ -595,6 +645,11 @@ export class CheckoutService {
       normalized === 'cash_on_pickup' ||
       normalized === 'efectivo'
     );
+  }
+
+  private isValidCheckoutPhone(phone?: string | null) {
+    const digits = phone?.replace(/\D/g, '') ?? '';
+    return digits.length >= 8;
   }
 
   private isPickupOrder(order: {

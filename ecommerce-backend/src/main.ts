@@ -19,7 +19,7 @@ function resolveCorsOrigin(origin: string | undefined, allowedOrigins: string[])
   }
 
   if (allowedOrigins.length === 0) {
-    return origin;
+    return runtimeConfig.nodeEnv === 'production' ? false : origin;
   }
 
   return allowedOrigins.includes(origin) ? origin : false;

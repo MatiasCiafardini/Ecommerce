@@ -100,6 +100,23 @@ const getShippingTimingCopy = (option: ShippingOption) => {
   return `Llega en ${option.estimatedDays} dia${option.estimatedDays === 1 ? "" : "s"}`;
 };
 
+const getShippingPriceLabel = (option: ShippingOption) => {
+  const provider = option.provider?.trim().toLowerCase() ?? "";
+  const method = option.method?.trim().toLowerCase() ?? "";
+  const serviceCode = option.serviceCode?.trim().toLowerCase() ?? "";
+  const looksFree = method.includes("gratis") || serviceCode === "free";
+
+  if (
+    method.includes("coordinar") ||
+    serviceCode === "coordinar" ||
+    (provider === "manual" && option.price <= 0 && !looksFree)
+  ) {
+    return "A coordinar";
+  }
+
+  return option.price <= 0 ? "Gratis" : formatCurrency(option.price);
+};
+
 export default function CheckoutPayment({
   shippingOptions,
   onNext,
@@ -268,7 +285,7 @@ export default function CheckoutPayment({
                     </p>
                   </div>
                   <strong style={{ fontSize: 24 }}>
-                    {option.price <= 0 ? "Gratis" : formatCurrency(option.price)}
+                    {getShippingPriceLabel(option)}
                   </strong>
                 </div>
               </button>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
+  canDownloadOrderReceipt,
   CustomerOrder,
   hasOrderShippingSnapshot,
   money,
@@ -39,6 +40,52 @@ export default function OrderReceiptView({ orderId }: { orderId: number }) {
 
   if (!order) {
     return <div style={{ padding: 32 }}>No se pudo cargar el comprobante.</div>;
+  }
+
+  if (!canDownloadOrderReceipt(order)) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          background: "#f4efe7",
+          padding: "32px 20px",
+          color: "#111111",
+          display: "grid",
+          placeItems: "center",
+        }}
+      >
+        <section
+          style={{
+            maxWidth: 620,
+            borderRadius: 28,
+            border: "1px solid rgba(17,17,17,0.08)",
+            background: "#ffffff",
+            padding: 28,
+            display: "grid",
+            gap: 14,
+          }}
+        >
+          <h1 style={{ margin: 0, fontSize: 28 }}>Comprobante no disponible</h1>
+          <p style={{ margin: 0, lineHeight: 1.7 }}>
+            El comprobante se va a habilitar cuando la compra este cobrada y entregada.
+          </p>
+          <button
+            onClick={() => window.close()}
+            style={{
+              justifySelf: "start",
+              borderRadius: 999,
+              border: "1px solid rgba(17,17,17,0.14)",
+              background: "transparent",
+              color: "#111111",
+              padding: "12px 16px",
+              cursor: "pointer",
+            }}
+          >
+            Cerrar ventana
+          </button>
+        </section>
+      </main>
+    );
   }
 
   const shippingAddressLines = orderShippingAddressLines(order);

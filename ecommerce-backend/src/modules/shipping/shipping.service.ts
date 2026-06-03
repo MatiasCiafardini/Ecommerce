@@ -38,6 +38,7 @@ export class ShippingService {
       state?: string;
       city?: string;
       country?: string;
+      deliveryMode?: 'shipping' | 'pickup';
     },
   ) {
     const cart = await this.prisma.cart.findFirst({
@@ -131,6 +132,11 @@ export class ShippingService {
       )}`,
     );
     const manualProvider = this.providersRegistry.getProvider('manual');
+    const manualStoreRates = this.buildStoreMethodRates(
+      activeStoreMethods,
+      value,
+      destination?.deliveryMode,
+    );
 
     const pickupRates = (
       await manualProvider.getRates(request, {
@@ -140,15 +146,22 @@ export class ShippingService {
           source: 'env',
         },
       })
-    ).map((rate) => ({
-      ...rate,
-      providerConfigId: null,
-    }));
+    )
+      .filter((rate) =>
+        destination?.deliveryMode === 'shipping'
+          ? !this.isPickupRate(rate)
+          : true,
+      )
+      .map((rate) => ({
+        ...rate,
+        providerConfigId: null,
+      }));
+    const manualRates = manualStoreRates.length ? manualStoreRates : pickupRates;
     const eligibleFreeShippingRates = pickupRates.filter((rate) =>
       this.isFreeShippingRate(rate),
     );
 
-    if (eligibleFreeShippingRates.length > 0) {
+    if (destination?.deliveryMode !== 'shipping' && eligibleFreeShippingRates.length > 0) {
       return this.quotesService.persistQuotes({
         storeId,
         cartId,
@@ -191,8 +204,8 @@ export class ShippingService {
 
     const mergedRates =
       !resolvedProvider || resolvedProvider.provider.providerCode === 'manual'
-        ? this.uniqueRates(pickupRates)
-        : this.uniqueRates([...rates, ...pickupRates]);
+        ? this.uniqueRates(manualRates)
+        : this.uniqueRates([...rates, ...manualRates]);
 
     if (!mergedRates.length) {
       throw new BadRequestException(
@@ -211,6 +224,11 @@ export class ShippingService {
       providerConfigId: resolvedProvider?.config?.id ?? null,
       rates: mergedRates,
     });
+  }
+
+  async getStoreMethods(storeId: number) {
+    const methods = await this.storeShippingMethodsService.findActive(storeId);
+    return methods.length ? methods : this.storeShippingMethodsService.defaultMethods(storeId);
   }
 
   async getAgencies(
@@ -281,6 +299,57 @@ export class ShippingService {
     return metadata?.requiresBranchSelection !== true;
   }
 
+  private buildStoreMethodRates(
+    methods: Awaited<ReturnType<StoreShippingMethodsService['findActive']>>,
+    subtotal: number,
+    deliveryMode?: 'shipping' | 'pickup',
+  ) {
+    const activeMethods = methods.length
+      ? methods
+      : this.storeShippingMethodsService.defaultMethods(0);
+
+    return activeMethods
+      .filter((method) => {
+        if (deliveryMode === 'pickup') {
+          return method.type === 'pickup';
+        }
+
+        if (deliveryMode === 'shipping') {
+          return method.type !== 'pickup';
+        }
+
+        return true;
+      })
+      .filter((method) => {
+        if (method.type !== 'free') {
+          return true;
+        }
+
+        return (
+          !method.freeShippingMinimumAmount ||
+          subtotal >= method.freeShippingMinimumAmount
+        );
+      })
+      .map((method) => ({
+        provider: method.type === 'pickup' ? 'store' : 'manual',
+        method: method.name,
+        price: method.type === 'manual' ? method.price : 0,
+        estimatedDays: method.estimatedDays ?? (method.type === 'pickup' ? 0 : 3),
+        carrierId: method.type === 'pickup' ? 'store' : 'manual',
+        carrierName: method.name,
+        serviceCode: method.type,
+        modalityCode: method.type === 'pickup' ? 'pickup' : 'manual',
+        dispatchType: method.type,
+        providerConfigId: null,
+        metadata: {
+          storeShippingMethodId: method.id,
+          pickupAddress: method.pickupAddress,
+          pickupHours: method.pickupHours,
+          pickupInstructions: method.pickupInstructions,
+        },
+      }));
+  }
+
   private isFreeShippingRate(rate: ShippingRate) {
     const method = rate.method?.trim().toLowerCase() ?? '';
     const serviceCode = rate.serviceCode?.trim().toLowerCase() ?? '';
@@ -293,6 +362,17 @@ export class ShippingService {
         serviceCode === 'free' ||
         dispatchType === 'free' ||
         method.includes('gratis'))
+    );
+  }
+
+  private isPickupRate(rate: ShippingRate) {
+    return (
+      rate.provider === 'store' ||
+      rate.carrierId === 'store' ||
+      rate.serviceCode === 'pickup' ||
+      rate.modalityCode === 'pickup' ||
+      rate.method?.toLowerCase().includes('retiro') ||
+      rate.method?.toLowerCase().includes('pickup')
     );
   }
 

@@ -353,7 +353,7 @@ export default function ProductView({
     ? (cart.find((item) => item.variantId === String(selectedVariant.id))
         ?.quantity ?? 0)
     : 0;
-  const isAdmin = Boolean(user?.role && user.role !== "CUSTOMER");
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
   const canAddSelectedVariant = Boolean(
     selectedVariant &&
     selectedVariantStock > 0 &&

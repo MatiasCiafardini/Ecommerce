@@ -110,6 +110,11 @@ export class CheckoutDto {
   @IsString()
   idempotencyKey?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerNotes?: string;
+
   @ApiProperty()
   @ValidateNested()
   @Type(() => CheckoutAddressSnapshotDto)

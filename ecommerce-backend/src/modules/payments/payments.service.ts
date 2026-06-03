@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { access, writeFile } from 'fs/promises';
+import { access, unlink, writeFile } from 'fs/promises';
 import { basename, extname, join } from 'path';
 import { OrderStatus, Prisma } from '@prisma/client';
 
@@ -22,7 +22,7 @@ import { ShipmentService } from '../fulfillment/services/shipment.service';
 type Requester = { sub: number; role?: string };
 type UploadedTransferProof = { filename: string; originalname: string };
 type PersistedTransferProof = { filename: string; originalname: string };
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'STAFF']);
+const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN']);
 const TRANSFER_PROOF_MAX_BYTES = 5 * 1024 * 1024;
 const allowedTransferProofExtensions = new Set(['.pdf', '.png', '.jpg', '.jpeg']);
 const allowedTransferProofMimeTypes = new Set([
@@ -69,24 +69,51 @@ export class PaymentsService {
 
     if (provider === 'cash') {
       this.ensureCashPaymentAllowed(order);
+      const activePayment = await this.findActivePaymentForOrder(
+        storeId,
+        orderId,
+        'cash',
+      );
+      if (activePayment) {
+        return activePayment;
+      }
 
-      return this.prisma.payment.create({
-        data: {
+      return this.prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.create({
+          data: {
+            storeId,
+            orderId,
+            provider: 'cash',
+            method: dto.method?.trim() || 'cash',
+            status: 'pending',
+            amount: order.total,
+            externalId: null,
+            reference: dto.reference?.trim() || null,
+            notes: dto.notes?.trim() || null,
+            idempotencyKey,
+            metadata: {
+              source: 'checkout',
+              channel: 'cash_on_pickup',
+            },
+          },
+        });
+
+        await this.createOrderEventTx(tx, {
           storeId,
           orderId,
-          provider: 'cash',
-          method: dto.method?.trim() || 'cash',
-          status: 'pending',
-          amount: order.total,
-          externalId: null,
-          reference: dto.reference?.trim() || null,
-          notes: dto.notes?.trim() || null,
-          idempotencyKey,
+          type: 'payment.created',
+          title: 'Pago en efectivo pendiente',
+          message: 'Se registro un pago en efectivo pendiente de cobro.',
+          actorType: this.resolveActorType(requester),
+          actorId: requester?.sub,
           metadata: {
-            source: 'checkout',
-            channel: 'cash_on_pickup',
+            paymentId: payment.id,
+            provider: payment.provider,
+            status: payment.status,
           },
-        },
+        });
+
+        return payment;
       });
     }
 
@@ -96,6 +123,15 @@ export class PaymentsService {
       throw new BadRequestException(
         'A valid Mercado Pago card token is required to process the payment',
       );
+    }
+
+    const activePayment = await this.findActivePaymentForOrder(
+      storeId,
+      orderId,
+      'mercadopago',
+    );
+    if (activePayment) {
+      return activePayment;
     }
 
     mpPayment = await this.mercadopago.createPayment({
@@ -137,6 +173,22 @@ export class PaymentsService {
       },
     });
 
+    await this.createOrderEvent({
+      storeId,
+      orderId,
+      type: 'payment.created',
+      title: `Pago Mercado Pago ${payment.status}`,
+      message: `Mercado Pago respondio con estado ${payment.status}.`,
+      actorType: this.resolveActorType(requester),
+      actorId: requester?.sub,
+      metadata: {
+        paymentId: payment.id,
+        provider: payment.provider,
+        status: payment.status,
+        externalId: payment.externalId,
+      },
+    });
+
     if (mpPayment.status === 'approved') {
       await this.finalizeApprovedOrder(order.id);
     }
@@ -161,28 +213,58 @@ export class PaymentsService {
       return existingPayment;
     }
 
-    const proof = await this.resolveTransferProofFile(dto, file);
     const order = await this.getOrderForPayment(storeId, orderId, requester);
+    const activePayment = await this.findActivePaymentForOrder(
+      storeId,
+      orderId,
+      'bank_transfer',
+    );
+    if (activePayment) {
+      await this.discardUploadedTransferProof(file);
+      return activePayment;
+    }
+    const proof = await this.resolveTransferProofFile(dto, file);
 
-    return this.prisma.payment.create({
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          storeId,
+          orderId,
+          provider: 'bank_transfer',
+          method: dto.method?.trim() || 'bank_transfer',
+          status: 'pending',
+          amount: order.total,
+          reference: dto.reference?.trim() || null,
+          proofUrl: `/private-uploads/${proof.filename}`,
+          proofFilename: proof.originalname,
+          notes: dto.notes?.trim() || null,
+          idempotencyKey,
+          metadata: {
+            source: 'checkout',
+            channel: 'manual_transfer',
+            uploadedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      await this.createOrderEventTx(tx, {
         storeId,
         orderId,
-        provider: 'bank_transfer',
-        method: dto.method?.trim() || 'bank_transfer',
-        status: 'pending',
-        amount: order.total,
-        reference: dto.reference?.trim() || null,
-        proofUrl: `/private-uploads/${proof.filename}`,
-        proofFilename: proof.originalname,
-        notes: dto.notes?.trim() || null,
-        idempotencyKey,
+        type: 'payment.proof_uploaded',
+        title: 'Comprobante de transferencia recibido',
+        message: 'El cliente subio un comprobante para revision.',
+        actorType: this.resolveActorType(requester),
+        actorId: requester?.sub,
         metadata: {
-          source: 'checkout',
-          channel: 'manual_transfer',
-          uploadedAt: new Date().toISOString(),
+          paymentId: payment.id,
+          provider: payment.provider,
+          status: payment.status,
+          proofFilename: payment.proofFilename,
+          reference: payment.reference,
         },
-      },
+      });
+
+      return payment;
     });
   }
 
@@ -255,6 +337,21 @@ export class PaymentsService {
       },
     });
 
+    await this.createOrderEvent({
+      storeId,
+      orderId: payment.orderId,
+      type: 'payment.approved',
+      title: 'Pago aprobado',
+      message: 'El pago fue aprobado desde el panel administrativo.',
+      actorType: 'admin',
+      metadata: {
+        paymentId: payment.id,
+        provider: payment.provider,
+        previousStatus: payment.status,
+        status: updated.status,
+      },
+    });
+
     await this.finalizeApprovedOrder(payment.orderId);
 
     return updated;
@@ -284,6 +381,21 @@ export class PaymentsService {
           ? [payment.notes, dto.notes.trim()].filter(Boolean).join('\n')
           : payment.notes,
         reviewedAt: new Date(),
+      },
+    });
+
+    await this.createOrderEvent({
+      storeId,
+      orderId: payment.orderId,
+      type: 'payment.rejected',
+      title: 'Pago rechazado',
+      message: 'El pago fue rechazado desde el panel administrativo.',
+      actorType: 'admin',
+      metadata: {
+        paymentId: payment.id,
+        provider: payment.provider,
+        previousStatus: payment.status,
+        status: updated.status,
       },
     });
 
@@ -328,7 +440,7 @@ export class PaymentsService {
       paymentId,
     );
 
-    await this.prisma.payment.update({
+    const updatedPayment = await this.prisma.payment.update({
       where: { id: payment.id },
       data: {
         status: mpPayment.status,
@@ -340,6 +452,24 @@ export class PaymentsService {
         }),
       },
     });
+
+    if (updatedPayment.status !== payment.status) {
+      await this.createOrderEvent({
+        storeId: payment.storeId,
+        orderId: payment.orderId,
+        type: 'payment.webhook_status_changed',
+        title: `Webhook Mercado Pago: ${updatedPayment.status}`,
+        message: `El pago paso de ${payment.status} a ${updatedPayment.status}.`,
+        actorType: 'system',
+        metadata: {
+          paymentId: payment.id,
+          externalId: payment.externalId,
+          previousStatus: payment.status,
+          status: updatedPayment.status,
+          topic: body?.type ?? null,
+        },
+      });
+    }
 
     if (mpPayment.status === 'approved') {
       await this.finalizeApprovedOrder(payment.orderId);
@@ -452,12 +582,53 @@ export class PaymentsService {
     });
   }
 
+  private async findActivePaymentForOrder(
+    storeId: number,
+    orderId: number,
+    provider: string,
+  ) {
+    return this.prisma.payment.findFirst({
+      where: {
+        storeId,
+        orderId,
+        provider,
+        status: {
+          in: ['pending', 'approved'],
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  private async discardUploadedTransferProof(file?: UploadedTransferProof) {
+    if (!file?.filename) {
+      return;
+    }
+
+    try {
+      await unlink(join(privateUploadsDir, basename(file.filename)));
+    } catch {
+      // The proof may already have been moved or removed; duplicate payment handling should continue.
+    }
+  }
+
   private async resolvePaymentProofAbsolutePath(rawProofUrl: string) {
     const normalized = rawProofUrl.trim();
     const filename = basename(normalized);
-    const candidates = normalized.startsWith('/uploads/')
+    const candidateDirectories = normalized.startsWith('/uploads/')
       ? [uploadsDir, privateUploadsDir]
       : [privateUploadsDir, uploadsDir];
+    const candidates = Array.from(
+      new Set([
+        ...candidateDirectories,
+        join(process.cwd(), 'ecommerce-backend', 'private-uploads'),
+        join(process.cwd(), 'ecommerce-backend', 'uploads'),
+        join(process.cwd(), '..', 'ecommerce-backend', 'private-uploads'),
+        join(process.cwd(), '..', 'ecommerce-backend', 'uploads'),
+      ]),
+    );
 
     for (const directory of candidates) {
       const absolutePath = join(directory, filename);
@@ -550,7 +721,7 @@ export class PaymentsService {
         throw new NotFoundException('Order not found');
       }
 
-      if (order.status !== OrderStatus.paid) {
+      if (order.status === OrderStatus.pending) {
         for (const item of order.items) {
           await this.inventoryLockService.confirmStockTx(
             tx,
@@ -564,6 +735,19 @@ export class PaymentsService {
           where: { id: order.id },
           data: {
             status: OrderStatus.paid,
+          },
+        });
+
+        await this.createOrderEventTx(tx, {
+          storeId: order.storeId,
+          orderId: order.id,
+          type: 'order.payment_confirmed',
+          title: 'Orden marcada como pagada',
+          message: 'El stock reservado fue confirmado y el pedido paso a Pagado.',
+          actorType: 'system',
+          metadata: {
+            from: order.status,
+            to: OrderStatus.paid,
           },
         });
       }
@@ -793,7 +977,82 @@ export class PaymentsService {
           status: OrderStatus.cancelled,
         },
       });
+
+      await this.createOrderEventTx(tx, {
+        storeId: order.storeId,
+        orderId: order.id,
+        type: 'order.cancelled_by_payment',
+        title: 'Pedido cancelado por pago rechazado',
+        message: 'El pago fue rechazado o cancelado y el stock reservado se libero.',
+        actorType: 'system',
+        metadata: {
+          previousStatus: order.status,
+        },
+      });
     });
+  }
+
+  private createOrderEvent(input: {
+    storeId: number;
+    orderId: number;
+    type: string;
+    title: string;
+    message?: string | null;
+    actorType?: string | null;
+    actorId?: number | null;
+    actorName?: string | null;
+    metadata?: Prisma.InputJsonValue;
+  }) {
+    return this.prisma.orderEvent.create({
+      data: {
+        storeId: input.storeId,
+        orderId: input.orderId,
+        type: input.type,
+        title: input.title,
+        message: input.message ?? null,
+        actorType: input.actorType ?? null,
+        actorId: input.actorId ?? null,
+        actorName: input.actorName ?? null,
+        metadata: input.metadata ?? undefined,
+      },
+    });
+  }
+
+  private createOrderEventTx(
+    tx: Prisma.TransactionClient,
+    input: {
+      storeId: number;
+      orderId: number;
+      type: string;
+      title: string;
+      message?: string | null;
+      actorType?: string | null;
+      actorId?: number | null;
+      actorName?: string | null;
+      metadata?: Prisma.InputJsonValue;
+    },
+  ) {
+    return tx.orderEvent.create({
+      data: {
+        storeId: input.storeId,
+        orderId: input.orderId,
+        type: input.type,
+        title: input.title,
+        message: input.message ?? null,
+        actorType: input.actorType ?? null,
+        actorId: input.actorId ?? null,
+        actorName: input.actorName ?? null,
+        metadata: input.metadata ?? undefined,
+      },
+    });
+  }
+
+  private resolveActorType(requester?: Requester) {
+    if (!requester) {
+      return 'system';
+    }
+
+    return ADMIN_ROLES.has(requester.role?.trim() || '') ? 'admin' : 'customer';
   }
 
   private async verifyMercadoPagoWebhookSignature(

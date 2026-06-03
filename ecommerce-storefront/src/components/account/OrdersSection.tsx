@@ -6,10 +6,13 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import {
+  canDownloadOrderReceipt,
   CustomerOrder,
+  isPickupOrder,
   money,
   openReceipt,
-  orderStatusLabel,
+  orderDeliveryLabel,
+  orderStatusLabelForDelivery,
 } from "./order-utils";
 
 type OrdersSectionProps = {
@@ -169,8 +172,13 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                     {new Date(order.createdAt).toLocaleDateString("es-AR")}
                   </h3>
                   <p style={{ margin: 0, color: "var(--text-muted)" }}>
-                    Estado: {orderStatusLabel(order.status)}
+                    Estado: {orderStatusLabelForDelivery(order)}
                   </p>
+                  {order.status === "pending" && order.reservationExpiresAt ? (
+                    <p style={{ margin: "6px 0 0", color: "var(--text-muted)" }}>
+                      Reserva hasta {new Date(order.reservationExpiresAt).toLocaleString("es-AR")}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div
@@ -250,25 +258,29 @@ export default function OrdersSection({ mode = "preview" }: OrdersSectionProps) 
                 }}
               >
                 <div style={{ color: "var(--text-muted)", lineHeight: 1.7 }}>
-                  {order.shipment?.trackingNumber
-                    ? `Tracking: ${order.shipment.trackingNumber}`
-                    : "El envio todavia no tiene tracking asignado"}
+                  {isPickupOrder(order)
+                    ? `Retiro: ${orderDeliveryLabel(order)}`
+                    : order.shipment?.trackingNumber
+                      ? `Tracking: ${order.shipment.trackingNumber}`
+                      : "El envio todavia no tiene tracking asignado"}
                 </div>
 
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <button
-                    onClick={() => void openReceipt(order.id)}
-                    style={{
-                      borderRadius: 999,
-                      border: "1px solid var(--border-soft)",
-                      background: "transparent",
-                      color: "var(--text-strong)",
-                      padding: "12px 16px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Descargar comprobante
-                  </button>
+                  {canDownloadOrderReceipt(order) ? (
+                    <button
+                      onClick={() => void openReceipt(order.id)}
+                      style={{
+                        borderRadius: 999,
+                        border: "1px solid var(--border-soft)",
+                        background: "transparent",
+                        color: "var(--text-strong)",
+                        padding: "12px 16px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Descargar comprobante
+                    </button>
+                  ) : null}
                   <Link
                     href={`/account/orders/${order.id}`}
                     style={{

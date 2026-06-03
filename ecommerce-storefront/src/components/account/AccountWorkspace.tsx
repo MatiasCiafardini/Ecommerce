@@ -40,6 +40,9 @@ type AdminOrderSummary = {
 
 const PENDING_ORDERS_POLL_INTERVAL_MS = 30_000;
 const ADMIN_ORDERS_UPDATED_EVENT = "admin-orders:updated";
+const ADMIN_PRODUCTS_SHOW_LIST_EVENT = "admin-products:show-list";
+const ADMIN_LABELS_RESET_EVENT = "admin-labels:reset";
+const ADMIN_LABELS_STORAGE_KEY = "labels-wizard-state-v5";
 
 const adminSections: NavigationItem[] = [
   { id: "admin-overview", label: "Dashboard", description: "Estado general", icon: "dashboard" },
@@ -64,7 +67,7 @@ const customerSections: NavigationItem[] = [
 export default function AccountWorkspace({ user, section, onSectionChange }: Props) {
   const router = useRouter();
   const { logout } = useAuth();
-  const isAdmin = user.role && user.role !== "CUSTOMER";
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user.role ?? "");
   const displayName = [user.name, user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
@@ -120,6 +123,21 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
       if (nextSection !== "admin-labels") {
         url.searchParams.delete("productId");
         url.searchParams.delete("variantIds");
+      }
+
+      if (section === "admin-labels" && nextSection !== "admin-labels") {
+        window.sessionStorage.removeItem(ADMIN_LABELS_STORAGE_KEY);
+        window.dispatchEvent(new CustomEvent(ADMIN_LABELS_RESET_EVENT));
+      }
+
+      if (nextSection === "admin-products") {
+        url.searchParams.delete("productId");
+        url.searchParams.delete("variantIds");
+        window.dispatchEvent(new CustomEvent(ADMIN_PRODUCTS_SHOW_LIST_EVENT));
+      }
+
+      if (nextSection === "admin-orders") {
+        url.searchParams.delete("orderId");
       }
 
       const nextSearch = url.searchParams.toString();

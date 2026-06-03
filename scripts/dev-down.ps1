@@ -58,3 +58,8 @@ foreach ($service in $services) {
     }
   }
 }
+
+$redisScript = Join-Path $PSScriptRoot "dev-redis-down.ps1"
+if (Test-Path $redisScript) {
+  & $redisScript
+}

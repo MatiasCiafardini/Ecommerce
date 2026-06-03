@@ -9,6 +9,11 @@ New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 New-Item -ItemType Directory -Force -Path $pidDir | Out-Null
 
+$redisScript = Join-Path $PSScriptRoot "dev-redis-up.ps1"
+if (Test-Path $redisScript) {
+  & $redisScript
+}
+
 function Get-TrackedProcess {
   param([string]$Name)
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type React from "react";
 import { api, apiBlob } from "@/lib/api";
 import { getPublicApiUrl } from "@/lib/runtime-config";
@@ -69,6 +69,7 @@ type PriceSettings = {
 type Toast = { type: "success" | "error" | "info"; message: string };
 
 const storageKey = "labels-wizard-state-v5";
+const ADMIN_LABELS_RESET_EVENT = "admin-labels:reset";
 const defaultTemplateKey = "BROTHER_QL570_29X90";
 const defaultOptions: LabelOptions = {
   showPrice: true,
@@ -244,6 +245,27 @@ export default function AdminLabelsGenerator() {
     window.setTimeout(() => setToast(null), 4200);
   }
 
+  const resetLabelsWizard = useCallback(() => {
+    setStep(1);
+    setSelected({});
+    setQuantities({});
+    setTemplateKey(defaultTemplateKey);
+    setOptions(defaultOptions);
+    setPreview(null);
+    setPage(1);
+    setFilteredSelectionIds(null);
+    setFilters({
+      search: "",
+      sku: "",
+      name: "",
+      categoryId: "",
+      stockOnly: false,
+      activeOnly: true,
+    });
+    setNotice(null);
+    window.sessionStorage.removeItem(storageKey);
+  }, []);
+
   useEffect(() => {
     const saved = window.sessionStorage.getItem(storageKey);
     if (!saved) return;
@@ -267,6 +289,13 @@ export default function AdminLabelsGenerator() {
   useEffect(() => {
     window.sessionStorage.setItem(storageKey, JSON.stringify({ selected, quantities, templateKey, options }));
   }, [selected, quantities, templateKey, options]);
+
+  useEffect(() => {
+    window.addEventListener(ADMIN_LABELS_RESET_EVENT, resetLabelsWizard);
+    return () => {
+      window.removeEventListener(ADMIN_LABELS_RESET_EVENT, resetLabelsWizard);
+    };
+  }, [resetLabelsWizard]);
 
   useEffect(() => {
     if (!priceSettings.hasTransferPrice && (options.priceMode === "transfer" || options.priceMode === "both")) {
@@ -332,6 +361,7 @@ export default function AdminLabelsGenerator() {
         setSelected(Object.fromEntries(itemsPayload.map((row) => [row.id, row])));
         setQuantities(Object.fromEntries(itemsPayload.map((row) => [row.id, Math.max(1, row.stock)])));
         setFilteredSelectionIds(new Set(itemsPayload.map((row) => row.id)));
+        setStep(2);
       })
       .catch((error) => setNotice(error instanceof Error ? error.message : "No se pudo preseleccionar."));
   }, []);

@@ -11,6 +11,7 @@ function normalizeApiUrl(rawUrl?: string) {
 }
 
 const FALLBACK_API_HOSTNAME = "api.estudiosmc.cloud";
+const ALLOWED_IMAGE_HOSTS = ["images.pexels.com"];
 
 const remotePatterns = (() => {
   const patterns: { protocol: "http" | "https"; hostname: string; port: string; pathname: string }[] = [];
@@ -39,6 +40,19 @@ const remotePatterns = (() => {
       hostname: FALLBACK_API_HOSTNAME,
       port: "",
       pathname: "/uploads/**",
+    });
+  }
+
+  for (const hostname of ALLOWED_IMAGE_HOSTS) {
+    if (patterns.some((p) => p.hostname === hostname)) {
+      continue;
+    }
+
+    patterns.push({
+      protocol: "https",
+      hostname,
+      port: "",
+      pathname: "/**",
     });
   }
 

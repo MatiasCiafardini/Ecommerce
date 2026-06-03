@@ -16,6 +16,9 @@ type RawStoreShippingMethodRow = {
   freeShippingMinimumAmount: Prisma.Decimal | number | string | null;
   estimatedDays: number | null;
   description: string | null;
+  pickupAddress: string | null;
+  pickupHours: string | null;
+  pickupInstructions: string | null;
   active: boolean;
   displayOrder: number;
   deletedAt: Date | null;
@@ -32,6 +35,9 @@ type StoreShippingMethodRecord = {
   freeShippingMinimumAmount: number | null;
   estimatedDays: number | null;
   description: string | null;
+  pickupAddress: string | null;
+  pickupHours: string | null;
+  pickupInstructions: string | null;
   active: boolean;
   displayOrder: number;
   deletedAt: Date | null;
@@ -42,6 +48,67 @@ type StoreShippingMethodRecord = {
 @Injectable()
 export class StoreShippingMethodsService {
   constructor(private prisma: PrismaService) {}
+
+  defaultMethods(storeId: number) {
+    const now = new Date();
+
+    return [
+      {
+        id: `default-pickup-${storeId}`,
+        storeId,
+        name: 'Retiro en local',
+        type: 'pickup' as const,
+        price: 0,
+        freeShippingMinimumAmount: null,
+        estimatedDays: 0,
+        description: 'El cliente retira el pedido por el local.',
+        pickupAddress: null,
+        pickupHours: null,
+        pickupInstructions: null,
+        active: true,
+        displayOrder: 0,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `default-home-${storeId}`,
+        storeId,
+        name: 'Envio a domicilio',
+        type: 'manual' as const,
+        price: 0,
+        freeShippingMinimumAmount: null,
+        estimatedDays: 3,
+        description: 'Envio a domicilio con costo a coordinar.',
+        pickupAddress: null,
+        pickupHours: null,
+        pickupInstructions: null,
+        active: true,
+        displayOrder: 1,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `default-coordinate-${storeId}`,
+        storeId,
+        name: 'Envio a coordinar',
+        type: 'coordinar' as const,
+        price: 0,
+        freeShippingMinimumAmount: null,
+        estimatedDays: null,
+        description: 'El comercio coordina el envio con el cliente.',
+        pickupAddress: null,
+        pickupHours: null,
+        pickupInstructions: null,
+        active: true,
+        displayOrder: 2,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+  }
 
   async findAll(storeId: number, includeArchived = false) {
     const rows = includeArchived
@@ -113,6 +180,9 @@ export class StoreShippingMethodsService {
       freeShippingMinimumAmount?: number | null;
       estimatedDays?: number | null;
       description?: string;
+      pickupAddress?: string | null;
+      pickupHours?: string | null;
+      pickupInstructions?: string | null;
       active?: boolean;
       displayOrder?: number;
     },
@@ -130,6 +200,9 @@ export class StoreShippingMethodsService {
         "freeShippingMinimumAmount",
         "estimatedDays",
         "description",
+        "pickupAddress",
+        "pickupHours",
+        "pickupInstructions",
         "active",
         "displayOrder",
         "updatedAt"
@@ -142,6 +215,9 @@ export class StoreShippingMethodsService {
         ${normalized.freeShippingMinimumAmount},
         ${normalized.estimatedDays},
         ${normalized.description},
+        ${normalized.pickupAddress},
+        ${normalized.pickupHours},
+        ${normalized.pickupInstructions},
         ${normalized.active},
         ${normalized.displayOrder},
         NOW()
@@ -161,6 +237,9 @@ export class StoreShippingMethodsService {
       freeShippingMinimumAmount?: number | null;
       estimatedDays?: number | null;
       description?: string;
+      pickupAddress?: string | null;
+      pickupHours?: string | null;
+      pickupInstructions?: string | null;
       active?: boolean;
       displayOrder?: number;
     },
@@ -180,6 +259,14 @@ export class StoreShippingMethodsService {
           : data.estimatedDays,
       description:
         data.description === undefined ? current.description || undefined : data.description,
+      pickupAddress:
+        data.pickupAddress === undefined ? current.pickupAddress : data.pickupAddress,
+      pickupHours:
+        data.pickupHours === undefined ? current.pickupHours : data.pickupHours,
+      pickupInstructions:
+        data.pickupInstructions === undefined
+          ? current.pickupInstructions
+          : data.pickupInstructions,
       active: data.active ?? current.active,
       displayOrder: data.displayOrder ?? current.displayOrder,
     });
@@ -193,6 +280,9 @@ export class StoreShippingMethodsService {
         "freeShippingMinimumAmount" = ${normalized.freeShippingMinimumAmount},
         "estimatedDays" = ${normalized.estimatedDays},
         "description" = ${normalized.description},
+        "pickupAddress" = ${normalized.pickupAddress},
+        "pickupHours" = ${normalized.pickupHours},
+        "pickupInstructions" = ${normalized.pickupInstructions},
         "active" = ${normalized.active},
         "displayOrder" = ${normalized.displayOrder},
         "updatedAt" = NOW()
@@ -290,6 +380,9 @@ export class StoreShippingMethodsService {
     freeShippingMinimumAmount?: number | null;
     estimatedDays?: number | null;
     description?: string;
+    pickupAddress?: string | null;
+    pickupHours?: string | null;
+    pickupInstructions?: string | null;
     active?: boolean;
     displayOrder?: number;
   }) {
@@ -329,6 +422,10 @@ export class StoreShippingMethodsService {
       freeShippingMinimumAmount,
       estimatedDays,
       description: data.description?.trim() || null,
+      pickupAddress: type === 'pickup' ? data.pickupAddress?.trim() || null : null,
+      pickupHours: type === 'pickup' ? data.pickupHours?.trim() || null : null,
+      pickupInstructions:
+        type === 'pickup' ? data.pickupInstructions?.trim() || null : null,
       active: data.active ?? true,
       displayOrder: Math.max(Number(data.displayOrder ?? 0), 0),
     };
@@ -367,6 +464,9 @@ export class StoreShippingMethodsService {
           ? null
           : Number(row.estimatedDays),
       description: row.description ?? null,
+      pickupAddress: row.pickupAddress ?? null,
+      pickupHours: row.pickupHours ?? null,
+      pickupInstructions: row.pickupInstructions ?? null,
       active: Boolean(row.active),
       displayOrder: Number(row.displayOrder ?? 0),
       deletedAt: row.deletedAt ?? null,

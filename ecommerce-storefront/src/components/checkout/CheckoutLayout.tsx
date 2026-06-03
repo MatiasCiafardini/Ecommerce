@@ -2,8 +2,8 @@
 
 const steps = [
   { number: 1, label: "Carrito" },
-  { number: 2, label: "Direccion" },
-  { number: 3, label: "Envio y pago" },
+  { number: 2, label: "Entrega" },
+  { number: 3, label: "Pago" },
   { number: 4, label: "Revision" },
 ];
 

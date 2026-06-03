@@ -8,6 +8,7 @@ import { openBlobFile } from "@/lib/download";
 import AdminOrderShipmentPanel from "./AdminOrderShipmentPanel";
 import {
   hasOrderShippingSnapshot,
+  isCashOnPickupOrder,
   isPickupOrder,
   money,
   orderDeliveryLabel,
@@ -17,6 +18,7 @@ import {
   orderShippingAddressLines,
   orderShippingRecipient,
   orderStatusLabel,
+  orderStatusLabelForDelivery,
   orderStatusTone,
   paymentDisplayLabel,
   paymentMethodLabel,
@@ -29,6 +31,7 @@ type Props = {
   orderId: number;
   onBack: () => void;
   onOrderUpdated?: (order: CustomerOrder) => void;
+  showBackButton?: boolean;
 };
 
 type DetailTab = {
@@ -39,7 +42,12 @@ type DetailTab = {
 
 const ADMIN_ORDERS_UPDATED_EVENT = "admin-orders:updated";
 
-export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated }: Props) {
+export default function AdminOrderDetailPanel({
+  orderId,
+  onBack,
+  onOrderUpdated,
+  showBackButton = true,
+}: Props) {
   const [order, setOrder] = useState<CustomerOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -111,9 +119,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     try {
       setError("");
       const blob = await apiBlob(proofUrl);
-      const objectUrl = URL.createObjectURL(blob);
-      window.open(objectUrl, "_blank", "noopener,noreferrer");
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      openBlobFile(blob);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo abrir el comprobante.");
     }
@@ -164,7 +170,9 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       <section style={panelStyle}>
         <div style={betweenStyle}>
           <Header title="Detalle de pedido" copy="No se pudo recuperar este pedido." />
-          <button type="button" onClick={onBack} style={ghostButtonStyle}>Volver al listado</button>
+          {showBackButton ? (
+            <button type="button" onClick={onBack} style={ghostButtonStyle}>Volver al listado</button>
+          ) : null}
         </div>
         {error ? <p style={errorStyle}>{error}</p> : <StateCard label="Pedido no encontrado." />}
       </section>
@@ -174,6 +182,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
   const customerName = orderCustomerName(order);
   const shippingAddressLines = orderShippingAddressLines(order);
   const pickupOrder = isPickupOrder(order);
+  const cashOnPickupOrder = isCashOnPickupOrder(order);
   const showManualDispatchPanel = !pickupOrder && Boolean(order.shipment);
   const hasShippingContext =
     !pickupOrder &&
@@ -186,15 +195,25 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
     );
   const units = order.items.reduce((total, item) => total + item.quantity, 0);
   const paymentCount = order.payments?.length ?? 0;
-  const paymentSummary = paymentCount
-    ? `${paymentCount} pago${paymentCount > 1 ? "s" : ""} registrado${paymentCount > 1 ? "s" : ""}`
-    : "Sin pagos registrados";
+  const paymentSummary = cashOnPickupOrder
+    ? "Cobro al retirar"
+    : paymentCount
+      ? `${paymentCount} pago${paymentCount > 1 ? "s" : ""} registrado${paymentCount > 1 ? "s" : ""}`
+      : "Sin pagos registrados";
   const deliverySummary = pickupOrder
     ? order.shippingMethod || "Retiro en tienda"
     : hasShippingContext
       ? orderDeliveryLabel(order)
       : "Entrega a confirmar";
-  const trackingSummary = order.shipment?.trackingNumber ?? "Se cargara al despachar";
+  const displayStatusLabel = orderStatusLabelForDelivery(order);
+  const trackingSummary = pickupOrder
+    ? ["picked_up", "delivered"].includes(order.status)
+      ? "Retiro completado en tienda"
+      : ["ready_for_pickup", "shipped"].includes(order.status)
+        ? "Sin tracking: esperando retiro"
+        : "Sin tracking: retiro en tienda"
+    : order.shipment?.trackingNumber ?? "Se cargara al despachar";
+  const whatsappHref = buildWhatsappOrderLink(order);
   const shipmentProvisionPending = hasShippingContext && !pickupOrder && !order.shipment;
   const shipmentProviderCode = (
     order.shipment?.provider ||
@@ -209,6 +228,8 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       (order.shipment.labelUrl || order.shipment.labelFormat),
   );
   const packageSummary = buildLogisticsPackageSummary(order);
+  const reservationLabel = formatReservationExpiry(order.reservationExpiresAt);
+  const riskWarnings = buildOrderRiskWarnings(order);
 
   const detailTabs: DetailTab[] = [
     { id: "customer", label: "Cliente", hint: "Contacto y datos comerciales" },
@@ -222,6 +243,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
         ? [{ id: "pickup", label: "Retiro", hint: "Entrega en tienda" }]
         : []),
     { id: "payments", label: "Pagos", hint: "Cobros y conciliacion" },
+    { id: "history", label: "Historial", hint: "Eventos internos del pedido" },
   ];
 
   const safeActiveTab = detailTabs.some((tab) => tab.id === activeTab)
@@ -240,7 +262,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       "RESUMEN OPERATIVO",
       `Pedido #${order.id}`,
       `Creado: ${createdAt}`,
-      `Estado: ${orderStatusLabel(order.status)}`,
+      `Estado: ${displayStatusLabel}`,
       "",
       "CLIENTE",
       `Nombre: ${customerName}`,
@@ -250,7 +272,9 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
       "OPERACION",
       `Unidades: ${units}`,
       `Entrega: ${shippingLabel}`,
-      `Tracking: ${order.shipment?.trackingNumber ?? "Sin asignar"}`,
+      pickupOrder
+        ? `Retiro: ${trackingSummary}`
+        : `Tracking: ${order.shipment?.trackingNumber ?? "Sin asignar"}`,
       ...(shippingAddressLines.length > 0
         ? [
             `Destinatario: ${orderShippingRecipient(order)}`,
@@ -303,21 +327,36 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
           copy="Panel operativo para revisar el pedido, avanzar de etapa y resolver entrega, cobro y despacho desde un unico lugar."
         />
         <div style={rowWrapStyle}>
-          <button type="button" onClick={onBack} style={ghostButtonStyle}>
-            Volver al listado
-          </button>
+          {showBackButton ? (
+            <button type="button" onClick={onBack} style={ghostButtonStyle}>
+              Volver al listado
+            </button>
+          ) : null}
           <button type="button" onClick={downloadSummaryPdf} style={secondaryButtonStyle}>
             Imprimir resumen
           </button>
+          {whatsappHref ? (
+            <a href={whatsappHref} target="_blank" rel="noreferrer" style={primaryLinkStyle}>
+              Contactar por WhatsApp
+            </a>
+          ) : null}
         </div>
       </div>
 
       {error ? <p style={errorStyle}>{error}</p> : null}
 
+      {riskWarnings.length > 0 ? (
+        <div style={{ display: "grid", gap: 10 }}>
+          {riskWarnings.map((warning) => (
+            <div key={warning} style={warningCardStyle}>{warning}</div>
+          ))}
+        </div>
+      ) : null}
+
       <div style={heroGridStyle}>
         <section style={highlightCardStyle}>
           <div style={rowWrapStyle}>
-            <span style={statusBadgeStyle(order.status)}>{orderStatusLabel(order.status)}</span>
+            <span style={statusBadgeStyle(order.status)}>{displayStatusLabel}</span>
             <span style={metaPillStyle}>Creado {new Date(order.createdAt).toLocaleString("es-AR")}</span>
             {order.shipment?.trackingNumber ? (
               <span style={metaPillStyle}>Tracking {order.shipment.trackingNumber}</span>
@@ -350,7 +389,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                   </div>
                 ) : (
                   <div style={disabledActionStyle}>
-                    {order.status === "delivered"
+                    {["delivered", "picked_up"].includes(order.status)
                       ? "Pedido finalizado."
                       : order.status === "cancelled"
                         ? "Pedido cancelado."
@@ -387,6 +426,12 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
             <strong style={{ color: "var(--account-text-strong)", fontSize: 18 }}>{deliverySummary}</strong>
             <span style={metaStyle}>{trackingSummary}</span>
           </div>
+          {reservationLabel ? (
+            <div style={summaryRowStyle}>
+              <span style={metaStyle}>Reserva</span>
+              <strong>{reservationLabel}</strong>
+            </div>
+          ) : null}
           <div style={summaryRowStyle}>
             <span style={metaStyle}>Items</span>
             <strong>{order.items.length}</strong>
@@ -417,7 +462,11 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
               <span style={smallLabelStyle}>Cobro</span>
               <strong style={{ color: "var(--account-text-strong)" }}>{paymentSummary}</strong>
               <span style={metaStyle}>
-                {paymentCount ? order.payments?.[0]?.status ?? "Pendiente" : "Sin conciliacion"}
+                {cashOnPickupOrder
+                  ? "Efectivo en tienda"
+                  : paymentCount
+                    ? paymentStatusLabel(order.payments?.[0]?.status)
+                    : "Sin pago registrado"}
               </span>
             </div>
           </div>
@@ -464,13 +513,13 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                   <p style={eyebrowStyle}>Cliente</p>
                   <h3 style={title3Style}>Informacion comercial</h3>
                 </div>
-                <span style={metaPillStyle}>ID {order.customer?.id ?? order.customerId ?? "-"}</span>
               </div>
               <div style={infoGridStyle}>
                 <InfoCell label="Nombre" value={customerName} />
                 <InfoCell label="Email" value={orderCustomerEmail(order)} />
                 <InfoCell label="Telefono" value={orderCustomerPhone(order)} />
-                <InfoCell label="Codigo" value={`Pedido #${order.id}`} />
+                <InfoCell label="Pedido" value={`#${order.id}`} />
+                <InfoCell label="Notas del cliente" value={order.customerNotesSnapshot?.trim() || "Sin notas"} />
               </div>
             </section>
           ) : null}
@@ -536,7 +585,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                   value={
                     shippingAddressLines.length > 0
                       ? shippingAddressLines.join(" · ")
-                      : "Todavia no hay snapshot de direccion guardado para este pedido."
+                      : "Todavia no hay direccion de entrega guardada para este pedido."
                   }
                 />
                 <InfoCell label="Tracking URL" value={order.shipment?.trackingUrl ?? "Sin link cargado"} />
@@ -545,21 +594,21 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
               </div>
               {!hasOrderShippingSnapshot(order) ? (
                 <div style={warningCardStyle}>
-                  La direccion de checkout no se esta persistiendo en la orden. Para ticket de shipping real, conviene guardar una foto de entrega al momento de compra.
+                  Falta la direccion de entrega del pedido. Antes de preparar un envio, conviene confirmarla con el cliente.
                 </div>
               ) : null}
               {shipmentProvisionPending ? (
                 <div style={warningCardStyle}>
                   {order.shippingProvider?.trim().toLowerCase() === "correo-argentino"
-                    ? `Todavia no se genero el envio en Correo Argentino. El tracking y la etiqueta aparecen cuando el pedido entra en la etapa de despacho. Estado actual: ${orderStatusLabel(order.status)}.`
-                    : `Todavia no se genero el shipment logistico para este pedido. El tracking y la etiqueta se cargan cuando el pedido entra en la etapa de despacho. Estado actual: ${orderStatusLabel(order.status)}.`}
+                    ? `Todavia no se genero el envio en Correo Argentino. El seguimiento y la etiqueta aparecen cuando el pedido entra en la etapa de despacho. Estado actual: ${orderStatusLabel(order.status)}.`
+                    : `Todavia no se preparo el despacho logistico para este pedido. El seguimiento y la etiqueta se cargan cuando el pedido entra en la etapa de despacho. Estado actual: ${orderStatusLabel(order.status)}.`}
                 </div>
               ) : null}
               {order.shipment && supportsAutomaticShipmentLabel && !canOpenRealShipmentLabel ? (
                 <div style={warningCardStyle}>
                   {order.shippingProvider?.trim().toLowerCase() === "correo-argentino"
-                    ? "El shipment ya existe, pero Correo Argentino todavia no devolvio un tracking o un rotulo real. Sin ese dato no se puede abrir una etiqueta oficial."
-                    : "El shipment existe, pero todavia no hay una etiqueta real disponible."}
+                    ? "El envio ya fue solicitado, pero Correo Argentino todavia no devolvio el seguimiento o la etiqueta oficial."
+                    : "El envio ya fue solicitado, pero todavia no hay una etiqueta real disponible."}
                 </div>
               ) : null}
               <div style={rowWrapStyle}>
@@ -579,7 +628,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                 ) : null}
                 {order.shipment?.trackingUrl ? (
                   <a href={order.shipment.trackingUrl} target="_blank" rel="noreferrer" style={primaryLinkStyle}>
-                    Abrir tracking
+                    Abrir seguimiento
                   </a>
                 ) : null}
                 <button
@@ -619,9 +668,9 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                   value={
                     order.status === "packed"
                       ? "Listo para avisar al cliente."
-                      : order.status === "shipped"
+                      : ["ready_for_pickup", "shipped"].includes(order.status)
                         ? "Pedido listo para ser retirado."
-                        : order.status === "delivered"
+                        : ["picked_up", "delivered"].includes(order.status)
                           ? "Pedido retirado por el cliente."
                           : "Preparacion en curso."
                   }
@@ -648,10 +697,7 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
                       </strong>
                       <span style={metaStyle}>{paymentStatusLabel(payment.status)}</span>
                       <strong>{money(payment.amount)}</strong>
-                      {payment.externalId ? (
-                        <span style={metaStyle}>Pago externo: {payment.externalId}</span>
-                      ) : null}
-                      {payment.reference ? <span style={metaStyle}>Ref: {payment.reference}</span> : null}
+                      {payment.reference ? <span style={metaStyle}>Referencia informada: {payment.reference}</span> : null}
                       {payment.provider === "mercadopago" ? (
                         <div style={paymentDetailsGridStyle}>
                           {buildMercadoPagoRows(payment).map((row) => (
@@ -700,6 +746,37 @@ export default function AdminOrderDetailPanel({ orderId, onBack, onOrderUpdated 
               )}
             </section>
           ) : null}
+
+          {safeActiveTab === "history" ? (
+            <section style={contentBlockStyle}>
+              <div>
+                <p style={eyebrowStyle}>Historial interno</p>
+                <h3 style={title3Style}>Eventos del pedido</h3>
+              </div>
+              {order.events?.length ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {order.events.map((event) => (
+                    <article key={event.id} style={historyEventStyle}>
+                      <div style={betweenStyle}>
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <strong style={{ color: "var(--account-text-strong)" }}>
+                            {event.title}
+                          </strong>
+                          <span style={metaStyle}>
+                            {new Date(event.createdAt).toLocaleString("es-AR")}
+                            {event.actorType ? ` · ${formatActorLabel(event)}` : ""}
+                          </span>
+                        </div>
+                      </div>
+                      <p style={{ ...copyStyle, margin: 0 }}>{formatOrderEventMessage(event)}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <StateCard label="Todavia no hay eventos registrados para este pedido." />
+              )}
+            </section>
+          ) : null}
         </div>
       </section>
     </section>
@@ -729,8 +806,118 @@ function StateCard({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
 }
 
+function formatActorLabel(event: NonNullable<CustomerOrder["events"]>[number]) {
+  if (event.actorName?.trim()) {
+    return event.actorName.trim();
+  }
+
+  const labels: Record<string, string> = {
+    admin: "Admin",
+    customer: "Cliente",
+    system: "Sistema",
+  };
+
+  return labels[event.actorType?.trim().toLowerCase() ?? ""] ?? event.actorType ?? "Sistema";
+}
+
+function formatOrderEventMessage(event: NonNullable<CustomerOrder["events"]>[number]) {
+  const metadata = event.metadata ?? {};
+
+  if (event.type === "order.status_changed") {
+    const from = typeof metadata.from === "string" ? orderStatusLabel(metadata.from) : null;
+    const to = typeof metadata.to === "string" ? orderStatusLabel(metadata.to) : null;
+
+    if (from && to) {
+      return `El pedido cambio de ${from} a ${to}.`;
+    }
+  }
+
+  if (event.type === "order.checkout_created") {
+    return "El cliente confirmo la compra desde el checkout.";
+  }
+
+  if (event.type === "order.payment_created") {
+    return "Se registro un pago asociado al pedido.";
+  }
+
+  if (event.type === "order.payment_approved") {
+    return "El pago fue aprobado y el pedido puede avanzar.";
+  }
+
+  if (event.type === "order.expired") {
+    return "La reserva vencio y el stock reservado fue liberado.";
+  }
+
+  return event.message?.trim() || "Se registro una actualizacion del pedido.";
+}
+
 function isIntegratedShipmentProvider(provider: string) {
   return provider === "correo-argentino" || provider === "enviopack";
+}
+
+function buildWhatsappOrderLink(order: CustomerOrder) {
+  const rawPhone = orderCustomerPhone(order);
+  const digits = rawPhone.replace(/\D/g, "");
+
+  if (digits.length < 8) {
+    return null;
+  }
+
+  const normalizedPhone = digits.startsWith("54")
+    ? digits
+    : `54${digits.replace(/^0+/, "")}`;
+  const pickupOrder = isPickupOrder(order);
+  const deliveryText = pickupOrder
+    ? "tu pedido ya esta listo para retirar"
+    : "queremos coordinar la entrega de tu pedido";
+  const message = `Hola ${orderCustomerName(order)}, ${deliveryText} #${order.id}.`;
+
+  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+}
+
+function formatReservationExpiry(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return `Hasta ${date.toLocaleString("es-AR")}`;
+}
+
+function buildOrderRiskWarnings(order: CustomerOrder) {
+  const warnings: string[] = [];
+  const phoneDigits = orderCustomerPhone(order).replace(/\D/g, "");
+
+  if (phoneDigits.length < 8) {
+    warnings.push("Este pedido no tiene un telefono confiable para coordinar entrega o retiro.");
+  }
+
+  if (order.status === "pending" && order.reservationExpiresAt) {
+    const expiresAt = new Date(order.reservationExpiresAt).getTime();
+    const hoursLeft = (expiresAt - Date.now()) / (60 * 60 * 1000);
+
+    if (!Number.isNaN(hoursLeft) && hoursLeft <= 12 && hoursLeft > 0) {
+      warnings.push("La reserva de stock vence en menos de 12 horas.");
+    }
+
+    if (!Number.isNaN(hoursLeft) && hoursLeft <= 0) {
+      warnings.push("La reserva de stock ya esta vencida y sera liberada por el proceso automatico.");
+    }
+  }
+
+  if (isPickupOrder(order) && ["ready_for_pickup", "shipped"].includes(order.status)) {
+    warnings.push("Retiro pendiente: conviene contactar al cliente y registrar el retiro cuando pase por tienda.");
+  }
+
+  if (!isPickupOrder(order) && order.status === "shipped" && !order.shipment?.trackingNumber) {
+    warnings.push("Envio marcado como despachado sin tracking cargado.");
+  }
+
+  return warnings;
 }
 
 function buildLogisticsPackageSummary(order: CustomerOrder) {
@@ -801,10 +988,6 @@ function buildMercadoPagoRows(payment: NonNullable<CustomerOrder["payments"]>[nu
   const metadata = payment.metadata;
   const rows = [
     {
-      label: "Detalle",
-      value: metadata?.statusDetail,
-    },
-    {
       label: "Tipo",
       value: paymentMethodLabel(metadata?.paymentTypeId),
     },
@@ -814,10 +997,6 @@ function buildMercadoPagoRows(payment: NonNullable<CustomerOrder["payments"]>[nu
         metadata?.installments !== null && metadata?.installments !== undefined
           ? String(metadata.installments)
           : null,
-    },
-    {
-      label: "Merchant order",
-      value: metadata?.merchantOrderId,
     },
     {
       label: "Aprobado",
@@ -830,10 +1009,6 @@ function buildMercadoPagoRows(payment: NonNullable<CustomerOrder["payments"]>[nu
     {
       label: "Ultimos 4",
       value: metadata?.cardLastFourDigits,
-    },
-    {
-      label: "Webhook",
-      value: formatWebhookStatus(metadata),
     },
   ];
 
@@ -859,33 +1034,45 @@ function formatWebhookStatus(
 
 function getNextOrderAction(order: CustomerOrder) {
   const pickupOrder = isPickupOrder(order);
+  const cashOnPickupOrder = isCashOnPickupOrder(order);
   const nextActions: Record<string, { nextStatus: string; label: string }> = {
-    pending: { nextStatus: "paid", label: "Confirmar pago" },
+    pending: cashOnPickupOrder
+      ? { nextStatus: "processing", label: "Preparar pedido" }
+      : { nextStatus: "paid", label: "Confirmar pago" },
     paid: { nextStatus: "processing", label: "Iniciar preparacion" },
     processing: {
       nextStatus: "packed",
       label: pickupOrder ? "Empacar y dejar listo para retiro" : "Empacar y preparar despacho",
     },
     packed: {
-      nextStatus: "shipped",
+      nextStatus: pickupOrder ? "ready_for_pickup" : "shipped",
       label: pickupOrder ? "Marcar listo para retiro" : "Despachar pedido",
     },
-    shipped: {
-      nextStatus: "delivered",
-      label: pickupOrder ? "Marcar como retirado" : "Marcar como entregado",
+    ready_for_pickup: {
+      nextStatus: "picked_up",
+      label: cashOnPickupOrder ? "Cobrar y marcar retirado" : "Marcar como retirado",
     },
+    shipped: { nextStatus: "delivered", label: "Marcar como entregado" },
   };
 
   return nextActions[order.status] ?? null;
 }
 
 function getOrderWorkflow(order: CustomerOrder) {
+  const cashOnPickupOrder = isCashOnPickupOrder(order);
+
   if (isPickupOrder(order)) {
     const workflows: Record<string, { headline: string; description: string; nextAction: string }> = {
       pending: {
-        headline: "Pedido creado, esperando validacion comercial.",
-        description: "Conviene verificar stock y confirmar que el pago avance bien antes de reservarlo para retiro.",
-        nextAction: "Validar pago y pasar a Pagado cuando este confirmado.",
+        headline: cashOnPickupOrder
+          ? "Pedido creado para retiro con pago en tienda."
+          : "Pedido creado, esperando validacion comercial.",
+        description: cashOnPickupOrder
+          ? "El cliente eligio pagar en efectivo al retirar. Ahora corresponde preparar el pedido y cobrarlo cuando pase por el local."
+          : "Conviene verificar stock y confirmar que el pago avance bien antes de reservarlo para retiro.",
+        nextAction: cashOnPickupOrder
+          ? "Preparar el pedido para retiro."
+          : "Validar pago y pasar a Pagado cuando este confirmado.",
       },
       paid: {
         headline: "Pago recibido, listo para preparar el retiro.",
@@ -902,14 +1089,28 @@ function getOrderWorkflow(order: CustomerOrder) {
         description: "En esta etapa conviene confirmar titular, contacto y observaciones antes de notificar que ya puede pasar por tienda.",
         nextAction: "Marcar listo para retiro.",
       },
+      ready_for_pickup: {
+        headline: "Pedido disponible para retiro.",
+        description: cashOnPickupOrder
+          ? "Solo falta cobrar en mostrador, entregar el pedido y registrar el retiro."
+          : "Solo falta entregar en mostrador y registrar que el cliente ya lo retiro.",
+        nextAction: cashOnPickupOrder
+          ? "Cobrar y cerrar como Retirado."
+          : "Confirmar retiro y cerrar como Retirado.",
+      },
+      picked_up: {
+        headline: "Pedido retirado.",
+        description: "La operacion principal termino. Solo queda seguimiento postventa, cambios o devoluciones si aparecieran.",
+        nextAction: "Monitorear postventa o cerrar caso.",
+      },
       shipped: {
         headline: "Pedido disponible para retiro.",
-        description: "Solo falta entregar en mostrador y registrar que el cliente ya lo retiro.",
-        nextAction: "Confirmar retiro y cerrar como Entregado.",
+        description: "Estado heredado de retiro. Conviene avanzar a retirado cuando se entregue en mostrador.",
+        nextAction: "Confirmar retiro y cerrar como Retirado.",
       },
       delivered: {
         headline: "Pedido retirado.",
-        description: "La operacion principal termino. Solo queda seguimiento postventa, cambios o devoluciones si aparecieran.",
+        description: "Estado heredado de retiro. La operacion principal termino.",
         nextAction: "Monitorear postventa o cerrar caso.",
       },
       cancelled: {
@@ -1371,6 +1572,28 @@ const primaryLinkStyle: React.CSSProperties = {
   borderRadius: 999,
   textDecoration: "none",
   fontWeight: 700,
+};
+const historyEventStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  padding: 16,
+  display: "grid",
+  gap: 10,
+};
+const historyMetadataStyle: React.CSSProperties = {
+  borderRadius: 14,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--page-panel-bg)",
+  padding: "10px 12px",
+};
+const historyPreStyle: React.CSSProperties = {
+  margin: "10px 0 0",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  color: "var(--account-text-muted)",
+  fontSize: 12,
+  lineHeight: 1.6,
 };
 const tabButtonStyle = (active: boolean): React.CSSProperties => ({
   flex: "0 0 auto",

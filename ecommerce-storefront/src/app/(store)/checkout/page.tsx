@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import CheckoutLayout from "@/components/checkout/CheckoutLayout";
+import CheckoutDelivery from "@/components/checkout/CheckoutDelivery";
 import CheckoutAddress from "@/components/checkout/CheckoutAddress";
 import CheckoutPayment from "@/components/checkout/CheckoutPayment";
 import CheckoutReview from "@/components/checkout/CheckoutReview";
@@ -45,6 +46,13 @@ type CheckoutAddress = {
   country: string;
 };
 
+type CheckoutContact = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  customerNotes?: string;
+};
+
 type CheckoutSetupError = {
   title: string;
   message: string;
@@ -56,8 +64,10 @@ export default function CheckoutPage() {
   const router = useRouter();
 
   const [step, setStep] = useState(2);
+  const [deliveryStage, setDeliveryStage] = useState<"method" | "address">("method");
   const [syncing, setSyncing] = useState(false);
   const [cartId, setCartId] = useState<number | null>(null);
+  const [checkoutContact, setCheckoutContact] = useState<CheckoutContact | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<CheckoutAddress | null>(null);
   const [paymentSelection, setPaymentSelection] = useState<CheckoutPaymentSelection | null>(null);
   const [shippingOption, setShippingOption] = useState<ShippingOption | null>(
@@ -153,6 +163,7 @@ export default function CheckoutPage() {
           state: address.state,
           city: address.city,
           country: address.country,
+          deliveryMode: "shipping",
         }),
       });
 
@@ -165,6 +176,52 @@ export default function CheckoutPage() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handlePickupNext = async ({
+    contact,
+    shippingOption,
+  }: {
+    contact: CheckoutContact;
+    shippingOption: ShippingOption;
+  }) => {
+    try {
+      setSyncing(true);
+      setSetupError(null);
+      const serverCartId = await syncServerCart();
+
+      setCartId(serverCartId);
+      setCheckoutContact(contact);
+      setSelectedAddress({
+        id: 0,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        phone: contact.phone,
+        address1: "Retiro en local",
+        address2: null,
+        city: "",
+        state: "",
+        zip: "0000",
+        country: "Argentina",
+      });
+      setShippingOptions([shippingOption]);
+      setShippingOption(shippingOption);
+      setPaymentSelection(null);
+      setStep(3);
+    } catch (error) {
+      setSetupError(resolveSetupError(error));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleShippingContactNext = (contact: CheckoutContact) => {
+    setCheckoutContact(contact);
+    setSelectedAddress(null);
+    setShippingOption(null);
+    setPaymentSelection(null);
+    setShippingOptions([]);
+    setDeliveryStage("address");
   };
 
   const canNavigateToStep = (targetStep: number) => {
@@ -193,6 +250,10 @@ export default function CheckoutPage() {
     if (targetStep === 1) {
       router.push("/cart");
       return;
+    }
+
+    if (targetStep === 2) {
+      setDeliveryStage("method");
     }
 
     setStep(targetStep);
@@ -396,7 +457,17 @@ export default function CheckoutPage() {
               Preparando checkout...
             </div>
           ) : null}
-          <CheckoutAddress onNext={handleAddressNext} />
+          {deliveryStage === "method" ? (
+            <CheckoutDelivery
+              onPickupNext={handlePickupNext}
+              onShippingNext={handleShippingContactNext}
+            />
+          ) : (
+            <CheckoutAddress
+              initialContact={checkoutContact}
+              onNext={handleAddressNext}
+            />
+          )}
         </>
       )}
 
@@ -412,14 +483,15 @@ export default function CheckoutPage() {
       )}
 
       {step === 4 && cartId && selectedAddress && (
-        <CheckoutReview
-          cart={cart}
-          cartId={cartId}
-          address={selectedAddress}
-          paymentMethod={paymentSelection?.paymentMethod ?? null}
-          paymentLabel={paymentSelection?.paymentLabel ?? null}
-          shippingOption={shippingOption}
-        />
+          <CheckoutReview
+            cart={cart}
+            cartId={cartId}
+            address={selectedAddress}
+            paymentMethod={paymentSelection?.paymentMethod ?? null}
+            paymentLabel={paymentSelection?.paymentLabel ?? null}
+            shippingOption={shippingOption}
+            customerNotes={checkoutContact?.customerNotes ?? null}
+          />
       )}
     </CheckoutLayout>
   );

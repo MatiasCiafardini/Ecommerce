@@ -94,6 +94,10 @@ export class InventoryLockService {
       throw new BadRequestException('Inventory not found');
     }
 
+    if (inventory.reserved < quantity) {
+      throw new BadRequestException('Invalid reserved stock');
+    }
+
     return tx.inventory.update({
       where: {
         storeId_variantId: {

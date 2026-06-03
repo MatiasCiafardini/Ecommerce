@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Param,
   Post,
   Req,
@@ -127,7 +128,16 @@ export class PaymentsController {
       `inline; filename="${encodeURIComponent(proof.originalName)}"`,
     );
 
-    return res.sendFile(proof.absolutePath);
+    return new Promise<void>((resolve, reject) => {
+      res.sendFile(proof.absolutePath, (error) => {
+        if (!error) {
+          resolve();
+          return;
+        }
+
+        reject(new NotFoundException('Payment proof file not found'));
+      });
+    });
   }
 
   @UseGuards(AdminAuthGuard)

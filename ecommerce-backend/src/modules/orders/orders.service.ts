@@ -3,7 +3,9 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -31,6 +33,8 @@ type ManualSaleDiscountInput = {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     private prisma: PrismaService,
     private inventoryLockService: InventoryLockService,
@@ -153,10 +157,10 @@ export class OrdersService {
         storeId,
         customerEmail: order.customer.email,
         customerName: customerFullName || order.customer.email,
-        title: `Compra confirmada #${order.id}`,
-        body: `tu compra fue registrada correctamente por ${this.formatMoney(order.total)}.`,
+        title: 'Compra confirmada',
+        body: `Tu compra fue registrada correctamente por ${this.formatMoney(order.total)}.`,
         href: `/account/orders/${order.id}`,
-        buttonLabel: `Ver pedido #${order.id}`,
+        buttonLabel: 'Ver detalle',
       });
     }
 
@@ -313,6 +317,22 @@ export class OrdersService {
           );
         }
       }
+
+      await tx.orderEvent.create({
+        data: {
+          storeId,
+          orderId: order.id,
+          type: 'order.manual_sale_created',
+          title: 'Venta manual creada',
+          message: 'El pedido fue creado desde el panel administrativo.',
+          actorType: 'admin',
+          metadata: {
+            paymentStatus,
+            paymentMethod: data.paymentMethod?.trim() || 'Efectivo',
+            hasNotes: Boolean(data.notes?.trim()),
+          },
+        },
+      });
 
       return this.withCancellationRequests(order);
     });
@@ -575,18 +595,15 @@ export class OrdersService {
         throw new NotFoundException('Order not found');
       }
 
-      const validTransitions: Record<OrderStatus, OrderStatus[]> = {
-        pending: ['cancelled', 'paid'],
-        paid: ['processing', 'cancelled'],
-        processing: ['packed', 'cancelled'],
-        packed: ['shipped'],
-        shipped: ['delivered'],
-        delivered: [],
-        cancelled: [],
-        refunded: [],
-      };
+      const isPickupOrder = this.isPickupOrder({
+        shippingMethod: order.shippingMethod,
+        shippingProvider: order.shippingProvider,
+      });
 
-      const allowed = validTransitions[order.status];
+      const cashOnPickupOrder = this.isCashOnPickupOrder(order, isPickupOrder);
+      const requiresShipping = !isPickupOrder;
+      const validTransitions = this.validStatusTransitions(isPickupOrder, cashOnPickupOrder);
+      const allowed = validTransitions[order.status] ?? [];
 
       if (!allowed.includes(status)) {
         throw new BadRequestException(
@@ -605,14 +622,20 @@ export class OrdersService {
         }
       }
 
-      const isPickupOrder = this.isPickupOrder({
-        shippingMethod: order.shippingMethod,
-        shippingProvider: order.shippingProvider,
-      });
-
-      const requiresShipping = !isPickupOrder;
-
       if (status === OrderStatus.paid) {
+        await this.reconcilePaymentForPaidStatus(tx, order, isPickupOrder);
+
+        for (const item of order.items) {
+          await this.inventoryLockService.confirmStockTx(
+            tx,
+            storeId,
+            item.variantId,
+            item.quantity,
+          );
+        }
+      }
+
+      if (status === OrderStatus.picked_up && cashOnPickupOrder) {
         await this.reconcilePaymentForPaidStatus(tx, order, isPickupOrder);
 
         for (const item of order.items) {
@@ -673,6 +696,25 @@ export class OrdersService {
         where: { id: orderId },
         data: { status },
         include: this.orderInclude(),
+      }).then(async (updatedOrder) => {
+        await tx.orderEvent.create({
+          data: {
+            storeId,
+            orderId,
+            type: 'order.status_changed',
+            title: `Estado actualizado: ${this.orderStatusLabel(status)}`,
+            message: `El pedido paso de ${this.orderStatusLabel(order.status)} a ${this.orderStatusLabel(status)}.`,
+            actorType: 'admin',
+            metadata: {
+              from: order.status,
+              to: status,
+              pickupOrder: isPickupOrder,
+              cashOnPickupOrder,
+            },
+          },
+        });
+
+        return updatedOrder;
       });
     });
 
@@ -771,6 +813,166 @@ export class OrdersService {
     throw new BadRequestException(
       'Cannot mark order as paid without an approved payment',
     );
+  }
+
+  private isCashOnPickupOrder(
+    order: {
+      payments?: Array<{
+        provider: string;
+        method?: string | null;
+        status: string;
+      }>;
+    },
+    pickupOrder: boolean,
+  ) {
+    if (!pickupOrder) {
+      return false;
+    }
+
+    return (order.payments ?? []).some((payment) => {
+      const provider = payment.provider.trim().toLowerCase();
+      const method = payment.method?.trim().toLowerCase() ?? '';
+      const status = payment.status.trim().toLowerCase();
+
+      return (
+        status === 'pending' &&
+        (provider === 'cash' ||
+          method === 'cash' ||
+          method === 'cash_on_pickup' ||
+          method === 'efectivo')
+      );
+    });
+  }
+
+  private validStatusTransitions(pickupOrder: boolean, cashOnPickupOrder = false) {
+    const transitions: Record<OrderStatus, OrderStatus[]> = {
+      pending: cashOnPickupOrder ? ['processing', 'cancelled'] : ['cancelled', 'paid'],
+      paid: pickupOrder ? ['processing', 'ready_for_pickup', 'cancelled'] : ['processing', 'cancelled'],
+      processing: ['packed', 'cancelled'],
+      packed: pickupOrder ? ['ready_for_pickup'] : ['shipped'],
+      ready_for_pickup: ['picked_up'],
+      picked_up: [],
+      shipped: ['delivered'],
+      delivered: [],
+      cancelled: [],
+      refunded: [],
+    };
+
+    return transitions;
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async cancelExpiredPendingOrders() {
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const expiredOrders = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.pending,
+        OR: [
+          {
+            reservationExpiresAt: {
+              lt: new Date(),
+            },
+          },
+          {
+            reservationExpiresAt: null,
+            createdAt: {
+              lt: cutoff,
+            },
+          },
+        ],
+        payments: {
+          none: {
+            status: {
+              in: ['approved', 'paid'],
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        storeId: true,
+        items: {
+          select: {
+            variantId: true,
+            quantity: true,
+          },
+        },
+      },
+      take: 50,
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    if (!expiredOrders.length) {
+      return;
+    }
+
+    for (const order of expiredOrders) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const current = await tx.order.findFirst({
+            where: {
+              id: order.id,
+              status: OrderStatus.pending,
+            },
+            include: {
+              items: true,
+              payments: true,
+            },
+          });
+
+          if (!current) {
+            return;
+          }
+
+          const hasApprovedPayment = current.payments.some((payment) =>
+            ['approved', 'paid'].includes(payment.status),
+          );
+
+          if (hasApprovedPayment) {
+            return;
+          }
+
+          for (const item of current.items) {
+            await this.inventoryLockService.releaseStockTx(
+              tx,
+              current.storeId,
+              item.variantId,
+              item.quantity,
+            );
+          }
+
+          await tx.order.update({
+            where: { id: current.id },
+            data: {
+              status: OrderStatus.cancelled,
+            },
+          });
+
+          await tx.orderEvent.create({
+            data: {
+              storeId: current.storeId,
+              orderId: current.id,
+              type: 'order.expired',
+              title: 'Reserva vencida',
+              message: 'El pedido pendiente fue cancelado automaticamente y el stock reservado se libero.',
+              actorType: 'system',
+              metadata: {
+                previousStatus: current.status,
+                expiredAt: new Date().toISOString(),
+              },
+            },
+          });
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Could not expire pending order ${order.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   findAll(storeId: number) {
@@ -985,7 +1187,20 @@ export class OrdersService {
       order,
     );
 
-    return this.withCancellationRequests(synchronizedOrder);
+    const events = await this.prisma.orderEvent.findMany({
+      where: {
+        storeId,
+        orderId: id,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return this.withCancellationRequests({
+      ...synchronizedOrder,
+      events,
+    });
   }
 
   findMine(storeId: number, customerId: number) {
@@ -1123,6 +1338,8 @@ export class OrdersService {
         total: true,
         status: true,
         createdAt: true,
+        shippingMethod: true,
+        shippingProvider: true,
         shipment: {
           select: {
             trackingNumber: true,
@@ -1144,7 +1361,7 @@ export class OrdersService {
       .flatMap((order) => {
         const createdNotification = {
           id: `customer-order-created-${order.id}`,
-          title: `Compra confirmada #${order.id}`,
+          title: 'Compra confirmada',
           body: `Tu compra fue registrada correctamente por ${this.formatMoney(order.total)}.`,
           createdAt: order.createdAt,
           href: `/account/orders/${order.id}`,
@@ -1158,8 +1375,21 @@ export class OrdersService {
           order.status !== 'pending'
             ? {
                 id: `customer-order-status-${order.id}-${order.status}`,
-                title: this.customerStatusTitle(order.id, order.status),
-                body: this.customerStatusBody(order.status, order.shipment?.trackingNumber),
+                title: this.customerStatusTitle(
+                  order.status,
+                  this.isPickupOrder({
+                    shippingMethod: order.shippingMethod,
+                    shippingProvider: order.shippingProvider,
+                  }),
+                ),
+                body: this.customerStatusBody(
+                  order.status,
+                  order.shipment?.trackingNumber,
+                  this.isPickupOrder({
+                    shippingMethod: order.shippingMethod,
+                    shippingProvider: order.shippingProvider,
+                  }),
+                ),
                 createdAt: statusTime,
                 href: `/account/orders/${order.id}`,
               }
@@ -1221,6 +1451,17 @@ export class OrdersService {
       storeId,
       customerId,
     });
+
+    const pickupOrder = this.isPickupOrder({
+      shippingMethod: order.shippingMethod,
+      shippingProvider: order.shippingProvider,
+    });
+
+    if (this.isCashOnPickupOrder(order, pickupOrder)) {
+      throw new BadRequestException(
+        'El comprobante se habilita cuando la compra esta cobrada y entregada.',
+      );
+    }
 
     return {
       filename: `comprobante-pedido-${order.id}.pdf`,
@@ -1564,6 +1805,38 @@ export class OrdersService {
     );
   }
 
+  private orderStatusLabel(status: string) {
+    const labels: Record<string, string> = {
+      pending: 'Pendiente',
+      paid: 'Pagado',
+      processing: 'En preparacion',
+      packed: 'Empacado',
+      ready_for_pickup: 'Listo para retiro',
+      picked_up: 'Retirado',
+      shipped: 'Enviado',
+      delivered: 'Entregado',
+      cancelled: 'Cancelado',
+      refunded: 'Reintegrado',
+    };
+
+    return labels[status] ?? status;
+  }
+
+  private paymentStatusReceiptLabel(status?: string | null) {
+    const normalized = status?.trim().toLowerCase() ?? '';
+    const labels: Record<string, string> = {
+      pending: 'pendiente de confirmacion',
+      approved: 'aprobado',
+      paid: 'aprobado',
+      rejected: 'rechazado',
+      cancelled: 'cancelado',
+      refunded: 'reintegrado',
+      partially_refunded: 'parcialmente reintegrado',
+    };
+
+    return labels[normalized] ?? 'registrado';
+  }
+
   private resolveManualSaleDiscount(
     input: ManualSaleDiscountInput,
     existingMetadata?: unknown,
@@ -1718,140 +1991,262 @@ export class OrdersService {
     const pdf = new SimplePdfDocument();
     const margin = 42;
     const pageWidth = pdf.getPageWidth();
+    const pageHeight = pdf.getPageHeight();
     const contentWidth = pageWidth - margin * 2;
-    let cursorY = 800;
+    const rightEdge = pageWidth - margin;
+    const storeName = order.store.name || 'Tienda';
+    const issuedAt = new Date(order.createdAt);
+    const customerEmail = order.customerEmailSnapshot || order.customer?.email || 'No informado';
+    const customerPhone =
+      order.shippingPhoneSnapshot || order.customerPhoneSnapshot || order.customer?.phone || 'No informado';
+    const customerName = this.orderCustomerLabel(order);
+    const shippingAddress =
+      [
+        order.shippingAddress1Snapshot,
+        order.shippingAddress2Snapshot,
+        order.shippingCitySnapshot,
+        order.shippingStateSnapshot,
+        order.shippingPostalCodeSnapshot,
+        order.shippingCountrySnapshot,
+      ]
+        .filter(Boolean)
+        .join(', ') || 'No informada';
+    const payment = order.payments?.[0];
+    const paymentLabel = payment
+      ? 'Pago: ' + this.paymentStatusReceiptLabel(payment.status)
+      : 'Pago pendiente';
 
-    pdf.drawText({
-      x: margin,
-      y: cursorY,
-      text: 'COMPROBANTE DE COMPRA',
-      size: 24,
-      font: 'Helvetica-Bold',
-    });
-    cursorY -= 22;
-    pdf.drawText({
-      x: margin,
-      y: cursorY,
-      text: order.store.name,
-      size: 13,
-      font: 'Helvetica-Bold',
-    });
-    pdf.drawText({
-      x: pageWidth - 200,
-      y: cursorY,
-      text: `Pedido #${order.id}`,
-      size: 12,
-      font: 'Helvetica-Bold',
-    });
-    cursorY -= 18;
-    pdf.drawText({
-      x: margin,
-      y: cursorY,
-      text: `Fecha ${new Date(order.createdAt).toLocaleString('es-AR')} · Estado ${order.status}`,
-      size: 10,
-    });
-    pdf.drawLine({
-      x1: margin,
-      y1: cursorY - 12,
-      x2: pageWidth - margin,
-      y2: cursorY - 12,
-      lineWidth: 1,
-    });
+    const textWidth = (value: string, size: number) =>
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\x20-\x7E]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim().length * size * 0.54;
+    const drawRightText = (
+      value: string,
+      x: number,
+      y: number,
+      size = 10,
+      font: 'Helvetica' | 'Helvetica-Bold' = 'Helvetica',
+    ) => {
+      pdf.drawText({ x: x - textWidth(value, size), y, text: value, size, font });
+    };
+    const drawLabelValue = (label: string, value: string, x: number, y: number, maxWidth: number) =>
+      pdf.drawWrappedText({
+        x,
+        y,
+        text: label + ': ' + value,
+        maxWidth,
+        size: 9.5,
+        lineHeight: 13,
+      });
+    const drawSectionTitle = (value: string, x: number, y: number) => {
+      pdf.drawText({ x, y, text: value, size: 9.5, font: 'Helvetica-Bold' });
+      pdf.drawLine({ x1: x, y1: y - 5, x2: rightEdge, y2: y - 5, lineWidth: 0.8 });
+    };
 
-    cursorY -= 40;
-    pdf.drawText({
-      x: margin,
-      y: cursorY,
-      text: 'CLIENTE Y ENTREGA',
-      size: 10,
-      font: 'Helvetica-Bold',
-    });
-    cursorY -= 20;
-    cursorY = pdf.drawWrappedText({
-      x: margin,
-      y: cursorY,
-      text: [
-        `Cliente: ${this.orderCustomerLabel(order)}`,
-        `Email: ${order.customerEmailSnapshot || order.customer?.email || 'No informado'}`,
-        `Telefono: ${order.shippingPhoneSnapshot || order.customerPhoneSnapshot || order.customer?.phone || 'No informado'}`,
-        `Entrega: ${order.shippingMethod || 'A confirmar'}`,
-        `Direccion: ${
-          [
-            order.shippingAddress1Snapshot,
-            order.shippingAddress2Snapshot,
-            order.shippingCitySnapshot,
-            order.shippingStateSnapshot,
-            order.shippingPostalCodeSnapshot,
-            order.shippingCountrySnapshot,
-          ]
-            .filter(Boolean)
-            .join(' · ') || 'No informada'
-        }`,
-        `Tracking: ${order.shipment?.trackingNumber || 'Pendiente'}`,
-      ].join('\n'),
-      maxWidth: contentWidth,
-      size: 12,
-      lineHeight: 17,
-    });
+    let cursorY = pageHeight - 36;
+    const ensureSpace = (requiredHeight: number, header = true) => {
+      if (cursorY - requiredHeight >= 72) return;
+      pdf.addPage();
+      cursorY = pageHeight - 54;
+      if (!header) return;
 
-    cursorY -= 18;
-    pdf.drawText({
-      x: margin,
-      y: cursorY,
-      text: 'PRODUCTOS',
-      size: 10,
-      font: 'Helvetica-Bold',
-    });
-    cursorY -= 22;
-
-    order.items.forEach((item, index) => {
-      if (cursorY < 120) {
-        pdf.addPage();
-        cursorY = 800;
-      }
-
-      cursorY = pdf.drawWrappedText({
+      pdf.drawText({
         x: margin,
         y: cursorY,
-        text: `${index + 1}. ${item.quantity} x ${item.variant.product.title} · SKU ${
-          item.variant.sku || 'Sin SKU'
-        } · Unitario ${this.formatMoney(item.price)} · Subtotal ${this.formatMoney(
-          Number(item.price) * item.quantity,
-        )}`,
-        maxWidth: contentWidth,
+        text: storeName + ' - Comprobante de compra',
         size: 11,
-        lineHeight: 16,
+        font: 'Helvetica-Bold',
       });
-      cursorY -= 6;
-    });
+      drawRightText('Pedido #' + order.id, rightEdge, cursorY, 10, 'Helvetica-Bold');
+      cursorY -= 22;
+      pdf.drawLine({ x1: margin, y1: cursorY, x2: rightEdge, y2: cursorY, lineWidth: 0.8 });
+      cursorY -= 22;
+    };
 
-    if (cursorY < 170) {
-      pdf.addPage();
-      cursorY = 800;
-    }
-
-    pdf.drawLine({
-      x1: margin,
-      y1: cursorY,
-      x2: pageWidth - margin,
-      y2: cursorY,
-      lineWidth: 1,
-    });
-    cursorY -= 22;
-    pdf.drawWrappedText({
-      x: margin,
-      y: cursorY,
-      text: [
-        `Subtotal: ${this.formatMoney(order.subtotal)}`,
-        `Descuento: ${this.formatMoney(order.discountAmount)}`,
-        `Envio: ${this.formatMoney(order.shippingCost)}`,
-        `Total: ${this.formatMoney(order.total)}`,
-      ].join('\n'),
-      maxWidth: contentWidth,
-      size: 12,
-      lineHeight: 18,
+    pdf.drawRect({ x: margin, y: cursorY - 24, width: contentWidth, height: 24, lineWidth: 1.2 });
+    pdf.drawText({
+      x: margin + contentWidth / 2 - textWidth('ORIGINAL', 14) / 2,
+      y: cursorY - 17,
+      text: 'ORIGINAL',
+      size: 14,
       font: 'Helvetica-Bold',
     });
+
+    cursorY -= 24;
+    const leftBoxWidth = contentWidth / 2;
+    const rightBoxWidth = contentWidth / 2;
+    const headerHeight = 112;
+    pdf.drawRect({ x: margin, y: cursorY - headerHeight, width: leftBoxWidth, height: headerHeight, lineWidth: 1.2 });
+    pdf.drawRect({ x: margin + leftBoxWidth, y: cursorY - headerHeight, width: rightBoxWidth, height: headerHeight, lineWidth: 1.2 });
+    const fiscalBox = {
+      x: margin + leftBoxWidth - 34,
+      y: cursorY - 58,
+      width: 68,
+      height: 48,
+    };
+    pdf.drawFilledRect({
+      x: fiscalBox.x - 2,
+      y: fiscalBox.y - 2,
+      width: fiscalBox.width + 4,
+      height: fiscalBox.height + 4,
+      color: 'white',
+    });
+    pdf.drawRect({ ...fiscalBox, lineWidth: 1.2 });
+    pdf.drawText({
+      x: margin + leftBoxWidth - textWidth('C', 28) / 2,
+      y: cursorY - 34,
+      text: 'C',
+      size: 28,
+      font: 'Helvetica-Bold',
+    });
+    pdf.drawText({
+      x: margin + leftBoxWidth - textWidth('NO FISCAL', 7) / 2,
+      y: cursorY - 48,
+      text: 'NO FISCAL',
+      size: 7,
+      font: 'Helvetica-Bold',
+    });
+
+    pdf.drawText({ x: margin + 18, y: cursorY - 26, text: storeName, size: 20, font: 'Helvetica-Bold' });
+    pdf.drawWrappedText({
+      x: margin + 18,
+      y: cursorY - 50,
+      text: ['Comprobante emitido por ' + storeName, 'Documento comercial no fiscal', 'Gracias por tu compra'].join('\n'),
+      maxWidth: leftBoxWidth - 46,
+      size: 9.5,
+      lineHeight: 13,
+    });
+
+    pdf.drawText({ x: margin + leftBoxWidth + 52, y: cursorY - 26, text: 'COMPROBANTE', size: 20, font: 'Helvetica-Bold' });
+    pdf.drawWrappedText({
+      x: margin + leftBoxWidth + 52,
+      y: cursorY - 50,
+      text: [
+        'Pedido: #' + order.id,
+        'Fecha: ' + issuedAt.toLocaleDateString('es-AR'),
+        'Hora: ' + issuedAt.toLocaleTimeString('es-AR'),
+        'Estado: ' + this.orderStatusLabel(order.status),
+      ].join('\n'),
+      maxWidth: rightBoxWidth - 70,
+      size: 9.5,
+      lineHeight: 13,
+    });
+
+    cursorY -= headerHeight + 10;
+
+    const periodHeight = 30;
+    pdf.drawRect({ x: margin, y: cursorY - periodHeight, width: contentWidth, height: periodHeight, lineWidth: 1 });
+    pdf.drawText({ x: margin + 12, y: cursorY - 19, text: 'Fecha de compra: ' + issuedAt.toLocaleDateString('es-AR'), size: 9, font: 'Helvetica-Bold' });
+    pdf.drawText({ x: margin + 205, y: cursorY - 19, text: 'Entrega: ' + (order.shippingMethod || 'A confirmar'), size: 9, font: 'Helvetica-Bold' });
+    drawRightText(
+      order.reservationExpiresAt && order.status === OrderStatus.pending
+        ? 'Reserva hasta: ' + new Date(order.reservationExpiresAt).toLocaleDateString('es-AR')
+        : 'Reserva: confirmada',
+      rightEdge - 12,
+      cursorY - 19,
+      9,
+      'Helvetica-Bold',
+    );
+
+    cursorY -= periodHeight + 8;
+
+    const customerBoxStartY = cursorY;
+    pdf.drawRect({ x: margin, y: cursorY - 92, width: contentWidth, height: 92, lineWidth: 1 });
+    pdf.drawText({ x: margin + 12, y: cursorY - 18, text: 'DATOS DEL COMPRADOR Y ENTREGA', size: 9.5, font: 'Helvetica-Bold' });
+    let leftY = cursorY - 36;
+    leftY = drawLabelValue('Cliente', customerName, margin + 12, leftY, 235);
+    leftY = drawLabelValue('Email', customerEmail, margin + 12, leftY, 235);
+    drawLabelValue('Telefono', customerPhone, margin + 12, leftY, 235);
+    let rightY = cursorY - 36;
+    rightY = drawLabelValue('Entrega', order.shippingMethod || 'A confirmar', margin + 275, rightY, 230);
+    rightY = drawLabelValue('Direccion', shippingAddress, margin + 275, rightY, 230);
+    drawLabelValue('Tracking', order.shipment?.trackingNumber || 'Pendiente', margin + 275, rightY, 230);
+    cursorY = customerBoxStartY - 104;
+
+    if (order.customerNotesSnapshot) {
+      ensureSpace(42);
+      pdf.drawRect({ x: margin, y: cursorY - 38, width: contentWidth, height: 38, lineWidth: 0.8 });
+      pdf.drawText({ x: margin + 12, y: cursorY - 16, text: 'NOTA DEL PEDIDO', size: 8.5, font: 'Helvetica-Bold' });
+      pdf.drawWrappedText({ x: margin + 120, y: cursorY - 16, text: order.customerNotesSnapshot, maxWidth: contentWidth - 132, size: 9, lineHeight: 12 });
+      cursorY -= 48;
+    }
+
+    ensureSpace(86);
+    drawSectionTitle('DETALLE DE PRODUCTOS', margin, cursorY);
+    cursorY -= 22;
+
+    const tableTop = cursorY;
+    const columns = { item: margin, product: margin + 46, qty: margin + 292, unit: margin + 346, discount: margin + 418, subtotal: margin + 458 };
+    pdf.drawRect({ x: margin, y: tableTop - 24, width: contentWidth, height: 24, lineWidth: 1 });
+    pdf.drawText({ x: columns.item + 6, y: tableTop - 16, text: 'Item', size: 8, font: 'Helvetica-Bold' });
+    pdf.drawText({ x: columns.product + 6, y: tableTop - 16, text: 'Producto / Servicio', size: 8, font: 'Helvetica-Bold' });
+    pdf.drawText({ x: columns.qty + 6, y: tableTop - 16, text: 'Cant.', size: 8, font: 'Helvetica-Bold' });
+    pdf.drawText({ x: columns.unit + 6, y: tableTop - 16, text: 'Precio unit.', size: 8, font: 'Helvetica-Bold' });
+    pdf.drawText({ x: columns.discount + 6, y: tableTop - 16, text: 'Bonif.', size: 8, font: 'Helvetica-Bold' });
+    pdf.drawText({ x: columns.subtotal + 6, y: tableTop - 16, text: 'Subtotal', size: 8, font: 'Helvetica-Bold' });
+    cursorY -= 24;
+
+    order.items.forEach((item, index) => {
+      ensureSpace(42);
+      const rowHeight = 36;
+      const rowY = cursorY;
+      pdf.drawRect({ x: margin, y: rowY - rowHeight, width: contentWidth, height: rowHeight, lineWidth: 0.6 });
+      pdf.drawText({ x: columns.item + 6, y: rowY - 15, text: String(index + 1), size: 8 });
+      pdf.drawWrappedText({ x: columns.product + 6, y: rowY - 12, text: item.variant.product.title, maxWidth: 230, size: 8.5, lineHeight: 11 });
+      drawRightText(String(item.quantity), columns.qty + 38, rowY - 15, 8.5);
+      drawRightText(this.formatMoney(item.price), columns.unit + 62, rowY - 15, 8.5);
+      drawRightText('0,00', columns.discount + 40, rowY - 15, 8.5);
+      drawRightText(this.formatMoney(Number(item.price) * item.quantity), rightEdge - 8, rowY - 15, 8.5, 'Helvetica-Bold');
+      cursorY -= rowHeight;
+    });
+
+    ensureSpace(164, false);
+    cursorY -= 18;
+    const footerTop = cursorY;
+    const leftFooterWidth = 275;
+    const totalBoxWidth = contentWidth - leftFooterWidth - 14;
+    pdf.drawRect({ x: margin, y: footerTop - 112, width: leftFooterWidth, height: 112, lineWidth: 1 });
+    pdf.drawText({ x: margin + 12, y: footerTop - 18, text: 'INFORMACION ADICIONAL', size: 9, font: 'Helvetica-Bold' });
+    pdf.drawWrappedText({
+      x: margin + 12,
+      y: footerTop - 38,
+      text: [
+        paymentLabel,
+        payment ? 'Monto registrado: ' + this.formatMoney(payment.amount) : null,
+        'Este documento confirma la compra registrada en la tienda.',
+        'No reemplaza una factura fiscal emitida por organismos oficiales.',
+      ].filter(Boolean).join('\n'),
+      maxWidth: leftFooterWidth - 24,
+      size: 8.8,
+      lineHeight: 12,
+    });
+
+    const totalX = margin + leftFooterWidth + 14;
+    pdf.drawRect({ x: totalX, y: footerTop - 112, width: totalBoxWidth, height: 112, lineWidth: 1 });
+    const totalRows = [
+      ['Subtotal', this.formatMoney(order.subtotal)],
+      ['Descuento', this.formatMoney(order.discountAmount)],
+      ['Envio', this.formatMoney(order.shippingCost)],
+      ['Importe total', this.formatMoney(order.total)],
+    ];
+    let totalY = footerTop - 20;
+    totalRows.forEach(([label, value], index) => {
+      const bold = index === totalRows.length - 1;
+      pdf.drawText({ x: totalX + 12, y: totalY, text: label, size: bold ? 11 : 9, font: bold ? 'Helvetica-Bold' : 'Helvetica' });
+      drawRightText(value, totalX + totalBoxWidth - 12, totalY, bold ? 11 : 9, 'Helvetica-Bold');
+      totalY -= bold ? 20 : 16;
+      if (index === totalRows.length - 2) {
+        pdf.drawLine({ x1: totalX + 12, y1: totalY + 8, x2: totalX + totalBoxWidth - 12, y2: totalY + 8, lineWidth: 0.8 });
+      }
+    });
+
+    cursorY = footerTop - 136;
+    pdf.drawLine({ x1: margin, y1: cursorY, x2: rightEdge, y2: cursorY, lineWidth: 0.8 });
+    pdf.drawText({ x: margin, y: cursorY - 18, text: storeName + ' - Gracias por tu compra', size: 9, font: 'Helvetica-Bold' });
+    drawRightText('Documento no fiscal', rightEdge, cursorY - 18, 8);
 
     return pdf.save();
   }
@@ -2177,16 +2572,38 @@ export class OrdersService {
     );
   }
 
-  private customerStatusTitle(orderId: number, status: string) {
-    if (status === 'delivered') return `Pedido #${orderId} entregado`;
-    if (status === 'shipped') return `Pedido #${orderId} en camino`;
-    if (status === 'packed') return `Pedido #${orderId} listo para despacho`;
-    if (status === 'processing') return `Pedido #${orderId} en preparacion`;
-    if (status === 'paid') return `Pago confirmado para tu pedido #${orderId}`;
-    return `Actualizacion de pedido #${orderId}`;
+  private customerStatusTitle(
+    status: string,
+    pickupOrder = false,
+  ) {
+    if (pickupOrder && (status === 'picked_up' || status === 'delivered')) {
+      return 'Compra retirada';
+    }
+    if (pickupOrder && (status === 'ready_for_pickup' || status === 'shipped')) {
+      return 'Lista para retirar';
+    }
+    if (pickupOrder && status === 'packed') return 'Compra preparada para retiro';
+    if (status === 'delivered') return 'Compra entregada';
+    if (status === 'shipped') return 'Compra en camino';
+    if (status === 'packed') return 'Compra lista para despacho';
+    if (status === 'processing') return 'Compra en preparacion';
+    if (status === 'paid') return 'Pago confirmado';
+    return 'Actualizacion de tu compra';
   }
 
-  private customerStatusBody(status: string, trackingNumber?: string | null) {
+  private customerStatusBody(
+    status: string,
+    trackingNumber?: string | null,
+    pickupOrder = false,
+  ) {
+    if (pickupOrder && (status === 'picked_up' || status === 'delivered')) {
+      return 'Tu pedido figura como retirado. Si necesitas ayuda, podes revisar el detalle desde tu cuenta.';
+    }
+
+    if (pickupOrder && (status === 'ready_for_pickup' || status === 'shipped')) {
+      return 'Tu pedido ya esta listo para retirar. El comercio puede coordinar horarios y condiciones por telefono.';
+    }
+
     if (status === 'delivered') {
       return 'Tu pedido figura como entregado. Si necesitas ayuda, podes revisar el detalle desde tu cuenta.';
     }
@@ -2213,6 +2630,8 @@ export class OrdersService {
         firstName?: string | null;
         lastName?: string | null;
       } | null;
+      shippingMethod?: string | null;
+      shippingProvider?: string | null;
       shipment?: {
         trackingNumber?: string | null;
       } | null;
@@ -2236,18 +2655,23 @@ export class OrdersService {
       .filter(Boolean)
       .join(' ')
       .trim();
+    const pickupOrder = this.isPickupOrder({
+      shippingMethod: order.shippingMethod,
+      shippingProvider: order.shippingProvider,
+    });
 
     await this.adminNotificationMailService.sendCustomerNotification({
       storeId,
       customerEmail,
       customerName: customerName || customerEmail,
-      title: this.customerStatusTitle(order.id, order.status),
+      title: this.customerStatusTitle(order.status, pickupOrder),
       body: this.customerStatusBody(
         order.status,
         order.shipment?.trackingNumber,
+        pickupOrder,
       ),
       href: `/account/orders/${order.id}`,
-      buttonLabel: `Abrir pedido #${order.id}`,
+      buttonLabel: 'Ver detalle',
     });
   }
 }

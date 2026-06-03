@@ -15,6 +15,8 @@ export type CustomerOrder = {
   shippingCost?: string | number | null;
   shippingProvider?: string | null;
   shippingMethod?: string | null;
+  customerNotesSnapshot?: string | null;
+  reservationExpiresAt?: string | null;
   customerEmailSnapshot?: string | null;
   customerFirstNameSnapshot?: string | null;
   customerLastNameSnapshot?: string | null;
@@ -167,6 +169,17 @@ export type CustomerOrder = {
     updatedAt: string;
     reviewedAt?: string | null;
   }>;
+  events?: Array<{
+    id: number;
+    type: string;
+    title: string;
+    message?: string | null;
+    actorType?: string | null;
+    actorId?: number | null;
+    actorName?: string | null;
+    metadata?: Record<string, unknown> | null;
+    createdAt: string;
+  }>;
 };
 
 export const money = (value: string | number | null | undefined) => formatCurrency(value);
@@ -263,6 +276,26 @@ export const isPickupOrder = (order: {
   );
 };
 
+export const isCashOnPickupOrder = (order: CustomerOrder) => {
+  if (!isPickupOrder(order)) return false;
+
+  return Boolean(
+    order.payments?.some((payment) => {
+      const provider = payment.provider.trim().toLowerCase();
+      const method = payment.method?.trim().toLowerCase() ?? "";
+      const status = payment.status.trim().toLowerCase();
+
+      return (
+        status === "pending" &&
+        (provider === "cash" ||
+          method === "cash" ||
+          method === "cash_on_pickup" ||
+          method === "efectivo")
+      );
+    }),
+  );
+};
+
 export const orderDeliveryLabel = (order: CustomerOrder) => {
   if (isPickupOrder(order)) {
     return order.shippingMethod || "Retiro en tienda";
@@ -319,11 +352,38 @@ export const orderStatusLabel = (status: string) => {
     packed: "Empacado",
     shipped: "Enviado",
     delivered: "Entregado",
+    ready_for_pickup: "Listo para retiro",
+    picked_up: "Retirado",
     cancelled: "Cancelado",
     refunded: "Reintegrado",
   };
 
   return labels[status] ?? status;
+};
+
+export const orderStatusLabelForDelivery = (order: {
+  status: string;
+  shippingMethod?: string | null;
+  shippingProvider?: string | null;
+}) => {
+  if (!isPickupOrder(order)) {
+    return orderStatusLabel(order.status);
+  }
+
+  const pickupLabels: Record<string, string> = {
+    pending: "Pendiente",
+    paid: "Pago confirmado",
+    processing: "Preparando retiro",
+    packed: "Empacado para retiro",
+    shipped: "Listo para retiro",
+    ready_for_pickup: "Listo para retiro",
+    delivered: "Retirado",
+    picked_up: "Retirado",
+    cancelled: "Cancelado",
+    refunded: "Reintegrado",
+  };
+
+  return pickupLabels[order.status] ?? orderStatusLabel(order.status);
 };
 
 export const orderStatusTone = (status: string) => {
@@ -353,7 +413,17 @@ export const orderStatusTone = (status: string) => {
       border: "var(--admin-tone-info-border, rgba(134,239,172,0.26))",
       color: "var(--admin-tone-info-color, #d5ffe1)",
     },
+    ready_for_pickup: {
+      background: "var(--admin-tone-info-bg, rgba(134,239,172,0.12))",
+      border: "var(--admin-tone-info-border, rgba(134,239,172,0.26))",
+      color: "var(--admin-tone-info-color, #d5ffe1)",
+    },
     delivered: {
+      background: "var(--admin-tone-success-bg, rgba(247,241,232,0.12))",
+      border: "var(--admin-tone-success-border, rgba(247,241,232,0.18))",
+      color: "var(--admin-tone-success-color, #f7f1e8)",
+    },
+    picked_up: {
       background: "var(--admin-tone-success-bg, rgba(247,241,232,0.12))",
       border: "var(--admin-tone-success-border, rgba(247,241,232,0.18))",
       color: "var(--admin-tone-success-color, #f7f1e8)",
@@ -399,6 +469,16 @@ export const orderWorkflow = (status: string) => {
       description: "En esta etapa conviene validar etiqueta, tracking y datos logisticos antes de entregarlo al carrier.",
       nextAction: "Despachar y mover a Enviado.",
     },
+    ready_for_pickup: {
+      headline: "Pedido listo para retiro.",
+      description: "El pedido ya esta preparado. El foco es avisar al cliente y coordinar el retiro en tienda.",
+      nextAction: "Contactar al cliente y marcar como Retirado cuando se entregue.",
+    },
+    picked_up: {
+      headline: "Pedido retirado.",
+      description: "La entrega en tienda termino. Solo queda seguimiento postventa, cambios o devoluciones si aparecieran.",
+      nextAction: "Monitorear postventa o cerrar caso.",
+    },
     shipped: {
       headline: "Pedido ya salio al carrier.",
       description: "Hace falta monitorear tracking y excepciones hasta la entrega final.",
@@ -430,31 +510,55 @@ export const orderWorkflow = (status: string) => {
 
 export const shipmentTimeline = (order: CustomerOrder) => {
   const pickupOrder = isPickupOrder(order);
+  const cashOnPickupOrder = isCashOnPickupOrder(order);
   const shipmentStatus = order.shipment?.status ?? null;
+
+  if (cashOnPickupOrder) {
+    return [
+      { key: "pending", label: "Compra creada", done: true },
+      {
+        key: "processing",
+        label: "Preparando pedido",
+        done: ["processing", "packed", "ready_for_pickup", "picked_up"].includes(order.status),
+      },
+      {
+        key: "ready_for_pickup",
+        label: "Listo para retiro",
+        done: ["ready_for_pickup", "picked_up"].includes(order.status),
+      },
+      {
+        key: "picked_up",
+        label: "Cobrado y retirado",
+        done: order.status === "picked_up",
+      },
+    ];
+  }
 
   return [
     { key: "pending", label: "Compra creada", done: true },
     {
       key: "paid",
       label: "Pago confirmado",
-      done: ["paid", "processing", "packed", "shipped", "delivered", "refunded"].includes(order.status),
+      done: ["paid", "processing", "packed", "ready_for_pickup", "picked_up", "shipped", "delivered", "refunded"].includes(order.status),
     },
     {
       key: "processing",
       label: "Preparando pedido",
-      done: ["processing", "packed", "shipped", "delivered"].includes(order.status),
+      done: ["processing", "packed", "ready_for_pickup", "picked_up", "shipped", "delivered"].includes(order.status),
     },
     {
       key: pickupOrder ? "ready_for_pickup" : "shipped",
       label: pickupOrder ? "Listo para retiro" : "En camino",
       done: pickupOrder
-        ? ["packed", "shipped", "delivered"].includes(order.status)
+        ? ["ready_for_pickup", "picked_up", "shipped", "delivered"].includes(order.status)
         : ["shipped", "delivered"].includes(order.status) || ["in_transit", "out_for_delivery", "delivered"].includes(shipmentStatus ?? ""),
     },
     {
       key: pickupOrder ? "collected" : "delivered",
       label: pickupOrder ? "Retirado" : "Entregado",
-      done: order.status === "delivered" || (!pickupOrder && shipmentStatus === "delivered"),
+      done: pickupOrder
+        ? ["picked_up", "delivered"].includes(order.status)
+        : order.status === "delivered" || shipmentStatus === "delivered",
     },
   ];
 };
@@ -475,7 +579,10 @@ export const canCustomerRequestCancellation = (order: CustomerOrder) =>
   !(order.cancellationRequests ?? []).some((request) => request.status === "requested");
 
 export const canCustomerRequestReturn = (order: CustomerOrder) =>
-  order.status === "delivered" &&
+  ["delivered", "picked_up"].includes(order.status) &&
   order.items.some(
     (item) => Number(item.quantity ?? 0) - Number(item.returnedQuantity ?? 0) > 0,
   );
+
+export const canDownloadOrderReceipt = (order: CustomerOrder) =>
+  !isCashOnPickupOrder(order);

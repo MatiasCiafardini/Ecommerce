@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class GetShippingOptionsDto {
   @ApiProperty()
@@ -24,4 +24,10 @@ export class GetShippingOptionsDto {
   @IsOptional()
   @IsString()
   country?: string;
+
+  @ApiProperty({ required: false, enum: ['shipping', 'pickup'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['shipping', 'pickup'])
+  deliveryMode?: 'shipping' | 'pickup';
 }

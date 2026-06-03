@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { runtimeConfig } from '../../config/runtime-config';
 
 function normalizeHost(rawHost?: string | string[] | null) {
   const firstValue = Array.isArray(rawHost) ? rawHost[0] : rawHost;
@@ -73,7 +74,9 @@ export class StoreMiddleware implements NestMiddleware {
     const forwardedHost = normalizeHost(req.headers['x-forwarded-host']);
     const fallbackHost = normalizeHost(forwardedHost || req.headers.host);
     const requestHost = normalizeHost(explicitStoreHost || fallbackHost);
-    const hostForLookup = explicitStoreHost || (headerStoreId ? '' : fallbackHost);
+    const hostForLookup =
+      explicitStoreHost ||
+      (headerStoreId && runtimeConfig.nodeEnv !== 'production' ? '' : fallbackHost);
 
     const [storeFromHeader, storeFromHost] = await Promise.all([
       headerStoreId ? this.findStoreById(headerStoreId) : Promise.resolve(null),
@@ -123,11 +126,13 @@ export class StoreMiddleware implements NestMiddleware {
       req.headers['x-store-host'] = requestHost;
     }
 
-    this.logger.log(
-      `Resolved tenant storeId=${resolvedStore.id} from ${headerStoreId ? 'x-store-id' : 'host'}; host="${requestHost || '(missing)'}"; path="${originalUrl || path}"`,
-    );
+    if (runtimeConfig.nodeEnv !== 'production') {
+      this.logger.log(
+        `Resolved tenant storeId=${resolvedStore.id} from ${headerStoreId ? 'x-store-id' : 'host'}; host="${requestHost || '(missing)'}"; path="${originalUrl || path}"`,
+      );
+    }
 
-    if (!headerStoreId && requestHost) {
+    if (!headerStoreId && requestHost && runtimeConfig.nodeEnv !== 'production') {
       this.logger.log(
         `Resolved tenant storeId=${resolvedStore.id} from host "${requestHost}"`,
       );

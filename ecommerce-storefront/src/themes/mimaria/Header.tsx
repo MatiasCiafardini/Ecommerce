@@ -22,9 +22,8 @@ export default function Header({
   const { cart } = useCart();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const manualSalesEnabled = Boolean(
-    user?.role &&
-    user.role !== "CUSTOMER" &&
-    user.storeFeatures?.manualSalesEnabled,
+    ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "") &&
+      user?.storeFeatures?.manualSalesEnabled,
   );
 
   const [isMobile, setIsMobile] = useState<boolean | null>(null);

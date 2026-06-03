@@ -40,11 +40,12 @@ function readStringList(name: string, fallback: string[] = []) {
 }
 
 export const runtimeConfig = {
+  nodeEnv: readString('NODE_ENV', 'development')!,
   port: readNumber('PORT', 3000),
   appUrl: readString('APP_URL', 'http://localhost:3000')!,
   apiPrefix: readString('API_PREFIX', 'api')!,
   docsPath: readString('DOCS_PATH', 'docs')!,
-  docsEnabled: readBoolean('DOCS_ENABLED', true),
+  docsEnabled: readBoolean('DOCS_ENABLED', process.env.NODE_ENV !== 'production'),
   corsOrigins: readStringList('CORS_ORIGINS'),
   mercadoPagoWebhookSecret: readString('MERCADOPAGO_WEBHOOK_SECRET'),
   redisHost: readString('REDIS_HOST', '127.0.0.1')!,
@@ -60,7 +61,7 @@ export const runtimeConfig = {
     'ecommerce_system_session',
   )!,
   authCookieDomain: readString('AUTH_COOKIE_DOMAIN'),
-  authCookieSecure: readBoolean('AUTH_COOKIE_SECURE', false),
+  authCookieSecure: readBoolean('AUTH_COOKIE_SECURE', process.env.NODE_ENV === 'production'),
   authCookieSameSite: readString('AUTH_COOKIE_SAME_SITE', 'lax')!,
   googleClientIds: readStringList(
     'GOOGLE_CLIENT_IDS',
@@ -68,6 +69,8 @@ export const runtimeConfig = {
   ),
   rateLimitWindowMs: readNumber('RATE_LIMIT_WINDOW_MS', 60_000),
   authRateLimitMax: readNumber('AUTH_RATE_LIMIT_MAX', 10),
+  checkoutRateLimitMax: readNumber('CHECKOUT_RATE_LIMIT_MAX', 30),
+  paymentRateLimitMax: readNumber('PAYMENT_RATE_LIMIT_MAX', 30),
   webhookRateLimitMax: readNumber('WEBHOOK_RATE_LIMIT_MAX', 120),
   labelsMaxPdfLabels: readNumber('LABELS_MAX_PDF_LABELS', 1000),
   systemVpsAutomationEnabled: readBoolean(

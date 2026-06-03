@@ -46,10 +46,11 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const { cart } = useCart();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const sessionUiPending = authUiLocked;
+  const hasAdminAccess = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(
+    user?.role ?? "",
+  );
   const manualSalesEnabled = Boolean(
-    user?.role &&
-    user.role !== "CUSTOMER" &&
-    (user.storeFeatures?.manualSalesEnabled || user.storeId === 3),
+    hasAdminAccess && (user?.storeFeatures?.manualSalesEnabled || user?.storeId === 3),
   );
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -506,7 +507,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               )}
             </div>
 
-            {user && user.role && user.role !== "CUSTOMER" ? (
+            {user && hasAdminAccess ? (
               <>
                 <div
                   style={{

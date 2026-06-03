@@ -43,6 +43,21 @@ export class CreateStoreShippingMethodDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  pickupAddress?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pickupHours?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pickupInstructions?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsBoolean()
   active?: boolean;
 
