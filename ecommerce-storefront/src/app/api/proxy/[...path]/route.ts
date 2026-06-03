@@ -34,15 +34,27 @@ function resolveProxyTenant(request: NextRequest) {
   };
 }
 
-function buildProxyHeaders(request: NextRequest, storeId: number, storeHost: string) {
+function shouldDropIncomingCookies(path: string) {
+  return new Set([
+    "auth/session-login",
+    "auth/login",
+    "auth/customer/login",
+    "auth/customer/register",
+    "auth/google",
+  ]).has(path);
+}
+
+function buildProxyHeaders(request: NextRequest, storeId: number, storeHost: string, path: string) {
   const headers = new Headers(request.headers);
 
   headers.delete("connection");
+  headers.delete("cookie");
   headers.delete("expect");
   headers.delete("host");
   headers.delete("content-length");
   headers.delete("proxy-authenticate");
   headers.delete("proxy-authorization");
+  headers.delete("origin");
   headers.delete("te");
   headers.delete("trailer");
   headers.delete("transfer-encoding");
@@ -50,6 +62,13 @@ function buildProxyHeaders(request: NextRequest, storeId: number, storeHost: str
   headers.set("x-store-id", String(storeId));
   headers.set("x-store-host", storeHost);
   headers.set("x-forwarded-host", storeHost);
+
+  if (!shouldDropIncomingCookies(path)) {
+    const cookie = request.headers.get("cookie");
+    if (cookie) {
+      headers.set("cookie", cookie);
+    }
+  }
 
   return headers;
 }
@@ -105,7 +124,7 @@ async function proxyRequest(
 
   const upstreamResponse = await fetch(targetUrl, {
     method: request.method,
-    headers: buildProxyHeaders(request, tenant.storeId, tenant.host),
+    headers: buildProxyHeaders(request, tenant.storeId, tenant.host, path),
     body: BODYLESS_METHODS.has(request.method)
       ? undefined
       : await request.arrayBuffer(),

@@ -56,7 +56,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const passwordValid = await bcrypt.compare(password, user.password);
+    const passwordValid = await this.isPasswordValid(password, user.password);
 
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -78,7 +78,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const passwordValid = await bcrypt.compare(password, user.password);
+    const passwordValid = await this.isPasswordValid(password, user.password);
 
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -141,7 +141,10 @@ export class AuthService {
     });
 
     if (adminUser) {
-      const passwordValid = await bcrypt.compare(password, adminUser.password);
+      const passwordValid = await this.isPasswordValid(
+        password,
+        adminUser.password,
+      );
 
       if (passwordValid) {
         return adminUser;
@@ -251,7 +254,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const passwordValid = await bcrypt.compare(password, customer.password);
+    const passwordValid = await this.isPasswordValid(password, customer.password);
 
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -455,6 +458,18 @@ export class AuthService {
       name: user.name ?? null,
       storeFeatures,
     };
+  }
+
+  private async isPasswordValid(password: string, passwordHash?: string | null) {
+    if (!passwordHash) {
+      return false;
+    }
+
+    try {
+      return await bcrypt.compare(password, passwordHash);
+    } catch {
+      return false;
+    }
   }
 
   private getGoogleAudiences() {
