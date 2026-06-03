@@ -62,6 +62,19 @@ const remotePatterns = (() => {
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DEV_DIST_DIR || ".next",
   poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin-allow-popups",
+          },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns,
   },
