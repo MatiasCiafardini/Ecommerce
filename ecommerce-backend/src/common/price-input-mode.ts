@@ -84,5 +84,5 @@ export function convertCashInputToBasePrice(
     return price;
   }
 
-  return Number((price / settings.multiplier).toFixed(2));
+  return Math.round(price / settings.multiplier / 100) * 100;
 }
