@@ -81,23 +81,96 @@ type AdminPaymentConfig = {
   } | null;
 };
 
+type PriceMode = "normal" | "transfer" | "both" | "none";
+type LabelOptions = {
+  showPrice: boolean;
+  priceMode: PriceMode;
+  showStoreName: boolean;
+  showProductName: boolean;
+  showVariantName: boolean;
+  showSku: boolean;
+  showLogo: boolean;
+};
+type LabelTemplate = {
+  key: string;
+  name: string;
+  continuous?: boolean;
+  fields?: string[];
+  priceOptions?: PriceMode[];
+  label: { widthMm: number; heightMm: number };
+};
+type LabelTemplatesPayload = {
+  templates: LabelTemplate[];
+  priceSettings: {
+    hasTransferPrice: boolean;
+    bankTransferDiscountPercentage: number;
+  };
+};
+type DefaultLabelPayload = {
+  defaultLabel: {
+    template: string;
+    options: LabelOptions;
+    quantityMode?: "one" | "stock";
+  };
+};
+
+const defaultLabelOptions: LabelOptions = {
+  showPrice: true,
+  priceMode: "both",
+  showStoreName: false,
+  showProductName: true,
+  showVariantName: true,
+  showSku: true,
+  showLogo: false,
+};
+const labelOptionLabels: Record<Exclude<keyof LabelOptions, "priceMode" | "showPrice">, string> = {
+  showStoreName: "Mostrar tienda",
+  showProductName: "Mostrar producto",
+  showVariantName: "Mostrar variante",
+  showSku: "Mostrar SKU",
+  showLogo: "Mostrar logo",
+};
+
 function AdminSettingsSection() {
-  const [settingsTab, setSettingsTab] = useState<"transfer">("transfer");
+  const [settingsTab, setSettingsTab] = useState<"transfer" | "labels">("transfer");
   const [alias, setAlias] = useState("");
   const [discountPercentage, setDiscountPercentage] = useState("0");
+  const [labelTemplates, setLabelTemplates] = useState<LabelTemplate[]>([]);
+  const [labelPriceSettings, setLabelPriceSettings] = useState<LabelTemplatesPayload["priceSettings"]>({
+    hasTransferPrice: false,
+    bankTransferDiscountPercentage: 0,
+  });
+  const [labelTemplate, setLabelTemplate] = useState("BROTHER_QL570_29X90");
+  const [labelOptions, setLabelOptions] = useState<LabelOptions>(defaultLabelOptions);
+  const [labelQuantityMode, setLabelQuantityMode] = useState<"one" | "stock">("stock");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingLabels, setSavingLabels] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedLabelTemplate = useMemo(
+    () => labelTemplates.find((template) => template.key === labelTemplate) ?? labelTemplates[0] ?? null,
+    [labelTemplate, labelTemplates],
+  );
 
   useEffect(() => {
     let mounted = true;
 
-    api("/store/admin/integrations")
-      .then((config: AdminPaymentConfig) => {
+    Promise.all([
+      api("/store/admin/integrations") as Promise<AdminPaymentConfig>,
+      api("/admin/labels/templates") as Promise<LabelTemplatesPayload>,
+      api("/admin/labels/default") as Promise<DefaultLabelPayload>,
+    ])
+      .then(([config, templatesPayload, defaultLabelPayload]) => {
         if (!mounted) return;
         setAlias(config?.bankTransfer?.alias?.trim() ?? "");
         setDiscountPercentage(String(Number(config?.bankTransfer?.discountPercentage ?? 0)));
+        setLabelTemplates(templatesPayload.templates ?? []);
+        setLabelPriceSettings(templatesPayload.priceSettings);
+        setLabelTemplate(defaultLabelPayload.defaultLabel.template);
+        setLabelOptions({ ...defaultLabelOptions, ...defaultLabelPayload.defaultLabel.options });
+        setLabelQuantityMode(defaultLabelPayload.defaultLabel.quantityMode === "one" ? "one" : "stock");
       })
       .catch((err) => {
         if (!mounted) return;
@@ -137,6 +210,42 @@ function AdminSettingsSection() {
     }
   }
 
+  async function onSaveDefaultLabel(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingLabels(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const response = await api("/admin/labels/default", {
+        method: "PUT",
+        body: JSON.stringify({
+          template: labelTemplate,
+          options: labelOptions,
+          quantityMode: labelQuantityMode,
+        }),
+      }) as DefaultLabelPayload;
+      setLabelTemplate(response.defaultLabel.template);
+      setLabelOptions({ ...defaultLabelOptions, ...response.defaultLabel.options });
+      setLabelQuantityMode(response.defaultLabel.quantityMode === "one" ? "one" : "stock");
+      setMessage("Etiqueta predeterminada guardada.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la etiqueta predeterminada.");
+    } finally {
+      setSavingLabels(false);
+    }
+  }
+
+  function nextPriceMode(current: PriceMode, target: "normal" | "transfer", checked: boolean): PriceMode {
+    const normalChecked = target === "normal" ? checked : current === "normal" || current === "both";
+    const transferChecked = target === "transfer" ? checked : current === "transfer" || current === "both";
+
+    if (normalChecked && transferChecked) return "both";
+    if (normalChecked) return "normal";
+    if (transferChecked) return "transfer";
+    return "none";
+  }
+
   return (
     <section style={panelStyle}>
       <div style={tabRailStyle}>
@@ -146,6 +255,13 @@ function AdminSettingsSection() {
           onClick={() => setSettingsTab("transfer")}
         >
           Transferencia
+        </button>
+        <button
+          type="button"
+          style={workspaceTabStyle(settingsTab === "labels")}
+          onClick={() => setSettingsTab("labels")}
+        >
+          Etiqueta predeterminada
         </button>
       </div>
 
@@ -198,6 +314,123 @@ function AdminSettingsSection() {
 
           <button type="submit" disabled={saving || loading} style={primaryButtonStyle}>
             {saving ? "Guardando..." : "Guardar transferencia"}
+          </button>
+        </form>
+      ) : null}
+
+      {settingsTab === "labels" ? (
+        <form style={blockStyle} onSubmit={onSaveDefaultLabel}>
+          <div>
+            <p style={eyebrowStyle}>Impresion rapida</p>
+            <h3 style={title3Style}>Etiqueta predeterminada</h3>
+            <p style={copyStyle}>Esta plantilla se usa al guardar un producto y elegir imprimir etiquetas.</p>
+          </div>
+
+          {loading ? <p style={copyStyle}>Cargando configuracion...</p> : null}
+          {error ? <p style={{ ...copyStyle, color: "#ffb7b7" }}>{error}</p> : null}
+          {message ? <p style={{ ...copyStyle, color: "var(--admin-tone-success-color)" }}>{message}</p> : null}
+
+          <div style={optionGridStyle}>
+            <label style={{ display: "grid", gap: 8 }}>
+              <span style={metaStyle}>Plantilla</span>
+              <select
+                value={labelTemplate}
+                onChange={(event) => {
+                  const nextTemplate = labelTemplates.find((template) => template.key === event.target.value);
+                  const nextMode = nextTemplate?.priceOptions?.includes(labelOptions.priceMode)
+                    ? labelOptions.priceMode
+                    : nextTemplate?.priceOptions?.[0] ?? "normal";
+                  setLabelTemplate(event.target.value);
+                  setLabelOptions((current) => ({ ...current, priceMode: nextMode, showPrice: nextMode !== "none" }));
+                }}
+                style={fieldStyle}
+              >
+                {labelTemplates.map((template) => (
+                  <option key={template.key} value={template.key}>{template.name}</option>
+                ))}
+              </select>
+            </label>
+            <div style={itemStyle}>
+              <span style={metaStyle}>Medidas</span>
+              <strong>
+                {selectedLabelTemplate
+                  ? `${selectedLabelTemplate.label.widthMm} mm x ${selectedLabelTemplate.continuous ? "continuo" : `${selectedLabelTemplate.label.heightMm} mm`}`
+                  : "Sin plantilla"}
+              </strong>
+              <small style={copyStyle}>{selectedLabelTemplate?.fields?.join(", ") ?? "Campos de etiqueta"}</small>
+            </div>
+          </div>
+
+          <div style={itemStyle}>
+            <span style={metaStyle}>Cantidad de etiquetas</span>
+            <div style={chipRowStyle}>
+              <button
+                type="button"
+                onClick={() => setLabelQuantityMode("stock")}
+                style={productChipStyle(labelQuantityMode === "stock")}
+              >
+                Segun stock
+              </button>
+              <button
+                type="button"
+                onClick={() => setLabelQuantityMode("one")}
+                style={productChipStyle(labelQuantityMode === "one")}
+              >
+                Siempre 1
+              </button>
+            </div>
+            <small style={copyStyle}>
+              {labelQuantityMode === "stock"
+                ? "Imprime una etiqueta por cada unidad cargada en stock de cada variante."
+                : "Imprime una sola etiqueta por variante con stock."}
+            </small>
+          </div>
+
+          <div style={chipRowStyle}>
+            <label style={productChipStyle(labelOptions.priceMode === "normal" || labelOptions.priceMode === "both")}>
+              <input
+                type="checkbox"
+                checked={labelOptions.priceMode === "normal" || labelOptions.priceMode === "both"}
+                disabled={selectedLabelTemplate?.priceOptions?.includes("normal") === false}
+                onChange={(event) => {
+                  const priceMode = nextPriceMode(labelOptions.priceMode, "normal", event.target.checked);
+                  setLabelOptions({ ...labelOptions, priceMode, showPrice: priceMode !== "none" });
+                }}
+              />
+              Precio normal
+            </label>
+            <label style={productChipStyle(labelOptions.priceMode === "transfer" || labelOptions.priceMode === "both")}>
+              <input
+                type="checkbox"
+                checked={labelOptions.priceMode === "transfer" || labelOptions.priceMode === "both"}
+                disabled={!labelPriceSettings.hasTransferPrice || selectedLabelTemplate?.priceOptions?.includes("transfer") === false}
+                onChange={(event) => {
+                  const priceMode = nextPriceMode(labelOptions.priceMode, "transfer", event.target.checked);
+                  setLabelOptions({ ...labelOptions, priceMode, showPrice: priceMode !== "none" });
+                }}
+              />
+              Precio transferencia
+            </label>
+            {(Object.keys(labelOptionLabels) as Array<keyof typeof labelOptionLabels>).map((key) => (
+              <label key={key} style={productChipStyle(Boolean(labelOptions[key]))}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(labelOptions[key])}
+                  onChange={(event) => setLabelOptions({ ...labelOptions, [key]: event.target.checked })}
+                />
+                {labelOptionLabels[key]}
+              </label>
+            ))}
+          </div>
+
+          <small style={copyStyle}>
+            {labelPriceSettings.hasTransferPrice
+              ? `Transferencia: ${labelPriceSettings.bankTransferDiscountPercentage}% de descuento.`
+              : "La tienda no tiene descuento por transferencia configurado."}
+          </small>
+
+          <button type="submit" disabled={savingLabels || loading || !labelTemplate} style={primaryButtonStyle}>
+            {savingLabels ? "Guardando..." : "Guardar etiqueta predeterminada"}
           </button>
         </form>
       ) : null}
@@ -449,6 +682,19 @@ const chipRowStyle: React.CSSProperties = {
   gap: 10,
   flexWrap: "wrap",
 };
+const productChipStyle = (active: boolean): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "9px 12px",
+  borderRadius: 8,
+  border: `1px solid ${active ? "var(--brand-accent)" : "var(--checkout-border)"}`,
+  background: active ? "rgba(116, 184, 168, 0.18)" : "var(--page-panel-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 700,
+});
 const chipIconButtonStyle: React.CSSProperties = {
   width: 24,
   height: 24,

@@ -116,7 +116,6 @@ type DraftVariant = {
 
 type ProductWizardStep =
   | "info"
-  | "logistics"
   | "images"
   | "labels"
   | "variants"
@@ -236,8 +235,7 @@ const emptyVariant = (): DraftVariant => ({
 });
 
 const productWizardSteps: Array<{ id: ProductWizardStep; label: string }> = [
-  { id: "info", label: "Informacion" },
-  { id: "logistics", label: "Logistica" },
+  { id: "info", label: "Info y logistica" },
   { id: "images", label: "Imagenes" },
   { id: "labels", label: "Atributos" },
   { id: "variants", label: "Variantes" },
@@ -476,6 +474,18 @@ function normalizeComparableName(value: string) {
   return value.trim().toLocaleLowerCase("es-AR");
 }
 
+function variantCombinationKey(variant: Pick<EditableVariant, "Color" | "Size" | "waistSize">) {
+  return [
+    normalizeComparableName(variant.Color),
+    normalizeComparableName(variant.Size),
+    normalizeComparableName(variant.waistSize),
+  ].join("|");
+}
+
+function isColorOption(option: Pick<ProductOption, "name">) {
+  return normalizeComparableName(option.name) === "color";
+}
+
 function attributeSaveErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "";
 
@@ -533,6 +543,8 @@ export default function AdminProductsSection({
     productId: number;
     productTitle: string;
   } | null>(null);
+  const [confirmContinueWithoutVariants, setConfirmContinueWithoutVariants] = useState(false);
+  const [printingLabelProductId, setPrintingLabelProductId] = useState<number | null>(null);
   const [regenerateSkusOnNextSave, setRegenerateSkusOnNextSave] = useState(false);
   const [editingVariantIndex, setEditingVariantIndex] = useState<number | null>(
     null,
@@ -576,6 +588,7 @@ export default function AdminProductsSection({
     Record<number, string[]>
   >({});
   const [selectedVariantAttributeIds, setSelectedVariantAttributeIds] = useState<number[]>([]);
+  const [openOptionId, setOpenOptionId] = useState<number | null>(null);
   const [loadedOptionValues, setLoadedOptionValues] = useState<
     ProductOptionValueEntry[]
   >([]);
@@ -652,6 +665,7 @@ export default function AdminProductsSection({
     minWidth: 0,
   };
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
@@ -762,7 +776,6 @@ export default function AdminProductsSection({
     formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setAutoOpenedProductId(nextProductId);
     void hydrateFormFromProduct(productToEdit);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpenedProductId, loading, products, searchParams]);
 
   const filteredProducts = useMemo(() => {
@@ -879,6 +892,7 @@ export default function AdminProductsSection({
     setOriginalImageIds([]);
     setSelectedOptionValues({});
     setSelectedVariantAttributeIds([]);
+    setOpenOptionId(null);
     setLoadedOptionValues([]);
     setDraftOptionValues({});
     setVariantDraft(emptyVariant());
@@ -950,19 +964,13 @@ export default function AdminProductsSection({
       if (next.length === 0) {
         const clone = { ...current };
         delete clone[optionId];
+        setSelectedVariantAttributeIds((attributeIds) => attributeIds.filter((id) => id !== optionId));
         return clone;
       }
+      setSelectedVariantAttributeIds((attributeIds) =>
+        attributeIds.includes(optionId) ? attributeIds : [...attributeIds, optionId],
+      );
       return { ...current, [optionId]: next };
-    });
-  };
-
-  const toggleVariantAttribute = (optionId: number) => {
-    setSelectedVariantAttributeIds((current) => {
-      if (current.includes(optionId)) {
-        return current.filter((id) => id !== optionId);
-      }
-
-      return [...current, optionId];
     });
   };
 
@@ -1395,7 +1403,7 @@ export default function AdminProductsSection({
 
   const generateVariantsFromMatrix = () => {
     const selectedAttributes = options.filter((option) =>
-      selectedVariantAttributeIds.includes(option.id),
+      selectedVariantAttributeIds.includes(option.id) && !isColorOption(option),
     );
     const selectedValuesByAttribute = selectedAttributes.map((option) => ({
       option,
@@ -1406,9 +1414,7 @@ export default function AdminProductsSection({
     const sizeDraftValues = splitVariantValues(variantDraft.Size);
     const waistDraftValues = splitVariantValues(variantDraft.waistSize);
     const baseWaistSize = variantDraft.waistSize.trim();
-    const hasColorAttribute = selectedValuesByAttribute.some(
-      (entry) => entry.option.name.trim().toLowerCase() === "color",
-    );
+    const hasColorAttribute = false;
     const hasSizeAttribute = selectedValuesByAttribute.some((entry) =>
       ["talle", "talles", "size", "sizes"].includes(
         entry.option.name.trim().toLowerCase(),
@@ -1433,7 +1439,36 @@ export default function AdminProductsSection({
     ];
 
     if (matrixValues.length === 0) {
-      showToast("Elegí al menos un atributo y sus valores.");
+      if (parsePriceInput(variantDraft.price) <= 0) {
+        showToast("Completa al menos el precio para crear una variante.");
+        return;
+      }
+
+      const usedGeneratedSkus = collectExistingSkuKeys(variants);
+      const nextVariant = {
+        sku: "",
+        price: variantDraft.price.trim(),
+        Size: variantDraft.Size.trim(),
+        Color: variantDraft.Color.trim(),
+        waistSize: variantDraft.waistSize.trim(),
+        inventoryQuantity: variantDraft.inventoryQuantity.trim() || "0",
+        weight: variantDraft.weight.trim(),
+        width: variantDraft.width.trim(),
+        height: variantDraft.height.trim(),
+        length: variantDraft.length.trim(),
+      };
+      const sku = buildAutomaticSku(form.title.trim(), nextVariant, variants.length, usedGeneratedSkus);
+      const normalized = normalizeVariant({ ...nextVariant, sku });
+
+      setVariants((current) => {
+        const skuKey = normalized.sku.trim().toLowerCase();
+        if (skuKey && current.some((variant) => variant.sku.trim().toLowerCase() === skuKey)) {
+          showToast("Ya existe otra variante con ese SKU.");
+          return current;
+        }
+        return [...current, normalized];
+      });
+      clearVariantDraft();
       return;
     }
 
@@ -1475,9 +1510,31 @@ export default function AdminProductsSection({
     });
 
     setVariants((current) => {
-      const existingKeys = new Set(current.map((variant) => variant.sku.trim().toLowerCase()));
-      const next = generated.filter((variant) => !existingKeys.has(variant.sku.trim().toLowerCase()));
-      return [...current, ...next];
+      const existingCombinationKeys = new Set<string>();
+      const dedupedCurrent = current.filter((variant) => {
+        const key = variantCombinationKey(variant);
+        if (existingCombinationKeys.has(key)) {
+          return false;
+        }
+        existingCombinationKeys.add(key);
+        return true;
+      });
+      const next = generated.filter((variant) => {
+        const key = variantCombinationKey(variant);
+        if (existingCombinationKeys.has(key)) {
+          return false;
+        }
+        existingCombinationKeys.add(key);
+        return true;
+      });
+
+      if (next.length === 0 && dedupedCurrent.length === current.length) {
+        showToast("Esas variantes ya estan generadas.");
+      } else if (dedupedCurrent.length < current.length) {
+        showToast("Quite variantes duplicadas.");
+      }
+
+      return [...dedupedCurrent, ...next];
     });
   };
 
@@ -1639,47 +1696,6 @@ export default function AdminProductsSection({
     setEditingValueKey(null);
     setEditingValueName("");
   };
-
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-
-      if (pendingRemoval) {
-        setPendingRemoval(null);
-        return;
-      }
-
-      if (duplicateSkuPrompt) {
-        setDuplicateSkuPrompt(null);
-        return;
-      }
-
-      if (pendingLabelPrintPrompt) {
-        setPendingLabelPrintPrompt(null);
-        return;
-      }
-
-      if (attributeDraft) {
-        closeAttributeModal();
-        return;
-      }
-
-      if (pendingVariantSwitch || editingVariantIndex !== null) {
-        handleVariantDiscard();
-      }
-    };
-
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [
-    attributeDraft,
-    duplicateSkuPrompt,
-    editingVariantIndex,
-    handleVariantDiscard,
-    pendingLabelPrintPrompt,
-    pendingRemoval,
-    pendingVariantSwitch,
-  ]);
 
   const saveAttributeDraft = async () => {
     if (!attributeDraft?.name.trim()) {
@@ -2519,10 +2535,13 @@ export default function AdminProductsSection({
       )
       .filter((entry) => entry.value);
 
-  const buildCompleteProductPayload = (variantsToSync: EditableVariant[]) => ({
+  const buildCompleteProductPayload = (
+    variantsToSync: EditableVariant[],
+    publishedOverride = form.published,
+  ) => ({
     title: form.title.trim(),
     description: form.description.trim() || null,
-    published: form.published,
+    published: publishedOverride,
     weightGrams: form.weightGrams.trim() ? Number(form.weightGrams) : null,
     packageHeightCm: form.packageHeightCm.trim()
       ? Number(form.packageHeightCm)
@@ -2617,7 +2636,7 @@ export default function AdminProductsSection({
     }
   }, [editingProductId, form, buildDraftProductPayload]);
 
-  const saveProduct = async (autoGenerateSkus = false) => {
+  const saveProduct = async (autoGenerateSkus = false, publishedOverride = form.published) => {
     if (saving) {
       return;
     }
@@ -2662,11 +2681,11 @@ export default function AdminProductsSection({
       const savedProduct = editingProductId
         ? await api(`/products/${editingProductId}/save-complete`, {
             method: "PATCH",
-            body: JSON.stringify(buildCompleteProductPayload(variantsToSync)),
+            body: JSON.stringify(buildCompleteProductPayload(variantsToSync, publishedOverride)),
           })
         : await api("/products/save-complete", {
             method: "POST",
-            body: JSON.stringify(buildCompleteProductPayload(variantsToSync)),
+            body: JSON.stringify(buildCompleteProductPayload(variantsToSync, publishedOverride)),
           });
 
       productId = savedProduct?.id ?? productId;
@@ -2783,14 +2802,162 @@ export default function AdminProductsSection({
     router.replace(`/account?${params.toString()}`);
   };
 
+  const downloadStockLabelsForProduct = async (productId: number) => {
+    if (printingLabelProductId) {
+      return;
+    }
+
+    setPrintingLabelProductId(productId);
+    try {
+      const blob = await apiBlob("/admin/labels/product-stock-pdf", {
+        method: "POST",
+        body: JSON.stringify({ productId }),
+      });
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = `etiquetas-producto-${productId}.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(href);
+      setPendingLabelPrintPrompt(null);
+      showToast("Etiquetas descargadas. Imprimilas al 100%, sin ajustar a pagina.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "No se pudieron descargar las etiquetas.");
+    } finally {
+      setPrintingLabelProductId(null);
+    }
+  };
+
   const currentWizardIndex = productWizardSteps.findIndex((step) => step.id === wizardStep);
+  const scrollWizardIntoView = () => {
+    window.requestAnimationFrame(() => {
+      formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+  const selectWizardStep = (step: ProductWizardStep) => {
+    setWizardStep(step);
+    scrollWizardIntoView();
+  };
   const goWizard = (direction: 1 | -1) => {
     const nextIndex = Math.min(
       productWizardSteps.length - 1,
       Math.max(0, currentWizardIndex + direction),
     );
-    setWizardStep(productWizardSteps[nextIndex]?.id ?? "info");
+    selectWizardStep(productWizardSteps[nextIndex]?.id ?? "info");
   };
+
+  const goNextWizard = () => {
+    if (wizardStep === "variants" && variants.length === 0) {
+      setConfirmContinueWithoutVariants(true);
+      return;
+    }
+
+    goWizard(1);
+  };
+
+  const saveWithPublicationChoice = (published: boolean) => {
+    setForm((current) => ({ ...current, published }));
+    void saveProduct(false, published);
+  };
+
+  useEffect(() => {
+    const isTypingMultiline = (target: EventTarget | null) =>
+      target instanceof HTMLTextAreaElement;
+
+    const handlePopupKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" && event.key !== "Enter") return;
+
+      if (event.key === "Enter" && isTypingMultiline(event.target)) return;
+
+      if (pendingRemoval) {
+        event.preventDefault();
+        if (event.key === "Escape") {
+          setPendingRemoval(null);
+        } else {
+          void confirmRemoval();
+        }
+        return;
+      }
+
+      if (pendingVariantSwitch) {
+        event.preventDefault();
+        if (event.key === "Escape") {
+          setPendingVariantSwitch(null);
+        } else {
+          handleVariantSaveAndContinue();
+        }
+        return;
+      }
+
+      if (attributeDraft) {
+        event.preventDefault();
+        if (event.key === "Escape") {
+          closeAttributeModal();
+        } else if (!editingValueKey) {
+          void saveAttributeDraft();
+        }
+        return;
+      }
+
+      if (confirmContinueWithoutVariants) {
+        event.preventDefault();
+        if (event.key === "Escape") {
+          setConfirmContinueWithoutVariants(false);
+        } else {
+          setConfirmContinueWithoutVariants(false);
+          goWizard(1);
+        }
+        return;
+      }
+
+      if (pendingLabelPrintPrompt) {
+        event.preventDefault();
+        if (event.key === "Escape") {
+          setPendingLabelPrintPrompt(null);
+        } else if (printingLabelProductId !== pendingLabelPrintPrompt.productId) {
+          void downloadStockLabelsForProduct(pendingLabelPrintPrompt.productId);
+        }
+        return;
+      }
+
+      if (duplicateSkuPrompt) {
+        event.preventDefault();
+        if (event.key === "Escape") {
+          setDuplicateSkuPrompt(null);
+        } else {
+          void saveProduct(true);
+        }
+        return;
+      }
+
+      if (event.key === "Escape" && editingVariantIndex !== null) {
+        event.preventDefault();
+        handleVariantDiscard();
+      }
+    };
+
+    window.addEventListener("keydown", handlePopupKeyDown);
+    return () => window.removeEventListener("keydown", handlePopupKeyDown);
+  }, [
+    attributeDraft,
+    confirmContinueWithoutVariants,
+    confirmRemoval,
+    duplicateSkuPrompt,
+    downloadStockLabelsForProduct,
+    editingValueKey,
+    editingVariantIndex,
+    goWizard,
+    handleVariantDiscard,
+    handleVariantSaveAndContinue,
+    pendingLabelPrintPrompt,
+    pendingRemoval,
+    pendingVariantSwitch,
+    printingLabelProductId,
+    saveAttributeDraft,
+    saveProduct,
+    variants.length,
+  ]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const renderProductWizard = () => (
     <div style={modernWorkspaceStyle}>
@@ -2813,7 +2980,7 @@ export default function AdminProductsSection({
           <button
             key={step.id}
             type="button"
-            onClick={() => setWizardStep(step.id)}
+            onClick={() => selectWizardStep(step.id)}
             style={wizardStepButtonStyle(wizardStep === step.id)}
           >
             <span>{index + 1}</span>
@@ -2826,28 +2993,22 @@ export default function AdminProductsSection({
         <section style={wizardPanelStyle}>
           <div>
             <p style={eyebrowStyle}>Paso 1</p>
-            <h3 style={title3Style}>Informacion</h3>
+            <h3 style={title3Style}>Informacion y logistica</h3>
           </div>
-          <input
-            value={form.title}
-            onChange={(event) => handleProductTitleChange(event.target.value)}
-            placeholder="Nombre del producto"
-            style={largeFieldStyle}
-          />
-          <textarea
-            value={form.description}
-            onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-            placeholder="Descripcion"
-            style={{ ...largeFieldStyle, minHeight: 180, resize: "vertical" }}
-          />
-        </section>
-      ) : null}
-
-      {wizardStep === "logistics" ? (
-        <section style={wizardPanelStyle}>
-          <div>
-            <p style={eyebrowStyle}>Paso 2</p>
-            <h3 style={title3Style}>Categorias y logistica</h3>
+          <div style={wizardSubpanelStyle}>
+            <strong>Datos principales</strong>
+            <input
+              value={form.title}
+              onChange={(event) => handleProductTitleChange(event.target.value)}
+              placeholder="Nombre del producto"
+              style={largeFieldStyle}
+            />
+            <textarea
+              value={form.description}
+              onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+              placeholder="Descripcion"
+              style={{ ...largeFieldStyle, minHeight: 150, resize: "vertical" }}
+            />
           </div>
           <div style={wizardTwoColumnStyle}>
             <div style={wizardSubpanelStyle}>
@@ -2913,7 +3074,7 @@ export default function AdminProductsSection({
       {wizardStep === "images" ? (
         <section style={wizardPanelStyle}>
           <div>
-            <p style={eyebrowStyle}>Paso 3</p>
+            <p style={eyebrowStyle}>Paso 2</p>
             <h3 style={title3Style}>Imagenes</h3>
             <p style={copyStyle}>Hasta 10 imagenes. La primera es la portada. Usa los controles de orden de cada imagen y arrastra dentro del marco para encuadrar.</p>
           </div>
@@ -2975,37 +3136,119 @@ export default function AdminProductsSection({
       {wizardStep === "labels" ? (
         <section style={wizardPanelStyle}>
           <div>
-            <p style={eyebrowStyle}>Paso 4</p>
+            <p style={eyebrowStyle}>Paso 3</p>
             <h3 style={title3Style}>Atributos</h3>
+            <p style={copyStyle}>
+              Abrí un atributo, tocá los valores que corresponden y seguí. Los atributos con valores seleccionados se usan para generar variantes.
+            </p>
           </div>
-          <div style={rowWrapStyle}>
-            <input value={newOptionName} onChange={(event) => setNewOptionName(event.target.value)} placeholder="Nuevo atributo" style={smallFieldStyle} />
-            <button type="button" onClick={createOption} disabled={creatingOption || !newOptionName.trim()} style={secondaryButtonStyle}>
-              {creatingOption ? "Creando..." : "Crear atributo"}
-            </button>
+
+          <details style={quickCreateAttributeStyle}>
+            <summary style={quickCreateSummaryStyle}>+ Crear atributo</summary>
+            <div style={rowWrapStyle}>
+              <input value={newOptionName} onChange={(event) => setNewOptionName(event.target.value)} placeholder="Nuevo atributo" style={smallFieldStyle} />
+              <button type="button" onClick={createOption} disabled={creatingOption || !newOptionName.trim()} style={secondaryButtonStyle}>
+                {creatingOption ? "Creando..." : "Crear atributo"}
+              </button>
+            </div>
+          </details>
+
+          <div style={attributeAccordionStyle}>
+            {options.filter((option) => !isColorOption(option)).map((option) => {
+              const selectedValues = selectedOptionValues[option.id] ?? [];
+              const availableValues = option.reusableValues ?? [];
+              const orderedValues = [
+                ...availableValues.filter((value) => selectedValues.includes(value.value)),
+                ...availableValues.filter((value) => !selectedValues.includes(value.value)),
+              ];
+              const isOpen = openOptionId === option.id;
+              const selectedPreview = selectedValues.slice(0, 4).join(", ");
+
+              return (
+                <article key={option.id} style={attributeAccordionItemStyle(isOpen)}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenOptionId((current) => (current === option.id ? null : option.id))}
+                    style={attributeAccordionHeaderStyle}
+                  >
+                    <span style={attributeHeaderTitleStyle}>
+                      <strong>{option.name}</strong>
+                      <small style={metaStyle}>
+                        {selectedValues.length > 0
+                          ? `${selectedValues.length} seleccionado${selectedValues.length > 1 ? "s" : ""}${selectedPreview ? `: ${selectedPreview}${selectedValues.length > 4 ? "..." : ""}` : ""}`
+                          : "Sin seleccion"}
+                      </small>
+                    </span>
+                    <span style={attributeHeaderMetaStyle}>
+                      {availableValues.length} valores
+                      <b style={attributeChevronStyle(isOpen)}>v</b>
+                    </span>
+                  </button>
+
+                  {isOpen ? (
+                    <div style={attributeAccordionBodyStyle}>
+                      {selectedValues.length > 0 ? (
+                        <div style={attributePanelActionsStyle}>
+                          <span style={metaStyle}>
+                            {selectedValues.length} seleccionado{selectedValues.length > 1 ? "s" : ""}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedOptionValues((current) => {
+                                const next = { ...current };
+                                delete next[option.id];
+                                return next;
+                              });
+                              setSelectedVariantAttributeIds((current) => current.filter((id) => id !== option.id));
+                            }}
+                            style={clearAttributeButtonStyle}
+                          >
+                            Limpiar
+                          </button>
+                        </div>
+                      ) : null}
+
+                      <div style={attributeValuesGridStyle}>
+                        {orderedValues.map((value) => {
+                          const selected = selectedValues.includes(value.value);
+
+                          return (
+                            <button
+                              key={`${option.id}-${value.id}`}
+                              type="button"
+                              onClick={() => toggleOptionValue(option.id, value.value)}
+                              style={attributeSelectChipStyle(selected)}
+                            >
+                              {value.visualColor ? <span style={colorSwatchStyle(value.visualColor)} /> : null}
+                              {value.value}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div style={rowWrapStyle}>
+                        <input value={draftOptionValues[option.id] ?? ""} onChange={(event) => setDraftOptionValues((current) => ({ ...current, [option.id]: event.target.value }))} placeholder={`Nuevo valor para ${option.name}`} style={smallFieldStyle} />
+                        <button type="button" onClick={() => addOptionValue(option.id)} style={secondaryButtonStyle}>Agregar valor</button>
+                      </div>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
-          <div style={responsiveOptionGridStyle}>
-            {options.map((option) => (
-              <article key={option.id} style={optionCardStyle}>
-                <strong>{option.name}</strong>
-                <div style={chipRowStyle}>
-                  {(option.reusableValues ?? []).map((value) => (
-                    <button
-                      key={`${option.id}-${value.id}`}
-                      type="button"
-                      onClick={() => toggleOptionValue(option.id, value.value)}
-                      style={chipToggleStyle((selectedOptionValues[option.id] ?? []).includes(value.value))}
-                    >
-                      {value.value}
-                    </button>
-                  ))}
-                </div>
-                <div style={rowWrapStyle}>
-                  <input value={draftOptionValues[option.id] ?? ""} onChange={(event) => setDraftOptionValues((current) => ({ ...current, [option.id]: event.target.value }))} placeholder="Nuevo valor" style={smallFieldStyle} />
-                  <button type="button" onClick={() => addOptionValue(option.id)} style={secondaryButtonStyle}>Agregar</button>
-                </div>
-              </article>
-            ))}
+
+          <div style={attributeSummaryStyle}>
+            <strong>
+              {options.filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length > 0
+                ? `${options.filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length} atributo(s) seleccionados`
+                : "Producto sin atributos seleccionados"}
+            </strong>
+            <span style={metaStyle}>
+              {options.filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length > 0
+                ? `Se pueden generar ${options.filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).reduce((total, option) => total * Math.max(1, (selectedOptionValues[option.id] ?? []).length), 1)} variante(s).`
+                : "Si no elegis atributos, podes cargar una variante unica en el paso siguiente."}
+            </span>
           </div>
         </section>
       ) : null}
@@ -3013,43 +3256,25 @@ export default function AdminProductsSection({
       {wizardStep === "variants" ? (
         <section style={wizardPanelStyle}>
           <div>
-            <p style={eyebrowStyle}>Paso 5</p>
+            <p style={eyebrowStyle}>Paso 4</p>
             <h3 style={title3Style}>Variantes y stock</h3>
           </div>
           <div style={wizardSubpanelStyle}>
             <strong>Generador rapido</strong>
             <span style={metaStyle}>
-              Elegí los atributos de este producto y sus valores para generar combinaciones automaticamente.
+              Completa los datos base. Si elegiste valores en Atributos, se generan combinaciones; si no, se crea una variante unica.
             </span>
-            <div style={attributePickerGridStyle}>
-              {options.map((option) => (
-                <div key={option.id} style={attributePickerStyle}>
-                  <label style={checkStyle}>
-                    <input
-                      type="checkbox"
-                      checked={selectedVariantAttributeIds.includes(option.id)}
-                      onChange={() => toggleVariantAttribute(option.id)}
-                    />
-                    {option.name}
-                  </label>
-                  {selectedVariantAttributeIds.includes(option.id) ? (
-                    <div style={chipRowStyle}>
-                      {(option.reusableValues ?? []).map((value) => (
-                        <button
-                          key={value.id}
-                          type="button"
-                          onClick={() => toggleOptionValue(option.id, value.value)}
-                          style={chipToggleStyle((selectedOptionValues[option.id] ?? []).includes(value.value))}
-                        >
-                          {value.visualColor ? <span style={colorSwatchStyle(value.visualColor)} /> : null}
-                          {value.value}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+            {options.some((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0) ? (
+              <div style={variantSourceSummaryStyle}>
+                <strong>Combinaciones desde atributos</strong>
+                <span style={metaStyle}>
+                  {options
+                    .filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0)
+                    .map((option) => `${option.name}: ${(selectedOptionValues[option.id] ?? []).join(", ")}`)
+                    .join(" - ")}
+                </span>
+              </div>
+            ) : null}
             <div style={responsiveVariantGridStyle}>
               <SuggestionInput value={variantDraft.price} onChange={(value) => setVariantDraft((current) => ({ ...current, price: value }))} placeholder="Precio base" suggestions={variantAutocomplete.price} />
               <SuggestionInput value={variantDraft.inventoryQuantity} onChange={(value) => setVariantDraft((current) => ({ ...current, inventoryQuantity: value }))} placeholder="Stock base" suggestions={variantAutocomplete.inventoryQuantity} />
@@ -3092,11 +3317,32 @@ export default function AdminProductsSection({
               </thead>
               <tbody>
                 {variants.map((variant, index) => (
-                  <tr key={`${variant.sku}-${index}`}>
+                  <tr key={variant.id ?? index}>
                     <td style={tdStyle}><input type="checkbox" checked={selectedVariantIndexes.includes(index)} onChange={() => toggleVariantSelection(index)} /></td>
-                    <td style={tdStyle}>{variant.sku}</td>
-                    <td style={tdStyle}>{variant.Color}</td>
-                    <td style={tdStyle}>{variant.Size}</td>
+                    <td style={tdStyle}>
+                      <input
+                        value={variant.sku}
+                        onChange={(event) => updateVariantAt(index, { sku: event.target.value })}
+                        placeholder="SKU"
+                        style={compactCellInputStyle}
+                      />
+                    </td>
+                    <td style={tdStyle}>
+                      <input
+                        value={variant.Color}
+                        onChange={(event) => updateVariantAt(index, { Color: event.target.value })}
+                        placeholder="Color"
+                        style={compactCellInputStyle}
+                      />
+                    </td>
+                    <td style={tdStyle}>
+                      <input
+                        value={variant.Size}
+                        onChange={(event) => updateVariantAt(index, { Size: event.target.value })}
+                        placeholder="Talle"
+                        style={compactCellInputStyle}
+                      />
+                    </td>
                     <td style={tdStyle}>
                       <input
                         value={variant.waistSize}
@@ -3105,7 +3351,14 @@ export default function AdminProductsSection({
                         style={compactCellInputStyle}
                       />
                     </td>
-                    <td style={tdStyle}>{money(variant.price)}</td>
+                    <td style={tdStyle}>
+                      <input
+                        value={variant.price}
+                        onChange={(event) => updateVariantAt(index, { price: sanitizeDecimalInput(event.target.value) })}
+                        placeholder="Precio"
+                        style={compactCellInputStyle}
+                      />
+                    </td>
                     <td style={tdStyle}>
                       <input
                         value={variant.inventoryQuantity}
@@ -3145,15 +3398,28 @@ export default function AdminProductsSection({
       ) : null}
 
       {wizardStep === "publish" ? (
-        <section style={wizardPanelStyle}>
+        <section style={publishWizardPanelStyle}>
           <div>
-            <p style={eyebrowStyle}>Paso 6</p>
+            <p style={eyebrowStyle}>Paso 5</p>
             <h3 style={title3Style}>Publicacion</h3>
           </div>
           <div style={publicationGridStyle}>
-            <button type="button" onClick={() => setForm((current) => ({ ...current, published: true }))} style={publicationChoiceStyle(form.published)}>Publicar ahora</button>
-            <button type="button" onClick={() => setForm((current) => ({ ...current, published: false }))} style={publicationChoiceStyle(!form.published)}>Guardar como borrador</button>
-            <button type="button" onClick={() => setForm((current) => ({ ...current, published: false }))} style={publicationChoiceStyle(false)}>Solo inventario local</button>
+            <button
+              type="button"
+              onClick={() => saveWithPublicationChoice(true)}
+              disabled={saving || !form.title.trim()}
+              style={publicationChoiceStyle(form.published)}
+            >
+              Publicar ahora
+            </button>
+            <button
+              type="button"
+              onClick={() => saveWithPublicationChoice(false)}
+              disabled={saving || !form.title.trim()}
+              style={publicationChoiceStyle(!form.published)}
+            >
+              Guardar como borrador
+            </button>
           </div>
         </section>
       ) : null}
@@ -3168,7 +3434,7 @@ export default function AdminProductsSection({
           </button>
           <button type="button" style={ghostButtonStyle} disabled={currentWizardIndex <= 0} onClick={() => goWizard(-1)}>Atras</button>
           {currentWizardIndex < productWizardSteps.length - 1 ? (
-            <button type="button" style={primaryButtonStyle} onClick={() => goWizard(1)}>Siguiente</button>
+            <button type="button" style={primaryButtonStyle} onClick={goNextWizard}>Siguiente</button>
           ) : (
             <button type="button" onClick={() => void saveProduct()} disabled={saving || !form.title.trim()} style={primaryButtonStyle}>
               {saving ? "Guardando..." : editingProductId ? "Guardar cambios" : "Guardar producto"}
@@ -3558,7 +3824,7 @@ export default function AdminProductsSection({
                     key={entry.clientId}
                     src={entry.previewUrl}
                     label={entry.name}
-                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB · ${
+                    secondaryText={`${(entry.file.size / 1024 / 1024).toFixed(2)} MB - ${
                       entry.status === "uploading"
                         ? `Subiendo ${entry.progress}%`
                         : entry.status === "error"
@@ -4002,7 +4268,7 @@ export default function AdminProductsSection({
                           .join(", ") || "Sin categorias"}
                       </span>
                       <span style={copyStyle}>
-                        {product.images?.length ?? 0} imagenes · {product.variants?.length ?? 0} variantes
+                        {product.images?.length ?? 0} imagenes - {product.variants?.length ?? 0} variantes
                       </span>
                     </div>
                     <div style={rowWrapStyle}>
@@ -4210,7 +4476,7 @@ export default function AdminProductsSection({
       </section>
       {pendingRemoval ? (
         <div
-          style={modalOverlayStyle}
+          style={confirmModalOverlayStyle}
           role="presentation"
           onClick={() => setPendingRemoval(null)}
         >
@@ -4547,6 +4813,53 @@ export default function AdminProductsSection({
           {toast.message}
         </div>
       ) : null}
+      {confirmContinueWithoutVariants ? (
+        <div
+          style={modalOverlayStyle}
+          role="presentation"
+          onClick={() => setConfirmContinueWithoutVariants(false)}
+        >
+          <div
+            style={modalCardStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="continue-without-variants-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <p style={eyebrowStyle}>Variantes</p>
+              <strong
+                id="continue-without-variants-title"
+                style={{ color: "var(--account-text-strong)", fontSize: 22, lineHeight: 1.1 }}
+              >
+                No has creado ninguna variante, quieres continuar?
+              </strong>
+              <p style={copyStyle}>
+                Si continuas, el producto quedara sin variantes de stock hasta que lo completes.
+              </p>
+            </div>
+            <div style={modalActionsStyle}>
+              <button
+                type="button"
+                onClick={() => setConfirmContinueWithoutVariants(false)}
+                style={ghostButtonStyle}
+              >
+                No, volver
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmContinueWithoutVariants(false);
+                  goWizard(1);
+                }}
+                style={primaryButtonStyle}
+              >
+                Si, continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {pendingLabelPrintPrompt ? (
         <div
           style={modalOverlayStyle}
@@ -4569,8 +4882,8 @@ export default function AdminProductsSection({
                 Queres imprimir etiquetas?
               </strong>
               <p style={copyStyle}>
-                Puedo abrir el generador con todas las variantes de &quot;
-                {pendingLabelPrintPrompt.productTitle}&quot; seleccionadas.
+                Voy a descargar un PDF para &quot;
+                {pendingLabelPrintPrompt.productTitle}&quot; usando la plantilla y cantidad predeterminadas.
               </p>
             </div>
             <div style={modalActionsStyle}>
@@ -4583,10 +4896,11 @@ export default function AdminProductsSection({
               </button>
               <button
                 type="button"
-                onClick={() => openLabelsForProduct(pendingLabelPrintPrompt.productId)}
+                onClick={() => void downloadStockLabelsForProduct(pendingLabelPrintPrompt.productId)}
+                disabled={printingLabelProductId === pendingLabelPrintPrompt.productId}
                 style={primaryButtonStyle}
               >
-                Si
+                {printingLabelProductId === pendingLabelPrintPrompt.productId ? "Descargando..." : "Si"}
               </button>
             </div>
           </div>
@@ -4841,23 +5155,35 @@ function AdminCategoriesManager({
   }, [categoryPreviewUrl]);
 
   useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+    const handlePopupKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" && event.key !== "Enter") return;
+      if (event.key === "Enter" && event.target instanceof HTMLTextAreaElement) return;
 
       if (pendingRemoval) {
-        setPendingRemoval(null);
+        event.preventDefault();
+        if (event.key === "Escape") {
+          setPendingRemoval(null);
+        } else if (!saving && !(pendingRemoval.action === "reassign" && !pendingRemoval.reassignToId)) {
+          void removeCategory();
+        }
         return;
       }
 
       if (draft) {
-        setDraft(null);
-        setPendingImageFile(null);
+        event.preventDefault();
+        if (event.key === "Escape") {
+          setDraft(null);
+          setPendingImageFile(null);
+        } else if (!saving) {
+          void saveCategory();
+        }
       }
     };
 
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [draft, pendingRemoval]);
+    window.addEventListener("keydown", handlePopupKeyDown);
+    return () => window.removeEventListener("keydown", handlePopupKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, pendingRemoval, saving]);
 
   return (
     <>
@@ -5084,7 +5410,7 @@ function AdminCategoriesManager({
 
       {pendingRemoval ? (
         <div
-          style={modalOverlayStyle}
+          style={confirmModalOverlayStyle}
           role="presentation"
           onClick={() => setPendingRemoval(null)}
         >
@@ -5681,17 +6007,6 @@ const chipRowStyle: React.CSSProperties = {
   gap: 10,
   flexWrap: "wrap",
 };
-const attributePickerGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 12,
-};
-const attributePickerStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 10,
-  alignContent: "start",
-  minWidth: 0,
-};
 const attributeDetailStyle: React.CSSProperties = {
   display: "grid",
   gap: 16,
@@ -5772,11 +6087,21 @@ const betweenStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 const footerStyle: React.CSSProperties = {
+  position: "fixed",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 90,
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "flex-end",
+  alignItems: "center",
   gap: 16,
   flexWrap: "wrap",
+  padding: "14px clamp(18px, 3vw, 42px) calc(14px + env(safe-area-inset-bottom))",
+  borderTop: "1px solid var(--checkout-border)",
+  background: "color-mix(in srgb, var(--page-panel-bg) 94%, transparent)",
+  backdropFilter: "blur(16px)",
+  boxShadow: "0 -18px 42px rgba(79, 151, 191, 0.12)",
 };
 const tabRailStyle: React.CSSProperties = {
   display: "grid",
@@ -5884,11 +6209,22 @@ const modernWorkspaceStyle: React.CSSProperties = {
   gap: 18,
   width: "100%",
   minWidth: 0,
+  paddingBottom: 98,
 };
 const wizardStepperStyle: React.CSSProperties = {
+  position: "sticky",
+  top: 96,
+  zIndex: 80,
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
   gap: 10,
+  padding: "10px 12px",
+  marginInline: -12,
+  borderRadius: 18,
+  border: "1px solid var(--checkout-border)",
+  background: "color-mix(in srgb, var(--page-panel-bg) 92%, transparent)",
+  backdropFilter: "blur(14px)",
+  boxShadow: "0 14px 34px rgba(79, 151, 191, 0.10)",
 };
 const wizardStepButtonStyle = (active: boolean): React.CSSProperties => ({
   minHeight: 52,
@@ -5916,6 +6252,11 @@ const wizardPanelStyle: React.CSSProperties = {
   boxSizing: "border-box",
   minHeight: 460,
   alignContent: "start",
+};
+const publishWizardPanelStyle: React.CSSProperties = {
+  ...wizardPanelStyle,
+  minHeight: 260,
+  alignContent: "center",
 };
 const wizardTwoColumnStyle: React.CSSProperties = {
   display: "grid",
@@ -6220,6 +6561,10 @@ const modalOverlayStyle: React.CSSProperties = {
   placeItems: "center",
   padding: 20,
 };
+const confirmModalOverlayStyle: React.CSSProperties = {
+  ...modalOverlayStyle,
+  zIndex: 1300,
+};
 const modalCardStyle: React.CSSProperties = {
   width: "min(100%, 560px)",
   maxHeight: "min(88vh, 720px)",
@@ -6253,6 +6598,138 @@ const optionCardStyle: React.CSSProperties = {
   alignContent: "stretch",
   minHeight: 360,
   gridTemplateRows: "auto minmax(0, 1fr) auto",
+};
+const quickCreateAttributeStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px dashed var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  padding: "10px 14px",
+};
+const quickCreateSummaryStyle: React.CSSProperties = {
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  fontWeight: 700,
+  listStyle: "none",
+};
+const attributeAccordionStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+};
+const attributeAccordionItemStyle = (open: boolean): React.CSSProperties => ({
+  borderRadius: 22,
+  border: open
+    ? "1px solid var(--checkout-border-strong)"
+    : "1px solid var(--checkout-border)",
+  background: open ? "var(--page-panel-strong-bg)" : "var(--page-panel-bg)",
+  overflow: "hidden",
+  boxShadow: open ? "0 18px 38px rgba(79, 151, 191, 0.10)" : "none",
+});
+const attributeAccordionHeaderStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 74,
+  border: 0,
+  background: "transparent",
+  padding: "16px 18px",
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  alignItems: "center",
+  gap: 14,
+  color: "var(--account-text-strong)",
+  textAlign: "left",
+  cursor: "pointer",
+};
+const attributeHeaderTitleStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: "grid",
+  gap: 6,
+};
+const attributeHeaderMetaStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 10,
+  color: "var(--account-text-soft)",
+  fontSize: 12,
+  whiteSpace: "nowrap",
+};
+const attributeChevronStyle = (open: boolean): React.CSSProperties => ({
+  width: 28,
+  height: 28,
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "var(--account-text-strong)",
+  transform: open ? "rotate(180deg)" : "rotate(0deg)",
+});
+const attributeAccordionBodyStyle: React.CSSProperties = {
+  borderTop: "1px solid var(--checkout-border)",
+  padding: 18,
+  display: "grid",
+  gap: 16,
+};
+const attributePanelActionsStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+const attributeValuesGridStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  alignContent: "flex-start",
+};
+const attributeSelectChipStyle = (selected: boolean): React.CSSProperties => ({
+  minHeight: 44,
+  maxWidth: 180,
+  padding: "10px 15px",
+  borderRadius: 999,
+  border: selected
+    ? "1px solid var(--admin-chip-selected-border)"
+    : "1px solid var(--admin-chip-border)",
+  background: selected
+    ? "var(--admin-chip-selected-bg)"
+    : "var(--admin-chip-bg)",
+  color: selected
+    ? "var(--admin-chip-selected-color)"
+    : "var(--admin-chip-color)",
+  boxShadow: selected ? "var(--admin-chip-selected-shadow)" : "none",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  fontWeight: selected ? 800 : 600,
+});
+const clearAttributeButtonStyle: React.CSSProperties = {
+  border: "1px solid var(--checkout-border)",
+  background: "transparent",
+  color: "var(--account-text-muted)",
+  borderRadius: 999,
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontSize: 12,
+};
+const attributeSummaryStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  padding: 16,
+  display: "grid",
+  gap: 6,
+};
+const variantSourceSummaryStyle: React.CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  padding: 14,
+  display: "grid",
+  gap: 6,
 };
 const tableSectionStyle: React.CSSProperties = { ...blockStyle, gap: 16 };
 const statStyle: React.CSSProperties = {

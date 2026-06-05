@@ -3,10 +3,31 @@ import { Prisma } from '@prisma/client';
 import { runtimeConfig } from '../../config/runtime-config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Code128BarcodeService } from './barcode/code128-barcode.service';
+import { DefaultLabelConfigDto, type DefaultLabelQuantityMode } from './dto/default-label-config.dto';
 import { GenerateLabelsDto, LabelOptionsDto } from './dto/generate-labels.dto';
 import { ListLabelProductsDto } from './dto/list-label-products.dto';
 import { LabelPdfRenderer, PrintableLabel } from './pdf/label-pdf.renderer';
-import { LABEL_TEMPLATES, getLabelTemplate, type LabelPriceMode } from './templates/label-templates';
+import { LABEL_TEMPLATES, getLabelTemplate, type LabelPriceMode, type LabelTemplateKey } from './templates/label-templates';
+
+type DefaultLabelConfig = {
+  template: LabelTemplateKey;
+  options: Required<LabelOptionsDto>;
+  quantityMode: DefaultLabelQuantityMode;
+};
+
+const DEFAULT_LABEL_CONFIG: DefaultLabelConfig = {
+  template: 'BROTHER_QL570_29X90',
+  options: {
+    showPrice: true,
+    priceMode: 'both',
+    showStoreName: false,
+    showProductName: true,
+    showVariantName: true,
+    showSku: true,
+    showLogo: false,
+  },
+  quantityMode: 'stock',
+};
 
 @Injectable()
 export class LabelsService {
@@ -72,6 +93,49 @@ export class LabelsService {
         hasTransferPrice,
         bankTransferDiscountPercentage,
       },
+    };
+  }
+
+  async getDefaultConfig(storeId: number) {
+    return {
+      defaultLabel: await this.loadDefaultConfig(storeId),
+    };
+  }
+
+  async updateDefaultConfig(storeId: number, dto: DefaultLabelConfigDto) {
+    const defaultLabel = this.normalizeDefaultConfig(dto);
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { storefrontConfig: true },
+    });
+    const currentConfig = this.asPlainObject(store?.storefrontConfig);
+
+    await this.prisma.store.update({
+      where: { id: storeId },
+      data: {
+        storefrontConfig: {
+          ...currentConfig,
+          defaultLabel,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    return { defaultLabel };
+  }
+
+  async productStockPdf(storeId: number, productId: number) {
+    const defaultLabel = await this.loadDefaultConfig(storeId);
+    const items = await this.buildProductStockItems(storeId, productId, defaultLabel.quantityMode);
+    const dto: GenerateLabelsDto = {
+      items,
+      template: defaultLabel.template,
+      options: defaultLabel.options,
+    };
+    const document = await this.pdf(storeId, dto);
+
+    return {
+      ...document,
+      filename: `etiquetas-producto-${productId}-${defaultLabel.template.toLowerCase()}-${Date.now()}.pdf`,
     };
   }
 
@@ -331,6 +395,96 @@ export class LabelsService {
       showLogo: options?.showLogo ?? false,
       priceMode,
     };
+  }
+
+  private async loadDefaultConfig(storeId: number): Promise<DefaultLabelConfig> {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { storefrontConfig: true },
+    });
+    const storefrontConfig = this.asPlainObject(store?.storefrontConfig);
+
+    return this.normalizeDefaultConfig(storefrontConfig.defaultLabel);
+  }
+
+  private normalizeDefaultConfig(input: unknown): DefaultLabelConfig {
+    const source = this.asPlainObject(input);
+    const template = getLabelTemplate(String(source.template ?? ''))
+      ? (source.template as LabelTemplateKey)
+      : DEFAULT_LABEL_CONFIG.template;
+    const normalizedOptions = this.normalizeOptions(
+      this.asPlainObject(source.options) as LabelOptionsDto,
+    );
+    const labelTemplate = getLabelTemplate(template);
+    const priceMode = labelTemplate?.priceOptions.includes(normalizedOptions.priceMode)
+      ? normalizedOptions.priceMode
+      : labelTemplate?.priceOptions[0] ?? DEFAULT_LABEL_CONFIG.options.priceMode;
+
+    return {
+      template,
+      quantityMode: this.normalizeQuantityMode(source.quantityMode),
+      options: {
+        ...normalizedOptions,
+        priceMode,
+        showPrice: priceMode !== 'none',
+      },
+    };
+  }
+
+  private async buildProductStockItems(
+    storeId: number,
+    productId: number,
+    quantityMode: DefaultLabelQuantityMode,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id: productId,
+        storeId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        variants: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            inventories: { where: { storeId }, select: { quantity: true } },
+          },
+          orderBy: { sku: 'asc' },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product does not belong to this store');
+    }
+
+    const items = product.variants
+      .map((variant) => {
+        const stockQuantity = Math.max(0, Number(variant.inventories[0]?.quantity ?? 0));
+
+        return {
+          variantId: variant.id,
+          quantity: quantityMode === 'stock' ? stockQuantity : stockQuantity > 0 ? 1 : 0,
+        };
+      })
+      .filter((item) => item.quantity > 0);
+
+    if (items.length === 0) {
+      throw new BadRequestException('El producto no tiene stock para imprimir etiquetas.');
+    }
+
+    return items;
+  }
+
+  private asPlainObject(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  private normalizeQuantityMode(value: unknown): DefaultLabelQuantityMode {
+    return value === 'one' || value === 'stock' ? value : DEFAULT_LABEL_CONFIG.quantityMode;
   }
 
   private normalizePriceMode(

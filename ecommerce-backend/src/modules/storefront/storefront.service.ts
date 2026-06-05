@@ -14,6 +14,18 @@ import { StoreShippingProviderConfigService } from '../shipping/services/store-s
 
 type NormalizedStorefrontConfig = {
   theme?: string;
+  defaultLabel?: {
+    template: string;
+    options: {
+      showPrice: boolean;
+      priceMode: 'normal' | 'transfer' | 'both' | 'none';
+      showStoreName: boolean;
+      showProductName: boolean;
+      showVariantName: boolean;
+      showSku: boolean;
+      showLogo: boolean;
+    };
+  };
   themePalette?: Partial<
     Record<
       | 'background'
@@ -1000,6 +1012,7 @@ export class StorefrontService {
       source.themePalette && typeof source.themePalette === 'object'
         ? (source.themePalette as Record<string, unknown>)
         : {};
+    const defaultLabel = this.normalizeDefaultLabelConfig(source.defaultLabel);
     const themePalette = this.themePaletteKeys.reduce<
       Partial<Record<(typeof this.themePaletteKeys)[number], string>>
     >((acc, key) => {
@@ -1095,6 +1108,7 @@ export class StorefrontService {
 
     return {
       ...(theme ? { theme } : {}),
+      ...(defaultLabel ? { defaultLabel } : {}),
       ...(Object.keys(themePalette).length > 0 ? { themePalette } : {}),
       ...(header.brandLabel || header.primaryLinks.length > 0 || footer.brandTitle || footer.brandSubtitle || footer.columns.length > 0
         ? {
@@ -1124,6 +1138,38 @@ export class StorefrontService {
                 ? (block.props as Record<string, unknown>)
                 : {},
           })),
+      },
+    };
+  }
+
+  private normalizeDefaultLabelConfig(input: unknown): NormalizedStorefrontConfig['defaultLabel'] | undefined {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      return undefined;
+    }
+
+    const source = input as Record<string, unknown>;
+    const options =
+      source.options && typeof source.options === 'object' && !Array.isArray(source.options)
+        ? (source.options as Record<string, unknown>)
+        : {};
+    const priceMode = ['normal', 'transfer', 'both', 'none'].includes(String(options.priceMode))
+      ? (options.priceMode as 'normal' | 'transfer' | 'both' | 'none')
+      : 'normal';
+
+    if (typeof source.template !== 'string' || !source.template.trim()) {
+      return undefined;
+    }
+
+    return {
+      template: source.template.trim(),
+      options: {
+        showPrice: priceMode !== 'none' && (typeof options.showPrice === 'boolean' ? options.showPrice : true),
+        priceMode,
+        showStoreName: typeof options.showStoreName === 'boolean' ? options.showStoreName : true,
+        showProductName: typeof options.showProductName === 'boolean' ? options.showProductName : true,
+        showVariantName: typeof options.showVariantName === 'boolean' ? options.showVariantName : true,
+        showSku: typeof options.showSku === 'boolean' ? options.showSku : true,
+        showLogo: typeof options.showLogo === 'boolean' ? options.showLogo : false,
       },
     };
   }
