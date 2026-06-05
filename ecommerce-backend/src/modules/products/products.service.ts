@@ -5,6 +5,11 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
 import { generateSlug } from '../../common/utils/slug.util';
+import {
+  convertCashInputToBasePrice,
+  resolveCashPriceInputSettings,
+  type CashPriceInputSettings,
+} from '../../common/price-input-mode';
 
 @Injectable()
 export class ProductsService {
@@ -219,7 +224,11 @@ export class ProductsService {
 
     const normalizedCategoryIds = [...new Set((data.categoryIds ?? []).map(Number))];
     const normalizedOptionValues = this.normalizeOptionValues(data.optionValues ?? []);
-    const normalizedVariants = this.normalizeVariants(data.variants ?? []);
+    const priceInputSettings = await this.resolvePriceInputSettings(storeId);
+    const normalizedVariants = this.normalizeVariants(
+      data.variants ?? [],
+      priceInputSettings,
+    );
 
     this.ensureNoDuplicateVariantSkus(normalizedVariants);
 
@@ -760,6 +769,7 @@ export class ProductsService {
       packageHeightCm?: number | null;
       packageLengthCm?: number | null;
     }>,
+    priceInputSettings: CashPriceInputSettings,
   ) {
     return variants.map((variant) => {
       const sku = variant.sku.trim();
@@ -781,7 +791,7 @@ export class ProductsService {
       return {
         id: variant.id,
         sku,
-        price,
+        price: convertCashInputToBasePrice(price, priceInputSettings),
         Size: variant.Size,
         Color: variant.Color,
         waistSize: variant.waistSize,
@@ -794,6 +804,20 @@ export class ProductsService {
         packageLengthCm: variant.packageLengthCm,
       };
     });
+  }
+
+  private async resolvePriceInputSettings(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        name: true,
+        domain: true,
+        storefrontConfig: true,
+        bankTransferDiscountPercentage: true,
+      },
+    });
+
+    return resolveCashPriceInputSettings(store);
   }
 
   private ensureNoDuplicateVariantSkus(

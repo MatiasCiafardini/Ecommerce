@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateVariantDto } from './dto/update-variant.dto';
+import {
+  convertCashInputToBasePrice,
+  resolveCashPriceInputSettings,
+} from '../../common/price-input-mode';
 
 @Injectable()
 export class ProductVariantsService {
@@ -96,11 +100,13 @@ export class ProductVariantsService {
         data.packageLengthCm,
         data.length,
       );
+      const priceInputSettings = await this.resolvePriceInputSettings(storeId);
+
       return await this.prisma.productVariant.create({
         data: {
           productId: data.productId,
           sku: data.sku,
-          price: data.price,
+          price: convertCashInputToBasePrice(data.price, priceInputSettings),
           Size: data.Size,
           Color: data.Color,
           waistSize: data.waistSize,
@@ -175,7 +181,13 @@ export class ProductVariantsService {
     } = {};
 
     if (data.sku !== undefined) payload.sku = data.sku;
-    if (data.price !== undefined) payload.price = data.price;
+    if (data.price !== undefined) {
+      const priceInputSettings = await this.resolvePriceInputSettings(storeId);
+      payload.price = convertCashInputToBasePrice(
+        data.price,
+        priceInputSettings,
+      );
+    }
     if (data.Size !== undefined) payload.Size = data.Size ?? null;
     if (data.Color !== undefined) payload.Color = data.Color ?? null;
     if (data.waistSize !== undefined) payload.waistSize = data.waistSize ?? null;
@@ -350,5 +362,19 @@ export class ProductVariantsService {
     if (existing) {
       throw new BadRequestException('SKU already exists');
     }
+  }
+
+  private async resolvePriceInputSettings(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        name: true,
+        domain: true,
+        storefrontConfig: true,
+        bankTransferDiscountPercentage: true,
+      },
+    });
+
+    return resolveCashPriceInputSettings(store);
   }
 }

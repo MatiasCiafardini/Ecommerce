@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import { ProductPricingService } from '../discounts/product-pricing.service';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { StoreShippingProviderConfigService } from '../shipping/services/store-shipping-provider-config.service';
+import { resolveCashPriceInputSettings } from '../../common/price-input-mode';
 
 type NormalizedStorefrontConfig = {
   theme?: string;
@@ -188,6 +189,9 @@ export class StorefrontService {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
       select: {
+        name: true,
+        domain: true,
+        storefrontConfig: true,
         bankTransferAlias: true,
         bankTransferDiscountPercentage: true,
       },
@@ -251,6 +255,7 @@ export class StorefrontService {
         alias: store?.bankTransferAlias ?? null,
         discountPercentage: Number(store?.bankTransferDiscountPercentage ?? 0),
       },
+      priceInput: resolveCashPriceInputSettings(store),
       correoArgentino: await this.getAdminCorreoArgentinoConfig(storeId),
     };
   }

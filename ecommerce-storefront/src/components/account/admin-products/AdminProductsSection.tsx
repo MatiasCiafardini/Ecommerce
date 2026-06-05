@@ -48,6 +48,22 @@ export type Product = {
   optionValues?: Array<{ value?: string; productOptionId?: number }>;
 };
 
+type ProductPriceInputSettings = {
+  enabled: boolean;
+  discountPercentage: number;
+  multiplier: number;
+};
+
+const defaultPriceInputSettings: ProductPriceInputSettings = {
+  enabled: false,
+  discountPercentage: 0,
+  multiplier: 1,
+};
+
+type AdminIntegrationsConfig = {
+  priceInput?: Partial<ProductPriceInputSettings> | null;
+};
+
 export type Category = {
   id: number;
   name: string;
@@ -434,9 +450,50 @@ function getProductTotalStock(product: Product) {
   );
 }
 
-function getProductPriceFrom(product: Product) {
+function resolveDisplayPriceFromBase(
+  price: string | number | null | undefined,
+  priceInputSettings: ProductPriceInputSettings,
+) {
+  const parsed = Number(price ?? 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  if (!priceInputSettings.enabled || priceInputSettings.multiplier <= 0) {
+    return parsed;
+  }
+
+  return Number((parsed * priceInputSettings.multiplier).toFixed(2));
+}
+
+function formatEditablePriceFromBase(
+  price: string | number | null | undefined,
+  priceInputSettings: ProductPriceInputSettings,
+) {
+  const displayPrice = resolveDisplayPriceFromBase(price, priceInputSettings);
+  if (!displayPrice) return "";
+
+  return Number.isInteger(displayPrice)
+    ? String(displayPrice)
+    : displayPrice.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function normalizePriceInputSettings(input: unknown): ProductPriceInputSettings {
+  if (!input || typeof input !== "object") return defaultPriceInputSettings;
+  const source = input as Partial<ProductPriceInputSettings>;
+  const multiplier = Number(source.multiplier ?? 1);
+  const discountPercentage = Number(source.discountPercentage ?? 0);
+
+  return {
+    enabled: Boolean(source.enabled) && Number.isFinite(multiplier) && multiplier > 0,
+    discountPercentage: Number.isFinite(discountPercentage) ? discountPercentage : 0,
+    multiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1,
+  };
+}
+
+function getProductPriceFrom(
+  product: Product,
+  priceInputSettings = defaultPriceInputSettings,
+) {
   const prices = (product.variants ?? [])
-    .map((variant) => Number(variant.price ?? 0))
+    .map((variant) => resolveDisplayPriceFromBase(variant.price, priceInputSettings))
     .filter((price) => Number.isFinite(price) && price > 0);
 
   return prices.length > 0 ? Math.min(...prices) : 0;
@@ -509,6 +566,9 @@ export default function AdminProductsSection({
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [options, setOptions] = useState<ProductOption[]>([]);
+  const [priceInputSettings, setPriceInputSettings] = useState<ProductPriceInputSettings>(
+    defaultPriceInputSettings,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState<{
@@ -664,6 +724,9 @@ export default function AdminProductsSection({
     maxWidth: "100%",
     minWidth: 0,
   };
+  const variantPricePlaceholder = priceInputSettings.enabled
+    ? "Precio efectivo/transferencia"
+    : "Precio base";
 
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
@@ -680,15 +743,17 @@ export default function AdminProductsSection({
   const loadData = async (): Promise<Product[]> => {
     setLoading(true);
     try {
-      const [p, c, o] = await Promise.all([
+      const [p, c, o, integrations] = await Promise.all([
         api("/products"),
         api("/categories"),
         api("/product-options"),
+        api("/store/admin/integrations") as Promise<AdminIntegrationsConfig>,
       ]);
       const nextProducts = Array.isArray(p) ? p : [];
       setProducts(nextProducts);
       setCategories(Array.isArray(c) ? scopeCategoriesToActiveStore(c as Category[]) : []);
       setOptions(Array.isArray(o) ? o : []);
+      setPriceInputSettings(normalizePriceInputSettings(integrations?.priceInput));
       setError("");
       return nextProducts;
     } catch (err) {
@@ -2014,7 +2079,10 @@ export default function AdminProductsSection({
           ? productVariants.map((variant) => ({
               id: variant.id,
               sku: String(variant.sku ?? ""),
-              price: String(variant.price ?? ""),
+              price: formatEditablePriceFromBase(
+                variant.price,
+                priceInputSettings,
+              ),
               Size: String(variant.Size ?? ""),
               Color: String(variant.Color ?? ""),
               waistSize: String(variant.waistSize ?? ""),
@@ -2050,7 +2118,7 @@ export default function AdminProductsSection({
         setLoadingEditId(null);
       }
     },
-    [clearVariantDraft, imageFiles],
+    [clearVariantDraft, imageFiles, priceInputSettings],
   );
 
   const duplicateProductDraft = useCallback(
@@ -2107,7 +2175,10 @@ export default function AdminProductsSection({
           Array.isArray(productVariants)
             ? productVariants.map((variant) => ({
                 sku: `${String(variant.sku ?? "").trim()}-COPY`,
-                price: String(variant.price ?? ""),
+                price: formatEditablePriceFromBase(
+                  variant.price,
+                  priceInputSettings,
+                ),
                 Size: String(variant.Size ?? ""),
                 Color: String(variant.Color ?? ""),
                 waistSize: String(variant.waistSize ?? ""),
@@ -2143,7 +2214,7 @@ export default function AdminProductsSection({
         setLoadingEditId(null);
       }
     },
-    [clearVariantDraft, imageFiles],
+    [clearVariantDraft, imageFiles, priceInputSettings],
   );
 
   const syncExistingImages = async (productId: number) => {
@@ -3276,7 +3347,7 @@ export default function AdminProductsSection({
               </div>
             ) : null}
             <div style={responsiveVariantGridStyle}>
-              <SuggestionInput value={variantDraft.price} onChange={(value) => setVariantDraft((current) => ({ ...current, price: value }))} placeholder="Precio base" suggestions={variantAutocomplete.price} />
+              <SuggestionInput value={variantDraft.price} onChange={(value) => setVariantDraft((current) => ({ ...current, price: value }))} placeholder={variantPricePlaceholder} suggestions={variantAutocomplete.price} />
               <SuggestionInput value={variantDraft.inventoryQuantity} onChange={(value) => setVariantDraft((current) => ({ ...current, inventoryQuantity: value }))} placeholder="Stock base" suggestions={variantAutocomplete.inventoryQuantity} />
               <SuggestionInput value={variantDraft.Color} onChange={(value) => setVariantDraft((current) => ({ ...current, Color: value }))} placeholder="Color/es (Negro, Blanco)" suggestions={variantAutocomplete.color} />
               <SuggestionInput value={variantDraft.Size} onChange={(value) => setVariantDraft((current) => ({ ...current, Size: value }))} placeholder="Talle/s (S, M, L)" suggestions={variantAutocomplete.size} />
@@ -3290,7 +3361,7 @@ export default function AdminProductsSection({
             <div style={wizardSubpanelStyle}>
               <strong>Edicion masiva ({selectedVariantIndexes.length})</strong>
               <div style={variantGridStyle}>
-                <input value={bulkVariantPatch.price} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, price: event.target.value }))} placeholder="Cambiar precio" style={fieldStyle} />
+                <input value={bulkVariantPatch.price} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, price: event.target.value }))} placeholder={`Cambiar ${variantPricePlaceholder.toLowerCase()}`} style={fieldStyle} />
                 <input value={bulkVariantPatch.stock} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, stock: event.target.value }))} placeholder="Cambiar stock" style={fieldStyle} />
                 <input value={bulkVariantPatch.color} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, color: event.target.value }))} placeholder="Cambiar color" style={fieldStyle} />
                 <input value={bulkVariantPatch.size} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, size: event.target.value }))} placeholder="Cambiar talle" style={fieldStyle} />
@@ -3355,7 +3426,7 @@ export default function AdminProductsSection({
                       <input
                         value={variant.price}
                         onChange={(event) => updateVariantAt(index, { price: sanitizeDecimalInput(event.target.value) })}
-                        placeholder="Precio"
+                        placeholder={variantPricePlaceholder}
                         style={compactCellInputStyle}
                       />
                     </td>
@@ -3495,7 +3566,10 @@ export default function AdminProductsSection({
                   </div>
                 </td>
               </tr>
-            ) : filteredProducts.map((product) => (
+            ) : filteredProducts.map((product) => {
+              const priceFrom = getProductPriceFrom(product, priceInputSettings);
+
+              return (
               <tr key={product.id}>
                 <td style={tdStyle}>
                   {product.images?.[0]?.url ? (
@@ -3517,7 +3591,7 @@ export default function AdminProductsSection({
                 <td style={tdStyle}>{product.variants?.length ?? 0}</td>
                 <td style={tdStyle}>{getProductTotalStock(product)}</td>
                 <td style={tdStyle}><span style={productCatalogStatusStyle(getProductCatalogStatus(product))}>{getProductCatalogStatus(product)}</span></td>
-                <td style={tdStyle}>{getProductPriceFrom(product) ? money(getProductPriceFrom(product)) : "-"}</td>
+                <td style={tdStyle}>{priceFrom ? money(priceFrom) : "-"}</td>
                 <td style={tdStyle}>
                   <div style={iconActionsStyle}>
                     <button type="button" title="Editar" aria-label="Editar producto" onClick={() => void hydrateFormFromProduct(product)} style={iconButtonStyle}>&#9998;</button>
@@ -3526,7 +3600,8 @@ export default function AdminProductsSection({
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
