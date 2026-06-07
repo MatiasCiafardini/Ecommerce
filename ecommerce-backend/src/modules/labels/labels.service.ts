@@ -312,7 +312,7 @@ export class LabelsService {
       for (let index = 0; index < item.quantity && labels.length < maxLabels; index += 1) {
         labels.push({
           productName: variant.product.title,
-          variantName: [variant.Color, variant.Size].filter(Boolean).join(' ') || variant.sku,
+          variantName: this.formatVariantName(variant) || variant.sku,
           sku: variant.sku,
           price: this.formatMoney(normalPrice),
           normalPrice: this.formatMoney(normalPrice),
@@ -507,7 +507,7 @@ export class LabelsService {
       id: variant.id,
       productId: variant.productId,
       productName: variant.product.title,
-      variantName: [variant.Color, variant.Size].filter(Boolean).join(' '),
+      variantName: this.formatVariantName(variant),
       sku: variant.sku,
       stock: inventory?.quantity ?? 0,
       price: Number(variant.price),
@@ -551,6 +551,17 @@ export class LabelsService {
     if (!Number.isFinite(price) || price <= 0 || discountPercentage <= 0) return null;
     const discountedPrice = price * (1 - discountPercentage / 100);
     return Math.max(0, Math.round(discountedPrice / 100) * 100);
+  }
+
+  private formatVariantName(variant: {
+    Color?: string | null;
+    Size?: string | null;
+    waistSize?: string | null;
+  }) {
+    return [variant.Color, variant.Size, variant.waistSize]
+      .map((value) => value?.trim())
+      .filter(Boolean)
+      .join(' ');
   }
 
   private formatMoney(value: Prisma.Decimal | number) {

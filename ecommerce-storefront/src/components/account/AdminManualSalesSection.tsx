@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import ThemeSelect from "@/components/ui/ThemeSelect";
 import { money } from "./order-utils";
 
 type ManualSaleProduct = {
@@ -35,6 +34,18 @@ type ManualSaleLine = {
 
 type ManualSaleVariant = NonNullable<ManualSaleProduct["variants"]>[number];
 
+type ManualSaleVariantRow = {
+  rowId: string;
+  product: ManualSaleProduct;
+  variant: ManualSaleVariant;
+  productTitle: string;
+  productSlug: string;
+  variantLabel: string;
+  sku: string;
+  price: string | number;
+  available: number;
+};
+
 type CreatedOrder = {
   id: number;
   total: string | number;
@@ -58,6 +69,9 @@ type SaleSuccessSummary = {
   }>;
 };
 
+const paymentOptions = ["Efectivo", "Tarjeta", "Transferencia"];
+const minVariantSearchLength = 4;
+
 const getAvailableStock = (inventories: ManualSaleVariant["inventories"]) =>
   (inventories ?? []).reduce(
     (total: number, inventory: NonNullable<ManualSaleVariant["inventories"]>[number]) =>
@@ -65,16 +79,8 @@ const getAvailableStock = (inventories: ManualSaleVariant["inventories"]) =>
     0,
   );
 
-const getProductBasePrice = (product: ManualSaleProduct) => {
-  const prices = (product.variants ?? [])
-    .map((variant) => Number(variant.price ?? 0))
-    .filter((price) => Number.isFinite(price) && price > 0);
-
-  return prices.length > 0 ? Math.min(...prices) : 0;
-};
-
 const normalizeScannerSkuInput = (value: string) =>
-  value.replace(/['’‘`´ʼʹ′＇]/g, "-");
+  value.replace(/[\u0027\u0060\u2019\u2018\u00b4\u02bc\u02b9\u2032\uff07]/g, "-").trimStart();
 
 export default function AdminManualSalesSection({
   onSaleRegistered,
@@ -86,7 +92,7 @@ export default function AdminManualSalesSection({
   const [customerName, setCustomerName] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
-  const [discountValue, setDiscountValue] = useState("0");
+  const [discountValue, setDiscountValue] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<ManualSaleLine[]>([]);
   const [saving, setSaving] = useState(false);
@@ -94,9 +100,7 @@ export default function AdminManualSalesSection({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saleSummary, setSaleSummary] = useState<SaleSuccessSummary | null>(null);
-  const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<Record<number, string>>(
-    {},
-  );
+  const [selectedCatalogVariantId, setSelectedCatalogVariantId] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -114,45 +118,79 @@ export default function AdminManualSalesSection({
     void load();
   }, []);
 
-  const filteredProducts = useMemo(() => {
+  const variantRows = useMemo<ManualSaleVariantRow[]>(
+    () =>
+      products.flatMap((product) =>
+        (product.variants ?? []).map((variant) => ({
+          rowId: `${product.id}-${variant.id}`,
+          product,
+          variant,
+          productTitle: product.title,
+          productSlug: product.slug,
+          variantLabel: getVariantLabel(variant),
+          sku: String(variant.sku ?? ""),
+          price: variant.price,
+          available: getAvailableStock(variant.inventories),
+        })),
+      ),
+    [products],
+  );
+
+  const filteredVariantRows = useMemo(() => {
     const query = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
+    if (query.length < minVariantSearchLength) return [];
 
-    return products.filter((product) => {
-      if (!query) return true;
-
-      const variantsText = normalizeScannerSkuInput(
-        (product.variants ?? [])
-        .map((variant) => [variant.sku, variant.Size, variant.Color].filter(Boolean).join(" "))
-          .join(" "),
+    return variantRows.filter((row) => {
+      const variantText = normalizeScannerSkuInput(
+        [row.sku, row.variantLabel, row.productTitle, row.productSlug].filter(Boolean).join(" "),
       ).toLowerCase();
 
-      return (
-        product.title.toLowerCase().includes(query) ||
-        product.slug.toLowerCase().includes(query) ||
-        variantsText.includes(query)
-      );
+      return variantText.includes(query);
     });
-  }, [productQuery, products]);
+  }, [productQuery, variantRows]);
 
+  const visibleVariantRows = filteredVariantRows.slice(0, 120);
+  const normalizedSearchLength = normalizeScannerSkuInput(productQuery).trim().length;
+
+  useEffect(() => {
+    if (visibleVariantRows.length === 0) {
+      setSelectedCatalogVariantId(null);
+      return;
+    }
+
+    setSelectedCatalogVariantId((current) =>
+      current && visibleVariantRows.some((row) => row.variant.id === current)
+        ? current
+        : visibleVariantRows[0].variant.id,
+    );
+  }, [visibleVariantRows]);
+
+  const totalAvailableUnits = useMemo(
+    () =>
+      variantRows.reduce((total, row) => total + row.available, 0),
+    [variantRows],
+  );
   const subtotal = lines.reduce(
     (total, line) => total + Number(line.price || 0) * Number(line.quantity || 0),
     0,
   );
+  const totalItems = lines.reduce((total, line) => total + Number(line.quantity || 0), 0);
   const normalizedDiscountValue = Number(discountValue || 0);
   const safeDiscountValue = Number.isFinite(normalizedDiscountValue)
     ? Math.max(normalizedDiscountValue, 0)
     : 0;
   const discountAmount =
     discountType === "percentage"
-      ? subtotal * (Math.min(safeDiscountValue, 100) / 100)
+      ? calculateRoundedPercentageDiscount(subtotal, safeDiscountValue)
       : Math.min(safeDiscountValue, subtotal);
   const total = Math.max(subtotal - discountAmount, 0);
+  const hasDiscount = discountAmount > 0;
 
   const addVariant = (product: ManualSaleProduct, variant: ManualSaleVariant) => {
     const available = getAvailableStock(variant.inventories);
     if (available <= 0) {
       setError("Esa variante no tiene stock disponible.");
-      return;
+      return false;
     }
 
     setError("");
@@ -173,9 +211,7 @@ export default function AdminManualSalesSection({
           variantId: variant.id,
           productId: product.id,
           title: product.title,
-          variantLabel:
-            [variant.Size, variant.Color].filter(Boolean).join(" · ") ||
-            "Variante principal",
+          variantLabel: getVariantLabel(variant),
           sku: String(variant.sku ?? ""),
           quantity: 1,
           price: String(variant.price ?? "0"),
@@ -183,68 +219,66 @@ export default function AdminManualSalesSection({
         },
       ];
     });
+    return true;
   };
 
   const focusSearchInput = () => {
     window.requestAnimationFrame(() => searchInputRef.current?.focus());
   };
 
-  const addScannedVariant = () => {
-    const normalizedQuery = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
-    if (!normalizedQuery) return;
-
-    if (filteredProducts.length !== 1) {
-      setError("El escaneo debe dejar una unica coincidencia antes de agregar.");
-      focusSearchInput();
-      return;
-    }
-
-    const product = filteredProducts[0];
-    const variant = (product.variants ?? []).find(
-      (entry) =>
-        normalizeScannerSkuInput(String(entry.sku ?? "")).trim().toLowerCase() ===
-        normalizedQuery,
-    );
-
-    if (!variant) {
-      setError("No encontramos una variante con ese SKU exacto.");
-      focusSearchInput();
-      return;
-    }
-
-    addVariant(product, variant);
+  const addVariantRow = (row: ManualSaleVariantRow) => {
+    const added = addVariant(row.product, row.variant);
+    if (!added) return;
     setProductQuery("");
-    setSelectedVariantByProduct((current) => {
-      const next = { ...current };
-      delete next[product.id];
-      return next;
-    });
+    setSelectedCatalogVariantId(null);
     focusSearchInput();
   };
 
-  const handleVariantSelectionChange = (productId: number, value: string) => {
-    setSelectedVariantByProduct((current) => ({
-      ...current,
-      [productId]: value,
-    }));
+  const addCurrentCatalogSelection = () => {
+    const normalizedQuery = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
+    if (normalizedQuery.length < minVariantSearchLength) {
+      setError(`Escribi al menos ${minVariantSearchLength} caracteres para buscar una variante.`);
+      focusSearchInput();
+      return;
+    }
+
+    const exactSkuMatch = normalizedQuery
+      ? variantRows.find(
+          (row) =>
+            normalizeScannerSkuInput(row.sku).trim().toLowerCase() === normalizedQuery,
+        )
+      : null;
+
+    const selectedRow = selectedCatalogVariantId
+      ? visibleVariantRows.find((row) => row.variant.id === selectedCatalogVariantId)
+      : null;
+    const rowToAdd =
+      exactSkuMatch ??
+      selectedRow ??
+      (visibleVariantRows.length === 1 ? visibleVariantRows[0] : null);
+
+    if (!rowToAdd) {
+      setError("No encontramos una variante para agregar con esa busqueda.");
+      focusSearchInput();
+      return;
+    }
+
+    addVariantRow(rowToAdd);
   };
 
-  const addSelectedVariant = (product: ManualSaleProduct) => {
-    const selectedVariantId = selectedVariantByProduct[product.id];
-    if (!selectedVariantId) {
-      setError("Selecciona una variante antes de agregarla al ticket.");
-      return;
-    }
+  const moveCatalogSelection = (direction: 1 | -1) => {
+    if (visibleVariantRows.length === 0) return;
 
-    const variant = (product.variants ?? []).find(
-      (entry) => String(entry.id) === selectedVariantId,
+    const currentIndex = visibleVariantRows.findIndex(
+      (row) => row.variant.id === selectedCatalogVariantId,
     );
-    if (!variant) {
-      setError("No encontramos esa variante para agregarla a la venta.");
-      return;
-    }
+    const fallbackIndex = direction === 1 ? 0 : visibleVariantRows.length - 1;
+    const nextIndex =
+      currentIndex === -1
+        ? fallbackIndex
+        : Math.min(Math.max(currentIndex + direction, 0), visibleVariantRows.length - 1);
 
-    addVariant(product, variant);
+    setSelectedCatalogVariantId(visibleVariantRows[nextIndex].variant.id);
   };
 
   const updateLine = (variantId: number, patch: Partial<ManualSaleLine>) => {
@@ -261,10 +295,14 @@ export default function AdminManualSalesSection({
     setCustomerName("");
     setPaymentMethod("Efectivo");
     setDiscountType("percentage");
-    setDiscountValue("0");
+    setDiscountValue("");
     setNotes("");
+    setProductQuery("");
     setLines([]);
-    setSelectedVariantByProduct({});
+    setSelectedCatalogVariantId(null);
+    setSuccess("");
+    setError("");
+    focusSearchInput();
   };
 
   const handleCreateSale = async () => {
@@ -303,9 +341,7 @@ export default function AdminManualSalesSection({
         body: JSON.stringify(payload),
       })) as CreatedOrder;
 
-      setSuccess(
-        `Venta #${created.id} registrada por ${money(created.total)} con estado ${created.status}.`,
-      );
+      setSuccess(`Venta #${created.id} registrada por ${money(created.total)}.`);
       setSaleSummary({
         id: created.id,
         total: created.total,
@@ -332,758 +368,1086 @@ export default function AdminManualSalesSection({
   };
 
   return (
-    <section style={panelStyle} data-account-panel>
-      <Header
-        title="Venta manual"
-        copy="Registra ventas de mostrador usando el mismo stock real de la tienda, con precio editable por linea y cierre desde el mismo admin."
-      />
+    <section className="manual-sale-panel" data-account-panel>
+      <header className="manual-sale-header">
+        <div>
+          <p className="manual-sale-eyebrow">Mostrador</p>
+          <h2>Venta manual</h2>
+          <p>
+            Busca productos, arma el ticket con stock real y cierra el cobro en el mismo flujo.
+          </p>
+        </div>
+        <div className="manual-sale-kpis" aria-label="Resumen del mostrador">
+          <MiniStat label="Productos" value={String(products.length)} />
+          <MiniStat label="Stock" value={String(totalAvailableUnits)} />
+          <MiniStat label="Ticket" value={String(totalItems)} />
+        </div>
+      </header>
 
-      {error ? <p style={errorStyle}>{error}</p> : null}
-      {success ? <p style={successStyle}>{success}</p> : null}
+      {error ? <p className="manual-sale-alert manual-sale-alert-error">{error}</p> : null}
+      {success ? <p className="manual-sale-alert manual-sale-alert-success">{success}</p> : null}
 
       {loading ? (
         <StateCard label="Preparando mostrador..." />
       ) : (
-        <div style={{ display: "grid", gap: 18 }}>
-          <section style={cardStyle}>
-            <div style={sectionHeaderStyle}>
+        <div className="manual-sale-workspace">
+          <section className="manual-sale-catalog" aria-label="Catalogo">
+            <div className="manual-sale-card manual-sale-search-card">
               <div>
-                <p style={eyebrowStyle}>Catalogo</p>
-                <h3 style={title3Style}>Buscar y agregar productos</h3>
-                <p style={copyStyle}>
-                  Busca productos y agrega variantes al ticket.
-                </p>
+                <p className="manual-sale-eyebrow">Catalogo</p>
+                <h3>Agregar productos</h3>
+              </div>
+
+              <div className="manual-sale-search-row">
+                <input
+                  ref={searchInputRef}
+                  value={productQuery}
+                  onChange={(event) => setProductQuery(normalizeScannerSkuInput(event.target.value))}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      moveCatalogSelection(1);
+                      return;
+                    }
+
+                    if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      moveCatalogSelection(-1);
+                      return;
+                    }
+
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+                    addCurrentCatalogSelection();
+                  }}
+                  placeholder="Buscar por nombre, slug o SKU"
+                  className="manual-sale-field"
+                />
+                <button
+                  type="button"
+                  onClick={addCurrentCatalogSelection}
+                  className="manual-sale-button"
+                >
+                  Agregar
+                </button>
+              </div>
+
+              <div className="manual-sale-search-meta">
+                <span>
+                  {normalizedSearchLength < minVariantSearchLength
+                    ? `Escribi ${minVariantSearchLength} caracteres para buscar`
+                    : `${filteredVariantRows.length} variantes`}
+                </span>
+                {filteredVariantRows.length > visibleVariantRows.length ? (
+                  <span>Mostrando las primeras {visibleVariantRows.length}</span>
+                ) : null}
               </div>
             </div>
 
-            <input
-              ref={searchInputRef}
-              value={productQuery}
-              onChange={(event) => {
-                const normalizedValue = normalizeScannerSkuInput(event.target.value);
-                event.currentTarget.value = normalizedValue;
-                setProductQuery(normalizedValue);
-              }}
-              onInput={(event) => {
-                const normalizedValue = normalizeScannerSkuInput(event.currentTarget.value);
-                if (event.currentTarget.value !== normalizedValue) {
-                  event.currentTarget.value = normalizedValue;
-                  setProductQuery(normalizedValue);
-                }
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
-                event.preventDefault();
-                addScannedVariant();
-              }}
-              placeholder="Buscar por nombre, slug o SKU"
-              style={fieldStyle}
-            />
-
-            <div style={productsTableShellStyle}>
-              <div style={productsTableHeaderStyle}>
-                <span>Producto</span>
-                <span>Slug</span>
-                <span>Precio base</span>
-                <span>Variante</span>
-                <span>Stock</span>
-                <span>Accion</span>
-              </div>
-
-              <div
-                style={productsTableScrollStyle}
-                className="manual-products-scroll"
-              >
-                <div style={productsTableHorizontalLayerStyle} className="theme-horizontal-scroll">
-                {filteredProducts.length === 0 ? (
-                  <StateCard label="No encontramos productos con esa busqueda." />
-                ) : (
-                  filteredProducts.map((product) => (
-                  <div key={product.id} style={productTableRowStyle}>
-                  <div style={{ minWidth: 0 }}>
-                    <strong style={tablePrimaryTextStyle}>{product.title}</strong>
+            <div className="manual-sale-variant-table-shell">
+              {visibleVariantRows.length === 0 ? (
+                <StateCard
+                  label={
+                    normalizedSearchLength < minVariantSearchLength
+                      ? "La tabla aparece cuando escribis al menos 4 caracteres o escaneas un codigo."
+                      : "No encontramos variantes con esa busqueda."
+                  }
+                />
+              ) : (
+                <div className="manual-sale-variant-table">
+                  <div className="manual-sale-variant-table-head" aria-hidden="true">
+                    <span>Producto</span>
+                    <span>Variante</span>
+                    <span>SKU</span>
+                    <span>Precio</span>
+                    <span>Stock</span>
+                    <span />
                   </div>
-                  <span style={tableMutedTextStyle}>/{product.slug}</span>
-                  <span style={tablePrimaryTextStyle}>
-                    {getProductBasePrice(product) > 0
-                      ? money(getProductBasePrice(product))
-                      : "Consultar"}
-                  </span>
-                  <ThemeSelect
-                    value={selectedVariantByProduct[product.id] ?? ""}
-                    onChange={(nextValue) => handleVariantSelectionChange(product.id, nextValue)}
-                    placeholder="Seleccionar variante"
-                    options={(product.variants ?? []).map((variant) => {
-                      const available = getAvailableStock(variant.inventories);
-                      const variantLabel =
-                        [variant.Size, variant.Color].filter(Boolean).join(" · ") ||
-                        "Variante principal";
 
-                      return {
-                        value: String(variant.id),
-                        label: `${variantLabel}${variant.sku ? ` · ${variant.sku}` : ""}`,
-                        disabled: available <= 0,
-                      };
-                    })}
-                  />
-                  <span style={tablePrimaryTextStyle}>
-                    {(() => {
-                      const selected = (product.variants ?? []).find(
-                        (variant) =>
-                          String(variant.id) === (selectedVariantByProduct[product.id] ?? ""),
+                  <div className="manual-sale-variant-table-body">
+                    {visibleVariantRows.map((row) => {
+                      const selected = selectedCatalogVariantId === row.variant.id;
+                      const added = lines.some((line) => line.variantId === row.variant.id);
+
+                      return (
+                        <div
+                          key={row.rowId}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedCatalogVariantId(row.variant.id)}
+                          onDoubleClick={() => addVariantRow(row)}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            setSelectedCatalogVariantId(row.variant.id);
+                            addVariantRow(row);
+                          }}
+                          className={`manual-sale-variant-row${selected ? " is-selected" : ""}`}
+                          aria-pressed={selected}
+                        >
+                          <span className="manual-sale-variant-product">
+                            <strong>{row.productTitle}</strong>
+                            <small>/{row.productSlug}</small>
+                          </span>
+                          <span>{row.variantLabel}</span>
+                          <span className="manual-sale-variant-sku">{row.sku || "-"}</span>
+                          <strong>{money(row.price)}</strong>
+                          <span
+                            className={
+                              row.available > 0
+                                ? "manual-sale-stock"
+                                : "manual-sale-stock is-empty"
+                            }
+                          >
+                            {row.available > 0 ? row.available : "Sin stock"}
+                          </span>
+                          <span className="manual-sale-row-action">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                addVariantRow(row);
+                              }}
+                              className={`manual-sale-button manual-sale-button-soft${
+                                added ? " is-added" : ""
+                              }`}
+                            >
+                              {added ? "Sumar" : "Agregar"}
+                            </button>
+                          </span>
+                        </div>
                       );
-                      return selected ? getAvailableStock(selected.inventories) : "--";
-                    })()}
-                  </span>
-                  {(() => {
-                    const selectedVariantId = selectedVariantByProduct[product.id] ?? "";
-                    const isAdded = selectedVariantId
-                      ? lines.some((line) => String(line.variantId) === selectedVariantId)
-                      : false;
-
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => addSelectedVariant(product)}
-                        style={{
-                          ...softButtonStyle,
-                          ...(isAdded ? addedButtonStyle : null),
-                        }}
-                      >
-                        {isAdded ? "Agregado" : "Agregar"}
-                      </button>
-                    );
-                  })()}
+                    })}
                   </div>
-                  ))
-                )}
                 </div>
-              </div>
+              )}
             </div>
           </section>
 
-          <div style={manualSalesLayoutStyle}>
-            <section style={cardStyle}>
-              <div style={sectionHeaderStyle}>
+          <aside className="manual-sale-checkout" aria-label="Ticket y cierre">
+            <section className="manual-sale-card">
+              <div className="manual-sale-card-title">
                 <div>
-                  <p style={eyebrowStyle}>Mostrador</p>
-                  <h3 style={title3Style}>Venta en mostrador</h3>
-                  <p style={copyStyle}>
-                    Arma el ticket con los productos elegidos y ajusta cantidades o precios por
-                    linea antes de cerrar la venta.
-                  </p>
+                  <p className="manual-sale-eyebrow">Ticket</p>
+                  <h3>Venta en curso</h3>
                 </div>
+                <span>{lines.length} lineas</span>
               </div>
 
-              <div
-                className={lines.length > 3 ? "theme-vertical-scroll" : undefined}
-                style={{
-                  ...manualLinesListStyle,
-                  ...(lines.length > 3 ? manualLinesListScrollableStyle : null),
-                }}
-              >
+              <div className="manual-sale-lines">
                 {lines.length === 0 ? (
                   <StateCard label="Todavia no agregaste productos al ticket." />
                 ) : (
                   lines.map((line) => (
-                    <div key={line.variantId} style={itemStyle}>
-                      <div style={betweenStyle}>
+                    <article key={line.variantId} className="manual-sale-line">
+                      <div className="manual-sale-line-top">
                         <div>
-                          <strong style={{ display: "block", color: "var(--text-strong)" }}>
-                            {line.title}
-                          </strong>
-                          <span style={metaStyle}>
+                          <strong>{line.title}</strong>
+                          <span>
                             {line.variantLabel}
-                            {line.sku ? ` · ${line.sku}` : ""}
+                            {line.sku ? ` - ${line.sku}` : ""}
                           </span>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeLine(line.variantId)}
-                          style={ghostButtonStyle}
+                          className="manual-sale-icon-button"
+                          aria-label={`Quitar ${line.title}`}
                         >
-                          Quitar
+                          ×
                         </button>
                       </div>
 
-                      <div style={manualLineGridStyle}>
-                        <div>
-                          <span style={fieldLabelStyle}>Cantidad</span>
-                          <div style={quantityControlStyle}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateLine(line.variantId, {
-                                  quantity: Math.max(1, Number(line.quantity || 1) - 1),
-                                })
-                              }
-                              style={quantityButtonStyle}
-                            >
-                              -
-                            </button>
-                            <div style={quantityValueStyle}>{line.quantity}</div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateLine(line.variantId, {
-                                  quantity: Math.min(
-                                    line.available,
-                                    Number(line.quantity || 1) + 1,
-                                  ),
-                                })
-                              }
-                              style={quantityButtonStyle}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                        <div>
-                          <span style={fieldLabelStyle}>Precio manual</span>
-                          <input
-                            inputMode="decimal"
-                            value={line.price}
-                            onChange={(event) =>
-                              updateLine(line.variantId, { price: event.target.value })
+                      <div className="manual-sale-line-controls">
+                        <div className="manual-sale-qty">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateLine(line.variantId, {
+                                quantity: Math.max(1, Number(line.quantity || 1) - 1),
+                              })
                             }
-                            style={fieldStyle}
-                          />
+                            aria-label="Restar cantidad"
+                          >
+                            -
+                          </button>
+                          <strong>{line.quantity}</strong>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateLine(line.variantId, {
+                                quantity: Math.min(line.available, Number(line.quantity || 1) + 1),
+                              })
+                            }
+                            aria-label="Sumar cantidad"
+                          >
+                            +
+                          </button>
                         </div>
-                        <div>
-                          <span style={fieldLabelStyle}>Total linea</span>
-                          <div style={summaryValueStyle}>
-                            {money(Number(line.price || 0) * Number(line.quantity || 0))}
-                          </div>
-                        </div>
+                        <input
+                          inputMode="decimal"
+                          value={line.price}
+                          onChange={(event) =>
+                            updateLine(line.variantId, { price: event.target.value })
+                          }
+                          className="manual-sale-field"
+                          aria-label={`Precio de ${line.title}`}
+                        />
+                        <strong className="manual-sale-line-total">
+                          {money(Number(line.price || 0) * Number(line.quantity || 0))}
+                        </strong>
                       </div>
-                    </div>
+                    </article>
                   ))
                 )}
               </div>
             </section>
 
-            <section style={cardStyle}>
-              <div style={sectionHeaderStyle}>
-                <div>
-                  <p style={eyebrowStyle}>Cierre</p>
-                  <h3 style={title3Style}>Cobro y cierre</h3>
-                  <p style={copyStyle}>
-                    Elegi el medio de pago informativo y cerra la venta del mostrador.
-                  </p>
+            <section className="manual-sale-card manual-sale-total-card">
+              <div className="manual-sale-totals">
+                <div className="manual-sale-grand-total">
+                  <span>Total</span>
+                  <strong>{money(total)}</strong>
                 </div>
+                {hasDiscount ? (
+                  <div className="manual-sale-discount-summary">
+                    <SummaryRow label="Subtotal" value={money(subtotal)} />
+                    <SummaryRow
+                      label={
+                        discountType === "percentage"
+                          ? `Descuento (${safeDiscountValue}%)`
+                          : "Descuento"
+                      }
+                      value={`- ${money(discountAmount)}`}
+                    />
+                  </div>
+                ) : null}
               </div>
 
-              <div style={summaryCardStyle}>
-                <div style={betweenStyle}>
-                  <span style={copyStyle}>Subtotal</span>
-                  <strong style={{ color: "var(--text-strong)" }}>{money(subtotal)}</strong>
-                </div>
-                <div style={betweenStyle}>
-                  <span style={copyStyle}>
-                    Descuento {discountType === "percentage" ? `(${safeDiscountValue}%)` : "(importe)"}
-                  </span>
-                  <strong style={{ color: "var(--text-strong)" }}>- {money(discountAmount)}</strong>
-                </div>
-                <div style={betweenStyle}>
-                  <span style={copyStyle}>Total</span>
-                  <strong style={{ color: "var(--text-strong)", fontSize: 24 }}>
-                    {money(total)}
-                  </strong>
-                </div>
-              </div>
-
-              <div style={formGridStyle}>
-                <div>
-                  <span style={fieldLabelStyle}>Nombre del cliente</span>
+              <div className="manual-sale-checkout-form">
+                <label>
+                  <span>Cliente</span>
                   <input
                     value={customerName}
                     onChange={(event) => setCustomerName(event.target.value)}
                     placeholder="Ej. Juan Perez"
-                    style={fieldStyle}
+                    className="manual-sale-field"
                   />
+                </label>
+
+                <div className="manual-sale-field-group">
+                  <span>Medio de pago</span>
+                  <div className="manual-sale-segmented">
+                    {paymentOptions.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setPaymentMethod(option)}
+                        className={paymentMethod === option ? "is-active" : ""}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span style={fieldLabelStyle}>Metodo de pago</span>
-                  <ThemeSelect
-                    value={paymentMethod}
-                    onChange={setPaymentMethod}
-                    options={[
-                      { value: "Efectivo", label: "Efectivo" },
-                      { value: "Tarjeta", label: "Tarjeta" },
-                      { value: "Transferencia", label: "Transferencia" },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <span style={fieldLabelStyle}>Tipo de descuento</span>
-                  <ThemeSelect
-                    value={discountType}
-                    onChange={(value) =>
-                      setDiscountType(value === "fixed" ? "fixed" : "percentage")
-                    }
-                    options={[
-                      { value: "percentage", label: "Porcentaje" },
-                      { value: "fixed", label: "Importe" },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <span style={fieldLabelStyle}>
-                    {discountType === "percentage" ? "Descuento (%)" : "Descuento ($)"}
-                  </span>
-                  <input
-                    inputMode="decimal"
-                    value={discountValue}
-                    onChange={(event) => setDiscountValue(event.target.value)}
-                    style={fieldStyle}
-                  />
+
+                <div className="manual-sale-discount-row">
+                  <div className="manual-sale-field-group">
+                    <span>Descuento</span>
+                    <div className="manual-sale-segmented manual-sale-discount-type">
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("percentage")}
+                        className={discountType === "percentage" ? "is-active" : ""}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("fixed")}
+                        className={discountType === "fixed" ? "is-active" : ""}
+                      >
+                        $
+                      </button>
+                    </div>
+                  </div>
+
+                  <label>
+                    <span>{discountType === "percentage" ? "Valor (%)" : "Valor ($)"}</span>
+                    <input
+                      inputMode="decimal"
+                      value={discountValue}
+                      onChange={(event) => setDiscountValue(event.target.value)}
+                      onBlur={() => {
+                        if (!discountValue.trim()) {
+                          setDiscountValue("0");
+                        }
+                      }}
+                      placeholder="0"
+                      className="manual-sale-field"
+                    />
+                  </label>
                 </div>
               </div>
 
-              <div style={{ display: "grid", gap: 10 }}>
-                <span style={fieldLabelStyle}>Notas internas</span>
+              <label className="manual-sale-notes">
+                <span>Notas internas</span>
                 <textarea
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  style={{ ...fieldStyle, minHeight: 110, resize: "vertical" }}
+                  className="manual-sale-field"
                 />
-              </div>
+              </label>
 
-              <div style={rowWrapStyle}>
-                <button type="button" onClick={resetForm} style={ghostButtonStyle}>
-                  Limpiar ticket
+              <div className="manual-sale-actions">
+                <button type="button" onClick={resetForm} className="manual-sale-button-ghost">
+                  Limpiar
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleCreateSale()}
-                  style={primaryButtonStyle}
-                  disabled={saving}
+                  className="manual-sale-button manual-sale-button-primary"
+                  disabled={saving || lines.length === 0}
                 >
                   {saving ? "Registrando..." : "Registrar venta"}
                 </button>
               </div>
             </section>
-          </div>
+          </aside>
         </div>
       )}
 
       {saleSummary ? (
-        <div style={modalOverlayStyle} onClick={() => setSaleSummary(null)}>
-          <div style={modalCardStyle} onClick={(event) => event.stopPropagation()}>
-            <div style={modalHeaderStyle}>
-              <div>
-                <p style={eyebrowStyle}>Venta exitosa</p>
-                <h3 style={title3Style}>Se ha confirmado la venta</h3>
-              </div>
+        <div className="manual-sale-modal-overlay" onClick={() => setSaleSummary(null)}>
+          <div className="manual-sale-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="manual-sale-modal-header">
+              <p className="manual-sale-eyebrow">Venta exitosa</p>
+              <h3>Venta #{saleSummary.id}</h3>
+              <strong>{money(saleSummary.total)}</strong>
             </div>
 
-            <div style={summaryCardStyle}>
+            <div className="manual-sale-receipt">
               {saleSummary.customerName ? (
-                <div style={betweenStyle}>
-                  <span style={copyStyle}>Cliente</span>
-                  <strong style={{ color: "var(--text-strong)" }}>
-                    {saleSummary.customerName}
-                  </strong>
-                </div>
+                <SummaryRow label="Cliente" value={saleSummary.customerName} />
               ) : null}
-              <div style={betweenStyle}>
-                <span style={copyStyle}>Operacion</span>
-                <strong style={{ color: "var(--text-strong)" }}>#{saleSummary.id}</strong>
-              </div>
-              <div style={betweenStyle}>
-                <span style={copyStyle}>Pago</span>
-                <strong style={{ color: "var(--text-strong)" }}>{saleSummary.paymentMethod}</strong>
-              </div>
-              <div style={betweenStyle}>
-                <span style={copyStyle}>
-                  Descuento{" "}
-                  {saleSummary.discountType === "percentage"
-                    ? `(${saleSummary.discountValue}%)`
-                    : "(importe)"}
-                </span>
-                <strong style={{ color: "var(--text-strong)" }}>
-                  - {money(saleSummary.discountAmount)}
-                </strong>
-              </div>
-              <div style={betweenStyle}>
-                <span style={copyStyle}>Estado</span>
-                <strong style={{ color: "var(--text-strong)" }}>{saleSummary.status}</strong>
-              </div>
-              <div style={betweenStyle}>
-                <span style={copyStyle}>Total</span>
-                <strong style={{ color: "var(--text-strong)", fontSize: 24 }}>
-                  {money(saleSummary.total)}
-                </strong>
-              </div>
+              <SummaryRow label="Pago" value={saleSummary.paymentMethod} />
+              <SummaryRow
+                label={
+                  saleSummary.discountType === "percentage"
+                    ? `Descuento (${saleSummary.discountValue}%)`
+                    : "Descuento"
+                }
+                value={`- ${money(saleSummary.discountAmount)}`}
+              />
+              <SummaryRow label="Estado" value={saleSummary.status} />
             </div>
 
-            <div style={{ display: "grid", gap: 10 }}>
+            <div className="manual-sale-receipt-lines">
               {saleSummary.items.map((item, index) => (
-                <div key={`${item.title}-${item.variantLabel}-${index}`} style={itemStyle}>
-                  <div style={betweenStyle}>
-                    <div>
-                      <strong style={{ display: "block", color: "var(--text-strong)" }}>
-                        {item.title}
-                      </strong>
-                      <span style={metaStyle}>{item.variantLabel}</span>
-                    </div>
-                    <strong style={{ color: "var(--text-strong)" }}>x{item.quantity}</strong>
+                <article key={`${item.title}-${item.variantLabel}-${index}`}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{item.variantLabel}</span>
                   </div>
-                  <div style={betweenStyle}>
-                    <span style={copyStyle}>Total linea</span>
-                    <strong style={{ color: "var(--text-strong)" }}>{money(item.lineTotal)}</strong>
-                  </div>
-                </div>
+                  <span>x{item.quantity}</span>
+                  <strong>{money(item.lineTotal)}</strong>
+                </article>
               ))}
             </div>
 
-            <div style={modalFooterStyle}>
-              <button type="button" onClick={() => setSaleSummary(null)} style={primaryButtonStyle}>
-                Confirmar
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setSaleSummary(null)}
+              className="manual-sale-button manual-sale-button-primary"
+            >
+              Confirmar
+            </button>
           </div>
         </div>
       ) : null}
 
       <style jsx>{`
-        .manual-products-scroll {
-          scrollbar-width: none;
-          -ms-overflow-style: none;
+        .manual-sale-panel {
+          border-radius: 28px;
+          border: 1px solid var(--border-soft);
+          background: var(--page-panel-bg);
+          padding: clamp(18px, 3vw, 28px);
+          display: grid;
+          gap: 20px;
         }
 
-        .manual-products-scroll::-webkit-scrollbar {
-          width: 0;
-          height: 0;
+        .manual-sale-header,
+        .manual-sale-card-title,
+        .manual-sale-line-top,
+        .manual-sale-actions,
+        .manual-sale-search-meta {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+        }
+
+        .manual-sale-header {
+          align-items: stretch;
+        }
+
+        .manual-sale-header h2,
+        .manual-sale-card h3,
+        .manual-sale-modal h3 {
+          margin: 0;
+          color: var(--text-strong);
+          line-height: 1.05;
+        }
+
+        .manual-sale-header h2 {
+          font-size: clamp(2rem, 4vw, 3.2rem);
+        }
+
+        .manual-sale-card h3,
+        .manual-sale-modal h3 {
+          font-size: clamp(1.25rem, 2vw, 1.65rem);
+        }
+
+        .manual-sale-header p,
+        .manual-sale-card-title span,
+        .manual-sale-search-meta,
+        .manual-sale-product-main span,
+        .manual-sale-line span,
+        .manual-sale-field-group > span,
+        label > span {
+          color: var(--text-muted);
+        }
+
+        .manual-sale-eyebrow {
+          margin: 0 0 8px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .manual-sale-header p {
+          margin: 10px 0 0;
+          max-width: 680px;
+          line-height: 1.6;
+        }
+
+        .manual-sale-kpis {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(90px, 1fr));
+          gap: 10px;
+          min-width: min(100%, 360px);
+        }
+
+        .manual-sale-mini-stat,
+        .manual-sale-card,
+        .manual-sale-line,
+        .manual-sale-state,
+        .manual-sale-receipt {
+          border: 1px solid var(--border-soft);
+          background: var(--page-panel-strong-bg);
+        }
+
+        .manual-sale-mini-stat {
+          border-radius: 18px;
+          padding: 14px;
+          display: grid;
+          gap: 6px;
+        }
+
+        .manual-sale-mini-stat span {
+          color: var(--text-muted);
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+        }
+
+        .manual-sale-mini-stat strong {
+          color: var(--text-strong);
+          font-size: 24px;
+        }
+
+        .manual-sale-alert {
+          margin: 0;
+          border-radius: 16px;
+          padding: 12px 14px;
+          font-weight: 700;
+        }
+
+        .manual-sale-alert-error {
+          color: var(--accent-strong);
+          background: color-mix(in srgb, var(--accent-strong) 10%, transparent);
+        }
+
+        .manual-sale-alert-success {
+          color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 10%, transparent);
+        }
+
+        .manual-sale-workspace {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(460px, 0.48fr);
+          gap: 18px;
+          align-items: start;
+        }
+
+        .manual-sale-catalog,
+        .manual-sale-checkout {
+          display: grid;
+          gap: 14px;
+          min-width: 0;
+        }
+
+        .manual-sale-checkout {
+          position: sticky;
+          top: 18px;
+          align-self: start;
+        }
+
+        .manual-sale-card,
+        .manual-sale-product-card,
+        .manual-sale-line,
+        .manual-sale-state {
+          border-radius: 18px;
+          padding: 18px;
+        }
+
+        .manual-sale-search-card {
+          gap: 14px;
+        }
+
+        .manual-sale-search-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 10px;
+        }
+
+        .manual-sale-field {
+          width: 100%;
+          min-height: 46px;
+          border-radius: 14px;
+          border: 1px solid var(--border-soft);
+          background: var(--muted-field-bg);
+          color: var(--muted-field-color);
+          padding: 11px 13px;
+          outline: none;
+        }
+
+        textarea.manual-sale-field {
+          min-height: 78px;
+          resize: vertical;
+        }
+
+        .manual-sale-variant-table-shell {
+          min-width: 0;
+          overflow-x: auto;
+        }
+
+        .manual-sale-variant-table {
+          display: grid;
+          gap: 8px;
+          min-width: 760px;
+        }
+
+        .manual-sale-variant-table-head,
+        .manual-sale-variant-row {
+          display: grid;
+          grid-template-columns:
+            minmax(190px, 1.3fr)
+            minmax(130px, 0.9fr)
+            minmax(110px, 0.7fr)
+            minmax(110px, 0.7fr)
+            minmax(86px, 0.45fr)
+            minmax(96px, 0.45fr);
+          gap: 12px;
+          align-items: center;
+        }
+
+        .manual-sale-variant-table-head {
+          padding: 0 14px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .manual-sale-variant-table-body {
+          display: grid;
+          gap: 8px;
+          max-height: 54vh;
+          overflow-y: auto;
+          padding-right: 4px;
+        }
+
+        .manual-sale-variant-row {
+          width: 100%;
+          border: 1px solid var(--border-soft);
+          border-radius: 16px;
+          background: var(--page-panel-strong-bg);
+          color: var(--text-strong);
+          padding: 12px 14px;
+          text-align: left;
+          cursor: pointer;
+          transition:
+            border-color 160ms ease,
+            background 160ms ease,
+            transform 160ms ease;
+        }
+
+        .manual-sale-variant-row:hover,
+        .manual-sale-variant-row.is-selected {
+          border-color: var(--border-strong);
+          background: color-mix(in srgb, var(--accent) 13%, var(--page-panel-strong-bg));
+        }
+
+        .manual-sale-variant-row.is-selected {
+          box-shadow: inset 4px 0 0 var(--accent-strong);
+        }
+
+        .manual-sale-variant-product {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .manual-sale-variant-product strong,
+        .manual-sale-variant-row strong {
+          color: var(--text-strong);
+        }
+
+        .manual-sale-variant-product small,
+        .manual-sale-variant-row span {
+          color: var(--text-muted);
+          overflow-wrap: anywhere;
+        }
+
+        .manual-sale-variant-sku {
+          font-weight: 800;
+          color: var(--text-strong) !important;
+        }
+
+        .manual-sale-line strong,
+        .manual-sale-grand-total strong,
+        .manual-sale-receipt strong,
+        .manual-sale-receipt-lines strong {
+          color: var(--text-strong);
+        }
+
+        .manual-sale-line-top > div {
+          min-width: 0;
+          display: grid;
+          gap: 6px;
+        }
+
+        .manual-sale-line span {
+          overflow-wrap: anywhere;
+          font-size: 13px;
+        }
+
+        .manual-sale-stock {
+          align-self: center;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--accent) 13%, transparent);
+          color: var(--text-strong);
+          padding: 7px 10px;
+          font-size: 12px;
+          font-weight: 700;
+          text-align: center;
+        }
+
+        .manual-sale-stock.is-empty {
+          background: color-mix(in srgb, var(--accent-strong) 12%, transparent);
+          color: var(--accent-strong);
+        }
+
+        .manual-sale-lines {
+          display: grid;
+          gap: 10px;
+          max-height: 34vh;
+          overflow-y: auto;
+          padding-right: 4px;
+        }
+
+        .manual-sale-line {
+          display: grid;
+          gap: 10px;
+          background: var(--page-panel-bg);
+          padding: 14px 16px;
+        }
+
+        .manual-sale-line-controls {
+          display: grid;
+          grid-template-columns: 124px minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .manual-sale-qty {
+          min-height: 44px;
+          border-radius: 14px;
+          border: 1px solid var(--border-soft);
+          background: var(--muted-field-bg);
+          display: grid;
+          grid-template-columns: 38px minmax(0, 1fr) 38px;
+          overflow: hidden;
+        }
+
+        .manual-sale-qty button,
+        .manual-sale-icon-button {
+          border: 0;
+          background: transparent;
+          color: var(--text-strong);
+          cursor: pointer;
+        }
+
+        .manual-sale-qty strong {
+          display: grid;
+          place-items: center;
+          border-inline: 1px solid var(--border-soft);
+          font-size: 16px;
+        }
+
+        .manual-sale-icon-button {
+          width: 32px;
+          height: 32px;
+          border-radius: 999px;
+          border: 1px solid var(--border-soft);
+          flex: 0 0 auto;
+          background: transparent;
+          font-size: 16px;
+          line-height: 1;
+        }
+
+        .manual-sale-line-total {
+          justify-self: end;
+          min-width: 112px;
+          text-align: right;
+          white-space: nowrap;
+        }
+
+        .manual-sale-total-card {
+          gap: 16px;
+          overflow: hidden;
+        }
+
+        .manual-sale-totals,
+        .manual-sale-checkout-form,
+        .manual-sale-notes,
+        .manual-sale-field-group {
+          display: grid;
+          gap: 10px;
+        }
+
+        .manual-sale-summary-row,
+        .manual-sale-receipt-lines article {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .manual-sale-discount-summary {
+          display: grid;
+          gap: 4px;
+          border-top: 1px solid var(--border-soft);
+          padding-top: 10px;
+        }
+
+        .manual-sale-grand-total {
+          display: grid;
+          gap: 4px;
+          border-radius: 18px;
+          background: color-mix(in srgb, var(--page-panel-bg) 72%, transparent);
+          border: 1px solid var(--border-soft);
+          padding: 16px;
+        }
+
+        .manual-sale-summary-row span,
+        .manual-sale-grand-total span {
+          color: var(--text-muted);
+        }
+
+        .manual-sale-summary-row {
+          min-height: 28px;
+          padding-inline: 2px;
+        }
+
+        .manual-sale-grand-total strong {
+          font-size: clamp(2rem, 4vw, 2.8rem);
+          line-height: 1;
+          text-align: left;
+          white-space: nowrap;
+        }
+
+        .manual-sale-checkout-form {
+          border-top: 1px solid var(--border-soft);
+          padding-top: 14px;
+        }
+
+        label,
+        .manual-sale-field-group {
+          min-width: 0;
+        }
+
+        label > span,
+        .manual-sale-field-group > span {
+          display: block;
+          margin-bottom: 8px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .manual-sale-segmented {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+          gap: 6px;
+          border-radius: 16px;
+          border: 1px solid var(--border-soft);
+          background: var(--muted-field-bg);
+          padding: 5px;
+        }
+
+        .manual-sale-segmented button {
+          min-height: 40px;
+          border-radius: 12px;
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--muted-field-color);
+          cursor: pointer;
+          font-weight: 700;
+        }
+
+        .manual-sale-discount-row {
+          display: grid;
+          grid-template-columns: minmax(140px, 0.45fr) minmax(0, 1fr);
+          gap: 10px;
+          align-items: end;
+        }
+
+        .manual-sale-discount-type {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .manual-sale-segmented button.is-active {
+          border-color: var(--border-strong);
+          background: var(--ghost-chip-active-bg);
+          color: var(--text-strong);
+        }
+
+        .manual-sale-button,
+        .manual-sale-button-ghost {
+          min-height: 44px;
+          border-radius: 999px;
+          padding: 10px 16px;
+          cursor: pointer;
+          font-weight: 800;
+          white-space: nowrap;
+        }
+
+        .manual-sale-button {
+          border: 1px solid var(--border-soft);
+          background: var(--page-panel-bg);
+          color: var(--text-strong);
+        }
+
+        .manual-sale-button-primary {
+          border-color: var(--accent-strong);
+          background: var(--accent-strong);
+          color: var(--accent-contrast);
+        }
+
+        .manual-sale-button-soft {
+          min-height: 40px;
+          padding-inline: 14px;
+        }
+
+        .manual-sale-row-action {
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .manual-sale-button-soft.is-added {
+          background: var(--ghost-chip-active-bg);
+          border-color: var(--border-strong);
+        }
+
+        .manual-sale-button-ghost {
+          border: 1px solid var(--border-soft);
+          background: transparent;
+          color: var(--text-strong);
+        }
+
+        .manual-sale-actions {
+          margin: 0 -18px -18px;
+          padding: 16px 18px 18px;
+          background: color-mix(in srgb, var(--page-panel-strong-bg) 92%, transparent);
+          border-top: 1px solid var(--border-soft);
+          align-items: center;
+        }
+
+        .manual-sale-actions .manual-sale-button-primary {
+          min-width: 190px;
+        }
+
+        .manual-sale-button:disabled {
+          cursor: not-allowed;
+          opacity: 0.55;
+        }
+
+        .manual-sale-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 1200;
+          background: rgba(0, 0, 0, 0.56);
+          backdrop-filter: blur(8px);
+          display: grid;
+          place-items: center;
+          padding: 20px;
+        }
+
+        .manual-sale-modal {
+          width: min(100%, 620px);
+          max-height: min(88vh, 860px);
+          overflow-y: auto;
+          border-radius: 26px;
+          border: 1px solid var(--border-soft);
+          background: var(--page-panel-bg);
+          padding: 22px;
+          display: grid;
+          gap: 16px;
+        }
+
+        .manual-sale-modal-header {
+          text-align: center;
+          display: grid;
+          gap: 8px;
+        }
+
+        .manual-sale-modal-header strong {
+          color: var(--text-strong);
+          font-size: 34px;
+        }
+
+        .manual-sale-receipt,
+        .manual-sale-receipt-lines {
+          display: grid;
+          gap: 10px;
+          border-radius: 20px;
+          padding: 16px;
+        }
+
+        .manual-sale-receipt-lines article {
+          border-radius: 16px;
+          border: 1px solid var(--border-soft);
+          background: var(--page-panel-strong-bg);
+          padding: 12px;
+        }
+
+        .manual-sale-receipt-lines div {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .manual-sale-state {
+          color: var(--text-muted);
+        }
+
+        @media (max-width: 980px) {
+          .manual-sale-header,
+          .manual-sale-workspace {
+            grid-template-columns: 1fr;
+          }
+
+          .manual-sale-header {
+            display: grid;
+          }
+
+          .manual-sale-checkout {
+            position: static;
+          }
+        }
+
+        @media (max-width: 680px) {
+          .manual-sale-panel {
+            border-radius: 20px;
+            padding: 14px;
+          }
+
+          .manual-sale-kpis,
+          .manual-sale-search-row,
+          .manual-sale-discount-row {
+            grid-template-columns: 1fr;
+          }
+
+          .manual-sale-line-controls {
+            grid-template-columns: 116px minmax(0, 1fr);
+          }
+
+          .manual-sale-line-total {
+            grid-column: 1 / -1;
+          }
+
+          .manual-sale-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+          }
+
+          .manual-sale-button,
+          .manual-sale-button-ghost {
+            width: 100%;
+          }
+
+          .manual-sale-lines {
+            max-height: none;
+          }
         }
       `}</style>
     </section>
   );
 }
 
-const panelStyle: React.CSSProperties = {
-  borderRadius: 32,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-bg)",
-  padding: 28,
-  display: "grid",
-  gap: 22,
-};
-
-const manualSalesLayoutStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 0.75fr)",
-  gap: 18,
-  alignItems: "start",
-};
-
-const productsTableShellStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 10,
-  minWidth: 0,
-};
-
-const productsTableScrollStyle: React.CSSProperties = {
-  minWidth: 0,
-  maxHeight: "min(62vh, 680px)",
-  overflowX: "hidden",
-  overflowY: "auto",
-  overscrollBehavior: "contain",
-};
-
-const productsTableHorizontalLayerStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 10,
-  minWidth: 0,
-  overflowX: "auto",
-  overflowY: "visible",
-  paddingRight: 10,
-};
-
-const cardStyle: React.CSSProperties = {
-  borderRadius: 28,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-strong-bg)",
-  padding: 22,
-  display: "grid",
-  gap: 18,
-};
-
-const productsTableHeaderStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns:
-    "minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(120px, 0.8fr) minmax(230px, 1.2fr) 90px 120px",
-  gap: 12,
-  padding: "0 16px",
-  color: "var(--text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: "0.14em",
-  fontSize: 11,
-};
-
-const productTableRowStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns:
-    "minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(120px, 0.8fr) minmax(230px, 1.2fr) 90px 120px",
-  gap: 12,
-  alignItems: "center",
-  padding: 16,
-  borderRadius: 22,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-bg)",
-  overflow: "visible",
-};
-
-const tablePrimaryTextStyle: React.CSSProperties = {
-  color: "var(--text-strong)",
-  fontSize: 14,
-  lineHeight: 1.4,
-};
-
-const tableMutedTextStyle: React.CSSProperties = {
-  color: "var(--text-muted)",
-  fontSize: 13,
-};
-
-const sectionHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  alignItems: "flex-start",
-};
-
-const eyebrowStyle: React.CSSProperties = {
-  margin: 0,
-  color: "var(--text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: "0.18em",
-  fontSize: 11,
-};
-
-const title3Style: React.CSSProperties = {
-  margin: "8px 0 0",
-  color: "var(--text-strong)",
-  fontSize: 28,
-};
-
-const itemStyle: React.CSSProperties = {
-  borderRadius: 22,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-bg)",
-  padding: 16,
-  display: "grid",
-  gap: 12,
-};
-
-const summaryCardStyle: React.CSSProperties = {
-  borderRadius: 24,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-bg)",
-  padding: 18,
-  display: "grid",
-  gap: 12,
-};
-
-const betweenStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  alignItems: "center",
-  flexWrap: "wrap",
-};
-
-const rowWrapStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  flexWrap: "wrap",
-  alignItems: "center",
-};
-
-const copyStyle: React.CSSProperties = {
-  margin: 0,
-  color: "var(--text-muted)",
-  lineHeight: 1.7,
-};
-
-const metaStyle: React.CSSProperties = {
-  color: "var(--text-muted)",
-  fontSize: 13,
-};
-
-const fieldLabelStyle: React.CSSProperties = {
-  display: "block",
-  marginBottom: 8,
-  color: "var(--text-muted)",
-  textTransform: "uppercase",
-  letterSpacing: "0.14em",
-  fontSize: 11,
-};
-
-const fieldStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: 16,
-  border: "1px solid var(--border-soft)",
-  background: "var(--muted-field-bg)",
-  color: "var(--muted-field-color)",
-};
-
-const formGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 14,
-};
-
-const manualLineGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: 12,
-};
-
-const manualLinesListStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 12,
-};
-
-const manualLinesListScrollableStyle: React.CSSProperties = {
-  maxHeight: 660,
-  overflowY: "auto",
-  paddingRight: 8,
-};
-
-const summaryValueStyle: React.CSSProperties = {
-  minHeight: 46,
-  padding: "12px 14px",
-  borderRadius: 16,
-  border: "1px solid var(--border-soft)",
-  background: "var(--muted-field-bg)",
-  color: "var(--text-strong)",
-  display: "flex",
-  alignItems: "center",
-};
-
-const quantityControlStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "46px minmax(0, 1fr) 46px",
-  alignItems: "center",
-  borderRadius: 16,
-  border: "1px solid var(--border-soft)",
-  background: "var(--muted-field-bg)",
-  overflow: "hidden",
-};
-
-const quantityButtonStyle: React.CSSProperties = {
-  minHeight: 46,
-  border: "none",
-  background: "transparent",
-  color: "var(--text-strong)",
-  cursor: "pointer",
-  fontSize: 22,
-  lineHeight: 1,
-};
-
-const quantityValueStyle: React.CSSProperties = {
-  minHeight: 46,
-  display: "grid",
-  placeItems: "center",
-  color: "var(--text-strong)",
-  fontWeight: 700,
-  borderLeft: "1px solid var(--border-soft)",
-  borderRight: "1px solid var(--border-soft)",
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: 999,
-  background: "var(--accent-strong)",
-  color: "var(--accent-contrast)",
-  padding: "12px 18px",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const ghostButtonStyle: React.CSSProperties = {
-  borderRadius: 999,
-  border: "1px solid var(--border-soft)",
-  background: "transparent",
-  color: "var(--text-strong)",
-  padding: "10px 14px",
-  cursor: "pointer",
-};
-
-const softButtonStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 10,
-  width: "100%",
-  borderRadius: 16,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-bg)",
-  color: "var(--text-strong)",
-  padding: "12px 14px",
-};
-
-const addedButtonStyle: React.CSSProperties = {
-  background: "var(--ghost-chip-active-bg)",
-  border: "1px solid var(--border-strong)",
-  color: "var(--text-strong)",
-};
-
-const errorStyle: React.CSSProperties = {
-  margin: 0,
-  color: "var(--accent-strong)",
-};
-
-const successStyle: React.CSSProperties = {
-  margin: 0,
-  color: "var(--accent)",
-};
-
-const modalOverlayStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  zIndex: 80,
-  background: "rgba(0, 0, 0, 0.52)",
-  display: "grid",
-  placeItems: "center",
-  padding: 24,
-};
-
-const modalCardStyle: React.CSSProperties = {
-  width: "min(720px, 100%)",
-  maxHeight: "min(88vh, 900px)",
-  overflowY: "auto",
-  borderRadius: 28,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-strong-bg)",
-  padding: 24,
-  display: "grid",
-  gap: 18,
-};
-
-const modalHeaderStyle: React.CSSProperties = {
-  display: "grid",
-  justifyItems: "center",
-  textAlign: "center",
-  gap: 8,
-};
-
-const modalFooterStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "center",
-};
-
-function Header({ title, copy }: { title: string; copy: string }) {
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <p style={eyebrowStyle}>Administracion</p>
-      <h2 style={{ margin: 0, color: "var(--text-strong)", fontSize: 36 }}>{title}</h2>
-      <p style={copyStyle}>{copy}</p>
+    <div className="manual-sale-mini-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="manual-sale-summary-row">
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
 
 function StateCard({ label }: { label: string }) {
-  return <div style={{ ...itemStyle, color: "var(--text-muted)" }}>{label}</div>;
+  return <div className="manual-sale-state">{label}</div>;
+}
+
+function getVariantLabel(variant: Pick<ManualSaleVariant, "Size" | "Color">) {
+  return [variant.Size, variant.Color].filter(Boolean).join(" - ") || "Variante principal";
+}
+
+function roundManualSaleAmount(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.round(value / 100) * 100;
+}
+
+function calculateRoundedPercentageDiscount(subtotal: number, discountValue: number) {
+  const safeSubtotal = Number.isFinite(subtotal) ? Math.max(subtotal, 0) : 0;
+  const safePercentage = Number.isFinite(discountValue)
+    ? Math.min(Math.max(discountValue, 0), 100)
+    : 0;
+  const roundedTotal = roundManualSaleAmount(safeSubtotal * (1 - safePercentage / 100));
+
+  return Math.min(Math.max(safeSubtotal - roundedTotal, 0), safeSubtotal);
 }

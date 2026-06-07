@@ -237,21 +237,11 @@ export default function ManualSalesWorkspace() {
     <section
       data-account-shell
       style={{
-        padding: "72px 20px 96px",
+        padding: "24px 0 72px",
         background: "var(--account-shell-bg)",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto", display: "grid", gap: 24 }}>
-        <section data-account-panel style={heroStyle}>
-          <div style={{ display: "grid", gap: 10 }}>
-            <p style={eyebrowStyle}>Modulo independiente</p>
-            <h1 style={titleStyle}>Venta manual</h1>
-            <p style={copyStyle}>
-              Registra ventas manuales y consulta el historial del mostrador.
-            </p>
-          </div>
-        </section>
-
+      <div style={{ width: "100%", display: "grid", gap: 24 }}>
         {error ? <p style={errorStyle}>{error}</p> : null}
 
         <section data-account-panel style={tabRailPanelStyle}>
@@ -687,10 +677,18 @@ function calculateDiscountAmount(
   const safeValue = Number.isFinite(discountValue) ? Math.max(discountValue, 0) : 0;
 
   if (discountType === "percentage") {
-    return (safeSubtotal * Math.min(safeValue, 100)) / 100;
+    const roundedTotal = roundManualSaleAmount(
+      safeSubtotal * (1 - Math.min(safeValue, 100) / 100),
+    );
+    return Math.min(Math.max(safeSubtotal - roundedTotal, 0), safeSubtotal);
   }
 
   return Math.min(safeValue, safeSubtotal);
+}
+
+function roundManualSaleAmount(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.round(value / 100) * 100;
 }
 
 function describeDiscount(
@@ -709,13 +707,6 @@ function getVariantLabel(variant: {
 }) {
   return [variant.Size, variant.Color, variant.sku].filter(Boolean).join(" · ") || "Sin variante";
 }
-
-const heroStyle: React.CSSProperties = {
-  borderRadius: 32,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-bg)",
-  padding: 28,
-};
 
 const panelStyle: React.CSSProperties = {
   borderRadius: 32,
@@ -916,15 +907,6 @@ const eyebrowStyle: React.CSSProperties = {
   color: "var(--text-muted)",
 };
 
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(2.2rem, 4vw, 4rem)",
-  lineHeight: 0.95,
-  letterSpacing: "-0.05em",
-  color: "var(--text-strong)",
-  textTransform: "uppercase",
-};
-
 const sectionTitleStyle: React.CSSProperties = {
   margin: "10px 0 0",
   fontSize: "clamp(1.6rem, 2vw, 2.2rem)",
@@ -944,13 +926,6 @@ const metricValueStyle: React.CSSProperties = {
   color: "var(--text-strong)",
   fontSize: 28,
   lineHeight: 1.1,
-};
-
-const copyStyle: React.CSSProperties = {
-  margin: 0,
-  color: "var(--text-muted)",
-  lineHeight: 1.7,
-  maxWidth: 760,
 };
 
 const metaStyle: React.CSSProperties = {

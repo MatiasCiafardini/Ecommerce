@@ -67,7 +67,7 @@ export const LABEL_TEMPLATES: Record<LabelTemplateKey, LabelTemplate> = {
     type: 'accessory',
     useCase: 'accessory',
     layout: 'compact_cut_price',
-    fields: ['productName', 'sku', 'barcode', 'price'],
+    fields: ['productName', 'variantName', 'sku', 'barcode', 'price'],
     priceOptions: ['normal', 'transfer', 'both', 'none'],
     page: { widthMm: 54, heightMm: 16.9 },
     label: { widthMm: 54, heightMm: 16.9, paddingMm: 1.2 },

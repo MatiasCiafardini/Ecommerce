@@ -379,8 +379,11 @@ export class LabelPdfRenderer {
     const contentX = box.x + box.padding;
     const contentWidth = box.width - priceWidth - box.padding * 2 - mmToPt(0.8);
     const titleSize = this.fontSize(template, 4);
-    const skuSize = this.fontSize(template, 3.4);
+    const metaSize = this.fontSize(template, 3.4);
+    const skuSize = this.fontSize(template, 3.2);
+    const hasVariant = options.showVariantName && Boolean(label.variantName);
     const barcodeHeight = mmToPt(this.cutPriceBarcodeHeightMm(template, true));
+    const barcodeTopOffset = hasVariant ? mmToPt(5.6) : mmToPt(2.8);
 
     if (options.priceMode !== 'none') {
       this.drawCutLine(page, dividerX, box.y, box.height);
@@ -404,13 +407,22 @@ export class LabelPdfRenderer {
       });
     }
 
+    if (hasVariant) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: box.y + box.height - box.padding - titleSize - metaSize - 1.2,
+        text: this.fitText(label.variantName, contentWidth, metaSize),
+        size: metaSize,
+      });
+    }
+
     this.drawBarcode(
       page,
       label.sku,
       contentX,
-      box.y + box.padding + mmToPt(2.8),
+      box.y + box.padding + barcodeTopOffset,
       contentWidth,
-      barcodeHeight,
+      hasVariant ? barcodeHeight * 0.72 : barcodeHeight,
       template,
     );
 
