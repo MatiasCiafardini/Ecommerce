@@ -3489,7 +3489,7 @@ export default function AdminProductsSection({
               disabled={saving || !form.title.trim()}
               style={publicationChoiceStyle(!form.published)}
             >
-              Guardar como borrador
+              Guardar en inventario
             </button>
           </div>
         </section>
