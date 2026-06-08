@@ -342,7 +342,7 @@ export class LabelPdfRenderer {
         size: titleSize,
         bold: true,
       });
-      cursorY -= titleSize + 1.8;
+      cursorY -= titleSize + this.productVariantGap(template);
     }
 
     if (options.showVariantName && label.variantName) {
@@ -682,6 +682,11 @@ export class LabelPdfRenderer {
     if (template.key === 'BROTHER_QL570_62X29_CLOTHING') return 0.76;
     if (template.key === 'BROTHER_QL570_29X90') return 0.76;
     return 0.86;
+  }
+
+  private productVariantGap(template: LabelTemplate) {
+    if (template.key === 'BROTHER_QL570_29X90') return 0.35;
+    return 1.8;
   }
 
   private lineStep(template: LabelTemplate, base: number) {
