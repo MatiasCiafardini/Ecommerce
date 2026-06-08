@@ -2749,15 +2749,23 @@ export default function AdminProductsSection({
         ? generateAutomaticSkus(baseVariantsToSync)
         : baseVariantsToSync;
 
-      const savedProduct = editingProductId
-        ? await api(`/products/${editingProductId}/save-complete`, {
-            method: "PATCH",
-            body: JSON.stringify(buildCompleteProductPayload(variantsToSync, publishedOverride)),
-          })
-        : await api("/products/save-complete", {
+      const completeProductPayload = buildCompleteProductPayload(variantsToSync, publishedOverride);
+      const draftProduct = editingProductId
+        ? null
+        : await api("/products", {
             method: "POST",
-            body: JSON.stringify(buildCompleteProductPayload(variantsToSync, publishedOverride)),
+            body: JSON.stringify(buildDraftProductPayload()),
           });
+      const targetProductId = editingProductId ?? Number(draftProduct?.id ?? 0);
+
+      if (!targetProductId) {
+        throw new Error("No se pudo crear el producto.");
+      }
+
+      const savedProduct = await api(`/products/${targetProductId}/save-complete`, {
+        method: "PATCH",
+        body: JSON.stringify(completeProductPayload),
+      });
 
       productId = savedProduct?.id ?? productId;
 
