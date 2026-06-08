@@ -658,7 +658,7 @@ export class LabelPdfRenderer {
     }
 
     if (template.key === 'BROTHER_QL570_29X90') {
-      return base + 1.1;
+      return base + 2.5;
     }
 
     return template.key.startsWith('THERMAL') ? base + 1.4 : base;
@@ -666,14 +666,14 @@ export class LabelPdfRenderer {
 
   private readabilityScale(template: LabelTemplate) {
     if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') return 1.15;
-    if (template.key === 'BROTHER_QL570_29X90') return 1.15;
+    if (template.key === 'BROTHER_QL570_29X90') return 1.3;
     return 1;
   }
 
   private cutPriceBarcodeHeightMm(template: LabelTemplate, compact: boolean) {
     if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') return 9;
     if (template.key === 'BROTHER_QL570_62X29_CLOTHING') return 14;
-    if (template.key === 'BROTHER_QL570_29X90') return 14;
+    if (template.key === 'BROTHER_QL570_29X90') return 15.5;
     return compact ? 5 : 7.6;
   }
 

@@ -1004,6 +1004,27 @@ h2 {
   font-size: 12px;
 }
 
+.label-preview-card-brother_ql570_29x90 {
+  aspect-ratio: 3.1 / 1;
+  min-height: 104px;
+  align-content: center;
+  gap: 4px;
+}
+
+.label-preview-card-brother_ql570_29x90 span,
+.label-preview-card-brother_ql570_29x90 code {
+  font-size: 13px;
+}
+
+.label-preview-card-brother_ql570_29x90 b,
+.label-preview-card-brother_ql570_29x90 strong {
+  font-size: 14px;
+}
+
+.label-preview-card-brother_ql570_29x90 .barcode svg {
+  height: 44px;
+}
+
 .barcode svg {
   width: 100%;
   height: 34px;

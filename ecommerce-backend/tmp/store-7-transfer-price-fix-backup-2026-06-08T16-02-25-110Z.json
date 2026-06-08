@@ -1,0 +1,1089 @@
+{
+  "store": {
+    "id": 7,
+    "name": "Como Vos y Yo",
+    "domain": "localhost:3007",
+    "storefrontConfig": {
+      "pages": {
+        "home": [
+          {
+            "type": "hero_carousel",
+            "props": {
+              "slides": [
+                {
+                  "image": "/uploads/storefront-1779129578990-141461988.webp",
+                  "title": "",
+                  "eyebrow": "",
+                  "subtitle": "",
+                  "responsiveImage": "/uploads/storefront-1779129586254-92754582.webp"
+                },
+                {
+                  "image": "/uploads/storefront-1779129602821-897630672.webp",
+                  "title": "",
+                  "eyebrow": "",
+                  "subtitle": "",
+                  "responsiveImage": "/uploads/storefront-1779129605822-905480395.webp"
+                }
+              ],
+              "buttonLink": "",
+              "buttonText": "",
+              "animationPreset": "soft",
+              "showContentCard": false
+            }
+          },
+          {
+            "type": "banner",
+            "props": {
+              "text": "Coleccion capsula con envios a todo el pais y cambios simples",
+              "textColor": "#1A1A1A",
+              "animationPreset": "none",
+              "backgroundColor": "#BFD5CF"
+            }
+          },
+          {
+            "type": "featured_products",
+            "props": {
+              "limit": 4,
+              "title": "Destacados de la tienda",
+              "columns": 4,
+              "animationPreset": "soft"
+            }
+          },
+          {
+            "type": "category_image_strip",
+            "props": {
+              "items": [
+                {
+                  "image": "/images/comovosyyo/products/remera-basica.png",
+                  "title": "Remeras",
+                  "categorySlugs": [
+                    "remeras"
+                  ]
+                },
+                {
+                  "image": "/images/comovosyyo/products/camisa-oversize-lino.png",
+                  "title": "Camisas",
+                  "categorySlugs": [
+                    "camisas"
+                  ]
+                },
+                {
+                  "image": "/images/comovosyyo/products/vestido-midi.png",
+                  "title": "Vestidos",
+                  "categorySlugs": [
+                    "vestidos"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "type": "product_grid",
+            "props": {
+              "limit": 8,
+              "title": "Nuevos ingresos",
+              "columns": 4,
+              "animationPreset": "soft"
+            }
+          },
+          {
+            "type": "newsletter",
+            "props": {
+              "title": "Recibi novedades de Como Vos y Yo",
+              "subtitle": "Suscribite para conocer nuevos ingresos, restocks y propuestas de temporada.",
+              "animationPreset": "soft"
+            }
+          }
+        ]
+      },
+      "theme": "comovosyyo",
+      "themeLayout": {
+        "footer": {
+          "columns": [
+            {
+              "links": [
+                {
+                  "href": "/product",
+                  "label": "Coleccion completa"
+                },
+                {
+                  "href": "/category/remeras",
+                  "label": "Remeras"
+                },
+                {
+                  "href": "/category/camisas",
+                  "label": "Camisas"
+                },
+                {
+                  "href": "/category/vestidos",
+                  "label": "Vestidos"
+                }
+              ],
+              "title": "Comprar"
+            },
+            {
+              "links": [
+                {
+                  "href": "/account",
+                  "label": "Mi cuenta"
+                },
+                {
+                  "href": "/cart",
+                  "label": "Carrito"
+                },
+                {
+                  "href": "/checkout",
+                  "label": "Checkout"
+                }
+              ],
+              "title": "Cuenta"
+            },
+            {
+              "links": [
+                {
+                  "href": "mailto:hola@comovosyyo.com",
+                  "label": "hola@comovosyyo.com"
+                },
+                {
+                  "href": "https://instagram.com",
+                  "label": "Instagram"
+                },
+                {
+                  "href": "https://wa.me",
+                  "label": "WhatsApp"
+                }
+              ],
+              "title": "Contacto"
+            }
+          ],
+          "brandTitle": "Como Vos y Yo",
+          "brandSubtitle": "Moda femenina elegante, limpia y actual para una boutique minimalista con mirada premium."
+        },
+        "header": {
+          "brandLabel": "Como Vos y Yo",
+          "primaryLinks": [
+            {
+              "href": "/product",
+              "label": "Coleccion"
+            },
+            {
+              "href": "/category/remeras",
+              "label": "Remeras"
+            },
+            {
+              "href": "/category/camisas",
+              "label": "Camisas"
+            },
+            {
+              "href": "/category/vestidos",
+              "label": "Vestidos"
+            },
+            {
+              "href": "/quienes-somos",
+              "label": "Quienes somos"
+            },
+            {
+              "href": "/guia-de-talles",
+              "label": "Guia de talles"
+            }
+          ]
+        }
+      },
+      "themePalette": {
+        "text": "#1A1A1A",
+        "paper": "#F5F1EA",
+        "accent": "#73B5A5",
+        "border": "rgba(26, 26, 26, 0.12)",
+        "textMuted": "#6E6E6E",
+        "background": "#F5F1EA",
+        "paperMuted": "#BFD5CF",
+        "textStrong": "#1A1A1A",
+        "blockCardBg": "#F5F1EA",
+        "pagePanelBg": "#F5F1EA",
+        "pageShellBg": "#F5F1EA",
+        "accentStrong": "#73B5A5",
+        "blockPanelBg": "#BFD5CF",
+        "borderStrong": "#73B5A5",
+        "mutedFieldBg": "#F5F1EA",
+        "storeShellBg": "#F5F1EA",
+        "accentContrast": "#1A1A1A",
+        "backgroundSoft": "#F5F1EA",
+        "newsletterShellBg": "#BFD5CF",
+        "pagePanelStrongBg": "#BFD5CF",
+        "testimonialCardBg": "#F5F1EA",
+        "backgroundElevated": "#BFD5CF",
+        "testimonialCardFeaturedBg": "#BFD5CF"
+      }
+    },
+    "bankTransferDiscountPercentage": 15
+  },
+  "discount": 15,
+  "multiplier": 0.85,
+  "createdAt": "2026-06-08T16:02:25.110Z",
+  "variants": [
+    {
+      "id": 11396,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-CHOCOLATE-L",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11395,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-CHOCOLATE-M",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11394,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-CHOCOLATE-S",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11393,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-MILITAR-L",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11392,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-MILITAR-M",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11391,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-MILITAR-S",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11399,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-VISON-L",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11398,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-VISON-M",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11397,
+      "productId": 1809,
+      "productTitle": "Jean baggy vison",
+      "productSlug": "jean-baggy-vison",
+      "sku": "JEAN-BAGGY-VISON-S",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11331,
+      "productId": 1778,
+      "productTitle": "Jean ballon grey",
+      "productSlug": "jean-ballon-grey",
+      "sku": "JEAN-BALLON--L",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11330,
+      "productId": 1778,
+      "productTitle": "Jean ballon grey",
+      "productSlug": "jean-ballon-grey",
+      "sku": "JEAN-BALLON--M",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11342,
+      "productId": 1783,
+      "productTitle": "Jean Barrel",
+      "productSlug": "jean-barrel",
+      "sku": "JEAN-BARREL-M",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11329,
+      "productId": 1777,
+      "productTitle": "Jean Barrel Grey",
+      "productSlug": "jean-barrel-grey",
+      "sku": "JEAN-BARREL--L",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11328,
+      "productId": 1777,
+      "productTitle": "Jean Barrel Grey",
+      "productSlug": "jean-barrel-grey",
+      "sku": "JEAN-BARREL--S",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11389,
+      "productId": 1808,
+      "productTitle": "Jean barrel military",
+      "productSlug": "jean-barrel-military",
+      "sku": "JEAN-BARREL-L",
+      "currentBasePrice": 111800,
+      "currentTransferPrice": 95030,
+      "roundedTransferPrice": 95000,
+      "nextBasePrice": 111764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11388,
+      "productId": 1808,
+      "productTitle": "Jean barrel military",
+      "productSlug": "jean-barrel-military",
+      "sku": "JEAN-BARREL-M-2",
+      "currentBasePrice": 111800,
+      "currentTransferPrice": 95030,
+      "roundedTransferPrice": 95000,
+      "nextBasePrice": 111764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11387,
+      "productId": 1808,
+      "productTitle": "Jean barrel military",
+      "productSlug": "jean-barrel-military",
+      "sku": "JEAN-BARREL-S",
+      "currentBasePrice": 111800,
+      "currentTransferPrice": 95030,
+      "roundedTransferPrice": 95000,
+      "nextBasePrice": 111764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11390,
+      "productId": 1808,
+      "productTitle": "Jean barrel military",
+      "productSlug": "jean-barrel-military",
+      "sku": "JEAN-BARREL-XL",
+      "currentBasePrice": 111800,
+      "currentTransferPrice": 95030,
+      "roundedTransferPrice": 95000,
+      "nextBasePrice": 111764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11382,
+      "productId": 1806,
+      "productTitle": "Jean bootcut black grey",
+      "productSlug": "jean-bootcut-black-grey",
+      "sku": "JEAN-BOOTCUT-24",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11383,
+      "productId": 1806,
+      "productTitle": "Jean bootcut black grey",
+      "productSlug": "jean-bootcut-black-grey",
+      "sku": "JEAN-BOOTCUT-26",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11384,
+      "productId": 1806,
+      "productTitle": "Jean bootcut black grey",
+      "productSlug": "jean-bootcut-black-grey",
+      "sku": "JEAN-BOOTCUT-28",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11385,
+      "productId": 1806,
+      "productTitle": "Jean bootcut black grey",
+      "productSlug": "jean-bootcut-black-grey",
+      "sku": "JEAN-BOOTCUT-34",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11333,
+      "productId": 1779,
+      "productTitle": "Jean Oxford blue medio",
+      "productSlug": "jean-oxford-blue-medio",
+      "sku": "JEAN-OXFORD--26",
+      "currentBasePrice": 115200,
+      "currentTransferPrice": 97920,
+      "roundedTransferPrice": 97900,
+      "nextBasePrice": 115176.47,
+      "transferDiff": -20
+    },
+    {
+      "id": 11332,
+      "productId": 1779,
+      "productTitle": "Jean Oxford blue medio",
+      "productSlug": "jean-oxford-blue-medio",
+      "sku": "JEAN-OXFORD--28",
+      "currentBasePrice": 115200,
+      "currentTransferPrice": 97920,
+      "roundedTransferPrice": 97900,
+      "nextBasePrice": 115176.47,
+      "transferDiff": -20
+    },
+    {
+      "id": 11339,
+      "productId": 1782,
+      "productTitle": "Jean Oxford elastizado",
+      "productSlug": "jean-oxford-elastizado",
+      "sku": "JEAN-OXFORD-26",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11340,
+      "productId": 1782,
+      "productTitle": "Jean Oxford elastizado",
+      "productSlug": "jean-oxford-elastizado",
+      "sku": "JEAN-OXFORD-28",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11341,
+      "productId": 1782,
+      "productTitle": "Jean Oxford elastizado",
+      "productSlug": "jean-oxford-elastizado",
+      "sku": "JEAN-OXFORD-30",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11338,
+      "productId": 1782,
+      "productTitle": "Jean Oxford elastizado",
+      "productSlug": "jean-oxford-elastizado",
+      "sku": "JEAN-OXFORD-36",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11378,
+      "productId": 1805,
+      "productTitle": "Jean oxford light blue",
+      "productSlug": "jean-oxford-light-blue",
+      "sku": "JEAN-OXFORD-28-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11379,
+      "productId": 1805,
+      "productTitle": "Jean oxford light blue",
+      "productSlug": "jean-oxford-light-blue",
+      "sku": "JEAN-OXFORD-30-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11381,
+      "productId": 1805,
+      "productTitle": "Jean oxford light blue",
+      "productSlug": "jean-oxford-light-blue",
+      "sku": "JEAN-OXFORD-32",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11380,
+      "productId": 1805,
+      "productTitle": "Jean oxford light blue",
+      "productSlug": "jean-oxford-light-blue",
+      "sku": "JEAN-OXFORD-36-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11346,
+      "productId": 1791,
+      "productTitle": "Jean relax chocolate",
+      "productSlug": "jean-relax-chocolate",
+      "sku": "JEAN-RELAX-L-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11347,
+      "productId": 1791,
+      "productTitle": "Jean relax chocolate",
+      "productSlug": "jean-relax-chocolate",
+      "sku": "JEAN-RELAX-M-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11348,
+      "productId": 1791,
+      "productTitle": "Jean relax chocolate",
+      "productSlug": "jean-relax-chocolate",
+      "sku": "JEAN-RELAX-S-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11349,
+      "productId": 1791,
+      "productTitle": "Jean relax chocolate",
+      "productSlug": "jean-relax-chocolate",
+      "sku": "JEAN-RELAX-XL",
+      "currentBasePrice": 103000,
+      "currentTransferPrice": 87550,
+      "roundedTransferPrice": 87600,
+      "nextBasePrice": 103058.82,
+      "transferDiff": 50
+    },
+    {
+      "id": 11343,
+      "productId": 1784,
+      "productTitle": "Jean relax uva",
+      "productSlug": "jean-relax-uva",
+      "sku": "JEAN-RELAX-L",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11344,
+      "productId": 1784,
+      "productTitle": "Jean relax uva",
+      "productSlug": "jean-relax-uva",
+      "sku": "JEAN-RELAX-M",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11345,
+      "productId": 1784,
+      "productTitle": "Jean relax uva",
+      "productSlug": "jean-relax-uva",
+      "sku": "JEAN-RELAX-S",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11350,
+      "productId": 1792,
+      "productTitle": "Jean relax verde",
+      "productSlug": "jean-relax-verde",
+      "sku": "JEAN-RELAX-L-3",
+      "currentBasePrice": 103000,
+      "currentTransferPrice": 87550,
+      "roundedTransferPrice": 87600,
+      "nextBasePrice": 103058.82,
+      "transferDiff": 50
+    },
+    {
+      "id": 11351,
+      "productId": 1792,
+      "productTitle": "Jean relax verde",
+      "productSlug": "jean-relax-verde",
+      "sku": "JEAN-RELAX-M-3",
+      "currentBasePrice": 103000,
+      "currentTransferPrice": 87550,
+      "roundedTransferPrice": 87600,
+      "nextBasePrice": 103058.82,
+      "transferDiff": 50
+    },
+    {
+      "id": 11352,
+      "productId": 1792,
+      "productTitle": "Jean relax verde",
+      "productSlug": "jean-relax-verde",
+      "sku": "JEAN-RELAX-XL-2",
+      "currentBasePrice": 103000,
+      "currentTransferPrice": 87550,
+      "roundedTransferPrice": 87600,
+      "nextBasePrice": 103058.82,
+      "transferDiff": 50
+    },
+    {
+      "id": 11353,
+      "productId": 1792,
+      "productTitle": "Jean relax verde",
+      "productSlug": "jean-relax-verde",
+      "sku": "JEAN-RELAX-XS",
+      "currentBasePrice": 103000,
+      "currentTransferPrice": 87550,
+      "roundedTransferPrice": 87600,
+      "nextBasePrice": 103058.82,
+      "transferDiff": 50
+    },
+    {
+      "id": 11404,
+      "productId": 1810,
+      "productTitle": "Jean slim flare dark blue",
+      "productSlug": "jean-slim-flare-dark-blue",
+      "sku": "JEAN-SLIM-24",
+      "currentBasePrice": 104700,
+      "currentTransferPrice": 88995,
+      "roundedTransferPrice": 89000,
+      "nextBasePrice": 104705.88,
+      "transferDiff": 5
+    },
+    {
+      "id": 11403,
+      "productId": 1810,
+      "productTitle": "Jean slim flare dark blue",
+      "productSlug": "jean-slim-flare-dark-blue",
+      "sku": "JEAN-SLIM-30",
+      "currentBasePrice": 104700,
+      "currentTransferPrice": 88995,
+      "roundedTransferPrice": 89000,
+      "nextBasePrice": 104705.88,
+      "transferDiff": 5
+    },
+    {
+      "id": 11400,
+      "productId": 1810,
+      "productTitle": "Jean slim flare dark blue",
+      "productSlug": "jean-slim-flare-dark-blue",
+      "sku": "JEAN-SLIM-32",
+      "currentBasePrice": 104700,
+      "currentTransferPrice": 88995,
+      "roundedTransferPrice": 89000,
+      "nextBasePrice": 104705.88,
+      "transferDiff": 5
+    },
+    {
+      "id": 11402,
+      "productId": 1810,
+      "productTitle": "Jean slim flare dark blue",
+      "productSlug": "jean-slim-flare-dark-blue",
+      "sku": "JEAN-SLIM-34",
+      "currentBasePrice": 104700,
+      "currentTransferPrice": 88995,
+      "roundedTransferPrice": 89000,
+      "nextBasePrice": 104705.88,
+      "transferDiff": 5
+    },
+    {
+      "id": 11401,
+      "productId": 1810,
+      "productTitle": "Jean slim flare dark blue",
+      "productSlug": "jean-slim-flare-dark-blue",
+      "sku": "JEAN-SLIM-36",
+      "currentBasePrice": 104700,
+      "currentTransferPrice": 88995,
+      "roundedTransferPrice": 89000,
+      "nextBasePrice": 104705.88,
+      "transferDiff": 5
+    },
+    {
+      "id": 11369,
+      "productId": 1799,
+      "productTitle": "Jean straight blue",
+      "productSlug": "jean-straight-blue",
+      "sku": "JEAN-STRAIGHT-26",
+      "currentBasePrice": 91800,
+      "currentTransferPrice": 78030,
+      "roundedTransferPrice": 78000,
+      "nextBasePrice": 91764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11370,
+      "productId": 1799,
+      "productTitle": "Jean straight blue",
+      "productSlug": "jean-straight-blue",
+      "sku": "JEAN-STRAIGHT-30-2",
+      "currentBasePrice": 91800,
+      "currentTransferPrice": 78030,
+      "roundedTransferPrice": 78000,
+      "nextBasePrice": 91764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11375,
+      "productId": 1802,
+      "productTitle": "Jean straight blue normal",
+      "productSlug": "jean-straight-blue-normal",
+      "sku": "JEAN-STRAIGHT-28-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11373,
+      "productId": 1802,
+      "productTitle": "Jean straight blue normal",
+      "productSlug": "jean-straight-blue-normal",
+      "sku": "JEAN-STRAIGHT-32-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11374,
+      "productId": 1802,
+      "productTitle": "Jean straight blue normal",
+      "productSlug": "jean-straight-blue-normal",
+      "sku": "JEAN-STRAIGHT-34-2",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11371,
+      "productId": 1801,
+      "productTitle": "Jean straight blue tiro medio",
+      "productSlug": "jean-straight-blue-tiro-medio",
+      "sku": "JEAN-STRAIGHT-26-2",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11372,
+      "productId": 1801,
+      "productTitle": "Jean straight blue tiro medio",
+      "productSlug": "jean-straight-blue-tiro-medio",
+      "sku": "JEAN-STRAIGHT-34",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11334,
+      "productId": 1780,
+      "productTitle": "Jean straight crop medio",
+      "productSlug": "jean-straight-crop-medio",
+      "sku": "JEAN-STRAIGH-26",
+      "currentBasePrice": 98820,
+      "currentTransferPrice": 83997,
+      "roundedTransferPrice": 84000,
+      "nextBasePrice": 98823.53,
+      "transferDiff": 3
+    },
+    {
+      "id": 11335,
+      "productId": 1780,
+      "productTitle": "Jean straight crop medio",
+      "productSlug": "jean-straight-crop-medio",
+      "sku": "JEAN-STRAIGH-28",
+      "currentBasePrice": 98820,
+      "currentTransferPrice": 83997,
+      "roundedTransferPrice": 84000,
+      "nextBasePrice": 98823.53,
+      "transferDiff": 3
+    },
+    {
+      "id": 11336,
+      "productId": 1780,
+      "productTitle": "Jean straight crop medio",
+      "productSlug": "jean-straight-crop-medio",
+      "sku": "JEAN-STRAIGH-30",
+      "currentBasePrice": 98820,
+      "currentTransferPrice": 83997,
+      "roundedTransferPrice": 84000,
+      "nextBasePrice": 98823.53,
+      "transferDiff": 3
+    },
+    {
+      "id": 11360,
+      "productId": 1795,
+      "productTitle": "Jean straight matizado",
+      "productSlug": "jean-straight-matizado",
+      "sku": "JEAN-STRAIGHT-28",
+      "currentBasePrice": 116500,
+      "currentTransferPrice": 99025,
+      "roundedTransferPrice": 99000,
+      "nextBasePrice": 116470.59,
+      "transferDiff": -25
+    },
+    {
+      "id": 11361,
+      "productId": 1795,
+      "productTitle": "Jean straight matizado",
+      "productSlug": "jean-straight-matizado",
+      "sku": "JEAN-STRAIGHT-30",
+      "currentBasePrice": 116500,
+      "currentTransferPrice": 99025,
+      "roundedTransferPrice": 99000,
+      "nextBasePrice": 116470.59,
+      "transferDiff": -25
+    },
+    {
+      "id": 11359,
+      "productId": 1795,
+      "productTitle": "Jean straight matizado",
+      "productSlug": "jean-straight-matizado",
+      "sku": "JEAN-STRAIGHT-32",
+      "currentBasePrice": 116500,
+      "currentTransferPrice": 99025,
+      "roundedTransferPrice": 99000,
+      "nextBasePrice": 116470.59,
+      "transferDiff": -25
+    },
+    {
+      "id": 11356,
+      "productId": 1793,
+      "productTitle": "Jean straight negro",
+      "productSlug": "jean-straight-negro",
+      "sku": "JEAN-STRAIGH-L",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11355,
+      "productId": 1793,
+      "productTitle": "Jean straight negro",
+      "productSlug": "jean-straight-negro",
+      "sku": "JEAN-STRAIGH-M",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11354,
+      "productId": 1793,
+      "productTitle": "Jean straight negro",
+      "productSlug": "jean-straight-negro",
+      "sku": "JEAN-STRAIGH-S",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11357,
+      "productId": 1793,
+      "productTitle": "Jean straight negro",
+      "productSlug": "jean-straight-negro",
+      "sku": "JEAN-STRAIGH-XL",
+      "currentBasePrice": 108100,
+      "currentTransferPrice": 91885,
+      "roundedTransferPrice": 91900,
+      "nextBasePrice": 108117.65,
+      "transferDiff": 15
+    },
+    {
+      "id": 11364,
+      "productId": 1796,
+      "productTitle": "Jean stright print chocolate",
+      "productSlug": "jean-stright-print-chocolate",
+      "sku": "JEAN-STRIGHT-L",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11363,
+      "productId": 1796,
+      "productTitle": "Jean stright print chocolate",
+      "productSlug": "jean-stright-print-chocolate",
+      "sku": "JEAN-STRIGHT-M",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11362,
+      "productId": 1796,
+      "productTitle": "Jean stright print chocolate",
+      "productSlug": "jean-stright-print-chocolate",
+      "sku": "JEAN-STRIGHT-S",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11365,
+      "productId": 1796,
+      "productTitle": "Jean stright print chocolate",
+      "productSlug": "jean-stright-print-chocolate",
+      "sku": "JEAN-STRIGHT-XL",
+      "currentBasePrice": 105800,
+      "currentTransferPrice": 89930,
+      "roundedTransferPrice": 89900,
+      "nextBasePrice": 105764.71,
+      "transferDiff": -30
+    },
+    {
+      "id": 11368,
+      "productId": 1797,
+      "productTitle": "Jean wide matizado",
+      "productSlug": "jean-wide-matizado",
+      "sku": "JEAN-WIDE-L",
+      "currentBasePrice": 115200,
+      "currentTransferPrice": 97920,
+      "roundedTransferPrice": 97900,
+      "nextBasePrice": 115176.47,
+      "transferDiff": -20
+    },
+    {
+      "id": 11367,
+      "productId": 1797,
+      "productTitle": "Jean wide matizado",
+      "productSlug": "jean-wide-matizado",
+      "sku": "JEAN-WIDE-M",
+      "currentBasePrice": 115200,
+      "currentTransferPrice": 97920,
+      "roundedTransferPrice": 97900,
+      "nextBasePrice": 115176.47,
+      "transferDiff": -20
+    },
+    {
+      "id": 11366,
+      "productId": 1797,
+      "productTitle": "Jean wide matizado",
+      "productSlug": "jean-wide-matizado",
+      "sku": "JEAN-WIDE-XL",
+      "currentBasePrice": 115200,
+      "currentTransferPrice": 97920,
+      "roundedTransferPrice": 97900,
+      "nextBasePrice": 115176.47,
+      "transferDiff": -20
+    }
+  ]
+}

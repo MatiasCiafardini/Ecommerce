@@ -120,6 +120,12 @@ function resolveProductImageUrl(imageUrl: string | null) {
   return imageUrl;
 }
 
+function labelPreviewClassName(templateKey: string | undefined) {
+  return ["label-preview-card", templateKey ? `label-preview-card-${templateKey.toLowerCase()}` : ""]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function ProductThumb({ row }: { row: VariantRow }) {
   const [failed, setFailed] = useState(false);
   const src = failed ? null : resolveProductImageUrl(row.imageUrl);
@@ -513,7 +519,7 @@ export default function LabelsPage() {
             </div>
             <div className="label-preview-grid">
               {(preview?.labels ?? []).map((label) => (
-                <div key={label.id} className="label-preview-card">
+                <div key={label.id} className={labelPreviewClassName(preview?.template.key)}>
                   {preview?.options.showLogo ? (
                     label.logoUrl ? (
                       <img className="label-logo" src={resolveProductImageUrl(label.logoUrl) ?? label.logoUrl} alt={label.storeName} />

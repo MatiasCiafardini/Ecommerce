@@ -5,23 +5,34 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
 import { generateSlug } from '../../common/utils/slug.util';
+import { normalizeDisplayText } from '../../common/utils/display-text.util';
 import {
   convertCashInputToBasePrice,
   resolveCashPriceInputSettings,
   type CashPriceInputSettings,
 } from '../../common/price-input-mode';
 
+const normalizeNullableDisplayText = (value?: string | null) => {
+  const normalized = normalizeDisplayText(value);
+  return normalized || null;
+};
+
 @Injectable()
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: CreateProductDto, storeId: number) {
-    const slug = generateSlug(data.title);
+    const title = normalizeDisplayText(data.title);
+    if (!title) {
+      throw new BadRequestException('Product title is required');
+    }
+
+    const slug = generateSlug(title);
     await this.ensureSlugAvailable(slug, storeId);
 
     return this.prisma.product.create({
       data: {
-        title: data.title,
+        title,
         description: data.description,
         slug,
         published: data.published ?? false,
@@ -134,9 +145,14 @@ export class ProductsService {
     } = {};
 
     if (data.title !== undefined) {
-      const slug = generateSlug(data.title);
+      const title = normalizeDisplayText(data.title);
+      if (!title) {
+        throw new BadRequestException('Product title is required');
+      }
+
+      const slug = generateSlug(title);
       await this.ensureSlugAvailable(slug, storeId, productId);
-      payload.title = data.title;
+      payload.title = title;
       payload.slug = slug;
     }
 
@@ -216,7 +232,7 @@ export class ProductsService {
     data: SaveProductCompleteDto,
     storeId: number,
   ) {
-    const normalizedTitle = data.title.trim();
+    const normalizedTitle = normalizeDisplayText(data.title);
 
     if (!normalizedTitle) {
       throw new BadRequestException('Product title is required');
@@ -733,7 +749,7 @@ export class ProductsService {
     const normalized: Array<{ productOptionId: number; value: string }> = [];
 
     for (const entry of optionValues) {
-      const value = entry.value.trim();
+      const value = normalizeDisplayText(entry.value);
       if (!value) {
         continue;
       }
@@ -792,9 +808,9 @@ export class ProductsService {
         id: variant.id,
         sku,
         price: convertCashInputToBasePrice(price, priceInputSettings),
-        Size: variant.Size,
-        Color: variant.Color,
-        waistSize: variant.waistSize,
+        Size: normalizeNullableDisplayText(variant.Size),
+        Color: normalizeNullableDisplayText(variant.Color),
+        waistSize: normalizeNullableDisplayText(variant.waistSize),
         inventoryQuantity: Math.trunc(inventoryQuantity),
         weightGrams: variant.weightGrams,
         width: variant.width,

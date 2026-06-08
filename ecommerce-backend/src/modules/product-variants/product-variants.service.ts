@@ -7,6 +7,12 @@ import {
   convertCashInputToBasePrice,
   resolveCashPriceInputSettings,
 } from '../../common/price-input-mode';
+import { normalizeDisplayText } from '../../common/utils/display-text.util';
+
+const normalizeNullableDisplayText = (value?: string | null) => {
+  const normalized = normalizeDisplayText(value);
+  return normalized || null;
+};
 
 @Injectable()
 export class ProductVariantsService {
@@ -84,7 +90,12 @@ export class ProductVariantsService {
       throw new NotFoundException('Product not found in this store');
     }
 
-    await this.ensureSkuAvailableInStore(data.sku, storeId);
+    const sku = data.sku.trim();
+    if (!sku) {
+      throw new BadRequestException('Each variant requires a SKU');
+    }
+
+    await this.ensureSkuAvailableInStore(sku, storeId);
 
     try {
       const weightGrams = this.normalizeWeightGrams(data);
@@ -105,11 +116,11 @@ export class ProductVariantsService {
       return await this.prisma.productVariant.create({
         data: {
           productId: data.productId,
-          sku: data.sku,
+          sku,
           price: convertCashInputToBasePrice(data.price, priceInputSettings),
-          Size: data.Size,
-          Color: data.Color,
-          waistSize: data.waistSize,
+          Size: normalizeNullableDisplayText(data.Size),
+          Color: normalizeNullableDisplayText(data.Color),
+          waistSize: normalizeNullableDisplayText(data.waistSize),
           weight: weightGrams !== null ? Number((weightGrams / 1000).toFixed(3)) : data.weight,
           weightGrams,
           width: packageWidthCm ?? data.width,
@@ -180,7 +191,13 @@ export class ProductVariantsService {
       packageLengthCm?: number | null;
     } = {};
 
-    if (data.sku !== undefined) payload.sku = data.sku;
+    if (data.sku !== undefined) {
+      const sku = data.sku.trim();
+      if (!sku) {
+        throw new BadRequestException('Each variant requires a SKU');
+      }
+      payload.sku = sku;
+    }
     if (data.price !== undefined) {
       const priceInputSettings = await this.resolvePriceInputSettings(storeId);
       payload.price = convertCashInputToBasePrice(
@@ -188,9 +205,9 @@ export class ProductVariantsService {
         priceInputSettings,
       );
     }
-    if (data.Size !== undefined) payload.Size = data.Size ?? null;
-    if (data.Color !== undefined) payload.Color = data.Color ?? null;
-    if (data.waistSize !== undefined) payload.waistSize = data.waistSize ?? null;
+    if (data.Size !== undefined) payload.Size = normalizeNullableDisplayText(data.Size);
+    if (data.Color !== undefined) payload.Color = normalizeNullableDisplayText(data.Color);
+    if (data.waistSize !== undefined) payload.waistSize = normalizeNullableDisplayText(data.waistSize);
     if (data.weight !== undefined || data.weightGrams !== undefined) {
       const weightGrams = this.normalizeWeightGrams(data);
       payload.weightGrams = weightGrams;
@@ -223,7 +240,7 @@ export class ProductVariantsService {
     }
 
     if (data.sku !== undefined) {
-      await this.ensureSkuAvailableInStore(data.sku, storeId, variantId);
+      await this.ensureSkuAvailableInStore(data.sku.trim(), storeId, variantId);
     }
 
     try {

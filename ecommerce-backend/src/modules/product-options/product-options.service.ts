@@ -12,6 +12,7 @@ import { UpdateProductOptionDto } from './dto/update-product-option.dto';
 import { RenameProductOptionValueDto } from './dto/rename-product-option-value.dto';
 import { CreateReusableOptionValueDto } from './dto/create-reusable-option-value.dto';
 import { ReorderReusableOptionValuesDto } from './dto/reorder-reusable-option-values.dto';
+import { normalizeDisplayText } from '../../common/utils/display-text.util';
 
 @Injectable()
 export class ProductOptionsService {
@@ -20,7 +21,7 @@ export class ProductOptionsService {
   constructor(private prisma: PrismaService) {}
 
   private normalizeOptionName(name: string | undefined | null) {
-    const normalizedName = name?.trim() ?? '';
+    const normalizedName = normalizeDisplayText(name);
 
     if (!normalizedName) {
       throw new BadRequestException('Product option name is required');
@@ -243,7 +244,11 @@ export class ProductOptionsService {
     optionId: number,
     dto: CreateReusableOptionValueDto,
   ) {
-    const normalizedValue = dto.value.trim();
+    const normalizedValue = normalizeDisplayText(dto.value);
+    if (!normalizedValue) {
+      throw new BadRequestException('Product option value is required');
+    }
+
     const option = await this.prisma.productOption.findFirst({
       where: { id: optionId, storeId },
       select: { id: true },
@@ -378,7 +383,10 @@ export class ProductOptionsService {
     productId: number,
     dto: AddProductOptionValueDto,
   ) {
-    const normalizedValue = dto.value.trim();
+    const normalizedValue = normalizeDisplayText(dto.value);
+    if (!normalizedValue) {
+      throw new BadRequestException('Product option value is required');
+    }
 
     const [product, option] = await Promise.all([
       this.prisma.product.findFirst({
@@ -526,7 +534,10 @@ export class ProductOptionsService {
     dto: RenameProductOptionValueDto,
   ) {
     const currentValue = dto.currentValue.trim();
-    const nextValue = dto.nextValue.trim();
+    const nextValue = normalizeDisplayText(dto.nextValue);
+    if (!currentValue || !nextValue) {
+      throw new BadRequestException('Product option value is required');
+    }
 
     if (
       currentValue.localeCompare(nextValue, undefined, {
@@ -656,7 +667,11 @@ export class ProductOptionsService {
     value: string,
     force = false,
   ) {
-    const normalizedValue = value.trim();
+    const normalizedValue = normalizeDisplayText(value);
+    if (!normalizedValue) {
+      throw new BadRequestException('Product option value is required');
+    }
+
     const option = await this.prisma.productOption.findFirst({
       where: {
         id: optionId,
