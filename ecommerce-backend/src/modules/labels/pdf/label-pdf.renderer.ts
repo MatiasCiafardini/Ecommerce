@@ -658,7 +658,7 @@ export class LabelPdfRenderer {
     }
 
     if (template.key === 'BROTHER_QL570_29X90') {
-      return base + 2.5;
+      return base + 3;
     }
 
     return template.key.startsWith('THERMAL') ? base + 1.4 : base;
