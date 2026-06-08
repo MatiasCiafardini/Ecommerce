@@ -244,6 +244,9 @@ export class StorefrontService {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
       select: {
+        name: true,
+        domain: true,
+        storefrontConfig: true,
         bankTransferAlias: true,
         bankTransferDiscountPercentage: true,
       },
