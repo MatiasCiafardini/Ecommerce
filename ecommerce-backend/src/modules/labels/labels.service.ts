@@ -307,6 +307,10 @@ export class LabelsService {
       const variant = variantById.get(item.variantId);
       if (!variant) continue;
       const normalPrice = Number(variant.price);
+      const labelNormalPrice = this.resolveLabelNormalPrice(
+        normalPrice,
+        bankTransferDiscountPercentage,
+      );
       const transferPrice = this.resolveTransferPrice(normalPrice, bankTransferDiscountPercentage);
 
       for (let index = 0; index < item.quantity && labels.length < maxLabels; index += 1) {
@@ -314,8 +318,8 @@ export class LabelsService {
           productName: variant.product.title,
           variantName: this.formatVariantName(variant) || variant.sku,
           sku: variant.sku,
-          price: this.formatMoney(normalPrice),
-          normalPrice: this.formatMoney(normalPrice),
+          price: this.formatMoney(labelNormalPrice),
+          normalPrice: this.formatMoney(labelNormalPrice),
           transferPrice: transferPrice ? this.formatMoney(transferPrice) : null,
           storeName: store?.name ?? '',
           storeAddress,
@@ -570,5 +574,16 @@ export class LabelsService {
       currency: 'ARS',
       maximumFractionDigits: 0,
     }).format(Number(value));
+  }
+
+  private resolveLabelNormalPrice(
+    price: number,
+    bankTransferDiscountPercentage: number,
+  ) {
+    if (bankTransferDiscountPercentage <= 0) {
+      return price;
+    }
+
+    return Math.round(price / 100) * 100;
   }
 }
