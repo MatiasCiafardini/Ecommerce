@@ -5,6 +5,7 @@ type ApiOptions = {
   method?: string;
   headers?: HeadersInit;
   body?: BodyInit | null;
+  signal?: AbortSignal;
 };
 
 function buildApiHeaders(
@@ -68,6 +69,7 @@ export const api = async (endpoint: string, options: ApiOptions = {}) => {
     method: options.method || "GET",
     headers: buildApiHeaders(options, storeId, host, isPreview),
     body: options.body,
+    signal: options.signal,
     credentials: "include",
   });
 
@@ -89,6 +91,7 @@ export const apiText = async (endpoint: string, options: ApiOptions = {}) => {
     method: options.method || "GET",
     headers: buildApiHeaders(options, storeId, host, isPreview),
     body: options.body,
+    signal: options.signal,
     credentials: "include",
   });
 
@@ -108,6 +111,7 @@ export const apiBlob = async (endpoint: string, options: ApiOptions = {}) => {
     method: options.method || "GET",
     headers: buildApiHeaders(options, storeId, host, isPreview),
     body: options.body,
+    signal: options.signal,
     credentials: "include",
   });
 

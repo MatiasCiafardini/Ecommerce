@@ -46,9 +46,19 @@ export class ProductsService {
     });
   }
 
-  findAll(storeId: number, search?: string) {
+  findAll(storeId: number, search?: string, rawLimit?: string | number) {
+    const requestedLimit = Number(rawLimit ?? 0);
+    const limit =
+      Number.isFinite(requestedLimit) && requestedLimit > 0
+        ? Math.min(Math.trunc(requestedLimit), 120)
+        : undefined;
+
     return this.prisma.product.findMany({
       where: this.buildFindAllWhere(storeId, search),
+      take: limit,
+      orderBy: {
+        title: 'asc',
+      },
       include: {
         variants: {
           where: {

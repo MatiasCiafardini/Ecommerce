@@ -677,18 +677,12 @@ function calculateDiscountAmount(
   const safeValue = Number.isFinite(discountValue) ? Math.max(discountValue, 0) : 0;
 
   if (discountType === "percentage") {
-    const roundedTotal = roundManualSaleAmount(
-      safeSubtotal * (1 - Math.min(safeValue, 100) / 100),
+    return Number(
+      Math.min(safeSubtotal * (Math.min(safeValue, 100) / 100), safeSubtotal).toFixed(2),
     );
-    return Math.min(Math.max(safeSubtotal - roundedTotal, 0), safeSubtotal);
   }
 
   return Math.min(safeValue, safeSubtotal);
-}
-
-function roundManualSaleAmount(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return 0;
-  return Math.round(value / 100) * 100;
 }
 
 function describeDiscount(

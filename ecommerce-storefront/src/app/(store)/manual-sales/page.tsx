@@ -48,10 +48,9 @@ function ManualSalesPageInner() {
 }
 
 function isManualSalesEnabledForUser(user: {
-  storeId?: number;
   storeFeatures?: { manualSalesEnabled?: boolean };
 }) {
-  return Boolean(user.storeFeatures?.manualSalesEnabled || user.storeId === 3);
+  return Boolean(user.storeFeatures?.manualSalesEnabled);
 }
 
 function LoadingState({ label }: { label: string }) {

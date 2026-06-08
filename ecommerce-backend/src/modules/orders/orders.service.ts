@@ -1874,21 +1874,12 @@ export class OrdersService {
 
     if (discountType === 'percentage') {
       const normalizedPercentage = Math.min(discountValue, 100);
-      const discountedTotal = this.roundManualSaleAmount(
-        subtotal * (1 - normalizedPercentage / 100),
+      return Number(
+        Math.min(subtotal * (normalizedPercentage / 100), subtotal).toFixed(2),
       );
-      return Number(Math.min(Math.max(subtotal - discountedTotal, 0), subtotal).toFixed(2));
     }
 
     return Number(Math.min(discountValue, subtotal).toFixed(2));
-  }
-
-  private roundManualSaleAmount(value: number) {
-    if (!Number.isFinite(value) || value <= 0) {
-      return 0;
-    }
-
-    return Math.round(value / 100) * 100;
   }
 
   private buildShippingAddress(order: {

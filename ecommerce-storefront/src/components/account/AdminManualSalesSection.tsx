@@ -70,7 +70,7 @@ type SaleSuccessSummary = {
 };
 
 const paymentOptions = ["Efectivo", "Tarjeta", "Transferencia"];
-const minVariantSearchLength = 4;
+const productSearchLimit = 80;
 
 const getAvailableStock = (inventories: ManualSaleVariant["inventories"]) =>
   (inventories ?? []).reduce(
@@ -96,7 +96,8 @@ export default function AdminManualSalesSection({
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<ManualSaleLine[]>([]);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [saleSummary, setSaleSummary] = useState<SaleSuccessSummary | null>(null);
@@ -104,19 +105,42 @@ export default function AdminManualSalesSection({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const productsData = await api("/products");
-        setProducts(Array.isArray(productsData) ? productsData : []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "No se pudo preparar la venta manual.");
-      } finally {
-        setLoading(false);
-      }
-    };
+    const normalizedQuery = normalizeScannerSkuInput(productQuery).trim();
 
-    void load();
-  }, []);
+    if (!normalizedQuery) {
+      setProducts([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      const load = async () => {
+        setSearchLoading(true);
+        try {
+          const productsData = await api(
+            `/products?search=${encodeURIComponent(normalizedQuery)}&limit=${productSearchLimit}`,
+            { signal: controller.signal },
+          );
+          setProducts(Array.isArray(productsData) ? productsData : []);
+        } catch (err) {
+          if (controller.signal.aborted) return;
+          setError(err instanceof Error ? err.message : "No pudimos buscar productos.");
+        } finally {
+          if (!controller.signal.aborted) {
+            setSearchLoading(false);
+          }
+        }
+      };
+
+      void load();
+    }, 220);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [productQuery]);
 
   const variantRows = useMemo<ManualSaleVariantRow[]>(
     () =>
@@ -138,7 +162,7 @@ export default function AdminManualSalesSection({
 
   const filteredVariantRows = useMemo(() => {
     const query = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
-    if (query.length < minVariantSearchLength) return [];
+    if (!query) return [];
 
     return variantRows.filter((row) => {
       const variantText = normalizeScannerSkuInput(
@@ -236,8 +260,8 @@ export default function AdminManualSalesSection({
 
   const addCurrentCatalogSelection = () => {
     const normalizedQuery = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
-    if (normalizedQuery.length < minVariantSearchLength) {
-      setError(`Escribi al menos ${minVariantSearchLength} caracteres para buscar una variante.`);
+    if (!normalizedQuery) {
+      setError("Busca por nombre, slug o SKU para agregar una variante.");
       focusSearchInput();
       return;
     }
@@ -361,7 +385,12 @@ export default function AdminManualSalesSection({
       resetForm();
       await onSaleRegistered?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo registrar la venta manual.");
+      const message = err instanceof Error ? err.message : "";
+      setError(
+        message.includes("Manual sales module is disabled for this store")
+          ? "La venta manual esta deshabilitada para esta tienda. Activala desde la configuracion de la tienda."
+          : message || "No se pudo registrar la venta manual.",
+      );
     } finally {
       setSaving(false);
     }
@@ -378,7 +407,7 @@ export default function AdminManualSalesSection({
           </p>
         </div>
         <div className="manual-sale-kpis" aria-label="Resumen del mostrador">
-          <MiniStat label="Productos" value={String(products.length)} />
+          <MiniStat label="Resultados" value={String(variantRows.length)} />
           <MiniStat label="Stock" value={String(totalAvailableUnits)} />
           <MiniStat label="Ticket" value={String(totalItems)} />
         </div>
@@ -434,9 +463,11 @@ export default function AdminManualSalesSection({
 
               <div className="manual-sale-search-meta">
                 <span>
-                  {normalizedSearchLength < minVariantSearchLength
-                    ? `Escribi ${minVariantSearchLength} caracteres para buscar`
-                    : `${filteredVariantRows.length} variantes`}
+                  {searchLoading
+                    ? "Buscando..."
+                    : normalizedSearchLength === 0
+                      ? "Busca por nombre, slug o SKU"
+                      : `${filteredVariantRows.length} variantes`}
                 </span>
                 {filteredVariantRows.length > visibleVariantRows.length ? (
                   <span>Mostrando las primeras {visibleVariantRows.length}</span>
@@ -448,8 +479,10 @@ export default function AdminManualSalesSection({
               {visibleVariantRows.length === 0 ? (
                 <StateCard
                   label={
-                    normalizedSearchLength < minVariantSearchLength
-                      ? "La tabla aparece cuando escribis al menos 4 caracteres o escaneas un codigo."
+                    searchLoading
+                      ? "Buscando variantes..."
+                      : normalizedSearchLength === 0
+                      ? "Escribi o escanea un codigo para ver variantes."
                       : "No encontramos variantes con esa busqueda."
                   }
                 />
@@ -531,7 +564,7 @@ export default function AdminManualSalesSection({
                   <p className="manual-sale-eyebrow">Ticket</p>
                   <h3>Venta en curso</h3>
                 </div>
-                <span>{lines.length} lineas</span>
+                <span>{lines.length === 1 ? "1 linea" : `${lines.length} lineas`}</span>
               </div>
 
               <div className="manual-sale-lines">
@@ -554,7 +587,7 @@ export default function AdminManualSalesSection({
                           className="manual-sale-icon-button"
                           aria-label={`Quitar ${line.title}`}
                         >
-                          ×
+                          x
                         </button>
                       </div>
 
@@ -1437,17 +1470,11 @@ function getVariantLabel(variant: Pick<ManualSaleVariant, "Size" | "Color">) {
   return [variant.Size, variant.Color].filter(Boolean).join(" - ") || "Variante principal";
 }
 
-function roundManualSaleAmount(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return 0;
-  return Math.round(value / 100) * 100;
-}
-
 function calculateRoundedPercentageDiscount(subtotal: number, discountValue: number) {
   const safeSubtotal = Number.isFinite(subtotal) ? Math.max(subtotal, 0) : 0;
   const safePercentage = Number.isFinite(discountValue)
     ? Math.min(Math.max(discountValue, 0), 100)
     : 0;
-  const roundedTotal = roundManualSaleAmount(safeSubtotal * (1 - safePercentage / 100));
 
-  return Math.min(Math.max(safeSubtotal - roundedTotal, 0), safeSubtotal);
+  return Number(Math.min(safeSubtotal * (safePercentage / 100), safeSubtotal).toFixed(2));
 }

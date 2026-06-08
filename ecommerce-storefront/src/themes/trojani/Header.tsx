@@ -50,7 +50,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
     user?.role ?? "",
   );
   const manualSalesEnabled = Boolean(
-    hasAdminAccess && (user?.storeFeatures?.manualSalesEnabled || user?.storeId === 3),
+    hasAdminAccess && user?.storeFeatures?.manualSalesEnabled,
   );
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

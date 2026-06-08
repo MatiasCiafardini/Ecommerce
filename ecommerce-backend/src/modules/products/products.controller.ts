@@ -36,8 +36,12 @@ export class ProductsController {
   }
 
   @Get()
-  findAll(@Req() req, @Query('search') search?: string) {
-    return this.productsService.findAll(req.storeId, search);
+  findAll(
+    @Req() req,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.productsService.findAll(req.storeId, search, limit);
   }
 
   @Patch(':id')
