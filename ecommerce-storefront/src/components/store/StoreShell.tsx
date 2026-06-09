@@ -1,5 +1,8 @@
 "use client";
 
+import { useAuth } from "@/context/auth-context";
+import { usePathname } from "next/navigation";
+
 export default function StoreShell({
   themeName,
   children,
@@ -7,12 +10,20 @@ export default function StoreShell({
   themeName?: string | null;
   children: React.ReactNode;
 }) {
+  const { user } = useAuth();
+  const pathname = usePathname();
   const whatsappConfig = getWhatsAppConfig(themeName);
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
+  const isAdminWorkspace =
+    pathname === "/account" || pathname === "/manual-sales";
+  const showWhatsApp = Boolean(whatsappConfig) && !(isAdmin && isAdminWorkspace);
 
   return (
     <div data-store-shell style={{ minHeight: "100vh" }}>
       <main data-store-content>{children}</main>
-      {whatsappConfig ? <WhatsAppFloatingButton {...whatsappConfig} /> : null}
+      {showWhatsApp && whatsappConfig ? (
+        <WhatsAppFloatingButton {...whatsappConfig} />
+      ) : null}
     </div>
   );
 }

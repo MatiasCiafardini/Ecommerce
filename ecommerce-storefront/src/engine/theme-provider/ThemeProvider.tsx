@@ -5,6 +5,8 @@ import AnnouncementTicker from "@/components/store/AnnouncementTicker";
 import { buildThemeStyle } from "@/lib/theme/theme-palette-style";
 import type { ThemePalette } from "@/types/theme";
 import type { StorefrontThemeLayout } from "@/types/storefront-config";
+import { useAuth } from "@/context/auth-context";
+import { usePathname } from "next/navigation";
 
 export default function ThemeProvider({
   themeName,
@@ -17,6 +19,8 @@ export default function ThemeProvider({
   themeLayout?: StorefrontThemeLayout;
   children: React.ReactNode;
 }) {
+  const { user } = useAuth();
+  const pathname = usePathname();
   const theme = themes[themeName as keyof typeof themes];
 
   if (!theme) return <>{children}</>;
@@ -24,6 +28,10 @@ export default function ThemeProvider({
   const Header = "Header" in theme ? theme.Header : null;
   const Footer = "Footer" in theme ? theme.Footer : null;
   const themeStyle = buildThemeStyle(theme.tokens, themePalette);
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
+  const isAdminWorkspace =
+    pathname === "/account" || pathname === "/manual-sales";
+  const showStoreChrome = !(isAdmin && isAdminWorkspace);
 
   return (
     <div className={theme.className} style={themeStyle}>
@@ -36,12 +44,16 @@ export default function ThemeProvider({
           }
         `}</style>
       ) : null}
-      <AnnouncementTicker text={themeLayout?.header?.announcementText} />
-      {Header && <Header themeLayout={themeLayout} />}
+      {showStoreChrome ? (
+        <>
+          <AnnouncementTicker text={themeLayout?.header?.announcementText} />
+          {Header && <Header themeLayout={themeLayout} />}
+        </>
+      ) : null}
 
       <main>{children}</main>
 
-      {Footer && <Footer themeLayout={themeLayout} />}
+      {showStoreChrome && Footer ? <Footer themeLayout={themeLayout} /> : null}
     </div>
   );
 }

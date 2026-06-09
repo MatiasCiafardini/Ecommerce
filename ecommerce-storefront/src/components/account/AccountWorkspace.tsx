@@ -115,6 +115,10 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
     router.push("/");
   };
 
+  const openStorefront = () => {
+    router.push("/");
+  };
+
   const handleSectionChange = (nextSection: AccountSection) => {
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -414,6 +418,13 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                         </button>
                         <button
                           type="button"
+                          onClick={openStorefront}
+                          style={adminAccountActionStyle}
+                        >
+                          Ver tienda
+                        </button>
+                        <button
+                          type="button"
                           onClick={handleLogout}
                           style={adminLogoutActionStyle}
                         >
@@ -430,6 +441,15 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                           style={adminCollapsedAccountButtonStyle}
                         >
                           <MenuIcon name="customers" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={openStorefront}
+                          aria-label="Ver tienda"
+                          title="Ver tienda"
+                          style={adminCollapsedAccountButtonStyle}
+                        >
+                          <MenuIcon name="store" />
                         </button>
                         <button
                           type="button"
@@ -700,6 +720,7 @@ function MenuIcon({ name }: { name: string }) {
     promotions: <><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H8.5a2.5 2.5 0 1 1 0-5C12 2 12 7 12 7Z" /><path d="M12 7h3.5a2.5 2.5 0 1 0 0-5C12 2 12 7 12 7Z" /></>,
     accounting: <><path d="M4 3h16v18H4z" /><path d="M8 7h8" /><path d="M8 11h8" /><path d="M8 15h3" /><path d="M15 15h1" /></>,
     settings: <><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V20h-3v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3v-3h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.12-2.12.06.06A1.7 1.7 0 0 0 8.3 5.4a1.7 1.7 0 0 0 1-1.55V3h3v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1H21v3h-.09a1.7 1.7 0 0 0-1.55 1Z" /></>,
+    store: <><path d="M4 10h16" /><path d="M5 10l1.2-5h11.6L19 10" /><path d="M6 10v10h12V10" /><path d="M9 20v-6h6v6" /></>,
     default: <path d="M5 12h14" />,
   };
 
