@@ -70,6 +70,8 @@ const isManualSaleOrder = (order: ManualSaleOrder) =>
       payment.provider === "manual" || payment.metadata?.origin === "manual_sale",
   );
 
+const isCancelledOrder = (order: ManualSaleOrder) => order.status === "cancelled";
+
 export default function ManualSalesWorkspace() {
   const [orders, setOrders] = useState<ManualSaleOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +81,7 @@ export default function ManualSalesWorkspace() {
   const [modalMode, setModalMode] = useState<"view" | "edit" | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
   const [editError, setEditError] = useState("");
 
   const loadOrders = async () => {
@@ -107,12 +110,17 @@ export default function ManualSalesWorkspace() {
   const summary = useMemo(() => {
     const today = new Date();
     const todayKey = today.toISOString().slice(0, 10);
+    const activeOrders = orders.filter((order) => !isCancelledOrder(order));
     const todayOrders = orders.filter(
       (order) => new Date(order.createdAt).toISOString().slice(0, 10) === todayKey,
     );
-    const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
-    const todayRevenue = todayOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
-    const averageTicket = orders.length > 0 ? totalRevenue / orders.length : 0;
+    const activeTodayOrders = todayOrders.filter((order) => !isCancelledOrder(order));
+    const totalRevenue = activeOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+    const todayRevenue = activeTodayOrders.reduce(
+      (sum, order) => sum + Number(order.total ?? 0),
+      0,
+    );
+    const averageTicket = activeOrders.length > 0 ? totalRevenue / activeOrders.length : 0;
 
     return {
       totalOrders: orders.length,
@@ -147,13 +155,18 @@ export default function ManualSalesWorkspace() {
   };
 
   const openEdit = (order: ManualSaleOrder) => {
+    if (isCancelledOrder(order)) {
+      setEditError("Las ventas canceladas no se pueden editar.");
+      return;
+    }
+
     setSelectedOrder(order);
     setModalMode("edit");
-      setEditDraft({
-        paymentMethod: getManualPaymentMethod(order),
-        discountType: getManualDiscountType(order),
-        discountValue: String(getManualDiscountValue(order)),
-        items: (order.items ?? []).map((item) => ({
+    setEditDraft({
+      paymentMethod: getManualPaymentMethod(order),
+      discountType: getManualDiscountType(order),
+      discountValue: String(getManualDiscountValue(order)),
+      items: (order.items ?? []).map((item) => ({
         orderItemId: item.id,
         title: item.variant.product.title,
         variantLabel: getVariantLabel(item.variant),
@@ -230,6 +243,48 @@ export default function ManualSalesWorkspace() {
       );
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  const cancelSale = async (order: ManualSaleOrder) => {
+    if (isCancelledOrder(order) || cancellingOrderId) return;
+
+    const confirmed = window.confirm(
+      `Cancelar la venta #${order.id}? El stock de sus productos vuelve al catalogo.`,
+    );
+
+    if (!confirmed) return;
+
+    setCancellingOrderId(order.id);
+    setError("");
+    setEditError("");
+
+    try {
+      const updated = (await api(`/orders/manual/${order.id}/cancel`, {
+        method: "PATCH",
+      })) as ManualSaleOrder;
+
+      setOrders((current) =>
+        current.map((currentOrder) =>
+          currentOrder.id === updated.id ? updated : currentOrder,
+        ),
+      );
+      setSelectedOrder((current) =>
+        current?.id === updated.id ? updated : current,
+      );
+      setModalMode("view");
+      setEditDraft(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "No se pudo cancelar la venta manual.";
+
+      if (selectedOrder?.id === order.id) {
+        setEditError(message);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setCancellingOrderId(null);
     }
   };
 
@@ -357,9 +412,28 @@ export default function ManualSalesWorkspace() {
                           <button
                             type="button"
                             onClick={() => openEdit(order)}
+                            disabled={isCancelledOrder(order)}
                             style={ghostButtonStyle}
                           >
                             Editar venta
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void cancelSale(order)}
+                            disabled={isCancelledOrder(order) || cancellingOrderId === order.id}
+                            style={{
+                              ...dangerGhostButtonStyle,
+                              opacity:
+                                isCancelledOrder(order) || cancellingOrderId === order.id
+                                  ? 0.5
+                                  : 1,
+                              cursor:
+                                isCancelledOrder(order) || cancellingOrderId === order.id
+                                  ? "not-allowed"
+                                  : "pointer",
+                            }}
+                          >
+                            {cancellingOrderId === order.id ? "Cancelando..." : "Cancelar venta"}
                           </button>
                         </div>
                       </article>
@@ -583,13 +657,41 @@ export default function ManualSalesWorkspace() {
                 Cerrar
               </button>
               {modalMode === "view" ? (
-                <button
-                  type="button"
-                  onClick={() => openEdit(selectedOrder)}
-                  style={primaryButtonStyle}
-                >
-                  Editar venta
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void cancelSale(selectedOrder)}
+                    disabled={
+                      isCancelledOrder(selectedOrder) ||
+                      cancellingOrderId === selectedOrder.id
+                    }
+                    style={{
+                      ...dangerGhostButtonStyle,
+                      opacity:
+                        isCancelledOrder(selectedOrder) ||
+                        cancellingOrderId === selectedOrder.id
+                          ? 0.5
+                          : 1,
+                      cursor:
+                        isCancelledOrder(selectedOrder) ||
+                        cancellingOrderId === selectedOrder.id
+                          ? "not-allowed"
+                          : "pointer",
+                    }}
+                  >
+                    {cancellingOrderId === selectedOrder.id
+                      ? "Cancelando..."
+                      : "Cancelar venta"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(selectedOrder)}
+                    disabled={isCancelledOrder(selectedOrder)}
+                    style={primaryButtonStyle}
+                  >
+                    Editar venta
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"

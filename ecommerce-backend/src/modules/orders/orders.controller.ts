@@ -39,6 +39,11 @@ export class OrdersController {
     return this.ordersService.createManualSale(dto, req.storeId);
   }
 
+  @Patch('manual/:id/cancel')
+  cancelManual(@Param('id') id: string, @Req() req) {
+    return this.ordersService.cancelManualSale(Number(id), req.storeId);
+  }
+
   @Patch('manual/:id')
   updateManual(
     @Param('id') id: string,

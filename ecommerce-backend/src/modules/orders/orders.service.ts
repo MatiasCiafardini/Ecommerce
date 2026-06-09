@@ -556,6 +556,109 @@ export class OrdersService {
     });
   }
 
+  async cancelManualSale(orderId: number, storeId: number) {
+    await this.ensureManualSalesEnabled(storeId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: {
+          id: orderId,
+          storeId,
+          payments: {
+            some: {
+              provider: 'manual',
+            },
+          },
+        },
+        include: this.orderInclude(),
+      });
+
+      if (!order) {
+        throw new NotFoundException('Manual sale not found');
+      }
+
+      if (order.status === OrderStatus.cancelled) {
+        return this.withCancellationRequests(order);
+      }
+
+      const manualPayment = order.payments.find(
+        (payment) => payment.provider === 'manual',
+      );
+      const behavesAsPending =
+        manualPayment?.status === 'pending' ||
+        order.status === OrderStatus.pending;
+
+      for (const item of order.items) {
+        if (behavesAsPending) {
+          await this.inventoryLockService.releaseStockTx(
+            tx,
+            storeId,
+            item.variantId,
+            item.quantity,
+          );
+        } else {
+          await tx.inventory.update({
+            where: {
+              storeId_variantId: {
+                storeId,
+                variantId: item.variantId,
+              },
+            },
+            data: {
+              quantity: {
+                increment: item.quantity,
+              },
+            },
+          });
+        }
+      }
+
+      const updated = await tx.order.update({
+        where: {
+          id: order.id,
+        },
+        data: {
+          status: OrderStatus.cancelled,
+          payments: manualPayment
+            ? {
+                update: {
+                  where: {
+                    id: manualPayment.id,
+                  },
+                  data: {
+                    status: 'cancelled',
+                    reviewedAt: new Date(),
+                  },
+                },
+              }
+            : undefined,
+        },
+        include: this.orderInclude(),
+      });
+
+      await tx.orderEvent.create({
+        data: {
+          storeId,
+          orderId: order.id,
+          type: 'order.manual_sale_cancelled',
+          title: 'Venta manual cancelada',
+          message: 'La venta manual fue cancelada y el stock fue restituido.',
+          actorType: 'admin',
+          metadata: {
+            previousStatus: order.status,
+            paymentStatus: manualPayment?.status ?? null,
+            restoredItems: order.items.map((item) => ({
+              variantId: item.variantId,
+              quantity: item.quantity,
+            })),
+          },
+        },
+      });
+
+      return this.withCancellationRequests(updated);
+    });
+  }
+
   private async ensureManualSalesEnabled(storeId: number) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
