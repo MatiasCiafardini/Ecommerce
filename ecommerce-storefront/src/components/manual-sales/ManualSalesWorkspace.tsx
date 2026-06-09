@@ -82,6 +82,7 @@ export default function ManualSalesWorkspace() {
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
+  const [pendingCancelOrder, setPendingCancelOrder] = useState<ManualSaleOrder | null>(null);
   const [editError, setEditError] = useState("");
 
   const loadOrders = async () => {
@@ -185,6 +186,13 @@ export default function ManualSalesWorkspace() {
     setSavingEdit(false);
   };
 
+  const requestCancelSale = (order: ManualSaleOrder) => {
+    if (isCancelledOrder(order) || cancellingOrderId) return;
+    setPendingCancelOrder(order);
+    setError("");
+    setEditError("");
+  };
+
   const updateDraftItem = (
     orderItemId: number,
     updater: (item: EditDraft["items"][number]) => EditDraft["items"][number],
@@ -246,14 +254,10 @@ export default function ManualSalesWorkspace() {
     }
   };
 
-  const cancelSale = async (order: ManualSaleOrder) => {
+  const confirmCancelSale = async () => {
+    const order = pendingCancelOrder;
+    if (!order) return;
     if (isCancelledOrder(order) || cancellingOrderId) return;
-
-    const confirmed = window.confirm(
-      `Cancelar la venta #${order.id}? El stock de sus productos vuelve al catalogo.`,
-    );
-
-    if (!confirmed) return;
 
     setCancellingOrderId(order.id);
     setError("");
@@ -274,6 +278,7 @@ export default function ManualSalesWorkspace() {
       );
       setModalMode("view");
       setEditDraft(null);
+      setPendingCancelOrder(null);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "No se pudo cancelar la venta manual.";
@@ -419,7 +424,7 @@ export default function ManualSalesWorkspace() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void cancelSale(order)}
+                            onClick={() => requestCancelSale(order)}
                             disabled={isCancelledOrder(order) || cancellingOrderId === order.id}
                             style={{
                               ...dangerGhostButtonStyle,
@@ -660,7 +665,7 @@ export default function ManualSalesWorkspace() {
                 <>
                   <button
                     type="button"
-                    onClick={() => void cancelSale(selectedOrder)}
+                    onClick={() => requestCancelSale(selectedOrder)}
                     disabled={
                       isCancelledOrder(selectedOrder) ||
                       cancellingOrderId === selectedOrder.id
@@ -702,6 +707,45 @@ export default function ManualSalesWorkspace() {
                   {savingEdit ? "Guardando..." : "Guardar cambios"}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingCancelOrder ? (
+        <div style={modalOverlayStyle} onClick={() => setPendingCancelOrder(null)}>
+          <div
+            data-account-panel
+            style={{ ...modalCardStyle, maxWidth: 460 }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: "grid", gap: 10 }}>
+              <p style={eyebrowStyle}>Cancelar venta</p>
+              <h2 style={sectionTitleStyle}>Venta #{pendingCancelOrder.id}</h2>
+              <p style={metaStyle}>
+                Al cancelar la venta, el stock de sus productos vuelve al catalogo.
+              </p>
+            </div>
+
+            <div style={modalActionsStyle}>
+              <button
+                type="button"
+                onClick={() => setPendingCancelOrder(null)}
+                style={secondaryButtonStyle}
+                disabled={cancellingOrderId === pendingCancelOrder.id}
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmCancelSale()}
+                style={dangerGhostButtonStyle}
+                disabled={cancellingOrderId === pendingCancelOrder.id}
+              >
+                {cancellingOrderId === pendingCancelOrder.id
+                  ? "Cancelando..."
+                  : "Confirmar cancelacion"}
+              </button>
             </div>
           </div>
         </div>

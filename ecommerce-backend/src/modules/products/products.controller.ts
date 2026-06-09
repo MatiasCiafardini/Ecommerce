@@ -44,6 +44,29 @@ export class ProductsController {
     return this.productsService.findAll(req.storeId, search, limit);
   }
 
+  @Get('admin/catalog')
+  findAdminCatalog(
+    @Req() req,
+    @Query('search') search?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.productsService.findAdminCatalog(req.storeId, {
+      search,
+      categoryId,
+      status,
+      page,
+      pageSize,
+    });
+  }
+
+  @Get('admin/:id')
+  findAdminOne(@Param('id') id: string, @Req() req) {
+    return this.productsService.findOne(Number(id), req.storeId);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateProductDto, @Req() req) {
     return this.productsService.update(Number(id), dto, req.storeId);

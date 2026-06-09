@@ -64,6 +64,22 @@ type AdminIntegrationsConfig = {
   priceInput?: Partial<ProductPriceInputSettings> | null;
 };
 
+type ProductCatalogMetrics = {
+  total: number;
+  published: number;
+  draft: number;
+  withoutStock: number;
+};
+
+type ProductCatalogResponse = {
+  items: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  metrics: ProductCatalogMetrics;
+};
+
 export type Category = {
   id: number;
   name: string;
@@ -279,6 +295,7 @@ const MAX_IMAGE_UPLOAD_BYTES = 900 * 1024;
 const MAX_IMAGE_DIMENSION = 1400;
 const QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
 const IMAGE_UPLOAD_CONCURRENCY = 2;
+const ADMIN_PRODUCTS_PAGE_SIZE = 80;
 
 const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
@@ -564,6 +581,15 @@ export default function AdminProductsSection({
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const catalogAutoReloadAttemptedRef = useRef(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productPage, setProductPage] = useState(1);
+  const [productTotal, setProductTotal] = useState(0);
+  const [productTotalPages, setProductTotalPages] = useState(1);
+  const [productMetrics, setProductMetrics] = useState<ProductCatalogMetrics>({
+    total: 0,
+    published: 0,
+    draft: 0,
+    withoutStock: 0,
+  });
   const [categories, setCategories] = useState<Category[]>([]);
   const [options, setOptions] = useState<ProductOption[]>([]);
   const [priceInputSettings, setPriceInputSettings] = useState<ProductPriceInputSettings>(
@@ -740,17 +766,52 @@ export default function AdminProductsSection({
     return nextOptions;
   };
 
-  const loadData = async (): Promise<Product[]> => {
+  const buildCatalogQueryString = (page = productPage) => {
+    const params = new URLSearchParams();
+    const query = productQuery.trim();
+
+    params.set("page", String(page));
+    params.set("pageSize", String(ADMIN_PRODUCTS_PAGE_SIZE));
+
+    if (query) {
+      params.set("search", query);
+    }
+
+    if (productCategoryFilter !== "all") {
+      params.set("categoryId", productCategoryFilter);
+    }
+
+    if (productStatusFilter !== "all") {
+      params.set("status", productStatusFilter);
+    }
+
+    return params.toString();
+  };
+
+  const fetchAdminProduct = async (productId: number) =>
+    (await api(`/products/admin/${productId}`)) as Product;
+
+  const loadData = async (page = productPage): Promise<Product[]> => {
     setLoading(true);
     try {
       const [p, c, o, integrations] = await Promise.all([
-        api("/products"),
+        api(`/products/admin/catalog?${buildCatalogQueryString(page)}`),
         api("/categories"),
         api("/product-options"),
         api("/store/admin/integrations") as Promise<AdminIntegrationsConfig>,
       ]);
-      const nextProducts = Array.isArray(p) ? p : [];
+      const catalog = p as Partial<ProductCatalogResponse>;
+      const nextProducts = Array.isArray(catalog.items) ? catalog.items : [];
       setProducts(nextProducts);
+      setProductPage(Number(catalog.page ?? page));
+      setProductTotal(Number(catalog.total ?? nextProducts.length));
+      setProductTotalPages(Math.max(1, Number(catalog.totalPages ?? 1)));
+      setProductMetrics({
+        total: Number(catalog.metrics?.total ?? nextProducts.length),
+        published: Number(catalog.metrics?.published ?? 0),
+        draft: Number(catalog.metrics?.draft ?? 0),
+        withoutStock: Number(catalog.metrics?.withoutStock ?? 0),
+      });
       setCategories(Array.isArray(c) ? scopeCategoriesToActiveStore(c as Category[]) : []);
       setOptions(Array.isArray(o) ? o : []);
       setPriceInputSettings(normalizePriceInputSettings(integrations?.priceInput));
@@ -767,8 +828,12 @@ export default function AdminProductsSection({
   };
 
   useEffect(() => {
-    void loadData();
-  }, []);
+    const timeout = window.setTimeout(() => {
+      void loadData(productPage);
+    }, productQuery.trim() ? 280 : 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [productCategoryFilter, productPage, productQuery, productStatusFilter]);
 
   useEffect(() => {
     if (activeTab !== "catalog") {
@@ -830,62 +895,30 @@ export default function AdminProductsSection({
       return;
     }
 
-    const productToEdit = products.find(
-      (product) => product.id === nextProductId,
-    );
-    if (!productToEdit) {
-      return;
-    }
+    const productToEdit = products.find((product) => product.id === nextProductId);
 
-    setActiveTab("create");
-    formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setAutoOpenedProductId(nextProductId);
-    void hydrateFormFromProduct(productToEdit);
+    const openProduct = async () => {
+      try {
+        const product = productToEdit ?? (await fetchAdminProduct(nextProductId));
+        setActiveTab("create");
+        formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setAutoOpenedProductId(nextProductId);
+        await hydrateFormFromProduct(product);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo abrir el producto solicitado.",
+        );
+      }
+    };
+
+    void openProduct();
   }, [autoOpenedProductId, loading, products, searchParams]);
 
   const filteredProducts = useMemo(() => {
-    const query = productQuery.trim().toLowerCase();
-
-    return products.filter((product) => {
-      const categoryText = (product.categories ?? [])
-        .map((entry) => entry.category.name)
-        .join(" ")
-        .toLowerCase();
-      const tagText = (product as Product & { optionValues?: Array<{ value?: string }> }).optionValues
-        ?.map((entry) => entry.value ?? "")
-        .join(" ")
-        .toLowerCase() ?? "";
-      const totalStock = getProductTotalStock(product);
-      const matchesQuery =
-        !query ||
-        product.title.toLowerCase().includes(query) ||
-        product.slug.toLowerCase().includes(query) ||
-        categoryText.includes(query) ||
-        tagText.includes(query);
-      const matchesCategory =
-        productCategoryFilter === "all" ||
-        (product.categories ?? []).some((entry) => String(entry.category.id) === productCategoryFilter);
-      const matchesStatus =
-        productStatusFilter === "all" ||
-        (productStatusFilter === "published"
-          ? product.published && totalStock > 0
-          : productStatusFilter === "draft"
-            ? !product.published && totalStock > 0
-            : totalStock <= 0);
-
-      return matchesQuery && matchesCategory && matchesStatus;
-    });
-  }, [productCategoryFilter, productQuery, productStatusFilter, products]);
-
-  const productMetrics = useMemo(
-    () => ({
-      total: products.length,
-      published: products.filter((product) => product.published).length,
-      draft: products.filter((product) => !product.published).length,
-      withoutStock: products.filter((product) => getProductTotalStock(product) <= 0).length,
-    }),
-    [products],
-  );
+    return products;
+  }, [products]);
 
   const filteredOptions = useMemo(() => {
     const query = optionQuery.trim().toLowerCase();
@@ -2783,7 +2816,9 @@ export default function AdminProductsSection({
       }
 
       const nextProducts = await loadData();
-      const refreshedProduct = nextProducts.find((item) => item.id === productId);
+      const refreshedProduct =
+        nextProducts.find((item) => item.id === productId) ??
+        (wasEditing ? await fetchAdminProduct(productId) : null);
 
       if (wasEditing && refreshedProduct && !hasPendingImageUploads) {
         await hydrateFormFromProduct(refreshedProduct);
@@ -3519,12 +3554,34 @@ export default function AdminProductsSection({
   const renderModernCatalog = () => (
     <div style={modernWorkspaceStyle}>
       <div style={catalogToolbarStyle}>
-        <input value={productQuery} onChange={(event) => setProductQuery(event.target.value)} placeholder="Buscar productos" style={responsiveSearchFieldStyle} />
-        <select value={productCategoryFilter} onChange={(event) => setProductCategoryFilter(event.target.value)} style={responsiveSelectStyle}>
+        <input
+          value={productQuery}
+          onChange={(event) => {
+            setProductPage(1);
+            setProductQuery(event.target.value);
+          }}
+          placeholder="Buscar productos"
+          style={responsiveSearchFieldStyle}
+        />
+        <select
+          value={productCategoryFilter}
+          onChange={(event) => {
+            setProductPage(1);
+            setProductCategoryFilter(event.target.value);
+          }}
+          style={responsiveSelectStyle}
+        >
           <option value="all">Todas las categorias</option>
           {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
-        <select value={productStatusFilter} onChange={(event) => setProductStatusFilter(event.target.value as typeof productStatusFilter)} style={responsiveSelectStyle}>
+        <select
+          value={productStatusFilter}
+          onChange={(event) => {
+            setProductPage(1);
+            setProductStatusFilter(event.target.value as typeof productStatusFilter);
+          }}
+          style={responsiveSelectStyle}
+        >
           <option value="all">Todos los estados</option>
           <option value="published">Publicado</option>
           <option value="draft">Borrador</option>
@@ -3604,6 +3661,34 @@ export default function AdminProductsSection({
             })}
           </tbody>
         </table>
+      </div>
+      <div style={paginationBarStyle}>
+        <span style={metaStyle}>
+          Mostrando {filteredProducts.length} de {productTotal} productos
+        </span>
+        <div style={rowWrapStyle}>
+          <button
+            type="button"
+            onClick={() => setProductPage((current) => Math.max(1, current - 1))}
+            disabled={loading || productPage <= 1}
+            style={ghostButtonStyle}
+          >
+            Anterior
+          </button>
+          <span style={metaStyle}>
+            Pagina {productPage} de {productTotalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setProductPage((current) => Math.min(productTotalPages, current + 1))
+            }
+            disabled={loading || productPage >= productTotalPages}
+            style={ghostButtonStyle}
+          >
+            Siguiente
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -6363,6 +6448,13 @@ const catalogToolbarStyle: React.CSSProperties = {
   gap: 10,
   flexWrap: "wrap",
   alignItems: "center",
+};
+const paginationBarStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
 };
 const iconActionsStyle: React.CSSProperties = {
   display: "flex",

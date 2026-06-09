@@ -82,6 +82,142 @@ export class ProductsService {
     });
   }
 
+  async findAdminCatalog(
+    storeId: number,
+    query: {
+      search?: string;
+      categoryId?: string;
+      status?: string;
+      page?: string;
+      pageSize?: string;
+    },
+  ) {
+    const page = this.normalizePositiveInt(query.page, 1, 1, 10_000);
+    const pageSize = this.normalizePositiveInt(query.pageSize, 80, 20, 120);
+    const where = this.buildAdminCatalogWhere(storeId, query);
+    const metricsWhere = {
+      storeId,
+      deletedAt: null,
+    } satisfies Prisma.ProductWhereInput;
+    const hasStockWhere = this.buildHasStockWhere(storeId);
+    const withoutStockWhere = this.buildWithoutStockWhere(storeId);
+
+    const [items, total, totalProducts, published, draft, withoutStock] =
+      await Promise.all([
+        this.prisma.product.findMany({
+          where,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          orderBy: {
+            title: 'asc',
+          },
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            published: true,
+            description: true,
+            weightGrams: true,
+            packageHeightCm: true,
+            packageWidthCm: true,
+            packageLengthCm: true,
+            packagingTemplateId: true,
+            images: {
+              orderBy: [{ position: 'asc' }, { id: 'asc' }],
+              take: 1,
+              select: {
+                id: true,
+                url: true,
+                position: true,
+                offsetX: true,
+                offsetY: true,
+                zoom: true,
+              },
+            },
+            categories: {
+              where: {
+                category: {
+                  deletedAt: null,
+                },
+              },
+              select: {
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            variants: {
+              where: {
+                deletedAt: null,
+              },
+              select: {
+                id: true,
+                sku: true,
+                price: true,
+                inventories: {
+                  where: {
+                    storeId,
+                  },
+                  select: {
+                    quantity: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+        this.prisma.product.count({ where }),
+        this.prisma.product.count({ where: metricsWhere }),
+        this.prisma.product.count({
+          where: {
+            ...metricsWhere,
+            published: true,
+            ...hasStockWhere,
+          },
+        }),
+        this.prisma.product.count({
+          where: {
+            ...metricsWhere,
+            published: false,
+            ...hasStockWhere,
+          },
+        }),
+        this.prisma.product.count({
+          where: {
+            ...metricsWhere,
+            ...withoutStockWhere,
+          },
+        }),
+      ]);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      metrics: {
+        total: totalProducts,
+        published,
+        draft,
+        withoutStock,
+      },
+    };
+  }
+
+  async findOne(productId: number, storeId: number) {
+    const product = await this.findById(this.prisma, productId, storeId);
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return product;
+  }
+
   private buildFindAllWhere(storeId: number, rawSearch?: string): Prisma.ProductWhereInput {
     const where: Prisma.ProductWhereInput = {
       storeId,
@@ -138,6 +274,92 @@ export class ProductsService {
     ];
 
     return where;
+  }
+
+  private buildAdminCatalogWhere(
+    storeId: number,
+    query: {
+      search?: string;
+      categoryId?: string;
+      status?: string;
+    },
+  ): Prisma.ProductWhereInput {
+    const where = this.buildFindAllWhere(storeId, query.search);
+    const categoryId = Number(query.categoryId);
+    const status = query.status?.trim();
+    const andConditions = Array.isArray(where.AND)
+      ? [...where.AND]
+      : where.AND
+        ? [where.AND]
+        : [];
+
+    if (Number.isFinite(categoryId) && categoryId > 0) {
+      andConditions.push({
+        categories: {
+          some: {
+            categoryId: Math.trunc(categoryId),
+            category: {
+              storeId,
+              deletedAt: null,
+            },
+          },
+        },
+      });
+    }
+
+    if (status === 'published') {
+      where.published = true;
+      andConditions.push(this.buildHasStockWhere(storeId));
+    } else if (status === 'draft') {
+      where.published = false;
+      andConditions.push(this.buildHasStockWhere(storeId));
+    } else if (status === 'without-stock') {
+      andConditions.push(this.buildWithoutStockWhere(storeId));
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
+    return where;
+  }
+
+  private buildHasStockWhere(storeId: number): Prisma.ProductWhereInput {
+    return {
+      variants: {
+        some: {
+          deletedAt: null,
+          inventories: {
+            some: {
+              storeId,
+              quantity: {
+                gt: 0,
+              },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  private buildWithoutStockWhere(storeId: number): Prisma.ProductWhereInput {
+    return {
+      NOT: this.buildHasStockWhere(storeId),
+    };
+  }
+
+  private normalizePositiveInt(
+    value: string | number | undefined,
+    fallback: number,
+    min: number,
+    max: number,
+  ) {
+    const parsed = Number(value ?? fallback);
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.max(min, Math.min(max, Math.trunc(parsed)));
   }
 
   async update(productId: number, data: UpdateProductDto, storeId: number) {
