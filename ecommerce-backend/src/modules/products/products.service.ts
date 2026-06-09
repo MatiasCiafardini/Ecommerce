@@ -27,8 +27,7 @@ export class ProductsService {
       throw new BadRequestException('Product title is required');
     }
 
-    const slug = generateSlug(title);
-    await this.ensureSlugAvailable(slug, storeId);
+    const slug = await this.resolveAvailableSlug(generateSlug(title), storeId);
 
     return this.prisma.product.create({
       data: {
@@ -442,7 +441,6 @@ export class ProductsService {
       where: {
         storeId,
         slug,
-        deletedAt: null,
         id:
           excludeProductId === undefined
             ? undefined
@@ -462,6 +460,20 @@ export class ProductsService {
     }
   }
 
+  private async resolveAvailableSlug(baseSlug: string, storeId: number) {
+    const existingProducts = await this.prisma.product.findMany({
+      where: {
+        storeId,
+        OR: [{ slug: baseSlug }, { slug: { startsWith: `${baseSlug}-` } }],
+      },
+      select: {
+        slug: true,
+      },
+    });
+
+    return this.pickAvailableSlug(baseSlug, existingProducts.map((product) => product.slug));
+  }
+
   private async createProductRecord(
     tx: Prisma.TransactionClient,
     storeId: number,
@@ -476,8 +488,7 @@ export class ProductsService {
       packagingTemplateId?: string | null;
     },
   ) {
-    const slug = generateSlug(data.title);
-    await this.ensureSlugAvailableTx(tx, slug, storeId);
+    const slug = await this.resolveAvailableSlugTx(tx, generateSlug(data.title), storeId);
 
     return tx.product.create({
       data: {
@@ -935,7 +946,6 @@ export class ProductsService {
       where: {
         storeId,
         slug,
-        deletedAt: null,
         id:
           excludeProductId === undefined
             ? undefined
@@ -953,6 +963,41 @@ export class ProductsService {
         'Ya existe un producto con ese titulo. Editalo o usa otro titulo.',
       );
     }
+  }
+
+  private async resolveAvailableSlugTx(
+    tx: Prisma.TransactionClient,
+    baseSlug: string,
+    storeId: number,
+  ) {
+    const existingProducts = await tx.product.findMany({
+      where: {
+        storeId,
+        OR: [{ slug: baseSlug }, { slug: { startsWith: `${baseSlug}-` } }],
+      },
+      select: {
+        slug: true,
+      },
+    });
+
+    return this.pickAvailableSlug(baseSlug, existingProducts.map((product) => product.slug));
+  }
+
+  private pickAvailableSlug(baseSlug: string, existingSlugs: string[]) {
+    const usedSlugs = new Set(existingSlugs);
+
+    if (!usedSlugs.has(baseSlug)) {
+      return baseSlug;
+    }
+
+    for (let suffix = 2; suffix < 10000; suffix += 1) {
+      const candidate = `${baseSlug}-${suffix}`;
+      if (!usedSlugs.has(candidate)) {
+        return candidate;
+      }
+    }
+
+    throw new BadRequestException('No pudimos generar un slug disponible para este producto.');
   }
 
   private async ensureSkuAvailableInStoreTx(
