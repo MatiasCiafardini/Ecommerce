@@ -421,6 +421,7 @@ model CurrentAccount {
   lastMovementAt DateTime?
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
+  deletedAt      DateTime?
   store          Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   customer       Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
   movements      CurrentAccountMovement[]

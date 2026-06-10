@@ -2,7 +2,8 @@
 
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { api } from "@/lib/api";
+import { api, apiBlob } from "@/lib/api";
+import { downloadBlobFile } from "@/lib/download";
 import { money } from "./order-utils";
 
 type Customer = {
@@ -12,6 +13,7 @@ type Customer = {
   lastName?: string | null;
   phone?: string | null;
   document?: string | null;
+  notes?: string | null;
 };
 
 type Movement = {
@@ -55,6 +57,15 @@ export default function AdminCurrentAccountsSection() {
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [paymentDescription, setPaymentDescription] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
+  const [editAccount, setEditAccount] = useState<CurrentAccount | null>(null);
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", phone: "", document: "", notes: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [balanceAccount, setBalanceAccount] = useState<CurrentAccount | null>(null);
+  const [balanceValue, setBalanceValue] = useState("");
+  const [balanceDescription, setBalanceDescription] = useState("");
+  const [savingBalance, setSavingBalance] = useState(false);
+  const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
+  const [downloadingReceiptId, setDownloadingReceiptId] = useState<number | null>(null);
 
   const loadAccounts = async () => {
     setLoading(true);
@@ -106,6 +117,96 @@ export default function AdminCurrentAccountsSection() {
     setPaymentDescription("");
   };
 
+  const openEdit = (account: CurrentAccount) => {
+    setEditAccount(account);
+    setEditForm({
+      firstName: account.customer.firstName ?? "",
+      lastName: account.customer.lastName ?? "",
+      email: account.customer.email ?? "",
+      phone: account.customer.phone ?? "",
+      document: account.customer.document ?? "",
+      notes: account.customer.notes ?? "",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editAccount) return;
+
+    setSavingEdit(true);
+    setError("");
+    try {
+      await api(`/current-accounts/customers/${editAccount.customerId}`, {
+        method: "PATCH",
+        body: JSON.stringify(editForm),
+      });
+      setEditAccount(null);
+      await loadAccounts();
+      if (selected?.customerId === editAccount.customerId) {
+        const detail = await api(`/current-accounts/customers/${editAccount.customerId}`);
+        setSelected(detail as CurrentAccount);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar la cuenta corriente.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const openBalance = (account: CurrentAccount) => {
+    setBalanceAccount(account);
+    setBalanceValue(String(Number(account.balance)));
+    setBalanceDescription("");
+  };
+
+  const saveBalance = async () => {
+    if (!balanceAccount) return;
+    const balance = Number(balanceValue);
+
+    if (!Number.isFinite(balance) || balance < 0) {
+      setError("El saldo debe ser 0 o mayor.");
+      return;
+    }
+
+    setSavingBalance(true);
+    setError("");
+    try {
+      await api(`/current-accounts/customers/${balanceAccount.customerId}/balance`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          balance,
+          description: balanceDescription.trim() || undefined,
+        }),
+      });
+      setBalanceAccount(null);
+      await loadAccounts();
+      if (selected?.customerId === balanceAccount.customerId) {
+        const detail = await api(`/current-accounts/customers/${balanceAccount.customerId}`);
+        setSelected(detail as CurrentAccount);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo ajustar el saldo.");
+    } finally {
+      setSavingBalance(false);
+    }
+  };
+
+  const deactivateAccount = async (account: CurrentAccount) => {
+    const confirmed = window.confirm(`Dar de baja la cuenta corriente de ${customerName(account.customer)}? El historial de movimientos se conserva.`);
+    if (!confirmed) return;
+
+    setDeactivatingId(account.id);
+    setError("");
+    try {
+      await api(`/current-accounts/customers/${account.customerId}`, { method: "DELETE" });
+      if (selected?.customerId === account.customerId) setSelected(null);
+      await loadAccounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo dar de baja la cuenta corriente.");
+    } finally {
+      setDeactivatingId(null);
+    }
+  };
+
   const openGlobalPayment = async () => {
     setPaymentModalOpen(true);
     setPaymentCustomer(null);
@@ -148,24 +249,40 @@ export default function AdminCurrentAccountsSection() {
     setSavingPayment(true);
     setError("");
     try {
-      await api(`/current-accounts/customers/${paymentCustomer.customerId}/payments`, {
+      const result = (await api(`/current-accounts/customers/${paymentCustomer.customerId}/payments`, {
         method: "POST",
         body: JSON.stringify({
           amount,
           paymentMethod,
           description: paymentDescription.trim() || undefined,
         }),
-      });
+      })) as { movement?: Movement };
       setPaymentModalOpen(false);
       setPaymentCustomer(null);
       await loadAccounts();
       if (selected?.customerId === paymentCustomer.customerId) {
         await openDetail(paymentCustomer);
       }
+      if (result.movement?.id) {
+        await downloadPaymentReceipt(result.movement.id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo registrar el pago.");
     } finally {
       setSavingPayment(false);
+    }
+  };
+
+  const downloadPaymentReceipt = async (movementId: number) => {
+    setDownloadingReceiptId(movementId);
+    setError("");
+    try {
+      const blob = await apiBlob(`/current-accounts/payments/${movementId}/receipt.pdf`);
+      downloadBlobFile(blob, `recibo-pago-cuenta-${movementId}.pdf`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo descargar el recibo de pago.");
+    } finally {
+      setDownloadingReceiptId(null);
     }
   };
 
@@ -248,6 +365,12 @@ export default function AdminCurrentAccountsSection() {
                       <button type="button" onClick={() => void openDetail(account)} style={softButtonStyle}>
                         Ver detalle
                       </button>
+                      <button type="button" onClick={() => openEdit(account)} style={softButtonStyle}>
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => openBalance(account)} style={softButtonStyle}>
+                        Ajustar saldo
+                      </button>
                       <button
                         type="button"
                         onClick={() => openPayment(account)}
@@ -255,6 +378,14 @@ export default function AdminCurrentAccountsSection() {
                         disabled={Number(account.balance) <= 0}
                       >
                         Registrar pago
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deactivateAccount(account)}
+                        style={dangerButtonStyle}
+                        disabled={deactivatingId === account.id}
+                      >
+                        Dar de baja
                       </button>
                     </div>
                   </Td>
@@ -284,6 +415,15 @@ export default function AdminCurrentAccountsSection() {
               <button type="button" onClick={() => openPayment(selected)} style={primaryButtonStyle}>
                 Registrar pago
               </button>
+              <button type="button" onClick={() => openEdit(selected)} style={softButtonStyle}>
+                Editar
+              </button>
+              <button type="button" onClick={() => openBalance(selected)} style={softButtonStyle}>
+                Ajustar saldo
+              </button>
+              <button type="button" onClick={() => void deactivateAccount(selected)} style={dangerButtonStyle}>
+                Dar de baja
+              </button>
               <button type="button" onClick={() => setSelected(null)} style={softButtonStyle}>
                 Cerrar
               </button>
@@ -306,6 +446,16 @@ export default function AdminCurrentAccountsSection() {
                     <div style={{ textAlign: "right" }}>
                       <strong>{money(Number(movement.amount))}</strong>
                       <span style={mutedBlockStyle}>Saldo {money(Number(movement.balanceAfter))}</span>
+                      {movement.type === "PAYMENT" ? (
+                        <button
+                          type="button"
+                          onClick={() => void downloadPaymentReceipt(movement.id)}
+                          disabled={downloadingReceiptId === movement.id}
+                          style={{ ...softButtonStyle, marginTop: 8 }}
+                        >
+                          {downloadingReceiptId === movement.id ? "Generando..." : "Recibo PDF"}
+                        </button>
+                      ) : null}
                     </div>
                   </article>
                 ))}
@@ -418,7 +568,102 @@ export default function AdminCurrentAccountsSection() {
           </div>
         </div>
       ) : null}
+
+      {editAccount ? (
+        <div style={modalOverlayStyle} onClick={() => setEditAccount(null)}>
+          <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+            <header style={modalHeaderStyle}>
+              <div>
+                <p style={eyebrowStyle}>Editar cuenta</p>
+                <h3 style={modalTitleStyle}>{customerName(editAccount.customer)}</h3>
+              </div>
+            </header>
+            <div style={twoColumnFormStyle}>
+              <Field label="Nombre" value={editForm.firstName} onChange={(value) => setEditForm((current) => ({ ...current, firstName: value }))} />
+              <Field label="Apellido" value={editForm.lastName} onChange={(value) => setEditForm((current) => ({ ...current, lastName: value }))} />
+              <Field label="Email" value={editForm.email} onChange={(value) => setEditForm((current) => ({ ...current, email: value }))} />
+              <Field label="Telefono" value={editForm.phone} onChange={(value) => setEditForm((current) => ({ ...current, phone: value }))} />
+              <Field label="Documento" value={editForm.document} onChange={(value) => setEditForm((current) => ({ ...current, document: value }))} />
+              <label style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
+                <span>Notas</span>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))}
+                  style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
+                />
+              </label>
+            </div>
+            <div style={rowActionsStyle}>
+              <button type="button" onClick={() => void saveEdit()} disabled={savingEdit} style={primaryButtonStyle}>
+                {savingEdit ? "Guardando..." : "Guardar cambios"}
+              </button>
+              <button type="button" onClick={() => setEditAccount(null)} style={softButtonStyle}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {balanceAccount ? (
+        <div style={modalOverlayStyle} onClick={() => setBalanceAccount(null)}>
+          <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+            <header style={modalHeaderStyle}>
+              <div>
+                <p style={eyebrowStyle}>Ajustar saldo</p>
+                <h3 style={modalTitleStyle}>{customerName(balanceAccount.customer)}</h3>
+              </div>
+              <strong style={balanceStyle}>{money(Number(balanceAccount.balance))}</strong>
+            </header>
+            <label style={fieldGroupStyle}>
+              <span>Nuevo saldo</span>
+              <div style={moneyInputWrapStyle}>
+                <span style={moneyPrefixStyle}>$</span>
+                <input
+                  value={balanceValue}
+                  onChange={(event) => setBalanceValue(event.target.value)}
+                  inputMode="decimal"
+                  style={{ ...inputStyle, paddingLeft: 30 }}
+                />
+              </div>
+            </label>
+            <label style={fieldGroupStyle}>
+              <span>Motivo</span>
+              <textarea
+                value={balanceDescription}
+                onChange={(event) => setBalanceDescription(event.target.value)}
+                style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
+              />
+            </label>
+            <div style={rowActionsStyle}>
+              <button type="button" onClick={() => void saveBalance()} disabled={savingBalance} style={primaryButtonStyle}>
+                {savingBalance ? "Guardando..." : "Guardar ajuste"}
+              </button>
+              <button type="button" onClick={() => setBalanceAccount(null)} style={softButtonStyle}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label style={fieldGroupStyle}>
+      <span>{label}</span>
+      <input value={value} onChange={(event) => onChange(event.target.value)} style={inputStyle} />
+    </label>
   );
 }
 
@@ -484,6 +729,7 @@ const mutedBlockStyle: React.CSSProperties = { display: "block", marginTop: 4, c
 const rowActionsStyle: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" };
 const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 12, background: "var(--account-item-bg-active)", color: "var(--account-text-strong)", padding: "10px 12px", cursor: "pointer", fontWeight: 800 };
 const softButtonStyle: React.CSSProperties = { border: "1px solid var(--account-item-border)", borderRadius: 12, background: "transparent", color: "var(--account-text-strong)", padding: "10px 12px", cursor: "pointer", fontWeight: 700 };
+const dangerButtonStyle: React.CSSProperties = { border: "1px solid var(--admin-danger-border)", borderRadius: 12, background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)", padding: "10px 12px", cursor: "pointer", fontWeight: 800 };
 const stateStyle: React.CSSProperties = { padding: 24, borderRadius: 18, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-muted)" };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 120, background: "var(--admin-overlay-bg, rgba(0,0,0,.42))", display: "grid", placeItems: "center", padding: 16 };
 const modalStyle: React.CSSProperties = { width: "min(720px, 100%)", maxHeight: "min(760px, calc(100vh - 32px))", overflow: "auto", borderRadius: 20, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", padding: 20, display: "grid", gap: 16, boxShadow: "var(--admin-modal-shadow)" };
@@ -497,3 +743,4 @@ const moneyInputWrapStyle: React.CSSProperties = { position: "relative", minWidt
 const moneyPrefixStyle: React.CSSProperties = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--account-text-muted)", fontWeight: 800, pointerEvents: "none" };
 const paymentCustomerListStyle: React.CSSProperties = { display: "grid", gap: 10, maxHeight: 320, overflow: "auto" };
 const paymentCustomerOptionStyle: React.CSSProperties = { width: "100%", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", border: "1px solid var(--account-item-border)", borderRadius: 14, background: "var(--account-item-bg)", color: "var(--account-text-strong)", padding: 14, cursor: "pointer", textAlign: "left" };
+const twoColumnFormStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 };

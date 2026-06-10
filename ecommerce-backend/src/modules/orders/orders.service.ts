@@ -368,6 +368,7 @@ export class OrdersService {
               data: {
                 balance: nextBalance,
                 lastMovementAt: new Date(),
+                deletedAt: null,
               },
             })
           : await tx.currentAccount.create({

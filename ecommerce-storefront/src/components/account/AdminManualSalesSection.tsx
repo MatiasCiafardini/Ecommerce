@@ -68,6 +68,33 @@ type ManualSaleCustomer = {
   source?: string | null;
 };
 
+type CurrentAccountLookup = {
+  customerId: number;
+  balance: string | number;
+  lastMovementAt?: string | null;
+  customer: ManualSaleCustomer;
+  movements?: Array<{
+    id: number;
+    createdAt: string;
+    balanceAfter: string | number;
+    description?: string | null;
+  }>;
+};
+
+type NewCustomerPayload = {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  document?: string;
+  source: "current_account";
+  address?: {
+    address1?: string;
+    city?: string;
+    zip?: string;
+  };
+};
+
 type StorePaymentConfig = {
   bankTransfer?: {
     discountPercentage?: number | null;
@@ -141,6 +168,8 @@ export default function AdminManualSalesSection({
   const [newCustomerCity, setNewCustomerCity] = useState("");
   const [newCustomerZip, setNewCustomerZip] = useState("");
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [inactiveAccountPrompt, setInactiveAccountPrompt] = useState<CurrentAccountLookup | null>(null);
+  const [pendingCustomerPayload, setPendingCustomerPayload] = useState<NewCustomerPayload | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
   const [discountValue, setDiscountValue] = useState("");
@@ -351,8 +380,8 @@ export default function AdminManualSalesSection({
   const loadCustomers = async () => {
     setCustomerLoading(true);
     try {
-      const data = await api("/customers?source=current_account");
-      setCustomers(Array.isArray(data) ? data : []);
+      const data = (await api("/current-accounts?status=all")) as CurrentAccountLookup[];
+      setCustomers(Array.isArray(data) ? data.map((account) => account.customer) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos cargar clientes.");
     } finally {
@@ -600,6 +629,25 @@ export default function AdminManualSalesSection({
 
   const createCustomer = async () => {
     const parsedName = parseCustomerFullName(newCustomerFullName);
+    const customerPayload: NewCustomerPayload = {
+      email: newCustomerEmail.trim() || undefined,
+      firstName: parsedName.firstName,
+      lastName: parsedName.lastName,
+      phone: newCustomerPhone.trim() || undefined,
+      document: newCustomerDocument.trim() || undefined,
+      source: "current_account",
+      address: [
+        newCustomerAddress,
+        newCustomerCity,
+        newCustomerZip,
+      ].some((value) => value.trim())
+        ? {
+            address1: newCustomerAddress.trim() || undefined,
+            city: newCustomerCity.trim() || undefined,
+            zip: newCustomerZip.trim() || undefined,
+          }
+        : undefined,
+    };
 
     if (!newCustomerFullName.trim()) {
       setError("El nombre del cliente es obligatorio.");
@@ -614,35 +662,85 @@ export default function AdminManualSalesSection({
     setCustomerLoading(true);
     setError("");
     try {
-      const created = (await api("/customers", {
-        method: "POST",
-        body: JSON.stringify({
-          email: newCustomerEmail.trim() || undefined,
-          firstName: parsedName.firstName,
-          lastName: parsedName.lastName,
-          phone: newCustomerPhone.trim() || undefined,
-          document: newCustomerDocument.trim() || undefined,
-          source: "current_account",
-          address: [
-            newCustomerAddress,
-            newCustomerCity,
-            newCustomerZip,
-          ].some((value) => value.trim())
-            ? {
-                address1: newCustomerAddress.trim() || undefined,
-                city: newCustomerCity.trim() || undefined,
-                zip: newCustomerZip.trim() || undefined,
-              }
-            : undefined,
-        }),
-      })) as ManualSaleCustomer;
-      clearNewCustomerFields();
-      selectCustomer(created);
-      await loadCustomers();
+      const inactiveAccount = await findInactiveCurrentAccountByPhone(newCustomerPhone.trim());
+
+      if (inactiveAccount) {
+        setInactiveAccountPrompt(inactiveAccount);
+        setPendingCustomerPayload(customerPayload);
+        return;
+      }
+
+      await createCustomerFromPayload(customerPayload);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos registrar el cliente.");
     } finally {
       setCustomerLoading(false);
+    }
+  };
+
+  const createCustomerFromPayload = async (customerPayload: NewCustomerPayload) => {
+    const created = (await api("/customers", {
+      method: "POST",
+      body: JSON.stringify(customerPayload),
+    })) as ManualSaleCustomer;
+    clearNewCustomerFields();
+    selectCustomer(created);
+    await loadCustomers();
+  };
+
+  const reactivateInactiveAccount = async () => {
+    if (!inactiveAccountPrompt || !pendingCustomerPayload) return;
+
+    setCustomerLoading(true);
+    setError("");
+    try {
+      const reactivated = (await api(`/current-accounts/customers/${inactiveAccountPrompt.customerId}/reactivate`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          firstName: pendingCustomerPayload.firstName,
+          lastName: pendingCustomerPayload.lastName,
+          email: pendingCustomerPayload.email,
+          phone: pendingCustomerPayload.phone,
+          document: pendingCustomerPayload.document,
+        }),
+      })) as CurrentAccountLookup;
+
+      setInactiveAccountPrompt(null);
+      setPendingCustomerPayload(null);
+      clearNewCustomerFields();
+      selectCustomer(reactivated.customer);
+      await loadCustomers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos reactivar la cuenta corriente.");
+    } finally {
+      setCustomerLoading(false);
+    }
+  };
+
+  const createCustomerIgnoringInactiveAccount = async () => {
+    if (!pendingCustomerPayload) return;
+
+    setCustomerLoading(true);
+    setError("");
+    try {
+      const payload = pendingCustomerPayload;
+      setInactiveAccountPrompt(null);
+      setPendingCustomerPayload(null);
+      await createCustomerFromPayload(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos registrar el cliente.");
+    } finally {
+      setCustomerLoading(false);
+    }
+  };
+
+  const findInactiveCurrentAccountByPhone = async (phone: string) => {
+    try {
+      return (await api(`/current-accounts/inactive/by-phone?phone=${encodeURIComponent(phone)}`)) as CurrentAccountLookup;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("404")) return null;
+      throw err;
     }
   };
 
@@ -669,7 +767,7 @@ export default function AdminManualSalesSection({
             <div className="manual-sale-card manual-sale-search-card">
               <div>
                 <p className="manual-sale-eyebrow">Catalogo</p>
-                <h3>Agregar productos</h3>
+                <h3>Buscar productos</h3>
               </div>
 
               <div className="manual-sale-search-row">
@@ -1166,6 +1264,76 @@ export default function AdminManualSalesSection({
         </div>
       ) : null}
 
+      {inactiveAccountPrompt ? (
+        <div className="manual-sale-modal-overlay" onClick={() => {
+          if (customerLoading) return;
+          setInactiveAccountPrompt(null);
+          setPendingCustomerPayload(null);
+        }}>
+          <div className="manual-sale-modal manual-sale-reactivate-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="manual-sale-modal-header">
+              <div>
+                <p className="manual-sale-eyebrow">Cuenta dada de baja</p>
+                <h3>Ya existe una cuenta con ese telefono</h3>
+              </div>
+              <button
+                type="button"
+                className="manual-sale-button-ghost"
+                disabled={customerLoading}
+                onClick={() => {
+                  setInactiveAccountPrompt(null);
+                  setPendingCustomerPayload(null);
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="manual-sale-inactive-account-card">
+              <div>
+                <span>Cliente</span>
+                <strong>{getCustomerName(inactiveAccountPrompt.customer)}</strong>
+              </div>
+              <div>
+                <span>Telefono</span>
+                <strong>{inactiveAccountPrompt.customer.phone || "Sin telefono"}</strong>
+              </div>
+              <div>
+                <span>Saldo anterior</span>
+                <strong>{money(Number(inactiveAccountPrompt.balance))}</strong>
+              </div>
+              <div>
+                <span>Ultima actividad</span>
+                <strong>{formatAccountDate(inactiveAccountPrompt.lastMovementAt ?? inactiveAccountPrompt.movements?.[0]?.createdAt)}</strong>
+              </div>
+            </div>
+
+            <p className="manual-sale-reactivate-copy">
+              Podes reactivar la cuenta existente y conservar su historial, o crear un cliente nuevo con los datos cargados.
+            </p>
+
+            <div className="manual-sale-modal-actions">
+              <button
+                type="button"
+                className="manual-sale-button manual-sale-button-primary"
+                disabled={customerLoading}
+                onClick={() => void reactivateInactiveAccount()}
+              >
+                {customerLoading ? "Reactivando..." : "Reactivar"}
+              </button>
+              <button
+                type="button"
+                className="manual-sale-button-ghost"
+                disabled={customerLoading}
+                onClick={() => void createCustomerIgnoringInactiveAccount()}
+              >
+                Crear cliente nuevo
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <style jsx>{`
         .manual-sale-panel {
           border-radius: 22px;
@@ -1287,13 +1455,15 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-search-card {
-          gap: 10px;
+          gap: 14px;
+          margin-bottom: 12px;
         }
 
         .manual-sale-search-row {
           display: grid;
           grid-template-columns: minmax(0, 1fr) auto;
-          gap: 10px;
+          gap: 12px;
+          align-items: center;
         }
 
         .manual-sale-field {
@@ -1315,6 +1485,7 @@ export default function AdminManualSalesSection({
         .manual-sale-variant-table-shell {
           min-width: 0;
           overflow-x: auto;
+          margin-top: 8px;
         }
 
         .manual-sale-variant-table {
@@ -1777,6 +1948,45 @@ export default function AdminManualSalesSection({
           gap: 18px;
         }
 
+        .manual-sale-reactivate-modal {
+          width: min(100%, 640px);
+        }
+
+        .manual-sale-inactive-account-card {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .manual-sale-inactive-account-card > div {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+          border-radius: 14px;
+          border: 1px solid var(--border-soft);
+          background: var(--page-panel-strong-bg);
+          padding: 12px;
+        }
+
+        .manual-sale-inactive-account-card span {
+          color: var(--text-muted);
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .manual-sale-inactive-account-card strong {
+          color: var(--text-strong);
+          overflow-wrap: anywhere;
+        }
+
+        .manual-sale-reactivate-copy {
+          margin: 0;
+          color: var(--text-muted);
+          line-height: 1.5;
+        }
+
         .manual-sale-confirm-header {
           display: grid;
           grid-template-columns: minmax(0, 1fr) auto;
@@ -1973,6 +2183,10 @@ export default function AdminManualSalesSection({
             grid-template-columns: 1fr;
           }
 
+          .manual-sale-inactive-account-card {
+            grid-template-columns: 1fr;
+          }
+
           .manual-sale-confirm-total {
             text-align: left;
             justify-items: start;
@@ -2002,6 +2216,11 @@ function StateCard({ label }: { label: string }) {
 
 function getCustomerName(customer: ManualSaleCustomer) {
   return [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || customer.email || customer.phone || `Cliente #${customer.id}`;
+}
+
+function formatAccountDate(value?: string | null) {
+  if (!value) return "Sin movimientos";
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
 function parseCustomerFullName(fullName: string) {
