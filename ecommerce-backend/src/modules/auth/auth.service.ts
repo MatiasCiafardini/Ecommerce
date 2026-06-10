@@ -125,6 +125,7 @@ export class AuthService {
         firstName,
         lastName,
         phone,
+        source: 'storefront',
       },
     });
 
@@ -214,6 +215,7 @@ export class AuthService {
         where: { id: existingByEmail.id },
         data: {
           googleId,
+          source: 'storefront',
           firstName: existingByEmail.firstName ?? this.pickFirstName(payload),
           lastName: existingByEmail.lastName ?? this.pickLastName(payload),
         },
@@ -227,6 +229,7 @@ export class AuthService {
         googleId,
         firstName: this.pickFirstName(payload),
         lastName: this.pickLastName(payload),
+        source: 'storefront',
       },
     });
   }

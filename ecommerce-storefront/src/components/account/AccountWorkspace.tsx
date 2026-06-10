@@ -34,6 +34,15 @@ type NavigationItem = {
   badgeCount?: number;
 };
 
+type MobileAdminNavigationItem = {
+  id?: AccountSection;
+  href?: string;
+  label: string;
+  shortLabel?: string;
+  icon: string;
+  badgeCount?: number;
+};
+
 type AdminOrderSummary = {
   status?: string | null;
 };
@@ -46,6 +55,7 @@ const ADMIN_LABELS_STORAGE_KEY = "labels-wizard-state-v5";
 
 const adminSections: NavigationItem[] = [
   { id: "admin-overview", label: "Dashboard", description: "Estado general", icon: "dashboard" },
+  { id: "admin-manual-sales", label: "Venta manual", description: "Mostrador y cuentas", icon: "sales" },
   { id: "admin-products", label: "Productos", description: "Catalogo y altas", icon: "products" },
   { id: "admin-labels", label: "Etiquetas", description: "Codigos de barras", icon: "labels" },
   { id: "admin-orders", label: "Pedidos", description: "Operacion diaria", icon: "orders" },
@@ -68,6 +78,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
   const router = useRouter();
   const { logout } = useAuth();
   const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user.role ?? "");
+  const manualSalesEnabled = Boolean(user.storeFeatures?.manualSalesEnabled);
   const displayName = [user.name, user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
@@ -158,8 +169,31 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
   const adminNavigationSections = adminSections.map((item) =>
     item.id === "admin-orders"
       ? { ...item, badgeCount: pendingOrdersCount }
+      : item.id === "admin-manual-sales" && !manualSalesEnabled
+        ? { ...item, description: "Mostrador deshabilitado" }
       : item,
   );
+  const mobileAdminNavigationItems: MobileAdminNavigationItem[] = [
+    { id: "admin-overview", label: "Dashboard", shortLabel: "Dashb.", icon: "dashboard" },
+    { id: "admin-manual-sales", label: "Venta manual", shortLabel: "Ventas", icon: "sales" },
+    { id: "admin-orders", label: "Historial", shortLabel: "Hist.", icon: "history", badgeCount: pendingOrdersCount },
+    { id: "admin-shipments", label: "Remitos", shortLabel: "Remitos", icon: "shipments" },
+    { id: "admin-accounting", label: "Fiscal", shortLabel: "Fiscal", icon: "accounting" },
+    { id: "admin-customers", label: "Clientes", shortLabel: "Clientes", icon: "customers" },
+    { id: "admin-products", label: "Productos", shortLabel: "Prod.", icon: "products" },
+    { id: "admin-settings", label: "Ajustes", shortLabel: "Ajustes", icon: "settings" },
+  ];
+
+  const handleMobileAdminNavigation = (item: MobileAdminNavigationItem) => {
+    if (item.href) {
+      router.push(item.href);
+      return;
+    }
+
+    if (item.id) {
+      handleSectionChange(item.id);
+    }
+  };
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -181,7 +215,6 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
 
   useEffect(() => {
     if (!isAdmin) {
-      setPendingOrdersCount(0);
       return;
     }
 
@@ -228,7 +261,15 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
       style={{
         paddingTop: useAdminSidebar ? 24 : isCompactViewport ? 28 : isNarrowViewport ? 40 : 72,
         paddingRight: useAdminSidebar ? 24 : isCompactViewport ? 12 : isNarrowViewport ? 16 : 20,
-        paddingBottom: useAdminSidebar ? 72 : isCompactViewport ? 48 : isNarrowViewport ? 64 : 96,
+        paddingBottom: useAdminSidebar
+          ? 72
+          : isAdmin && isNarrowViewport
+            ? "calc(108px + env(safe-area-inset-bottom))"
+            : isCompactViewport
+              ? 48
+              : isNarrowViewport
+                ? 64
+                : 96,
         paddingLeft: useAdminSidebar ? adminSidebarWidth + 24 : isCompactViewport ? 12 : isNarrowViewport ? 16 : 20,
         background: "var(--account-shell-bg)",
         minHeight: useAdminSidebar ? "100vh" : undefined,
@@ -519,7 +560,57 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
           </div>
         </div>
       </div>
+      {isAdmin && isNarrowViewport ? (
+        <MobileAdminBottomNav
+          items={mobileAdminNavigationItems}
+          activeSection={section}
+          onNavigate={handleMobileAdminNavigation}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function MobileAdminBottomNav({
+  items,
+  activeSection,
+  onNavigate,
+}: {
+  items: MobileAdminNavigationItem[];
+  activeSection: AccountSection;
+  onNavigate: (item: MobileAdminNavigationItem) => void;
+}) {
+  return (
+    <nav aria-label="Menu administrador" style={mobileAdminNavShellStyle}>
+      <div style={mobileAdminNavScrollerStyle}>
+        {items.map((item) => {
+          const active = item.id ? activeSection === item.id : false;
+          const badgeCount = Number(item.badgeCount ?? 0);
+          const hasBadge = badgeCount > 0;
+          const badgeLabel = badgeCount > 99 ? "99+" : String(badgeCount);
+
+          return (
+            <button
+              key={item.id ?? item.href ?? item.label}
+              type="button"
+              onClick={() => onNavigate(item)}
+              aria-current={active ? "page" : undefined}
+              title={item.label}
+              style={{
+                ...mobileAdminNavItemStyle,
+                ...(active ? mobileAdminNavItemActiveStyle : null),
+              }}
+            >
+              <span style={mobileAdminIconWrapStyle}>
+                <MenuIcon name={item.icon} />
+                {hasBadge ? <span style={mobileAdminBadgeStyle}>{badgeLabel}</span> : null}
+              </span>
+              <span style={mobileAdminLabelStyle}>{item.shortLabel ?? item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
@@ -659,6 +750,7 @@ function renderSection(
       return <PaymentSection />;
     case "admin-overview":
     case "admin-accounting":
+    case "admin-manual-sales":
     case "admin-developer":
     case "admin-products":
     case "admin-labels":
@@ -666,6 +758,7 @@ function renderSection(
     case "admin-categories":
     case "admin-orders":
     case "admin-customers":
+    case "admin-current-accounts":
     case "admin-shipments":
     case "admin-returns":
     case "admin-settings":
@@ -711,10 +804,13 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }) {
 function MenuIcon({ name }: { name: string }) {
   const paths: Record<string, React.ReactNode> = {
     dashboard: <><path d="M4 13a8 8 0 0 1 16 0" /><path d="M12 13l4-5" /><path d="M7 17h10" /></>,
+    sales: <><path d="M8 7h10l-1 9H9L8 7Z" /><path d="M8 7 7 4H4" /><path d="M10 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" /><path d="M16 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" /></>,
+    history: <><path d="M9 7H5v4" /><path d="M5 11a7 7 0 1 0 2-5" /><path d="M12 8v5l3 2" /></>,
     products: <><path d="M6 7h12l1 13H5L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></>,
     labels: <><path d="M4 7V4h3" /><path d="M17 4h3v3" /><path d="M20 17v3h-3" /><path d="M7 20H4v-3" /><path d="M7 8v8" /><path d="M10 8v8" /><path d="M14 8v8" /><path d="M17 8v8" /></>,
     orders: <><path d="M7 3h10v18H7z" /><path d="M9 8h6" /><path d="M9 12h6" /><path d="M9 16h4" /></>,
     customers: <><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+    currentAccounts: <><path d="M4 7h16" /><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" /><path d="M8 12h8" /><path d="M8 16h5" /><path d="M17 12h.01" /></>,
     shipments: <><path d="M3 8h11v9H3z" /><path d="M14 11h4l3 3v3h-7z" /><path d="M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /><path d="M17 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /></>,
     returns: <><path d="M9 7H5v4" /><path d="M5 11a7 7 0 1 0 2-5" /><path d="M12 8v5l3 2" /></>,
     promotions: <><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H8.5a2.5 2.5 0 1 1 0-5C12 2 12 7 12 7Z" /><path d="M12 7h3.5a2.5 2.5 0 1 0 0-5C12 2 12 7 12 7Z" /></>,
@@ -920,6 +1016,91 @@ const navigationBadgeStyle = {
   lineHeight: 1,
   boxShadow: "0 0 0 2px var(--account-sidebar-bg)",
 } as const;
+
+const mobileAdminNavShellStyle: React.CSSProperties = {
+  position: "fixed",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 80,
+  padding: "8px 8px max(8px, env(safe-area-inset-bottom))",
+  background:
+    "linear-gradient(180deg, color-mix(in srgb, var(--account-sidebar-bg) 92%, transparent), var(--account-sidebar-bg))",
+  borderTop: "1px solid color-mix(in srgb, var(--account-text-muted) 18%, transparent)",
+  boxShadow: "0 -16px 38px color-mix(in srgb, var(--account-text-strong) 16%, transparent)",
+};
+
+const mobileAdminNavScrollerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "stretch",
+  gap: 6,
+  overflowX: "auto",
+  overflowY: "hidden",
+  overscrollBehaviorX: "contain",
+  WebkitOverflowScrolling: "touch",
+  scrollbarWidth: "none",
+};
+
+const mobileAdminNavItemStyle: React.CSSProperties = {
+  width: 64,
+  minWidth: 64,
+  height: 58,
+  border: 0,
+  borderRadius: 10,
+  background: "transparent",
+  color: "var(--account-text-muted)",
+  display: "grid",
+  placeItems: "center",
+  alignContent: "center",
+  gap: 3,
+  cursor: "pointer",
+  padding: "6px 4px",
+  position: "relative",
+};
+
+const mobileAdminNavItemActiveStyle: React.CSSProperties = {
+  background: "#2563eb",
+  color: "#fff",
+  boxShadow: "0 8px 18px rgba(37, 99, 235, 0.32)",
+};
+
+const mobileAdminIconWrapStyle: React.CSSProperties = {
+  width: 24,
+  height: 24,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  position: "relative",
+};
+
+const mobileAdminLabelStyle: React.CSSProperties = {
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: 10,
+  lineHeight: 1.1,
+  fontWeight: 700,
+};
+
+const mobileAdminBadgeStyle: React.CSSProperties = {
+  position: "absolute",
+  top: -7,
+  right: -11,
+  minWidth: 16,
+  height: 16,
+  padding: "0 4px",
+  borderRadius: 999,
+  background: "var(--notification-badge-bg, #ef4444)",
+  color: "var(--notification-badge-color, #fff)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 9,
+  fontWeight: 900,
+  lineHeight: 1,
+  boxShadow: "0 0 0 2px var(--account-sidebar-bg)",
+};
 
 const logoutButtonStyle = {
   width: "100%",

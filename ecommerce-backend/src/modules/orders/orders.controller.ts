@@ -36,12 +36,12 @@ export class OrdersController {
 
   @Post('manual')
   createManual(@Body() dto: CreateManualSaleDto, @Req() req) {
-    return this.ordersService.createManualSale(dto, req.storeId);
+    return this.ordersService.createManualSale(dto, req.storeId, req.user?.sub);
   }
 
   @Patch('manual/:id/cancel')
   cancelManual(@Param('id') id: string, @Req() req) {
-    return this.ordersService.cancelManualSale(Number(id), req.storeId);
+    return this.ordersService.cancelManualSale(Number(id), req.storeId, req.user?.sub);
   }
 
   @Patch('manual/:id')
@@ -50,7 +50,7 @@ export class OrdersController {
     @Body() dto: UpdateManualSaleDto,
     @Req() req,
   ) {
-    return this.ordersService.updateManualSale(Number(id), dto, req.storeId);
+    return this.ordersService.updateManualSale(Number(id), dto, req.storeId, req.user?.sub);
   }
 
   @Get()

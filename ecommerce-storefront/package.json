@@ -13,6 +13,7 @@
     "dev:store7": "set \"NEXT_DEV_DIST_DIR=.next-store7\" && next dev --webpack --port 3007",
     "build": "next build",
     "start": "next start",
+    "images:optimize": "node scripts/optimize-heavy-images.js",
     "lint": "eslint"
   },
   "dependencies": {

@@ -10,10 +10,12 @@ import type { AdminReturn } from "../admin-types";
 
 export type Customer = {
   id: number;
-  email: string;
+  email?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   phone?: string | null;
+  document?: string | null;
+  notes?: string | null;
 };
 
 
@@ -142,8 +144,9 @@ export default function AdminCustomersSection() {
         .toLowerCase();
       return (
         fullName.includes(normalizedQuery) ||
-        customer.email.toLowerCase().includes(normalizedQuery) ||
+        (customer.email ?? "").toLowerCase().includes(normalizedQuery) ||
         (customer.phone ?? "").toLowerCase().includes(normalizedQuery) ||
+        (customer.document ?? "").toLowerCase().includes(normalizedQuery) ||
         segment.label.toLowerCase().includes(normalizedQuery)
       );
     });
@@ -270,7 +273,7 @@ export default function AdminCustomersSection() {
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Buscar por nombre, email, telefono o segmento"
+                  placeholder="Buscar por nombre, telefono, email, documento o segmento"
                   style={{
                     ...searchFieldStyle,
                     minWidth: isTabletOrSmaller ? 0 : searchFieldStyle.minWidth,
@@ -374,7 +377,7 @@ export default function AdminCustomersSection() {
                           </span>
                         </div>
                         <div style={{ display: "grid", gap: 4 }}>
-                          <span>{row.customer.email}</span>
+                          <span>{row.customer.email || row.customer.document || "Sin email"}</span>
                           <span style={metaStyle}>
                             {row.customer.phone || "Sin telefono cargado"}
                           </span>
@@ -419,7 +422,7 @@ export default function AdminCustomersSection() {
                             </td>
                             <td style={tdStyle}>
                               <div style={{ display: "grid", gap: 4 }}>
-                                <span>{row.customer.email}</span>
+                                <span>{row.customer.email || row.customer.document || "Sin email"}</span>
                                 <span style={metaStyle}>
                                   {row.customer.phone || "Sin telefono cargado"}
                                 </span>
@@ -559,7 +562,9 @@ function StateCard({ label }: { label: string }) {
 function getCustomerDisplayName(customer: Customer) {
   return (
     [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() ||
-    "Sin nombre"
+    customer.email ||
+    customer.phone ||
+    `Cliente #${customer.id}`
   );
 }
 

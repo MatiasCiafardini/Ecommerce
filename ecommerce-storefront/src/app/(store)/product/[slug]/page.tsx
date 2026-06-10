@@ -4,7 +4,7 @@ import { getBankTransferDiscountPercentage } from "@/services/payment-config.ser
 import ProductView from "@/components/product/ProductView";
 import { getTenantConfig } from "@/lib/tenant/get-tenant";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 600;
 
 type Props = {
   params: Promise<{

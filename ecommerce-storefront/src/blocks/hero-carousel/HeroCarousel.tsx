@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { resolveAssetUrl } from "@/lib/asset-url";
@@ -192,6 +193,7 @@ export default function HeroCarousel({
               hasTextContent(slide.subtitle);
             const isCloneFirst = safeSlides.length > 1 && index === renderedSlides.length - 1;
             const isCloneLast = safeSlides.length > 1 && index === 0;
+            const isInitialSlide = safeSlides.length > 1 ? index === 1 : index === 0;
             const logicalIndex = isCloneLast
               ? safeSlides.length - 1
               : isCloneFirst
@@ -217,27 +219,21 @@ export default function HeroCarousel({
                     zIndex: 0,
                   }}
                 >
-                  <picture>
-                    {slideResponsiveImage ? (
-                      <source media="(max-width: 768px)" srcSet={slideResponsiveImage} />
-                    ) : null}
-                    {/* Decorative hero media renders more reliably as a plain image for local and uploaded assets. */}
-                    <img
-                      className="theme-hero-carousel-image"
-                      src={slideImage}
-                      alt=""
-                      loading={index === 0 ? "eager" : "lazy"}
-                      draggable={false}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        objectPosition: "var(--hero-carousel-image-position, center)",
-                        userSelect: "none",
-                        pointerEvents: "none",
-                      }}
-                    />
-                  </picture>
+                  <Image
+                    className="theme-hero-carousel-image"
+                    src={slideImage}
+                    alt=""
+                    fill
+                    priority={isInitialSlide}
+                    sizes="100vw"
+                    draggable={false}
+                    style={{
+                      objectFit: "cover",
+                      objectPosition: "var(--hero-carousel-image-position, center)",
+                      userSelect: "none",
+                      pointerEvents: "none",
+                    }}
+                  />
                 </div>
 
                 <div

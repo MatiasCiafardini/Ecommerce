@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { apiFetch } from "./api-client";
+import { PUBLIC_REVALIDATE, apiFetch } from "./api-client";
 
 type StorePaymentConfig = {
   bankTransfer?: {
@@ -11,7 +11,9 @@ type StorePaymentConfig = {
 
 const fetchStorePaymentConfig = cache(async (): Promise<StorePaymentConfig | null> => {
   try {
-    return await apiFetch<StorePaymentConfig>("/store/payment-config");
+    return await apiFetch<StorePaymentConfig>("/store/payment-config", {
+      revalidate: PUBLIC_REVALIDATE.paymentConfig,
+    });
   } catch {
     return null;
   }

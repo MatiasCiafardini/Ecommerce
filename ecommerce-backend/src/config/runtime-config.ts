@@ -50,6 +50,7 @@ export const runtimeConfig = {
   mercadoPagoWebhookSecret: readString('MERCADOPAGO_WEBHOOK_SECRET'),
   redisHost: readString('REDIS_HOST', '127.0.0.1')!,
   redisPort: readNumber('REDIS_PORT', 6379),
+  redisRetryAttempts: readNumber('REDIS_RETRY_ATTEMPTS', 3),
   uploadsDir: readString('UPLOADS_DIR', join(process.cwd(), 'uploads'))!,
   privateUploadsDir: readString(
     'PRIVATE_UPLOADS_DIR',

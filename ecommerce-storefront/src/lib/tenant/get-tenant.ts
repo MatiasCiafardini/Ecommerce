@@ -1,4 +1,4 @@
-import { apiFetch } from "@/services/api-client";
+import { PUBLIC_REVALIDATE, apiFetch } from "@/services/api-client";
 import { getServerStoreContext } from "@/lib/tenant/server-store-context";
 import { getSafeStorefrontConfig } from "@/lib/tenant/storefront-defaults";
 import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
@@ -105,7 +105,7 @@ export async function getTenantConfig() {
       theme?: string | null;
       storefrontConfig?: RemoteStorefrontConfig | null;
     }>("/store/config", {
-      cache: "no-store",
+      revalidate: PUBLIC_REVALIDATE.storefrontConfig,
     });
 
     return normalizeTenantConfig({

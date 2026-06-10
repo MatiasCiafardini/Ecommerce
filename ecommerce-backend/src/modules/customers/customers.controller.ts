@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -28,8 +29,12 @@ export class CustomersController {
 
   @UseGuards(AdminAuthGuard)
   @Get()
-  findAll(@Req() req) {
-    return this.customersService.findAll(req.storeId);
+  findAll(
+    @Req() req,
+    @Query('search') search?: string,
+    @Query('source') source?: string,
+  ) {
+    return this.customersService.findAll(req.storeId, search ?? '', source);
   }
 
   @UseGuards(JwtAuthGuard)

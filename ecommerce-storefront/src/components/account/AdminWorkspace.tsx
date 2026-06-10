@@ -12,6 +12,9 @@ import AdminProductsSection, {
   type Product,
 } from "./admin-products/AdminProductsSection";
 import AdminCustomersSection, { type Customer } from "./admin-customers/AdminCustomersSection";
+import AdminCurrentAccountsSection from "./AdminCurrentAccountsSection";
+import AdminCashRegisterSection from "./AdminCashRegisterSection";
+import AdminManualSalesSection from "./AdminManualSalesSection";
 import AdminAccountingSection from "./admin-accounting/AdminAccountingSection";
 import AdminOrdersPanelSection from "./admin-orders/AdminOrdersPanelSection";
 import AdminShipmentsSection from "./AdminShipmentsSection";
@@ -44,6 +47,8 @@ const operationalPendingStatuses = new Set([
   "packed",
 ]);
 
+type ManualSalesTab = "sale" | "current-accounts" | "cash-register";
+
 export default function AdminWorkspace({
   section,
   user,
@@ -57,12 +62,14 @@ export default function AdminWorkspace({
       />
     );
   if (section === "admin-accounting") return <AdminAccountingSection />;
+  if (section === "admin-manual-sales") return <AdminManualSalesWorkspace />;
   if (section === "admin-products") return <AdminProductsSection />;
   if (section === "admin-labels") return <AdminLabelsSection />;
   if (section === "admin-categories")
     return <AdminProductsSection initialTab="categories" />;
   if (section === "admin-orders") return <AdminOrdersPanelSection />;
   if (section === "admin-customers") return <AdminCustomersSection />;
+  if (section === "admin-current-accounts") return <AdminManualSalesWorkspace initialTab="current-accounts" />;
   if (section === "admin-shipments") return <AdminShipmentsSection />;
   if (section === "admin-returns") return <AdminReturnsSection />;
   if (section === "admin-promotions") return <AdminPromotionsSection />;
@@ -71,6 +78,54 @@ export default function AdminWorkspace({
     <AdminOverviewSection
       onOpenDeveloper={() => onSectionChange("admin-developer")}
     />
+  );
+}
+
+function AdminManualSalesWorkspace({
+  initialTab = "sale",
+}: {
+  initialTab?: ManualSalesTab;
+}) {
+  const [activeTab, setActiveTab] = useState<ManualSalesTab>(initialTab);
+
+  return (
+    <section style={panelStyle} data-account-panel>
+      <div style={tabRailStyle} role="tablist" aria-label="Venta manual">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "sale"}
+          style={workspaceTabStyle(activeTab === "sale")}
+          onClick={() => setActiveTab("sale")}
+        >
+          Venta manual
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "current-accounts"}
+          style={workspaceTabStyle(activeTab === "current-accounts")}
+          onClick={() => setActiveTab("current-accounts")}
+        >
+          Cuentas corrientes
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "cash-register"}
+          style={workspaceTabStyle(activeTab === "cash-register")}
+          onClick={() => setActiveTab("cash-register")}
+        >
+          Caja
+        </button>
+      </div>
+
+      <div role="tabpanel">
+        {activeTab === "sale" ? <AdminManualSalesSection /> : null}
+        {activeTab === "current-accounts" ? <AdminCurrentAccountsSection /> : null}
+        {activeTab === "cash-register" ? <AdminCashRegisterSection /> : null}
+      </div>
+    </section>
   );
 }
 
@@ -110,6 +165,7 @@ type DefaultLabelPayload = {
   defaultLabel: {
     template: string;
     options: LabelOptions;
+    templateOptions?: Record<string, LabelOptions>;
     quantityMode?: "one" | "stock";
   };
 };
@@ -131,10 +187,30 @@ const labelOptionLabels: Record<Exclude<keyof LabelOptions, "priceMode" | "showP
   showLogo: "Mostrar logo",
 };
 
+function normalizeTemplateOptions(input?: Record<string, LabelOptions>): Record<string, LabelOptions> {
+  if (!input || typeof input !== "object") return {};
+
+  return Object.fromEntries(
+    Object.entries(input).map(([key, options]) => [
+      key,
+      { ...defaultLabelOptions, ...options },
+    ]),
+  );
+}
+
+function resolveTemplateOptions(
+  template: string,
+  templateOptions: Record<string, LabelOptions>,
+  fallback?: LabelOptions,
+) {
+  return { ...defaultLabelOptions, ...(fallback ?? {}), ...(templateOptions[template] ?? {}) };
+}
+
 function AdminSettingsSection() {
-  const [settingsTab, setSettingsTab] = useState<"transfer" | "labels">("transfer");
+  const [settingsTab, setSettingsTab] = useState<"transfer" | "labels" | "cash">("transfer");
   const [alias, setAlias] = useState("");
   const [discountPercentage, setDiscountPercentage] = useState("0");
+  const [cashRegisterMode, setCashRegisterMode] = useState<"automatic" | "manual">("automatic");
   const [labelTemplates, setLabelTemplates] = useState<LabelTemplate[]>([]);
   const [labelPriceSettings, setLabelPriceSettings] = useState<LabelTemplatesPayload["priceSettings"]>({
     hasTransferPrice: false,
@@ -142,6 +218,7 @@ function AdminSettingsSection() {
   });
   const [labelTemplate, setLabelTemplate] = useState("BROTHER_QL570_29X90");
   const [labelOptions, setLabelOptions] = useState<LabelOptions>(defaultLabelOptions);
+  const [labelTemplateOptions, setLabelTemplateOptions] = useState<Record<string, LabelOptions>>({});
   const [labelQuantityMode, setLabelQuantityMode] = useState<"one" | "stock">("stock");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -161,15 +238,23 @@ function AdminSettingsSection() {
       api("/store/admin/integrations") as Promise<AdminPaymentConfig>,
       api("/admin/labels/templates") as Promise<LabelTemplatesPayload>,
       api("/admin/labels/default") as Promise<DefaultLabelPayload>,
+      api("/cash-register/config") as Promise<{ mode: "automatic" | "manual" }>,
     ])
-      .then(([config, templatesPayload, defaultLabelPayload]) => {
+      .then(([config, templatesPayload, defaultLabelPayload, cashConfig]) => {
         if (!mounted) return;
         setAlias(config?.bankTransfer?.alias?.trim() ?? "");
         setDiscountPercentage(String(Number(config?.bankTransfer?.discountPercentage ?? 0)));
+        setCashRegisterMode(cashConfig.mode === "manual" ? "manual" : "automatic");
         setLabelTemplates(templatesPayload.templates ?? []);
         setLabelPriceSettings(templatesPayload.priceSettings);
-        setLabelTemplate(defaultLabelPayload.defaultLabel.template);
-        setLabelOptions({ ...defaultLabelOptions, ...defaultLabelPayload.defaultLabel.options });
+        const allowedTemplates = templatesPayload.templates ?? [];
+        const nextTemplate = allowedTemplates.some((template) => template.key === defaultLabelPayload.defaultLabel.template)
+          ? defaultLabelPayload.defaultLabel.template
+          : allowedTemplates[0]?.key ?? defaultLabelPayload.defaultLabel.template;
+        const nextTemplateOptions = normalizeTemplateOptions(defaultLabelPayload.defaultLabel.templateOptions);
+        setLabelTemplateOptions(nextTemplateOptions);
+        setLabelTemplate(nextTemplate);
+        setLabelOptions(resolveTemplateOptions(nextTemplate, nextTemplateOptions, defaultLabelPayload.defaultLabel.options));
         setLabelQuantityMode(defaultLabelPayload.defaultLabel.quantityMode === "one" ? "one" : "stock");
       })
       .catch((err) => {
@@ -226,13 +311,35 @@ function AdminSettingsSection() {
         }),
       }) as DefaultLabelPayload;
       setLabelTemplate(response.defaultLabel.template);
-      setLabelOptions({ ...defaultLabelOptions, ...response.defaultLabel.options });
+      const nextTemplateOptions = normalizeTemplateOptions(response.defaultLabel.templateOptions);
+      setLabelTemplateOptions(nextTemplateOptions);
+      setLabelOptions(resolveTemplateOptions(response.defaultLabel.template, nextTemplateOptions, response.defaultLabel.options));
       setLabelQuantityMode(response.defaultLabel.quantityMode === "one" ? "one" : "stock");
       setMessage("Etiqueta predeterminada guardada.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la etiqueta predeterminada.");
     } finally {
       setSavingLabels(false);
+    }
+  }
+
+  async function onSaveCashRegister(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const response = await api("/cash-register/config", {
+        method: "PUT",
+        body: JSON.stringify({ mode: cashRegisterMode }),
+      }) as { mode: "automatic" | "manual" };
+      setCashRegisterMode(response.mode === "manual" ? "manual" : "automatic");
+      setMessage("Configuracion de caja guardada.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la configuracion de caja.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -244,6 +351,14 @@ function AdminSettingsSection() {
     if (normalChecked) return "normal";
     if (transferChecked) return "transfer";
     return "none";
+  }
+
+  function updateLabelOptions(nextOptions: LabelOptions) {
+    setLabelOptions(nextOptions);
+    setLabelTemplateOptions((current) => ({
+      ...current,
+      [labelTemplate]: nextOptions,
+    }));
   }
 
   return (
@@ -262,6 +377,13 @@ function AdminSettingsSection() {
           onClick={() => setSettingsTab("labels")}
         >
           Etiqueta predeterminada
+        </button>
+        <button
+          type="button"
+          style={workspaceTabStyle(settingsTab === "cash")}
+          onClick={() => setSettingsTab("cash")}
+        >
+          Caja
         </button>
       </div>
 
@@ -337,11 +459,15 @@ function AdminSettingsSection() {
                 value={labelTemplate}
                 onChange={(event) => {
                   const nextTemplate = labelTemplates.find((template) => template.key === event.target.value);
-                  const nextMode = nextTemplate?.priceOptions?.includes(labelOptions.priceMode)
-                    ? labelOptions.priceMode
+                  const nextTemplateKey = event.target.value;
+                  const savedOptions = labelTemplateOptions[nextTemplateKey];
+                  const baseOptions = savedOptions ?? defaultLabelOptions;
+                  const nextMode = nextTemplate?.priceOptions?.includes(baseOptions.priceMode)
+                    ? baseOptions.priceMode
                     : nextTemplate?.priceOptions?.[0] ?? "normal";
-                  setLabelTemplate(event.target.value);
-                  setLabelOptions((current) => ({ ...current, priceMode: nextMode, showPrice: nextMode !== "none" }));
+                  const nextOptions = { ...baseOptions, priceMode: nextMode, showPrice: nextMode !== "none" };
+                  setLabelTemplate(nextTemplateKey);
+                  setLabelOptions(nextOptions);
                 }}
                 style={fieldStyle}
               >
@@ -394,7 +520,7 @@ function AdminSettingsSection() {
                 disabled={selectedLabelTemplate?.priceOptions?.includes("normal") === false}
                 onChange={(event) => {
                   const priceMode = nextPriceMode(labelOptions.priceMode, "normal", event.target.checked);
-                  setLabelOptions({ ...labelOptions, priceMode, showPrice: priceMode !== "none" });
+                  updateLabelOptions({ ...labelOptions, priceMode, showPrice: priceMode !== "none" });
                 }}
               />
               Precio normal
@@ -406,7 +532,7 @@ function AdminSettingsSection() {
                 disabled={!labelPriceSettings.hasTransferPrice || selectedLabelTemplate?.priceOptions?.includes("transfer") === false}
                 onChange={(event) => {
                   const priceMode = nextPriceMode(labelOptions.priceMode, "transfer", event.target.checked);
-                  setLabelOptions({ ...labelOptions, priceMode, showPrice: priceMode !== "none" });
+                  updateLabelOptions({ ...labelOptions, priceMode, showPrice: priceMode !== "none" });
                 }}
               />
               Precio transferencia
@@ -416,7 +542,7 @@ function AdminSettingsSection() {
                 <input
                   type="checkbox"
                   checked={Boolean(labelOptions[key])}
-                  onChange={(event) => setLabelOptions({ ...labelOptions, [key]: event.target.checked })}
+                  onChange={(event) => updateLabelOptions({ ...labelOptions, [key]: event.target.checked })}
                 />
                 {labelOptionLabels[key]}
               </label>
@@ -431,6 +557,51 @@ function AdminSettingsSection() {
 
           <button type="submit" disabled={savingLabels || loading || !labelTemplate} style={primaryButtonStyle}>
             {savingLabels ? "Guardando..." : "Guardar etiqueta predeterminada"}
+          </button>
+        </form>
+      ) : null}
+
+      {settingsTab === "cash" ? (
+        <form style={blockStyle} onSubmit={onSaveCashRegister}>
+          <div>
+            <p style={eyebrowStyle}>Mostrador</p>
+            <h3 style={title3Style}>Modo de caja</h3>
+            <p style={copyStyle}>Define si la caja se organiza automaticamente por dia o si el vendedor la abre y cierra manualmente.</p>
+          </div>
+
+          {loading ? <p style={copyStyle}>Cargando configuracion...</p> : null}
+          {error ? <p style={{ ...copyStyle, color: "#ffb7b7" }}>{error}</p> : null}
+          {message ? <p style={{ ...copyStyle, color: "var(--admin-tone-success-color)" }}>{message}</p> : null}
+
+          <div style={chipRowStyle}>
+            <button
+              type="button"
+              onClick={() => setCashRegisterMode("automatic")}
+              style={productChipStyle(cashRegisterMode === "automatic")}
+            >
+              Automatica por dia
+            </button>
+            <button
+              type="button"
+              onClick={() => setCashRegisterMode("manual")}
+              style={productChipStyle(cashRegisterMode === "manual")}
+            >
+              Abrir y cerrar manual
+            </button>
+          </div>
+
+          <div style={itemStyle}>
+            <span style={metaStyle}>Comportamiento</span>
+            <strong>{cashRegisterMode === "automatic" ? "Caja diaria automatica" : "Caja manual"}</strong>
+            <small style={copyStyle}>
+              {cashRegisterMode === "automatic"
+                ? "Cada dia queda separado por fecha y se puede imprimir el cierre en cualquier momento."
+                : "El vendedor debe abrir caja con importe inicial y cerrarla al terminar."}
+            </small>
+          </div>
+
+          <button type="submit" disabled={saving || loading} style={primaryButtonStyle}>
+            {saving ? "Guardando..." : "Guardar caja"}
           </button>
         </form>
       ) : null}

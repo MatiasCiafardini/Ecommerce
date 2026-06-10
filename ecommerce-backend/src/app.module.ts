@@ -27,6 +27,8 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { ProductOptionsModule } from './modules/product-options/product-options.module';
 import { SystemModule } from './modules/system/system.module';
 import { LabelsModule } from './modules/labels/labels.module';
+import { CurrentAccountsModule } from './modules/current-accounts/current-accounts.module';
+import { CashRegisterModule } from './modules/cash-register/cash-register.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 import { CustomerAddressesModule } from './modules/customers/customer-addresses/customer-addresses.module';
@@ -43,6 +45,14 @@ import { PrismaModule } from './prisma/prisma.module';
       connection: {
         host: runtimeConfig.redisHost,
         port: runtimeConfig.redisPort,
+        maxRetriesPerRequest: 1,
+        retryStrategy: (attempts: number) => {
+          if (attempts > runtimeConfig.redisRetryAttempts) {
+            return null;
+          }
+
+          return Math.min(attempts * 1000, 5000);
+        },
       },
     }),
 
@@ -69,6 +79,8 @@ import { PrismaModule } from './prisma/prisma.module';
     ProductOptionsModule,
     SystemModule,
     LabelsModule,
+    CurrentAccountsModule,
+    CashRegisterModule,
     PrismaModule,
   ],
 })

@@ -223,19 +223,19 @@ export class ProductsService {
       storeId,
       deletedAt: null,
     };
-    const search = rawSearch?.trim().slice(0, 80);
+    const searchTerms = this.parseSearchTerms(rawSearch);
 
-    if (!search) {
+    if (searchTerms.length === 0) {
       return where;
     }
 
-    const contains = {
-      contains: search,
-      mode: 'insensitive',
-    } satisfies Prisma.StringFilter;
+    where.AND = searchTerms.map((term) => {
+      const contains = {
+        contains: term,
+        mode: 'insensitive',
+      } satisfies Prisma.StringFilter;
 
-    where.AND = [
-      {
+      return {
         OR: [
           { title: contains },
           { slug: contains },
@@ -270,10 +270,20 @@ export class ProductsService {
             },
           },
         ],
-      },
-    ];
+      } satisfies Prisma.ProductWhereInput;
+    });
 
     return where;
+  }
+
+  private parseSearchTerms(rawSearch?: string) {
+    return (rawSearch ?? '')
+      .trim()
+      .slice(0, 80)
+      .split(/\s+/u)
+      .map((term) => term.trim())
+      .filter(Boolean)
+      .slice(0, 8);
   }
 
   private buildAdminCatalogWhere(

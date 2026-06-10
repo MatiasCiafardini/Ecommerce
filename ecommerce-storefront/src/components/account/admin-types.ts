@@ -111,7 +111,7 @@ export type AdminCancellationRequest = {
   reviewedAt?: string | null;
   customer?: {
     id: number;
-    email: string;
+    email?: string | null;
     firstName?: string | null;
     lastName?: string | null;
   };
@@ -129,11 +129,13 @@ export type AdminSection =
   | "admin-overview"
   | "admin-developer"
   | "admin-accounting"
+  | "admin-manual-sales"
   | "admin-products"
   | "admin-labels"
   | "admin-categories"
   | "admin-orders"
   | "admin-customers"
+  | "admin-current-accounts"
   | "admin-shipments"
   | "admin-returns"
   | "admin-promotions"

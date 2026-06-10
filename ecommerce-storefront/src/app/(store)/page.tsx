@@ -1,7 +1,7 @@
 import BlockRenderer from "@/engine/block-renderer/BlockRenderer";
 import { getTenantConfig } from "@/lib/tenant/get-tenant";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 600;
 
 export default async function HomePage() {
   const config = await getTenantConfig();

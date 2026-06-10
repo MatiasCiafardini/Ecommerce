@@ -7,6 +7,11 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  calculateManualSaleDiscountAmount,
+  resolveStorePricingPolicy,
+  type StorePricingPolicy,
+} from '../../common/price-input-mode';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateManualSaleDto } from './dto/create-manual-sale.dto';
@@ -167,9 +172,22 @@ export class OrdersService {
     return order;
   }
 
-  async createManualSale(data: CreateManualSaleDto, storeId: number) {
+  async createManualSale(
+    data: CreateManualSaleDto,
+    storeId: number,
+    createdByUserId?: number,
+  ) {
     await this.ensureManualSalesEnabled(storeId);
 
+    const currentAccountPayment = this.isCurrentAccountPaymentMethod(data.paymentMethod);
+
+    if (currentAccountPayment && !data.customerId) {
+      throw new BadRequestException(
+        'Para vender en cuenta corriente, seleccioná o registrá un cliente.',
+      );
+    }
+
+    const pricingPolicy = await this.resolvePricingPolicy(storeId);
     const customerId = data.customerId
       ? await this.ensureCustomer(storeId, data.customerId)
       : await this.ensureManualSaleCustomer(storeId);
@@ -183,9 +201,16 @@ export class OrdersService {
         discountType: data.discountType,
         discountValue: data.discountValue,
       });
-      const paymentStatus = data.paymentStatus ?? 'approved';
+      const paymentStatus = currentAccountPayment
+        ? 'pending'
+        : data.paymentStatus ?? 'approved';
+      const stockStatus = currentAccountPayment ? 'approved' : paymentStatus;
       const initialOrderStatus =
-        paymentStatus === 'approved' ? OrderStatus.paid : OrderStatus.pending;
+        currentAccountPayment
+          ? OrderStatus.pending
+          : stockStatus === 'approved'
+            ? OrderStatus.paid
+            : OrderStatus.pending;
 
       const variants = await tx.productVariant.findMany({
         where: {
@@ -249,6 +274,8 @@ export class OrdersService {
         subtotal,
         discount.type,
         discount.value,
+        orderItems,
+        pricingPolicy,
       );
       const total = Math.max(subtotal - discountAmount + shippingCost, 0);
       const shippingMethod =
@@ -300,6 +327,7 @@ export class OrdersService {
                 origin: 'manual_sale',
                 discountType: discount.type,
                 discountValue: discount.value,
+                currentAccount: currentAccountPayment,
               },
             },
           },
@@ -307,7 +335,7 @@ export class OrdersService {
         include: this.orderInclude(),
       });
 
-      if (paymentStatus === 'approved') {
+      if (stockStatus === 'approved') {
         for (const item of orderItems) {
           await this.inventoryLockService.confirmStockTx(
             tx,
@@ -316,6 +344,55 @@ export class OrdersService {
             item.quantity,
           );
         }
+      }
+
+      if (currentAccountPayment) {
+        await tx.customer.update({
+          where: { id: customerId },
+          data: { source: 'current_account' },
+        });
+
+        const existingAccount = await tx.currentAccount.findUnique({
+          where: {
+            storeId_customerId: {
+              storeId,
+              customerId,
+            },
+          },
+        });
+        const previousBalance = Number(existingAccount?.balance ?? 0);
+        const nextBalance = this.roundCurrency(previousBalance + total);
+        const account = existingAccount
+          ? await tx.currentAccount.update({
+              where: { id: existingAccount.id },
+              data: {
+                balance: nextBalance,
+                lastMovementAt: new Date(),
+              },
+            })
+          : await tx.currentAccount.create({
+              data: {
+                storeId,
+                customerId,
+                balance: nextBalance,
+                lastMovementAt: new Date(),
+              },
+            });
+
+        await tx.currentAccountMovement.create({
+          data: {
+            storeId,
+            accountId: account.id,
+            customerId,
+            orderId: order.id,
+            type: 'SALE',
+            amount: total,
+            paymentMethod: 'Cuenta corriente',
+            description: `Venta manual #${order.id}`,
+            createdByUserId,
+            balanceAfter: nextBalance,
+          },
+        });
       }
 
       await tx.orderEvent.create({
@@ -329,6 +406,7 @@ export class OrdersService {
           metadata: {
             paymentStatus,
             paymentMethod: data.paymentMethod?.trim() || 'Efectivo',
+            currentAccount: currentAccountPayment,
             hasNotes: Boolean(data.notes?.trim()),
           },
         },
@@ -342,8 +420,10 @@ export class OrdersService {
     orderId: number,
     data: UpdateManualSaleDto,
     storeId: number,
+    createdByUserId?: number,
   ) {
     await this.ensureManualSalesEnabled(storeId);
+    const pricingPolicy = await this.resolvePricingPolicy(storeId);
 
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
@@ -374,7 +454,8 @@ export class OrdersService {
       );
 
       const behavesAsPending =
-        manualPayment?.status === 'pending' || order.status === OrderStatus.pending;
+        !this.isCurrentAccountPaymentMetadata(manualPayment?.metadata) &&
+        (manualPayment?.status === 'pending' || order.status === OrderStatus.pending);
 
       const incomingItems = data.items ?? [];
       const incomingIds = new Set(incomingItems.map((item) => item.orderItemId));
@@ -392,6 +473,7 @@ export class OrdersService {
       }
 
       let subtotal = 0;
+      const discountItems: OrderItemData[] = [];
 
       for (const existingItem of order.items) {
         const nextItem = incomingItems.find(
@@ -506,6 +588,11 @@ export class OrdersService {
         });
 
         subtotal += nextItem.quantity * Number(nextItem.price);
+        discountItems.push({
+          variantId: existingItem.variantId,
+          quantity: nextItem.quantity,
+          price: Number(nextItem.price),
+        });
       }
 
       const discount = this.resolveManualSaleDiscount({
@@ -516,11 +603,17 @@ export class OrdersService {
         subtotal,
         discount.type,
         discount.value,
+        discountItems,
+        pricingPolicy,
       );
       const total = Math.max(
         subtotal - discountAmount + Number(order.shippingCost ?? 0),
         0,
       );
+      const currentAccountPayment = this.isCurrentAccountPaymentMetadata(
+        manualPayment?.metadata,
+      );
+      const previousTotal = Number(order.total);
 
       const updated = await tx.order.update({
         where: {
@@ -552,11 +645,54 @@ export class OrdersService {
         include: this.orderInclude(),
       });
 
+      if (currentAccountPayment && total !== previousTotal) {
+        const account = await tx.currentAccount.findUnique({
+          where: {
+            storeId_customerId: {
+              storeId,
+              customerId: order.customerId,
+            },
+          },
+        });
+
+        if (account) {
+          const delta = this.roundCurrency(total - previousTotal);
+          const nextBalance = this.roundCurrency(Number(account.balance) + delta);
+
+          await tx.currentAccount.update({
+            where: { id: account.id },
+            data: {
+              balance: nextBalance,
+              lastMovementAt: new Date(),
+            },
+          });
+
+          await tx.currentAccountMovement.create({
+            data: {
+              storeId,
+              accountId: account.id,
+              customerId: order.customerId,
+              orderId: order.id,
+              type: delta >= 0 ? 'ADJUSTMENT_POSITIVE' : 'ADJUSTMENT_NEGATIVE',
+              amount: delta,
+              paymentMethod: 'Cuenta corriente',
+              description: `Ajuste por edicion de venta manual #${order.id}`,
+              createdByUserId,
+              balanceAfter: nextBalance,
+            },
+          });
+        }
+      }
+
       return this.withCancellationRequests(updated);
     });
   }
 
-  async cancelManualSale(orderId: number, storeId: number) {
+  async cancelManualSale(
+    orderId: number,
+    storeId: number,
+    createdByUserId?: number,
+  ) {
     await this.ensureManualSalesEnabled(storeId);
 
     return this.prisma.$transaction(async (tx) => {
@@ -584,9 +720,14 @@ export class OrdersService {
       const manualPayment = order.payments.find(
         (payment) => payment.provider === 'manual',
       );
+      const currentAccountPayment =
+        manualPayment?.metadata &&
+        typeof manualPayment.metadata === 'object' &&
+        (manualPayment.metadata as Record<string, unknown>).currentAccount === true;
       const behavesAsPending =
-        manualPayment?.status === 'pending' ||
-        order.status === OrderStatus.pending;
+        !currentAccountPayment &&
+        (manualPayment?.status === 'pending' ||
+          order.status === OrderStatus.pending);
 
       for (const item of order.items) {
         if (behavesAsPending) {
@@ -635,6 +776,46 @@ export class OrdersService {
         },
         include: this.orderInclude(),
       });
+
+      if (currentAccountPayment) {
+        const account = await tx.currentAccount.findUnique({
+          where: {
+            storeId_customerId: {
+              storeId,
+              customerId: order.customerId,
+            },
+          },
+        });
+
+        if (account) {
+          const nextBalance = this.roundCurrency(
+            Number(account.balance) - Number(order.total),
+          );
+
+          await tx.currentAccount.update({
+            where: { id: account.id },
+            data: {
+              balance: nextBalance,
+              lastMovementAt: new Date(),
+            },
+          });
+
+          await tx.currentAccountMovement.create({
+            data: {
+              storeId,
+              accountId: account.id,
+              customerId: order.customerId,
+              orderId: order.id,
+              type: 'ADJUSTMENT_NEGATIVE',
+              amount: -Number(order.total),
+              paymentMethod: 'Cuenta corriente',
+              description: `Anulacion de venta manual #${order.id}`,
+              createdByUserId,
+              balanceAfter: nextBalance,
+            },
+          });
+        }
+      }
 
       await tx.orderEvent.create({
         data: {
@@ -1885,6 +2066,7 @@ export class OrdersService {
         email,
         firstName: 'Venta',
         lastName: 'mostrador',
+        source: 'admin',
       },
       select: {
         id: true,
@@ -1970,19 +2152,52 @@ export class OrdersService {
     subtotal: number,
     discountType: 'percentage' | 'fixed',
     discountValue: number,
+    items: Array<Pick<OrderItemData, 'price' | 'quantity'>> = [],
+    pricingPolicy: Pick<StorePricingPolicy, 'manualSaleDiscountRounding'>,
   ) {
-    if (subtotal <= 0 || discountValue <= 0) {
-      return 0;
-    }
+    return calculateManualSaleDiscountAmount(
+      subtotal,
+      discountType,
+      discountValue,
+      items,
+      pricingPolicy,
+    );
+  }
 
-    if (discountType === 'percentage') {
-      const normalizedPercentage = Math.min(discountValue, 100);
-      return Number(
-        Math.min(subtotal * (normalizedPercentage / 100), subtotal).toFixed(2),
-      );
-    }
+  private isCurrentAccountPaymentMethod(paymentMethod?: string | null) {
+    const normalized = paymentMethod?.trim().toLowerCase() ?? '';
+    return (
+      normalized === 'cuenta corriente' ||
+      normalized === 'current_account' ||
+      normalized === 'current account'
+    );
+  }
 
-    return Number(Math.min(discountValue, subtotal).toFixed(2));
+  private isCurrentAccountPaymentMetadata(metadata: unknown) {
+    return (
+      Boolean(metadata) &&
+      typeof metadata === 'object' &&
+      (metadata as Record<string, unknown>).currentAccount === true
+    );
+  }
+
+  private roundCurrency(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private async resolvePricingPolicy(storeId: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        id: true,
+        name: true,
+        domain: true,
+        storefrontConfig: true,
+        bankTransferDiscountPercentage: true,
+      },
+    });
+
+    return resolveStorePricingPolicy(store);
   }
 
   private buildShippingAddress(order: {

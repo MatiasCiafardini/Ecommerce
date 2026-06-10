@@ -480,6 +480,20 @@ function resolveDisplayPriceFromBase(
   return Number((parsed * priceInputSettings.multiplier).toFixed(2));
 }
 
+function roundToNearestHundred(value: number) {
+  return Math.max(0, Math.round(value / 100) * 100);
+}
+
+function resolveCatalogPriceFromBase(
+  price: string | number | null | undefined,
+  priceInputSettings: ProductPriceInputSettings,
+) {
+  const displayPrice = resolveDisplayPriceFromBase(price, priceInputSettings);
+  if (!displayPrice) return 0;
+
+  return priceInputSettings.enabled ? roundToNearestHundred(displayPrice) : displayPrice;
+}
+
 function formatEditablePriceFromBase(
   price: string | number | null | undefined,
   priceInputSettings: ProductPriceInputSettings,
@@ -510,7 +524,7 @@ function getProductPriceFrom(
   priceInputSettings = defaultPriceInputSettings,
 ) {
   const prices = (product.variants ?? [])
-    .map((variant) => resolveDisplayPriceFromBase(variant.price, priceInputSettings))
+    .map((variant) => resolveCatalogPriceFromBase(variant.price, priceInputSettings))
     .filter((price) => Number.isFinite(price) && price > 0);
 
   return prices.length > 0 ? Math.min(...prices) : 0;

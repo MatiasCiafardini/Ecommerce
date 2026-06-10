@@ -181,7 +181,6 @@ export function BrandedHeader({
               width={110}
               height={44}
               priority
-              unoptimized
               style={{
                 width: isMobile ? logoMobileWidth : logoDesktopWidth,
                 height: "auto",

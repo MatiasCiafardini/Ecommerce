@@ -1,6 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { runtimeConfig } from '../../config/runtime-config';
+import {
+  isComoVosYYoStore,
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+  resolveTransferPrice,
+} from '../../common/price-input-mode';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Code128BarcodeService } from './barcode/code128-barcode.service';
 import { DefaultLabelConfigDto, type DefaultLabelQuantityMode } from './dto/default-label-config.dto';
@@ -12,6 +18,7 @@ import { LABEL_TEMPLATES, getLabelTemplate, type LabelPriceMode, type LabelTempl
 type DefaultLabelConfig = {
   template: LabelTemplateKey;
   options: Required<LabelOptionsDto>;
+  templateOptions: Partial<Record<LabelTemplateKey, Required<LabelOptionsDto>>>;
   quantityMode: DefaultLabelQuantityMode;
 };
 
@@ -26,8 +33,14 @@ const DEFAULT_LABEL_CONFIG: DefaultLabelConfig = {
     showSku: true,
     showLogo: false,
   },
+  templateOptions: {},
   quantityMode: 'stock',
 };
+
+const COMOVOSYYO_LABEL_TEMPLATE_KEYS: LabelTemplateKey[] = [
+  'BROTHER_QL570_29X90',
+  'BROTHER_QL570_54X17_ACCESSORY',
+];
 
 @Injectable()
 export class LabelsService {
@@ -80,7 +93,7 @@ export class LabelsService {
   async getTemplates(storeId: number) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
-      select: { bankTransferDiscountPercentage: true },
+      select: { id: true, name: true, domain: true, storefrontConfig: true, bankTransferDiscountPercentage: true },
     });
     const bankTransferDiscountPercentage = this.normalizeDiscountPercentage(
       store?.bankTransferDiscountPercentage,
@@ -88,7 +101,7 @@ export class LabelsService {
     const hasTransferPrice = bankTransferDiscountPercentage > 0;
 
     return {
-      templates: Object.values(LABEL_TEMPLATES),
+      templates: this.getAllowedTemplates(store),
       priceSettings: {
         hasTransferPrice,
         bankTransferDiscountPercentage,
@@ -103,11 +116,16 @@ export class LabelsService {
   }
 
   async updateDefaultConfig(storeId: number, dto: DefaultLabelConfigDto) {
-    const defaultLabel = this.normalizeDefaultConfig(dto);
+    const previousDefaultLabel = await this.loadDefaultConfig(storeId);
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
-      select: { storefrontConfig: true },
+      select: { id: true, name: true, domain: true, storefrontConfig: true },
     });
+    const defaultLabel = this.normalizeDefaultConfig(
+      dto,
+      previousDefaultLabel,
+      this.getAllowedTemplates(store),
+    );
     const currentConfig = this.asPlainObject(store?.storefrontConfig);
 
     await this.prisma.store.update({
@@ -293,7 +311,7 @@ export class LabelsService {
 
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
-      select: { name: true, storefrontConfig: true, bankTransferDiscountPercentage: true },
+      select: { id: true, name: true, domain: true, storefrontConfig: true, bankTransferDiscountPercentage: true },
     });
     const variantById = new Map(variants.map((variant) => [variant.id, variant]));
     const labels: PrintableLabel[] = [];
@@ -302,16 +320,17 @@ export class LabelsService {
     const bankTransferDiscountPercentage = this.normalizeDiscountPercentage(
       store?.bankTransferDiscountPercentage,
     );
+    const pricingPolicy = resolveStorePricingPolicy(store);
 
     for (const item of normalizedItems) {
       const variant = variantById.get(item.variantId);
       if (!variant) continue;
       const normalPrice = Number(variant.price);
-      const labelNormalPrice = this.resolveLabelNormalPrice(
+      const labelNormalPrice = resolveLabelNormalPrice(
         normalPrice,
-        bankTransferDiscountPercentage,
+        pricingPolicy,
       );
-      const transferPrice = this.resolveTransferPrice(normalPrice, bankTransferDiscountPercentage);
+      const transferPrice = resolveTransferPrice(normalPrice, bankTransferDiscountPercentage, pricingPolicy);
 
       for (let index = 0; index < item.quantity && labels.length < maxLabels; index += 1) {
         labels.push({
@@ -404,35 +423,84 @@ export class LabelsService {
   private async loadDefaultConfig(storeId: number): Promise<DefaultLabelConfig> {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
-      select: { storefrontConfig: true },
+      select: { id: true, name: true, domain: true, storefrontConfig: true },
     });
     const storefrontConfig = this.asPlainObject(store?.storefrontConfig);
-
-    return this.normalizeDefaultConfig(storefrontConfig.defaultLabel);
+    const allowedTemplates = this.getAllowedTemplates(store);
+    return this.normalizeDefaultConfig(storefrontConfig.defaultLabel, undefined, allowedTemplates);
   }
 
-  private normalizeDefaultConfig(input: unknown): DefaultLabelConfig {
+  private normalizeDefaultConfig(
+    input: unknown,
+    previous?: DefaultLabelConfig,
+    allowedTemplates = Object.values(LABEL_TEMPLATES),
+  ): DefaultLabelConfig {
     const source = this.asPlainObject(input);
-    const template = getLabelTemplate(String(source.template ?? ''))
+    const allowedKeys = new Set(allowedTemplates.map((template) => template.key));
+    const fallbackTemplate =
+      allowedTemplates.find((template) => template.key === previous?.template)?.key ??
+      allowedTemplates.find((template) => template.key === DEFAULT_LABEL_CONFIG.template)?.key ??
+      allowedTemplates[0]?.key ??
+      DEFAULT_LABEL_CONFIG.template;
+    const rawTemplate = String(source.template ?? '');
+    const template = getLabelTemplate(rawTemplate) && allowedKeys.has(rawTemplate as LabelTemplateKey)
       ? (source.template as LabelTemplateKey)
-      : DEFAULT_LABEL_CONFIG.template;
+      : fallbackTemplate;
+    const previousTemplateOptions = previous?.templateOptions ?? {};
+    const sourceTemplateOptions = this.normalizeTemplateOptions(source.templateOptions, allowedKeys);
+    const optionsInput = this.asPlainObject(source.options);
     const normalizedOptions = this.normalizeOptions(
-      this.asPlainObject(source.options) as LabelOptionsDto,
+      {
+        ...(previousTemplateOptions[template] ?? {}),
+        ...optionsInput,
+      } as LabelOptionsDto,
     );
     const labelTemplate = getLabelTemplate(template);
     const priceMode = labelTemplate?.priceOptions.includes(normalizedOptions.priceMode)
       ? normalizedOptions.priceMode
       : labelTemplate?.priceOptions[0] ?? DEFAULT_LABEL_CONFIG.options.priceMode;
 
+    const nextOptions = {
+      ...normalizedOptions,
+      priceMode,
+      showPrice: priceMode !== 'none',
+    };
+
     return {
       template,
       quantityMode: this.normalizeQuantityMode(source.quantityMode),
-      options: {
-        ...normalizedOptions,
-        priceMode,
-        showPrice: priceMode !== 'none',
+      options: nextOptions,
+      templateOptions: {
+        ...sourceTemplateOptions,
+        ...previousTemplateOptions,
+        [template]: nextOptions,
       },
     };
+  }
+
+  private normalizeTemplateOptions(
+    input: unknown,
+    allowedKeys: Set<string>,
+  ): Partial<Record<LabelTemplateKey, Required<LabelOptionsDto>>> {
+    const source = this.asPlainObject(input);
+    const entries = Object.entries(source)
+      .filter(([key]) => getLabelTemplate(key) && allowedKeys.has(key))
+      .map(([key, value]) => [key, this.normalizeOptions(this.asPlainObject(value) as LabelOptionsDto)] as const);
+
+    return Object.fromEntries(entries) as Partial<Record<LabelTemplateKey, Required<LabelOptionsDto>>>;
+  }
+
+  private getAllowedTemplates(store: {
+    id?: number | null;
+    name?: string | null;
+    domain?: string | null;
+    storefrontConfig?: Prisma.JsonValue | null;
+  } | null | undefined) {
+    if (!store || !isComoVosYYoStore(store)) {
+      return Object.values(LABEL_TEMPLATES);
+    }
+
+    return COMOVOSYYO_LABEL_TEMPLATE_KEYS.map((key) => LABEL_TEMPLATES[key]);
   }
 
   private async buildProductStockItems(
@@ -535,7 +603,7 @@ export class LabelsService {
   private async getPriceSettings(storeId: number) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
-      select: { bankTransferDiscountPercentage: true },
+      select: { id: true, name: true, domain: true, storefrontConfig: true, bankTransferDiscountPercentage: true },
     });
     const bankTransferDiscountPercentage = this.normalizeDiscountPercentage(
       store?.bankTransferDiscountPercentage,
@@ -549,12 +617,6 @@ export class LabelsService {
 
   private normalizeDiscountPercentage(value: number | null | undefined) {
     return Math.max(0, Math.min(Number(value ?? 0) || 0, 100));
-  }
-
-  private resolveTransferPrice(price: number, discountPercentage: number) {
-    if (!Number.isFinite(price) || price <= 0 || discountPercentage <= 0) return null;
-    const discountedPrice = price * (1 - discountPercentage / 100);
-    return Math.max(0, Math.round(discountedPrice / 100) * 100);
   }
 
   private formatVariantName(variant: {
@@ -576,14 +638,4 @@ export class LabelsService {
     }).format(Number(value));
   }
 
-  private resolveLabelNormalPrice(
-    price: number,
-    bankTransferDiscountPercentage: number,
-  ) {
-    if (bankTransferDiscountPercentage <= 0) {
-      return price;
-    }
-
-    return Math.round(price / 100) * 100;
-  }
 }

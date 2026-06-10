@@ -4,7 +4,7 @@ import ProductCard from "@/components/product/ProductCard";
 import { getTenantConfig } from "@/lib/tenant/get-tenant";
 import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 type Props = {
   params: Promise<{

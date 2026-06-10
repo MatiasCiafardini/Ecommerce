@@ -122,14 +122,38 @@ async function proxyRequest(
     });
   }
 
-  const upstreamResponse = await fetch(targetUrl, {
-    method: request.method,
-    headers: buildProxyHeaders(request, tenant.storeId, tenant.host, path),
-    body: BODYLESS_METHODS.has(request.method)
-      ? undefined
-      : await request.arrayBuffer(),
-    redirect: "manual",
-  });
+  let upstreamResponse: Response;
+
+  try {
+    upstreamResponse = await fetch(targetUrl, {
+      method: request.method,
+      headers: buildProxyHeaders(request, tenant.storeId, tenant.host, path),
+      body: BODYLESS_METHODS.has(request.method)
+        ? undefined
+        : await request.arrayBuffer(),
+      redirect: "manual",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[proxy] upstream request failed", {
+      targetUrl: targetUrl.toString(),
+      incomingHost: tenant.host,
+      resolvedStoreId: tenant.storeId,
+      method: request.method,
+      path,
+      message,
+    });
+
+    return NextResponse.json(
+      {
+        message: `No se pudo conectar con el backend configurado en ${apiUrl}.`,
+        detail: message,
+        error: "Bad Gateway",
+        statusCode: 502,
+      },
+      { status: 502 },
+    );
+  }
 
   return new NextResponse(upstreamResponse.body, {
     status: upstreamResponse.status,

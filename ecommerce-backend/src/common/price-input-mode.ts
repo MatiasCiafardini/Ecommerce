@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 
 type StorePricingIdentity = {
+  id?: number | null;
   name?: string | null;
   domain?: string | null;
   storefrontConfig?: Prisma.JsonValue | null;
@@ -17,6 +18,13 @@ const DEFAULT_SETTINGS: CashPriceInputSettings = {
   enabled: false,
   discountPercentage: 0,
   multiplier: 1,
+};
+
+export type StorePricingPolicy = {
+  cashInput: CashPriceInputSettings;
+  labelPriceRounding: boolean;
+  transferPriceRounding: boolean;
+  manualSaleDiscountRounding: boolean;
 };
 
 function normalizeIdentityValue(value?: string | null) {
@@ -40,12 +48,13 @@ function readConfigTheme(storefrontConfig?: Prisma.JsonValue | null) {
   return typeof theme === 'string' ? theme : '';
 }
 
-function isComoVosYYoStore(store: StorePricingIdentity) {
+export function isComoVosYYoStore(store: StorePricingIdentity) {
   const theme = normalizeIdentityValue(readConfigTheme(store.storefrontConfig));
   const name = normalizeIdentityValue(store.name);
   const domain = normalizeIdentityValue(store.domain);
 
   return (
+    store.id === 7 ||
     theme === 'comovosyyo' ||
     name.includes('como vos y yo') ||
     name.includes('comovosyyo') ||
@@ -74,6 +83,87 @@ export function resolveCashPriceInputSettings(
     discountPercentage,
     multiplier: Number((1 - discountPercentage / 100).toFixed(6)),
   };
+}
+
+export function resolveStorePricingPolicy(
+  store: StorePricingIdentity | null | undefined,
+): StorePricingPolicy {
+  const comoVosYYo = Boolean(store && isComoVosYYoStore(store));
+
+  return {
+    cashInput: resolveCashPriceInputSettings(store),
+    labelPriceRounding: comoVosYYo,
+    transferPriceRounding: comoVosYYo,
+    manualSaleDiscountRounding: comoVosYYo,
+  };
+}
+
+export function roundToNearestHundred(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+
+  return Math.round(value / 100) * 100;
+}
+
+export function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+export function resolveLabelNormalPrice(
+  price: number,
+  policy: Pick<StorePricingPolicy, 'labelPriceRounding'>,
+) {
+  if (!Number.isFinite(price) || price <= 0) return 0;
+  return policy.labelPriceRounding ? roundToNearestHundred(price) : price;
+}
+
+export function resolveTransferPrice(
+  price: number,
+  discountPercentage: number,
+  policy: Pick<StorePricingPolicy, 'transferPriceRounding'>,
+) {
+  if (!Number.isFinite(price) || price <= 0 || discountPercentage <= 0) return null;
+
+  const discountedPrice = price * (1 - discountPercentage / 100);
+  return policy.transferPriceRounding
+    ? roundToNearestHundred(discountedPrice)
+    : roundCurrency(discountedPrice);
+}
+
+export function calculateManualSaleDiscountAmount(
+  subtotal: number,
+  discountType: 'percentage' | 'fixed',
+  discountValue: number,
+  items: Array<{ price: number; quantity: number }> = [],
+  policy: Pick<StorePricingPolicy, 'manualSaleDiscountRounding'>,
+) {
+  if (subtotal <= 0 || discountValue <= 0) {
+    return 0;
+  }
+
+  if (discountType === 'percentage') {
+    const normalizedPercentage = Math.min(discountValue, 100);
+    if (policy.manualSaleDiscountRounding && items.length > 0) {
+      const labelTotal = items.reduce((total, item) => {
+        const unitPrice = Number(item.price);
+        const quantity = Number(item.quantity);
+        const discountedUnitPrice = roundToNearestHundred(
+          unitPrice * (1 - normalizedPercentage / 100),
+        );
+
+        return total + discountedUnitPrice * quantity;
+      }, 0);
+
+      return roundCurrency(Math.min(Math.max(subtotal - labelTotal, 0), subtotal));
+    }
+
+    return roundCurrency(
+      Math.min(subtotal * (normalizedPercentage / 100), subtotal),
+    );
+  }
+
+  return roundCurrency(Math.min(discountValue, subtotal));
 }
 
 export function convertCashInputToBasePrice(

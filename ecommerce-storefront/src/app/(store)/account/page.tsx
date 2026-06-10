@@ -12,6 +12,7 @@ const adminSections: AccountSection[] = [
   "admin-overview",
   "admin-accounting",
   "admin-developer",
+  "admin-manual-sales",
   "admin-products",
   "admin-labels",
   "admin-categories",
@@ -19,6 +20,7 @@ const adminSections: AccountSection[] = [
   "admin-settings",
   "admin-orders",
   "admin-customers",
+  "admin-current-accounts",
   "admin-shipments",
   "admin-returns",
 ];
@@ -41,16 +43,6 @@ function AccountPageInner() {
       router.push("/login?redirect=/account");
     }
   }, [user, loading, router]);
-
-  useEffect(() => {
-    const requestedSection = searchParams.get("section");
-    const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
-    const manualSalesEnabled = Boolean(user?.storeFeatures?.manualSalesEnabled);
-
-    if (requestedSection === "admin-manual-sales" && isAdmin && manualSalesEnabled) {
-      router.replace("/manual-sales");
-    }
-  }, [loading, router, searchParams, user]);
 
   const section = useMemo<AccountSection>(() => {
     const requestedSection = searchParams.get("section") as AccountSection | null;

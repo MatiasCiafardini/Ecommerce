@@ -3,6 +3,7 @@ import {
   Put,
   Controller,
   Get,
+  Header,
   Post,
   Body,
   Req,
@@ -38,6 +39,7 @@ export class StorefrontController {
   }
 
   @Get('config')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=1200')
   getConfig(@Req() req) {
     return this.storefrontService.getStoreConfig(
       req.storeId,
@@ -46,6 +48,7 @@ export class StorefrontController {
   }
 
   @Get('payment-config')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   getPaymentConfig(@Req() req) {
     return this.storefrontService.getPaymentConfig(req.storeId);
   }
@@ -177,31 +180,37 @@ export class StorefrontController {
   }
 
   @Get('products')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   getProducts(@Req() req, @Query() query: GetStoreProductsDto) {
     return this.storefrontService.getProducts(req.storeId, query);
   }
 
   @Get('options')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=1200')
   getStoreProductOptions(@Req() req) {
     return this.storefrontService.getStoreProductOptions(req.storeId);
   }
 
   @Get('products/:slug')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=1200')
   getProduct(@Param('slug') slug: string, @Req() req) {
     return this.storefrontService.getProduct(slug, req.storeId);
   }
 
   @Get('products/:slug/options')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=1200')
   getProductOptions(@Param('slug') slug: string, @Req() req) {
     return this.storefrontService.getProductOptions(slug, req.storeId);
   }
 
   @Get('categories')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=1200')
   getCategories(@Req() req) {
     return this.storefrontService.getCategories(req.storeId);
   }
 
   @Get('categories/:slug/products')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   getProductsByCategory(
     @Param('slug') slug: string,
     @Req() req,

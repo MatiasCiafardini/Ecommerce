@@ -172,7 +172,6 @@ function BenefitIcon({
         alt={title}
         width={28}
         height={28}
-        unoptimized
         style={{ width: 28, height: 28, objectFit: "contain" }}
       />
     );

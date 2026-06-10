@@ -110,6 +110,24 @@ npm run test:load
 npm run test:webhooks
 ```
 
+## Redis y colas
+
+Redis es requerido por BullMQ para tareas en segundo plano: eventos/outbox,
+entrega de webhooks y webhooks de envios. La tienda publica puede responder
+endpoints HTTP sin Redis, pero esas tareas asincronicas no se procesan hasta que
+Redis este disponible.
+
+En desarrollo:
+
+```powershell
+npm run dev:redis:up
+```
+
+Si Docker Desktop no esta corriendo, el script no puede iniciar Redis. En
+produccion, configurar `REDIS_HOST`, `REDIS_PORT` y mantener Redis como servicio
+persistente. `REDIS_RETRY_ATTEMPTS` limita reconexiones para evitar logs
+repetitivos cuando Redis esta caido.
+
 Builds:
 
 ```powershell

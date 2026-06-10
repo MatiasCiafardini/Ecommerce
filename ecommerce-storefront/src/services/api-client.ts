@@ -7,6 +7,15 @@ type ApiFetchOptions = {
   headers?: HeadersInit;
 };
 
+export const PUBLIC_REVALIDATE = {
+  storefrontConfig: 600,
+  categories: 600,
+  products: 300,
+  productDetail: 600,
+  productOptions: 600,
+  paymentConfig: 300,
+} as const;
+
 async function readResponseBody(response: Response) {
   try {
     return await response.text();

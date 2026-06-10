@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { api, apiBlob } from "@/lib/api";
+import { resolveLabelNormalPrice, resolveStorePricingPolicy } from "@/lib/pricing-policy";
 import { getPublicApiUrl } from "@/lib/runtime-config";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 
 type VariantRow = {
   id: number;
@@ -66,6 +68,13 @@ type PriceSettings = {
   hasTransferPrice: boolean;
   bankTransferDiscountPercentage: number;
 };
+type DefaultLabelPayload = {
+  defaultLabel: {
+    template: string;
+    options: LabelOptions;
+    templateOptions?: Record<string, LabelOptions>;
+  };
+};
 type Toast = { type: "success" | "error" | "info"; message: string };
 
 const storageKey = "labels-wizard-state-v5";
@@ -107,6 +116,28 @@ function normalizeSavedOptions(options?: Partial<LabelOptions>): LabelOptions {
     priceMode,
     showPrice: priceMode !== "none" && (options?.showPrice ?? true),
   };
+}
+
+function normalizeTemplateOptions(input?: Record<string, LabelOptions>): Record<string, LabelOptions> {
+  if (!input || typeof input !== "object") return {};
+
+  return Object.fromEntries(
+    Object.entries(input).map(([key, options]) => [
+      key,
+      normalizeSavedOptions(options),
+    ]),
+  );
+}
+
+function resolveSavedTemplateOptions(
+  templateKey: string,
+  templateOptions: Record<string, LabelOptions>,
+  fallback?: Partial<LabelOptions>,
+) {
+  return normalizeSavedOptions({
+    ...(fallback ?? {}),
+    ...(templateOptions[templateKey] ?? {}),
+  });
 }
 
 function variantLabel(row: Pick<VariantRow, "productName" | "variantName">) {
@@ -178,6 +209,11 @@ function LabelLogo({ label }: { label: PreviewLabel }) {
 }
 
 export default function AdminLabelsGenerator() {
+  const storeId = getClientStoreId();
+  const pricingPolicy = useMemo(
+    () => resolveStorePricingPolicy({ storeId }),
+    [storeId],
+  );
   const [step, setStep] = useState(1);
   const [rows, setRows] = useState<VariantRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -190,6 +226,7 @@ export default function AdminLabelsGenerator() {
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [templateKey, setTemplateKey] = useState(defaultTemplateKey);
   const [options, setOptions] = useState<LabelOptions>(defaultOptions);
+  const [templateOptions, setTemplateOptions] = useState<Record<string, LabelOptions>>({});
   const [preview, setPreview] = useState<Preview | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -200,7 +237,7 @@ export default function AdminLabelsGenerator() {
     name: "",
     categoryId: "",
     stockOnly: false,
-    activeOnly: true,
+    activeOnly: false,
   });
   const [loadingRows, setLoadingRows] = useState(false);
   const [loadingBase, setLoadingBase] = useState(false);
@@ -209,6 +246,7 @@ export default function AdminLabelsGenerator() {
   const [downloading, setDownloading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const didMountFilterEffect = useRef(false);
 
   const selectedRows = useMemo(() => Object.values(selected), [selected]);
   const items = useMemo(
@@ -245,12 +283,30 @@ export default function AdminLabelsGenerator() {
     window.setTimeout(() => setToast(null), 4200);
   }
 
+  function updateOptions(nextOptions: LabelOptions) {
+    setOptions(nextOptions);
+    setTemplateOptions((current) => ({
+      ...current,
+      [templateKey]: nextOptions,
+    }));
+  }
+
+  function changeTemplate(nextTemplateKey: string) {
+    const nextTemplate = templates.find((template) => template.key === nextTemplateKey);
+    const savedOptions = resolveSavedTemplateOptions(nextTemplateKey, templateOptions);
+    const nextMode = nextTemplate?.priceOptions?.includes(savedOptions.priceMode)
+      ? savedOptions.priceMode
+      : nextTemplate?.priceOptions?.[0] ?? "normal";
+    setTemplateKey(nextTemplateKey);
+    setOptions({ ...savedOptions, priceMode: nextMode, showPrice: nextMode !== "none" });
+  }
+
   const resetLabelsWizard = useCallback(() => {
     setStep(1);
     setSelected({});
     setQuantities({});
     setTemplateKey(defaultTemplateKey);
-    setOptions(defaultOptions);
+    setOptions(resolveSavedTemplateOptions(defaultTemplateKey, templateOptions));
     setPreview(null);
     setPage(1);
     setFilteredSelectionIds(null);
@@ -260,11 +316,11 @@ export default function AdminLabelsGenerator() {
       name: "",
       categoryId: "",
       stockOnly: false,
-      activeOnly: true,
+      activeOnly: false,
     });
     setNotice(null);
     window.sessionStorage.removeItem(storageKey);
-  }, []);
+  }, [templateOptions]);
 
   useEffect(() => {
     const saved = window.sessionStorage.getItem(storageKey);
@@ -276,9 +332,11 @@ export default function AdminLabelsGenerator() {
         quantities?: Record<number, number>;
         templateKey?: string;
         options?: LabelOptions;
+        templateOptions?: Record<string, LabelOptions>;
       };
       setSelected(parsed.selected ?? {});
       setQuantities(parsed.quantities ?? {});
+      setTemplateOptions(normalizeTemplateOptions(parsed.templateOptions));
       setTemplateKey(parsed.templateKey ?? defaultTemplateKey);
       setOptions(normalizeSavedOptions(parsed.options));
     } catch {
@@ -287,8 +345,8 @@ export default function AdminLabelsGenerator() {
   }, []);
 
   useEffect(() => {
-    window.sessionStorage.setItem(storageKey, JSON.stringify({ selected, quantities, templateKey, options }));
-  }, [selected, quantities, templateKey, options]);
+    window.sessionStorage.setItem(storageKey, JSON.stringify({ selected, quantities, templateKey, options, templateOptions }));
+  }, [selected, quantities, templateKey, options, templateOptions]);
 
   useEffect(() => {
     window.addEventListener(ADMIN_LABELS_RESET_EVENT, resetLabelsWizard);
@@ -322,16 +380,23 @@ export default function AdminLabelsGenerator() {
     setLoadingBase(true);
     Promise.all([
       api("/admin/labels/templates") as Promise<Template[] | { templates: Template[]; priceSettings: PriceSettings }>,
+      api("/admin/labels/default") as Promise<DefaultLabelPayload>,
       api("/categories") as Promise<Category[]>,
     ])
-      .then(([nextTemplates, nextCategories]) => {
+      .then(([nextTemplates, defaultLabelPayload, nextCategories]) => {
         const templatePayload = Array.isArray(nextTemplates)
           ? { templates: nextTemplates, priceSettings: { hasTransferPrice: false, bankTransferDiscountPercentage: 0 } }
           : nextTemplates;
+        const nextTemplateOptions = normalizeTemplateOptions(defaultLabelPayload.defaultLabel.templateOptions);
         setTemplates(templatePayload.templates);
         setPriceSettings(templatePayload.priceSettings);
+        setTemplateOptions(nextTemplateOptions);
         if (!templatePayload.templates.some((template) => template.key === templateKey)) {
-          setTemplateKey(templatePayload.templates[0]?.key ?? "BROTHER_QL570_62X29_CLOTHING");
+          const nextTemplateKey = templatePayload.templates[0]?.key ?? "BROTHER_QL570_62X29_CLOTHING";
+          setTemplateKey(nextTemplateKey);
+          setOptions(resolveSavedTemplateOptions(nextTemplateKey, nextTemplateOptions));
+        } else {
+          setOptions((current) => resolveSavedTemplateOptions(templateKey, nextTemplateOptions, current));
         }
         setCategories(nextCategories);
       })
@@ -346,6 +411,23 @@ export default function AdminLabelsGenerator() {
   useEffect(() => {
     void loadRows();
   }, [page]);
+
+  useEffect(() => {
+    if (!didMountFilterEffect.current) {
+      didMountFilterEffect.current = true;
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      if (page === 1) {
+        void loadRows(1);
+      } else {
+        setPage(1);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [filters]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -561,9 +643,6 @@ export default function AdminLabelsGenerator() {
             </Field>
             <label style={styles.check}><input type="checkbox" checked={filters.stockOnly} onChange={(event) => setFilters({ ...filters, stockOnly: event.target.checked })} /> Stock &gt; 0</label>
             <label style={styles.check}><input type="checkbox" checked={filters.activeOnly} onChange={(event) => setFilters({ ...filters, activeOnly: event.target.checked })} /> Solo activas</label>
-            <button type="button" style={primaryButtonStyle} disabled={loadingRows} onClick={() => { setPage(1); void loadRows(1); }}>
-              {loadingRows ? "Buscando..." : "Aplicar filtros"}
-            </button>
             <button type="button" style={ghostButtonStyle} disabled={loadingRows || selectingFiltered} onClick={() => void toggleAllFiltered()}>
               {selectingFiltered ? "Procesando..." : allFilteredSelected ? "Quitar filtrados" : "Seleccionar todos los filtrados"}
             </button>
@@ -582,7 +661,7 @@ export default function AdminLabelsGenerator() {
                     <Td>{row.variantName || "Unica"}</Td>
                     <Td>{row.sku?.trim() ? <code>{row.sku}</code> : <span style={styles.skuMissing}>Sin SKU</span>}</Td>
                     <Td>{row.stock}</Td>
-                    <Td>{formatMoney(row.price)}</Td>
+                    <Td>{formatMoney(resolveLabelNormalPrice(row.price, pricingPolicy))}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -624,7 +703,7 @@ export default function AdminLabelsGenerator() {
           {loadingBase && templates.length === 0 ? <div style={styles.stateRow}>Cargando plantillas...</div> : null}
           <div style={styles.templateControls}>
             <Field label="Plantilla">
-              <select style={styles.input} value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>
+              <select style={styles.input} value={templateKey} onChange={(event) => changeTemplate(event.target.value)}>
                 {templates.map((template) => (
                   <option key={template.key} value={template.key}>{template.name}</option>
                 ))}
@@ -648,7 +727,7 @@ export default function AdminLabelsGenerator() {
                 disabled={selectedTemplate?.priceOptions?.includes("normal") === false}
                 onChange={(event) => {
                   const priceMode = nextPriceMode(options.priceMode, "normal", event.target.checked);
-                  setOptions({ ...options, showPrice: priceMode !== "none", priceMode });
+                  updateOptions({ ...options, showPrice: priceMode !== "none", priceMode });
                 }}
               />
               Precio normal
@@ -660,7 +739,7 @@ export default function AdminLabelsGenerator() {
                 disabled={!priceSettings.hasTransferPrice || selectedTemplate?.priceOptions?.includes("transfer") === false}
                 onChange={(event) => {
                   const priceMode = nextPriceMode(options.priceMode, "transfer", event.target.checked);
-                  setOptions({ ...options, showPrice: priceMode !== "none", priceMode });
+                  updateOptions({ ...options, showPrice: priceMode !== "none", priceMode });
                 }}
               />
               Precio transferencia
@@ -675,7 +754,7 @@ export default function AdminLabelsGenerator() {
                 <input
                   type="checkbox"
                   checked={Boolean(options[key])}
-                  onChange={(event) => setOptions({ ...options, [key]: event.target.checked })}
+                  onChange={(event) => updateOptions({ ...options, [key]: event.target.checked })}
                 />
                 {optionLabels[key]}
               </label>

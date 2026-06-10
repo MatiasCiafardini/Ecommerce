@@ -12,6 +12,10 @@ function normalizeApiUrl(rawUrl?: string) {
 
 const FALLBACK_API_HOSTNAME = "api.estudiosmc.cloud";
 const ALLOWED_IMAGE_HOSTS = ["images.pexels.com"];
+const LOCAL_UPLOAD_HOSTS = [
+  { protocol: "http" as const, hostname: "localhost", port: "3000" },
+  { protocol: "http" as const, hostname: "127.0.0.1", port: "3000" },
+];
 
 const remotePatterns = (() => {
   const patterns: { protocol: "http" | "https"; hostname: string; port: string; pathname: string }[] = [];
@@ -56,6 +60,17 @@ const remotePatterns = (() => {
     });
   }
 
+  for (const host of LOCAL_UPLOAD_HOSTS) {
+    if (patterns.some((p) => p.protocol === host.protocol && p.hostname === host.hostname && p.port === host.port)) {
+      continue;
+    }
+
+    patterns.push({
+      ...host,
+      pathname: "/uploads/**",
+    });
+  }
+
   return patterns;
 })();
 
@@ -64,6 +79,24 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
     return [
+      {
+        source: "/images/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/:asset*.(svg|ico|png|jpg|jpeg|webp|avif|woff|woff2)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
       {
         source: "/:path*",
         headers: [

@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import {
+  calculateManualSaleDiscountAmount,
+  resolveManualSaleUnitPrice,
+  resolveStorePricingPolicy,
+} from "@/lib/pricing-policy";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 import { money } from "./order-utils";
 
 type ManualSaleProduct = {
@@ -52,24 +58,24 @@ type CreatedOrder = {
   status: string;
 };
 
-type SaleSuccessSummary = {
+type ManualSaleCustomer = {
   id: number;
-  total: string | number;
-  status: string;
-  customerName?: string;
-  paymentMethod: string;
-  discountType: "percentage" | "fixed";
-  discountValue: number;
-  discountAmount: number;
-  items: Array<{
-    title: string;
-    variantLabel: string;
-    quantity: number;
-    lineTotal: number;
-  }>;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  document?: string | null;
+  source?: string | null;
 };
 
-const paymentOptions = ["Efectivo", "Tarjeta", "Transferencia"];
+type StorePaymentConfig = {
+  bankTransfer?: {
+    discountPercentage?: number | null;
+    enabled?: boolean | null;
+  } | null;
+};
+
+const paymentOptions = ["Efectivo", "Tarjeta", "Transferencia", "Cuenta corriente"];
 const productSearchLimit = 80;
 
 const getAvailableStock = (inventories: ManualSaleVariant["inventories"]) =>
@@ -82,6 +88,38 @@ const getAvailableStock = (inventories: ManualSaleVariant["inventories"]) =>
 const normalizeScannerSkuInput = (value: string) =>
   value.replace(/[\u0027\u0060\u2019\u2018\u00b4\u02bc\u02b9\u2032\uff07]/g, "-").trimStart();
 
+const toVariantRows = (products: ManualSaleProduct[]): ManualSaleVariantRow[] =>
+  products.flatMap((product) =>
+    (product.variants ?? []).map((variant) => ({
+      rowId: `${product.id}-${variant.id}`,
+      product,
+      variant,
+      productTitle: product.title,
+      productSlug: product.slug,
+      variantLabel: getVariantLabel(variant),
+      sku: String(variant.sku ?? ""),
+      price: variant.price,
+      available: getAvailableStock(variant.inventories),
+    })),
+  );
+
+const filterVariantRows = (rows: ManualSaleVariantRow[], query: string) => {
+  const searchTerms = normalizeScannerSkuInput(query)
+    .trim()
+    .toLowerCase()
+    .split(/\s+/u)
+    .filter(Boolean);
+  if (searchTerms.length === 0) return [];
+
+  return rows.filter((row) => {
+    const variantText = normalizeScannerSkuInput(
+      [row.sku, row.variantLabel, row.productTitle, row.productSlug].filter(Boolean).join(" "),
+    ).toLowerCase();
+
+    return searchTerms.every((term) => variantText.includes(term));
+  });
+};
+
 export default function AdminManualSalesSection({
   onSaleRegistered,
 }: {
@@ -90,19 +128,107 @@ export default function AdminManualSalesSection({
   const [products, setProducts] = useState<ManualSaleProduct[]>([]);
   const [productQuery, setProductQuery] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<ManualSaleCustomer | null>(null);
+  const [customers, setCustomers] = useState<ManualSaleCustomer[]>([]);
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [customerLoading, setCustomerLoading] = useState(false);
+  const [newCustomerFullName, setNewCustomerFullName] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerDocument, setNewCustomerDocument] = useState("");
+  const [newCustomerAddress, setNewCustomerAddress] = useState("");
+  const [newCustomerCity, setNewCustomerCity] = useState("");
+  const [newCustomerZip, setNewCustomerZip] = useState("");
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
   const [discountValue, setDiscountValue] = useState("");
+  const [bankTransferDiscountPercentage, setBankTransferDiscountPercentage] = useState(0);
+  const [storeId, setStoreId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<ManualSaleLine[]>([]);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [confirmSaleOpen, setConfirmSaleOpen] = useState(false);
+  const [loading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [saleSummary, setSaleSummary] = useState<SaleSuccessSummary | null>(null);
   const [selectedCatalogVariantId, setSelectedCatalogVariantId] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const customerSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    try {
+      setStoreId(getClientStoreId());
+    } catch {
+      setStoreId(null);
+    }
+  }, []);
+
+  const searchProducts = async (query: string, signal?: AbortSignal) => {
+    const normalizedQuery = normalizeScannerSkuInput(query).trim();
+    if (!normalizedQuery) return [];
+
+    const productsData = await api(
+      `/products?search=${encodeURIComponent(normalizedQuery)}&limit=${productSearchLimit}`,
+      signal ? { signal } : undefined,
+    );
+
+    return Array.isArray(productsData) ? (productsData as ManualSaleProduct[]) : [];
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    const loadPaymentConfig = async () => {
+      try {
+        const config = (await api("/store/payment-config")) as StorePaymentConfig;
+        if (!active) return;
+
+        const enabled = config?.bankTransfer?.enabled !== false;
+        const percentage = Number(config?.bankTransfer?.discountPercentage ?? 0);
+        setBankTransferDiscountPercentage(
+          enabled && Number.isFinite(percentage)
+            ? Math.max(0, Math.min(percentage, 100))
+            : 0,
+        );
+      } catch {
+        if (active) {
+          setBankTransferDiscountPercentage(0);
+        }
+      }
+    };
+
+    void loadPaymentConfig();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const applyPaymentMethod = (method: string) => {
+    setPaymentMethod(method);
+
+    const shouldApplyTransferDiscount = method === "Efectivo" || method === "Transferencia";
+    setDiscountType("percentage");
+    setDiscountValue(shouldApplyTransferDiscount && bankTransferDiscountPercentage > 0
+      ? String(bankTransferDiscountPercentage)
+      : "");
+
+    if (method === "Cuenta corriente") {
+      setCustomerModalOpen(true);
+    } else {
+      setCustomerModalOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    if (paymentMethod === "Efectivo" || paymentMethod === "Transferencia") {
+      setDiscountType("percentage");
+      setDiscountValue(bankTransferDiscountPercentage > 0 ? String(bankTransferDiscountPercentage) : "");
+    }
+  }, [bankTransferDiscountPercentage, paymentMethod]);
 
   useEffect(() => {
     const normalizedQuery = normalizeScannerSkuInput(productQuery).trim();
@@ -118,11 +244,7 @@ export default function AdminManualSalesSection({
       const load = async () => {
         setSearchLoading(true);
         try {
-          const productsData = await api(
-            `/products?search=${encodeURIComponent(normalizedQuery)}&limit=${productSearchLimit}`,
-            { signal: controller.signal },
-          );
-          setProducts(Array.isArray(productsData) ? productsData : []);
+          setProducts(await searchProducts(normalizedQuery, controller.signal));
         } catch (err) {
           if (controller.signal.aborted) return;
           setError(err instanceof Error ? err.message : "No pudimos buscar productos.");
@@ -143,34 +265,12 @@ export default function AdminManualSalesSection({
   }, [productQuery]);
 
   const variantRows = useMemo<ManualSaleVariantRow[]>(
-    () =>
-      products.flatMap((product) =>
-        (product.variants ?? []).map((variant) => ({
-          rowId: `${product.id}-${variant.id}`,
-          product,
-          variant,
-          productTitle: product.title,
-          productSlug: product.slug,
-          variantLabel: getVariantLabel(variant),
-          sku: String(variant.sku ?? ""),
-          price: variant.price,
-          available: getAvailableStock(variant.inventories),
-        })),
-      ),
+    () => toVariantRows(products),
     [products],
   );
 
   const filteredVariantRows = useMemo(() => {
-    const query = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
-    if (!query) return [];
-
-    return variantRows.filter((row) => {
-      const variantText = normalizeScannerSkuInput(
-        [row.sku, row.variantLabel, row.productTitle, row.productSlug].filter(Boolean).join(" "),
-      ).toLowerCase();
-
-      return variantText.includes(query);
-    });
+    return filterVariantRows(variantRows, productQuery);
   }, [productQuery, variantRows]);
 
   const visibleVariantRows = filteredVariantRows.slice(0, 120);
@@ -189,26 +289,84 @@ export default function AdminManualSalesSection({
     );
   }, [visibleVariantRows]);
 
-  const totalAvailableUnits = useMemo(
-    () =>
-      variantRows.reduce((total, row) => total + row.available, 0),
-    [variantRows],
+  const pricingPolicy = useMemo(
+    () => resolveStorePricingPolicy({ storeId }),
+    [storeId],
   );
-  const subtotal = lines.reduce(
-    (total, line) => total + Number(line.price || 0) * Number(line.quantity || 0),
+  const normalizedSaleLines = useMemo(
+    () =>
+      lines.map((line) => {
+        const unitPrice = resolveManualSaleUnitPrice(line.price, pricingPolicy);
+        const quantity = Number(line.quantity || 0);
+
+        return {
+          ...line,
+          quantity,
+          unitPrice,
+          price: String(unitPrice),
+          lineTotal: unitPrice * quantity,
+        };
+      }),
+    [lines, pricingPolicy],
+  );
+  const subtotal = normalizedSaleLines.reduce(
+    (total, line) => total + line.lineTotal,
     0,
   );
-  const totalItems = lines.reduce((total, line) => total + Number(line.quantity || 0), 0);
   const normalizedDiscountValue = Number(discountValue || 0);
   const safeDiscountValue = Number.isFinite(normalizedDiscountValue)
     ? Math.max(normalizedDiscountValue, 0)
     : 0;
   const discountAmount =
     discountType === "percentage"
-      ? calculateRoundedPercentageDiscount(subtotal, safeDiscountValue)
+      ? calculateManualSaleDiscountAmount(
+          normalizedSaleLines,
+          subtotal,
+          safeDiscountValue,
+          pricingPolicy,
+        )
       : Math.min(safeDiscountValue, subtotal);
   const total = Math.max(subtotal - discountAmount, 0);
   const hasDiscount = discountAmount > 0;
+  const currentAccountSelected = paymentMethod === "Cuenta corriente";
+  const filteredCustomers = useMemo(() => {
+    const normalized = customerQuery.trim().toLowerCase();
+    if (!normalized) return customers.slice(0, 40);
+
+    return customers.filter((customer) =>
+      [
+        customer.firstName,
+        customer.lastName,
+        customer.email,
+        customer.document,
+        customer.phone,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized),
+    );
+  }, [customerQuery, customers]);
+
+  const loadCustomers = async () => {
+    setCustomerLoading(true);
+    try {
+      const data = await api("/customers?source=current_account");
+      setCustomers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos cargar clientes.");
+    } finally {
+      setCustomerLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (customerModalOpen) {
+      setShowNewCustomerForm(false);
+      void loadCustomers();
+      window.requestAnimationFrame(() => customerSearchInputRef.current?.focus());
+    }
+  }, [customerModalOpen]);
 
   const addVariant = (product: ManualSaleProduct, variant: ManualSaleVariant) => {
     const available = getAvailableStock(variant.inventories);
@@ -238,7 +396,7 @@ export default function AdminManualSalesSection({
           variantLabel: getVariantLabel(variant),
           sku: String(variant.sku ?? ""),
           quantity: 1,
-          price: String(variant.price ?? "0"),
+          price: String(resolveManualSaleUnitPrice(variant.price, pricingPolicy)),
           available,
         },
       ];
@@ -258,7 +416,7 @@ export default function AdminManualSalesSection({
     focusSearchInput();
   };
 
-  const addCurrentCatalogSelection = () => {
+  const addCurrentCatalogSelection = async () => {
     const normalizedQuery = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
     if (!normalizedQuery) {
       setError("Busca por nombre, slug o SKU para agregar una variante.");
@@ -266,20 +424,36 @@ export default function AdminManualSalesSection({
       return;
     }
 
-    const exactSkuMatch = normalizedQuery
-      ? variantRows.find(
-          (row) =>
-            normalizeScannerSkuInput(row.sku).trim().toLowerCase() === normalizedQuery,
-        )
-      : null;
+    let candidateRows = visibleVariantRows;
+    let allRows = variantRows;
+
+    if (candidateRows.length === 0 || searchLoading) {
+      setSearchLoading(true);
+      try {
+        const freshProducts = await searchProducts(normalizedQuery);
+        setProducts(freshProducts);
+        allRows = toVariantRows(freshProducts);
+        candidateRows = filterVariantRows(allRows, normalizedQuery).slice(0, 120);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No pudimos buscar productos.");
+        focusSearchInput();
+        return;
+      } finally {
+        setSearchLoading(false);
+      }
+    }
+
+    const exactSkuMatch = allRows.find(
+      (row) => normalizeScannerSkuInput(row.sku).trim().toLowerCase() === normalizedQuery,
+    );
 
     const selectedRow = selectedCatalogVariantId
-      ? visibleVariantRows.find((row) => row.variant.id === selectedCatalogVariantId)
+      ? candidateRows.find((row) => row.variant.id === selectedCatalogVariantId)
       : null;
     const rowToAdd =
       exactSkuMatch ??
       selectedRow ??
-      (visibleVariantRows.length === 1 ? visibleVariantRows[0] : null);
+      (candidateRows.length === 1 ? candidateRows[0] : null);
 
     if (!rowToAdd) {
       setError("No encontramos una variante para agregar con esa busqueda.");
@@ -317,9 +491,8 @@ export default function AdminManualSalesSection({
 
   const resetForm = () => {
     setCustomerName("");
-    setPaymentMethod("Efectivo");
-    setDiscountType("percentage");
-    setDiscountValue("");
+    setSelectedCustomer(null);
+    applyPaymentMethod("Efectivo");
     setNotes("");
     setProductQuery("");
     setLines([]);
@@ -329,23 +502,49 @@ export default function AdminManualSalesSection({
     focusSearchInput();
   };
 
+  const openSaleConfirmation = () => {
+    if (lines.length === 0) {
+      setError("Agrega al menos una variante a la venta.");
+      return;
+    }
+
+    if (currentAccountSelected && !selectedCustomer) {
+      setError("Para vender en cuenta corriente, seleccioná o registrá un cliente.");
+      setCustomerModalOpen(true);
+      return;
+    }
+
+    setError("");
+    setConfirmSaleOpen(true);
+  };
+
   const handleCreateSale = async () => {
     if (lines.length === 0) {
       setError("Agrega al menos una variante a la venta.");
       return;
     }
 
+    if (currentAccountSelected && !selectedCustomer) {
+      setError("Para vender en cuenta corriente, seleccioná o registrá un cliente.");
+      setCustomerModalOpen(true);
+      setConfirmSaleOpen(false);
+      return;
+    }
+
     try {
       setSaving(true);
+      setConfirmSaleOpen(false);
       setError("");
       setSuccess("");
 
       const payload = {
-        customerId: undefined,
-        customerFirstName: customerName.trim() || undefined,
-        customerLastName: undefined,
-        customerEmail: undefined,
-        customerPhone: undefined,
+        customerId: selectedCustomer?.id,
+        customerFirstName: selectedCustomer
+          ? selectedCustomer.firstName || getCustomerName(selectedCustomer)
+          : customerName.trim() || undefined,
+        customerLastName: selectedCustomer?.lastName ?? undefined,
+        customerEmail: selectedCustomer?.email,
+        customerPhone: selectedCustomer?.phone ?? undefined,
         shippingMethod: undefined,
         shippingCost: 0,
         paymentMethod: paymentMethod.trim() || undefined,
@@ -353,10 +552,10 @@ export default function AdminManualSalesSection({
         discountValue: safeDiscountValue,
         paymentStatus: "approved" as const,
         notes: notes.trim() || undefined,
-        items: lines.map((line) => ({
+        items: normalizedSaleLines.map((line) => ({
           variantId: line.variantId,
-          quantity: Number(line.quantity),
-          price: Number(line.price || 0),
+          quantity: line.quantity,
+          price: line.unitPrice,
         })),
       };
 
@@ -366,22 +565,6 @@ export default function AdminManualSalesSection({
       })) as CreatedOrder;
 
       setSuccess(`Venta #${created.id} registrada por ${money(created.total)}.`);
-      setSaleSummary({
-        id: created.id,
-        total: created.total,
-        status: created.status,
-        customerName: customerName.trim() || undefined,
-        paymentMethod,
-        discountType,
-        discountValue: safeDiscountValue,
-        discountAmount,
-        items: lines.map((line) => ({
-          title: line.title,
-          variantLabel: line.variantLabel,
-          quantity: Number(line.quantity),
-          lineTotal: Number(line.price || 0) * Number(line.quantity || 0),
-        })),
-      });
       resetForm();
       await onSaleRegistered?.();
     } catch (err) {
@@ -389,10 +572,77 @@ export default function AdminManualSalesSection({
       setError(
         message.includes("Manual sales module is disabled for this store")
           ? "La venta manual esta deshabilitada para esta tienda. Activala desde la configuracion de la tienda."
+          : message.includes("Para vender en cuenta corriente")
+            ? "Para vender en cuenta corriente, seleccioná o registrá un cliente."
           : message || "No se pudo registrar la venta manual.",
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const selectCustomer = (customer: ManualSaleCustomer) => {
+    setSelectedCustomer(customer);
+    setCustomerName(getCustomerName(customer));
+    setCustomerModalOpen(false);
+    setShowNewCustomerForm(false);
+  };
+
+  const clearNewCustomerFields = () => {
+    setNewCustomerFullName("");
+    setNewCustomerEmail("");
+    setNewCustomerPhone("");
+    setNewCustomerDocument("");
+    setNewCustomerAddress("");
+    setNewCustomerCity("");
+    setNewCustomerZip("");
+  };
+
+  const createCustomer = async () => {
+    const parsedName = parseCustomerFullName(newCustomerFullName);
+
+    if (!newCustomerFullName.trim()) {
+      setError("El nombre del cliente es obligatorio.");
+      return;
+    }
+
+    if (!newCustomerPhone.trim()) {
+      setError("El telefono del cliente es obligatorio.");
+      return;
+    }
+
+    setCustomerLoading(true);
+    setError("");
+    try {
+      const created = (await api("/customers", {
+        method: "POST",
+        body: JSON.stringify({
+          email: newCustomerEmail.trim() || undefined,
+          firstName: parsedName.firstName,
+          lastName: parsedName.lastName,
+          phone: newCustomerPhone.trim() || undefined,
+          document: newCustomerDocument.trim() || undefined,
+          source: "current_account",
+          address: [
+            newCustomerAddress,
+            newCustomerCity,
+            newCustomerZip,
+          ].some((value) => value.trim())
+            ? {
+                address1: newCustomerAddress.trim() || undefined,
+                city: newCustomerCity.trim() || undefined,
+                zip: newCustomerZip.trim() || undefined,
+              }
+            : undefined,
+        }),
+      })) as ManualSaleCustomer;
+      clearNewCustomerFields();
+      selectCustomer(created);
+      await loadCustomers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos registrar el cliente.");
+    } finally {
+      setCustomerLoading(false);
     }
   };
 
@@ -405,11 +655,6 @@ export default function AdminManualSalesSection({
           <p>
             Busca productos, arma el ticket con stock real y cierra el cobro en el mismo flujo.
           </p>
-        </div>
-        <div className="manual-sale-kpis" aria-label="Resumen del mostrador">
-          <MiniStat label="Resultados" value={String(variantRows.length)} />
-          <MiniStat label="Stock" value={String(totalAvailableUnits)} />
-          <MiniStat label="Ticket" value={String(totalItems)} />
         </div>
       </header>
 
@@ -447,32 +692,34 @@ export default function AdminManualSalesSection({
 
                     if (event.key !== "Enter") return;
                     event.preventDefault();
-                    addCurrentCatalogSelection();
+                    void addCurrentCatalogSelection();
                   }}
                   placeholder="Buscar por nombre, slug o SKU"
                   className="manual-sale-field"
                 />
                 <button
                   type="button"
-                  onClick={addCurrentCatalogSelection}
+                  onClick={() => void addCurrentCatalogSelection()}
                   className="manual-sale-button"
                 >
                   Agregar
                 </button>
               </div>
 
-              <div className="manual-sale-search-meta">
-                <span>
-                  {searchLoading
-                    ? "Buscando..."
-                    : normalizedSearchLength === 0
-                      ? "Busca por nombre, slug o SKU"
-                      : `${filteredVariantRows.length} variantes`}
-                </span>
-                {filteredVariantRows.length > visibleVariantRows.length ? (
-                  <span>Mostrando las primeras {visibleVariantRows.length}</span>
-                ) : null}
-              </div>
+              {searchLoading || normalizedSearchLength > 0 || filteredVariantRows.length > visibleVariantRows.length ? (
+                <div className="manual-sale-search-meta">
+                  <span>
+                    {searchLoading
+                      ? "Buscando..."
+                      : normalizedSearchLength > 0
+                        ? `${filteredVariantRows.length} variantes`
+                        : ""}
+                  </span>
+                  {filteredVariantRows.length > visibleVariantRows.length ? (
+                    <span>Mostrando las primeras {visibleVariantRows.length}</span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="manual-sale-variant-table-shell">
@@ -491,7 +738,6 @@ export default function AdminManualSalesSection({
                   <div className="manual-sale-variant-table-head" aria-hidden="true">
                     <span>Producto</span>
                     <span>Variante</span>
-                    <span>SKU</span>
                     <span>Precio</span>
                     <span>Stock</span>
                     <span />
@@ -520,11 +766,10 @@ export default function AdminManualSalesSection({
                         >
                           <span className="manual-sale-variant-product">
                             <strong>{row.productTitle}</strong>
-                            <small>/{row.productSlug}</small>
+                            <small>{row.sku || "Sin SKU"}</small>
                           </span>
                           <span>{row.variantLabel}</span>
-                          <span className="manual-sale-variant-sku">{row.sku || "-"}</span>
-                          <strong>{money(row.price)}</strong>
+                          <strong>{money(resolveManualSaleUnitPrice(row.price, pricingPolicy))}</strong>
                           <span
                             className={
                               row.available > 0
@@ -558,20 +803,10 @@ export default function AdminManualSalesSection({
           </section>
 
           <aside className="manual-sale-checkout" aria-label="Ticket y cierre">
-            <section className="manual-sale-card">
-              <div className="manual-sale-card-title">
-                <div>
-                  <p className="manual-sale-eyebrow">Ticket</p>
-                  <h3>Venta en curso</h3>
-                </div>
-                <span>{lines.length === 1 ? "1 linea" : `${lines.length} lineas`}</span>
-              </div>
-
-              <div className="manual-sale-lines">
-                {lines.length === 0 ? (
-                  <StateCard label="Todavia no agregaste productos al ticket." />
-                ) : (
-                  lines.map((line) => (
+            <section className="manual-sale-card manual-sale-total-card">
+              {lines.length > 0 ? (
+                <div className="manual-sale-lines">
+                  {normalizedSaleLines.map((line) => (
                     <article key={line.variantId} className="manual-sale-line">
                       <div className="manual-sale-line-top">
                         <div>
@@ -627,16 +862,14 @@ export default function AdminManualSalesSection({
                           aria-label={`Precio de ${line.title}`}
                         />
                         <strong className="manual-sale-line-total">
-                          {money(Number(line.price || 0) * Number(line.quantity || 0))}
+                          {money(line.lineTotal)}
                         </strong>
                       </div>
                     </article>
-                  ))
-                )}
-              </div>
-            </section>
+                  ))}
+                </div>
+              ) : null}
 
-            <section className="manual-sale-card manual-sale-total-card">
               <div className="manual-sale-totals">
                 <div className="manual-sale-grand-total">
                   <span>Total</span>
@@ -662,11 +895,37 @@ export default function AdminManualSalesSection({
                   <span>Cliente</span>
                   <input
                     value={customerName}
-                    onChange={(event) => setCustomerName(event.target.value)}
-                    placeholder="Ej. Juan Perez"
+                    onChange={(event) => {
+                      if (currentAccountSelected) return;
+                      setCustomerName(event.target.value);
+                      setSelectedCustomer(null);
+                    }}
+                    onClick={() => {
+                      if (currentAccountSelected) {
+                        setCustomerModalOpen(true);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (currentAccountSelected) {
+                        setCustomerModalOpen(true);
+                      }
+                    }}
+                    placeholder={currentAccountSelected ? "Selecciona cliente registrado" : "Ej. Juan Perez"}
                     className="manual-sale-field"
+                    readOnly={currentAccountSelected}
                   />
                 </label>
+                {currentAccountSelected ? (
+                  <div className="manual-sale-customer-current-account">
+                    {selectedCustomer ? (
+                      <span>
+                        Cuenta corriente para <strong>{getCustomerName(selectedCustomer)}</strong>
+                      </span>
+                    ) : (
+                      <span>Para vender en cuenta corriente, seleccioná o registrá un cliente.</span>
+                    )}
+                  </div>
+                ) : null}
 
                 <div className="manual-sale-field-group">
                   <span>Medio de pago</span>
@@ -675,7 +934,7 @@ export default function AdminManualSalesSection({
                       <button
                         key={option}
                         type="button"
-                        onClick={() => setPaymentMethod(option)}
+                        onClick={() => applyPaymentMethod(option)}
                         className={paymentMethod === option ? "is-active" : ""}
                       >
                         {option}
@@ -711,11 +970,6 @@ export default function AdminManualSalesSection({
                       inputMode="decimal"
                       value={discountValue}
                       onChange={(event) => setDiscountValue(event.target.value)}
-                      onBlur={() => {
-                        if (!discountValue.trim()) {
-                          setDiscountValue("0");
-                        }
-                      }}
                       placeholder="0"
                       className="manual-sale-field"
                     />
@@ -738,7 +992,7 @@ export default function AdminManualSalesSection({
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleCreateSale()}
+                  onClick={openSaleConfirmation}
                   className="manual-sale-button manual-sale-button-primary"
                   disabled={saving || lines.length === 0}
                 >
@@ -750,63 +1004,176 @@ export default function AdminManualSalesSection({
         </div>
       )}
 
-      {saleSummary ? (
-        <div className="manual-sale-modal-overlay" onClick={() => setSaleSummary(null)}>
-          <div className="manual-sale-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="manual-sale-modal-header">
-              <p className="manual-sale-eyebrow">Venta exitosa</p>
-              <h3>Venta #{saleSummary.id}</h3>
-              <strong>{money(saleSummary.total)}</strong>
+      {confirmSaleOpen ? (
+        <div className="manual-sale-modal-overlay" onClick={() => !saving && setConfirmSaleOpen(false)}>
+          <div className="manual-sale-modal manual-sale-confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="manual-sale-confirm-header">
+              <div>
+                <p className="manual-sale-eyebrow">Confirmar venta</p>
+                <h3>{currentAccountSelected ? "Cuenta corriente" : "Venta manual"}</h3>
+                <span>{lines.length} {lines.length === 1 ? "producto" : "productos"}</span>
+              </div>
+              <div className="manual-sale-confirm-total">
+                <span>{currentAccountSelected ? "Pendiente" : "Total"}</span>
+                <strong>{money(total)}</strong>
+              </div>
             </div>
 
-            <div className="manual-sale-receipt">
-              {saleSummary.customerName ? (
-                <SummaryRow label="Cliente" value={saleSummary.customerName} />
+            <div className="manual-sale-confirm-summary">
+              {(selectedCustomer || customerName.trim()) ? (
+                <SummaryRow label="Cliente" value={selectedCustomer ? getCustomerName(selectedCustomer) : customerName.trim()} />
               ) : null}
-              <SummaryRow label="Pago" value={saleSummary.paymentMethod} />
+              <SummaryRow label="Pago" value={paymentMethod} />
               <SummaryRow
                 label={
-                  saleSummary.discountType === "percentage"
-                    ? `Descuento (${saleSummary.discountValue}%)`
+                  discountType === "percentage"
+                    ? `Descuento (${safeDiscountValue}%)`
                     : "Descuento"
                 }
-                value={`- ${money(saleSummary.discountAmount)}`}
+                value={`- ${money(discountAmount)}`}
               />
-              <SummaryRow label="Estado" value={saleSummary.status} />
+              <SummaryRow
+                label="Estado"
+                value={currentAccountSelected ? "Pendiente de pago" : "Pagado"}
+              />
             </div>
 
-            <div className="manual-sale-receipt-lines">
-              {saleSummary.items.map((item, index) => (
-                <article key={`${item.title}-${item.variantLabel}-${index}`}>
+            <div className="manual-sale-confirm-lines">
+              {normalizedSaleLines.map((line) => (
+                <article key={line.variantId}>
                   <div>
-                    <strong>{item.title}</strong>
-                    <span>{item.variantLabel}</span>
+                    <strong>{line.title}</strong>
+                    <span>{line.variantLabel}</span>
                   </div>
-                  <span>x{item.quantity}</span>
-                  <strong>{money(item.lineTotal)}</strong>
+                  <div>
+                    <span>x{line.quantity}</span>
+                    <strong>{money(line.lineTotal)}</strong>
+                  </div>
                 </article>
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setSaleSummary(null)}
-              className="manual-sale-button manual-sale-button-primary"
-            >
-              Confirmar
-            </button>
+            <div className="manual-sale-modal-actions">
+              <button type="button" onClick={() => setConfirmSaleOpen(false)} disabled={saving} className="manual-sale-button-ghost">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCreateSale()}
+                disabled={saving}
+                className="manual-sale-button manual-sale-button-primary"
+              >
+                {saving ? "Registrando..." : "Confirmar venta"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {customerModalOpen ? (
+        <div className="manual-sale-modal-overlay" onClick={() => setCustomerModalOpen(false)}>
+          <div className="manual-sale-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="manual-sale-modal-header">
+              <div>
+                <p className="manual-sale-eyebrow">Cuenta corriente</p>
+                <h3>Seleccionar cliente</h3>
+              </div>
+              <button type="button" className="manual-sale-button-ghost" onClick={() => setCustomerModalOpen(false)}>
+                Cerrar
+              </button>
+            </div>
+            {!showNewCustomerForm ? (
+              <>
+                <input
+                  ref={customerSearchInputRef}
+                  value={customerQuery}
+                  onChange={(event) => setCustomerQuery(event.target.value)}
+                  placeholder="Buscar por nombre, telefono, email o documento"
+                  className="manual-sale-field"
+                />
+                <div className="manual-sale-customer-list">
+                  {customerLoading ? (
+                    <StateCard label="Cargando clientes..." />
+                  ) : filteredCustomers.length === 0 ? (
+                    <StateCard label="No encontramos clientes con ese filtro." />
+                  ) : (
+                    filteredCustomers.map((customer) => (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        onClick={() => selectCustomer(customer)}
+                        className="manual-sale-customer-option"
+                      >
+                        <strong>{getCustomerName(customer)}</strong>
+                        <span>
+                          {customer.phone || "Sin telefono"}
+                          {customer.email ? ` · ${customer.email}` : ""}
+                          {customer.document ? ` · Doc. ${customer.document}` : ""}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="manual-sale-button manual-sale-new-customer-toggle"
+                  onClick={() => {
+                    clearNewCustomerFields();
+                    setShowNewCustomerForm(true);
+                  }}
+                >
+                  Crear nuevo cliente
+                </button>
+              </>
+            ) : (
+              <div className="manual-sale-new-customer">
+                <div className="manual-sale-new-customer-header">
+                  <p className="manual-sale-eyebrow">Registrar nuevo</p>
+                </div>
+                <input value={newCustomerFullName} onChange={(event) => setNewCustomerFullName(event.target.value)} placeholder="Nombre completo" className="manual-sale-field" />
+                <div className="manual-sale-discount-row">
+                  <input value={newCustomerPhone} onChange={(event) => setNewCustomerPhone(event.target.value)} placeholder="Telefono" className="manual-sale-field" />
+                  <input value={newCustomerDocument} onChange={(event) => setNewCustomerDocument(event.target.value)} placeholder="Documento opcional" className="manual-sale-field" />
+                </div>
+                <input value={newCustomerEmail} onChange={(event) => setNewCustomerEmail(event.target.value)} placeholder="Email opcional" className="manual-sale-field" />
+                <div className="manual-sale-current-account-address">
+                  <p className="manual-sale-eyebrow">Direccion opcional</p>
+                  <input value={newCustomerAddress} onChange={(event) => setNewCustomerAddress(event.target.value)} placeholder="Calle, numero, piso/depto" className="manual-sale-field" />
+                  <div className="manual-sale-discount-row">
+                    <input value={newCustomerCity} onChange={(event) => setNewCustomerCity(event.target.value)} placeholder="Localidad" className="manual-sale-field" />
+                    <input value={newCustomerZip} onChange={(event) => setNewCustomerZip(event.target.value)} placeholder="Codigo postal" className="manual-sale-field" />
+                  </div>
+                </div>
+                <div className="manual-sale-modal-actions">
+                  <button
+                    type="button"
+                    className="manual-sale-button-ghost"
+                    onClick={() => {
+                      clearNewCustomerFields();
+                      setShowNewCustomerForm(false);
+                      window.requestAnimationFrame(() => customerSearchInputRef.current?.focus());
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={() => void createCustomer()} disabled={customerLoading} className="manual-sale-button manual-sale-button-primary">
+                    Crear y seleccionar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
 
       <style jsx>{`
         .manual-sale-panel {
-          border-radius: 28px;
+          border-radius: 22px;
           border: 1px solid var(--border-soft);
           background: var(--page-panel-bg);
-          padding: clamp(18px, 3vw, 28px);
+          padding: clamp(14px, 2vw, 20px);
           display: grid;
-          gap: 20px;
+          gap: 14px;
         }
 
         .manual-sale-header,
@@ -817,11 +1184,11 @@ export default function AdminManualSalesSection({
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
-          gap: 14px;
+          gap: 10px;
         }
 
         .manual-sale-header {
-          align-items: stretch;
+          align-items: start;
         }
 
         .manual-sale-header h2,
@@ -833,7 +1200,7 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-header h2 {
-          font-size: clamp(2rem, 4vw, 3.2rem);
+          font-size: clamp(1.9rem, 3vw, 2.7rem);
         }
 
         .manual-sale-card h3,
@@ -861,44 +1228,17 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-header p {
-          margin: 10px 0 0;
+          margin: 8px 0 0;
           max-width: 680px;
-          line-height: 1.6;
+          line-height: 1.45;
         }
 
-        .manual-sale-kpis {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(90px, 1fr));
-          gap: 10px;
-          min-width: min(100%, 360px);
-        }
-
-        .manual-sale-mini-stat,
         .manual-sale-card,
         .manual-sale-line,
         .manual-sale-state,
         .manual-sale-receipt {
           border: 1px solid var(--border-soft);
           background: var(--page-panel-strong-bg);
-        }
-
-        .manual-sale-mini-stat {
-          border-radius: 18px;
-          padding: 14px;
-          display: grid;
-          gap: 6px;
-        }
-
-        .manual-sale-mini-stat span {
-          color: var(--text-muted);
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
-        }
-
-        .manual-sale-mini-stat strong {
-          color: var(--text-strong);
-          font-size: 24px;
         }
 
         .manual-sale-alert {
@@ -921,14 +1261,14 @@ export default function AdminManualSalesSection({
         .manual-sale-workspace {
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(460px, 0.48fr);
-          gap: 18px;
+          gap: 14px;
           align-items: start;
         }
 
         .manual-sale-catalog,
         .manual-sale-checkout {
           display: grid;
-          gap: 14px;
+          gap: 10px;
           min-width: 0;
         }
 
@@ -942,12 +1282,12 @@ export default function AdminManualSalesSection({
         .manual-sale-product-card,
         .manual-sale-line,
         .manual-sale-state {
-          border-radius: 18px;
-          padding: 18px;
+          border-radius: 16px;
+          padding: 14px;
         }
 
         .manual-sale-search-card {
-          gap: 14px;
+          gap: 10px;
         }
 
         .manual-sale-search-row {
@@ -958,12 +1298,12 @@ export default function AdminManualSalesSection({
 
         .manual-sale-field {
           width: 100%;
-          min-height: 46px;
-          border-radius: 14px;
+          min-height: 42px;
+          border-radius: 12px;
           border: 1px solid var(--border-soft);
           background: var(--muted-field-bg);
           color: var(--muted-field-color);
-          padding: 11px 13px;
+          padding: 10px 12px;
           outline: none;
         }
 
@@ -979,7 +1319,7 @@ export default function AdminManualSalesSection({
 
         .manual-sale-variant-table {
           display: grid;
-          gap: 8px;
+          gap: 6px;
           min-width: 760px;
         }
 
@@ -987,18 +1327,17 @@ export default function AdminManualSalesSection({
         .manual-sale-variant-row {
           display: grid;
           grid-template-columns:
-            minmax(190px, 1.3fr)
-            minmax(130px, 0.9fr)
-            minmax(110px, 0.7fr)
-            minmax(110px, 0.7fr)
+            minmax(220px, 1.5fr)
+            minmax(150px, 1fr)
+            minmax(110px, 0.65fr)
             minmax(86px, 0.45fr)
             minmax(96px, 0.45fr);
-          gap: 12px;
+          gap: 10px;
           align-items: center;
         }
 
         .manual-sale-variant-table-head {
-          padding: 0 14px;
+          padding: 0 12px;
           color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.12em;
@@ -1008,7 +1347,7 @@ export default function AdminManualSalesSection({
 
         .manual-sale-variant-table-body {
           display: grid;
-          gap: 8px;
+          gap: 6px;
           max-height: 54vh;
           overflow-y: auto;
           padding-right: 4px;
@@ -1017,10 +1356,10 @@ export default function AdminManualSalesSection({
         .manual-sale-variant-row {
           width: 100%;
           border: 1px solid var(--border-soft);
-          border-radius: 16px;
+          border-radius: 14px;
           background: var(--page-panel-strong-bg);
           color: var(--text-strong);
-          padding: 12px 14px;
+          padding: 10px 12px;
           text-align: left;
           cursor: pointer;
           transition:
@@ -1054,11 +1393,6 @@ export default function AdminManualSalesSection({
         .manual-sale-variant-row span {
           color: var(--text-muted);
           overflow-wrap: anywhere;
-        }
-
-        .manual-sale-variant-sku {
-          font-weight: 800;
-          color: var(--text-strong) !important;
         }
 
         .manual-sale-line strong,
@@ -1097,29 +1431,29 @@ export default function AdminManualSalesSection({
 
         .manual-sale-lines {
           display: grid;
-          gap: 10px;
-          max-height: 34vh;
+          gap: 8px;
+          max-height: 30vh;
           overflow-y: auto;
           padding-right: 4px;
         }
 
         .manual-sale-line {
           display: grid;
-          gap: 10px;
+          gap: 8px;
           background: var(--page-panel-bg);
-          padding: 14px 16px;
+          padding: 10px 12px;
         }
 
         .manual-sale-line-controls {
           display: grid;
           grid-template-columns: 124px minmax(0, 1fr) auto;
-          gap: 12px;
+          gap: 8px;
           align-items: center;
         }
 
         .manual-sale-qty {
-          min-height: 44px;
-          border-radius: 14px;
+          min-height: 40px;
+          border-radius: 12px;
           border: 1px solid var(--border-soft);
           background: var(--muted-field-bg);
           display: grid;
@@ -1143,8 +1477,8 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-icon-button {
-          width: 32px;
-          height: 32px;
+          width: 30px;
+          height: 30px;
           border-radius: 999px;
           border: 1px solid var(--border-soft);
           flex: 0 0 auto;
@@ -1161,7 +1495,7 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-total-card {
-          gap: 16px;
+          gap: 12px;
           overflow: hidden;
         }
 
@@ -1170,7 +1504,7 @@ export default function AdminManualSalesSection({
         .manual-sale-notes,
         .manual-sale-field-group {
           display: grid;
-          gap: 10px;
+          gap: 8px;
         }
 
         .manual-sale-summary-row,
@@ -1183,18 +1517,18 @@ export default function AdminManualSalesSection({
 
         .manual-sale-discount-summary {
           display: grid;
-          gap: 4px;
+          gap: 2px;
           border-top: 1px solid var(--border-soft);
-          padding-top: 10px;
+          padding-top: 8px;
         }
 
         .manual-sale-grand-total {
           display: grid;
-          gap: 4px;
-          border-radius: 18px;
+          gap: 2px;
+          border-radius: 14px;
           background: color-mix(in srgb, var(--page-panel-bg) 72%, transparent);
           border: 1px solid var(--border-soft);
-          padding: 16px;
+          padding: 12px 14px;
         }
 
         .manual-sale-summary-row span,
@@ -1203,12 +1537,16 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-summary-row {
-          min-height: 28px;
+          min-height: 24px;
           padding-inline: 2px;
         }
 
+        .manual-sale-summary-value {
+          margin-left: 8px;
+        }
+
         .manual-sale-grand-total strong {
-          font-size: clamp(2rem, 4vw, 2.8rem);
+          font-size: clamp(1.8rem, 3vw, 2.45rem);
           line-height: 1;
           text-align: left;
           white-space: nowrap;
@@ -1216,7 +1554,7 @@ export default function AdminManualSalesSection({
 
         .manual-sale-checkout-form {
           border-top: 1px solid var(--border-soft);
-          padding-top: 14px;
+          padding-top: 10px;
         }
 
         label,
@@ -1227,7 +1565,7 @@ export default function AdminManualSalesSection({
         label > span,
         .manual-sale-field-group > span {
           display: block;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
           text-transform: uppercase;
           letter-spacing: 0.12em;
           font-size: 11px;
@@ -1237,16 +1575,16 @@ export default function AdminManualSalesSection({
         .manual-sale-segmented {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
-          gap: 6px;
-          border-radius: 16px;
+          gap: 5px;
+          border-radius: 14px;
           border: 1px solid var(--border-soft);
           background: var(--muted-field-bg);
-          padding: 5px;
+          padding: 4px;
         }
 
         .manual-sale-segmented button {
-          min-height: 40px;
-          border-radius: 12px;
+          min-height: 38px;
+          border-radius: 10px;
           border: 1px solid transparent;
           background: transparent;
           color: var(--muted-field-color);
@@ -1257,7 +1595,7 @@ export default function AdminManualSalesSection({
         .manual-sale-discount-row {
           display: grid;
           grid-template-columns: minmax(140px, 0.45fr) minmax(0, 1fr);
-          gap: 10px;
+          gap: 8px;
           align-items: end;
         }
 
@@ -1273,9 +1611,9 @@ export default function AdminManualSalesSection({
 
         .manual-sale-button,
         .manual-sale-button-ghost {
-          min-height: 44px;
+          min-height: 40px;
           border-radius: 999px;
-          padding: 10px 16px;
+          padding: 9px 14px;
           cursor: pointer;
           font-weight: 800;
           white-space: nowrap;
@@ -1322,6 +1660,86 @@ export default function AdminManualSalesSection({
           align-items: center;
         }
 
+        .manual-sale-customer-current-account {
+          display: grid;
+          gap: 8px;
+          padding: 12px;
+          border-radius: 16px;
+          border: 1px solid var(--admin-tone-warning-border, var(--border-soft));
+          background: var(--admin-tone-warning-bg, var(--page-panel-bg));
+          color: var(--admin-tone-warning-color, var(--text-strong));
+          font-size: 13px;
+        }
+
+        .manual-sale-customer-list,
+        .manual-sale-new-customer {
+          display: grid;
+          gap: 10px;
+        }
+
+        .manual-sale-new-customer-toggle {
+          justify-self: stretch;
+          margin-top: 2px;
+        }
+
+        .manual-sale-new-customer {
+          border-top: 1px solid var(--border-soft);
+          padding-top: 12px;
+        }
+
+        .manual-sale-new-customer-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .manual-sale-new-customer-header .manual-sale-eyebrow {
+          margin: 0;
+        }
+
+        .manual-sale-current-account-address {
+          display: grid;
+          gap: 8px;
+          border-top: 1px solid var(--border-soft);
+          padding-top: 10px;
+        }
+
+        .manual-sale-current-account-address .manual-sale-eyebrow {
+          margin: 0;
+        }
+
+        .manual-sale-modal-actions {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+          gap: 10px;
+          margin-top: 2px;
+        }
+
+        .manual-sale-customer-list {
+          max-height: 260px;
+          overflow: auto;
+          padding-right: 4px;
+        }
+
+        .manual-sale-customer-option {
+          width: 100%;
+          border: 1px solid var(--border-soft);
+          border-radius: 14px;
+          background: var(--page-panel-bg);
+          color: var(--text-strong);
+          padding: 12px 14px;
+          display: grid;
+          gap: 4px;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .manual-sale-customer-option span {
+          color: var(--text-muted);
+          font-size: 13px;
+        }
+
         .manual-sale-actions .manual-sale-button-primary {
           min-width: 190px;
         }
@@ -1354,9 +1772,121 @@ export default function AdminManualSalesSection({
           gap: 16px;
         }
 
-        .manual-sale-modal-header {
-          text-align: center;
+        .manual-sale-confirm-modal {
+          width: min(100%, 680px);
+          gap: 18px;
+        }
+
+        .manual-sale-confirm-header {
           display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 18px;
+          align-items: start;
+          border-bottom: 1px solid var(--border-soft);
+          padding-bottom: 16px;
+        }
+
+        .manual-sale-confirm-header h3 {
+          margin: 0;
+          font-size: clamp(1.7rem, 3vw, 2.15rem);
+          line-height: 1.05;
+        }
+
+        .manual-sale-confirm-header span,
+        .manual-sale-confirm-total span {
+          color: var(--text-muted);
+        }
+
+        .manual-sale-confirm-total {
+          display: grid;
+          gap: 4px;
+          text-align: right;
+          justify-items: end;
+        }
+
+        .manual-sale-confirm-total strong {
+          color: var(--text-strong);
+          font-size: clamp(2rem, 4vw, 2.55rem);
+          line-height: 1;
+          white-space: nowrap;
+        }
+
+        .manual-sale-confirm-summary {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .manual-sale-confirm-summary .manual-sale-summary-row {
+          min-height: 0;
+          border-radius: 14px;
+          border: 1px solid var(--border-soft);
+          background: var(--page-panel-strong-bg);
+          padding: 12px;
+          align-items: start;
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+
+        .manual-sale-confirm-summary .manual-sale-summary-row span,
+        .manual-sale-confirm-summary .manual-sale-summary-row strong {
+          display: block;
+          overflow-wrap: anywhere;
+        }
+
+        .manual-sale-confirm-summary .manual-sale-summary-value {
+          margin-left: 0;
+        }
+
+        .manual-sale-confirm-summary .manual-sale-summary-row span {
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          font-size: 11px;
+        }
+
+        .manual-sale-confirm-lines {
+          display: grid;
+          gap: 8px;
+          max-height: 260px;
+          overflow-y: auto;
+          padding-right: 4px;
+        }
+
+        .manual-sale-confirm-lines article {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: center;
+          border-radius: 14px;
+          border: 1px solid var(--border-soft);
+          background: var(--page-panel-bg);
+          padding: 12px 14px;
+        }
+
+        .manual-sale-confirm-lines article > div {
+          min-width: 0;
+          display: grid;
+          gap: 4px;
+        }
+
+        .manual-sale-confirm-lines article > div:last-child {
+          text-align: right;
+          justify-items: end;
+        }
+
+        .manual-sale-confirm-lines span {
+          color: var(--text-muted);
+        }
+
+        .manual-sale-confirm-lines strong {
+          color: var(--text-strong);
+        }
+
+        .manual-sale-modal-header {
+          text-align: left;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
           gap: 8px;
         }
 
@@ -1411,7 +1941,6 @@ export default function AdminManualSalesSection({
             padding: 14px;
           }
 
-          .manual-sale-kpis,
           .manual-sale-search-row,
           .manual-sale-discount-row {
             grid-template-columns: 1fr;
@@ -1435,6 +1964,20 @@ export default function AdminManualSalesSection({
             width: 100%;
           }
 
+          .manual-sale-modal-actions {
+            grid-template-columns: 1fr;
+          }
+
+          .manual-sale-confirm-header,
+          .manual-sale-confirm-summary {
+            grid-template-columns: 1fr;
+          }
+
+          .manual-sale-confirm-total {
+            text-align: left;
+            justify-items: start;
+          }
+
           .manual-sale-lines {
             max-height: none;
           }
@@ -1444,20 +1987,11 @@ export default function AdminManualSalesSection({
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="manual-sale-mini-stat">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="manual-sale-summary-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
+      <span style={{ marginRight: 8 }}>{label}</span>
+      <strong className="manual-sale-summary-value" style={{ marginLeft: 8 }}>{value}</strong>
     </div>
   );
 }
@@ -1466,15 +2000,25 @@ function StateCard({ label }: { label: string }) {
   return <div className="manual-sale-state">{label}</div>;
 }
 
-function getVariantLabel(variant: Pick<ManualSaleVariant, "Size" | "Color">) {
-  return [variant.Size, variant.Color].filter(Boolean).join(" - ") || "Variante principal";
+function getCustomerName(customer: ManualSaleCustomer) {
+  return [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || customer.email || customer.phone || `Cliente #${customer.id}`;
 }
 
-function calculateRoundedPercentageDiscount(subtotal: number, discountValue: number) {
-  const safeSubtotal = Number.isFinite(subtotal) ? Math.max(subtotal, 0) : 0;
-  const safePercentage = Number.isFinite(discountValue)
-    ? Math.min(Math.max(discountValue, 0), 100)
-    : 0;
+function parseCustomerFullName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) {
+    return {
+      firstName: parts[0] || undefined,
+      lastName: undefined,
+    };
+  }
 
-  return Number(Math.min(safeSubtotal * (safePercentage / 100), safeSubtotal).toFixed(2));
+  return {
+    firstName: parts.slice(0, -1).join(" "),
+    lastName: parts.at(-1),
+  };
+}
+
+function getVariantLabel(variant: Pick<ManualSaleVariant, "Size" | "Color">) {
+  return [variant.Size, variant.Color].filter(Boolean).join(" - ") || "Variante principal";
 }

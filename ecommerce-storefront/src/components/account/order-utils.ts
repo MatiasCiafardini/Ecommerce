@@ -32,7 +32,7 @@ export type CustomerOrder = {
   shippingCountrySnapshot?: string | null;
   customer?: {
     id: number;
-    email: string;
+    email?: string | null;
     firstName?: string | null;
     lastName?: string | null;
     phone?: string | null;
@@ -208,7 +208,13 @@ export const paymentMethodLabel = (method?: string | null) => {
     efectivo: "Efectivo",
     bank_transfer: "Transferencia bancaria",
     transfer: "Transferencia",
+    transferencia: "Transferencia",
     card: "Tarjeta",
+    tarjeta: "Tarjeta",
+    "mercado pago": "Mercado Pago",
+    mercadopago: "Mercado Pago",
+    "cuenta corriente": "Cuenta corriente",
+    current_account: "Cuenta corriente",
     credit_card: "Tarjeta de crédito",
     debit_card: "Tarjeta de débito",
   };

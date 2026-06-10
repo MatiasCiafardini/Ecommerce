@@ -1,4 +1,4 @@
-import { apiFetch } from "./api-client";
+import { PUBLIC_REVALIDATE, apiFetch } from "./api-client";
 import { StoreProduct } from "@/types/store";
 
 type Params = {
@@ -53,7 +53,9 @@ export async function getProducts(params?: Params): Promise<StoreProduct[]> {
   let products: StoreProduct[] | null = null;
 
   try {
-    products = await apiFetch<StoreProduct[]>(url);
+    products = await apiFetch<StoreProduct[]>(url, {
+      revalidate: PUBLIC_REVALIDATE.products,
+    });
   } catch (error) {
     reportProductsFallback({
       scope: "list",
@@ -74,7 +76,9 @@ export async function getProducts(params?: Params): Promise<StoreProduct[]> {
 }
 export async function getProductBySlug(slug: string) {
   try {
-    return await apiFetch<StoreProduct>(`/store/products/${slug}`);
+    return await apiFetch<StoreProduct>(`/store/products/${slug}`, {
+      revalidate: PUBLIC_REVALIDATE.productDetail,
+    });
   } catch (error) {
     reportProductsFallback({
       scope: "detail",

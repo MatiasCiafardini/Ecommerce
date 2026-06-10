@@ -91,7 +91,6 @@ export default function CategoryImageStrip({ items }: Props) {
                 src={src}
                 alt={item.title}
                 fill
-                unoptimized
                 sizes={`(max-width: 768px) 100vw, ${desktopSizes}`}
                 style={{
                   objectFit: "cover",
