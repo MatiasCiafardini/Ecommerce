@@ -24,7 +24,23 @@ type Movement = {
   description?: string | null;
   createdAt: string;
   balanceAfter: string | number;
-  order?: { id: number; total: string | number; status: string; createdAt: string } | null;
+  order?: {
+    id: number;
+    total: string | number;
+    status: string;
+    createdAt: string;
+    items?: Array<{
+      id: number;
+      quantity: number;
+      price: string | number;
+      variant?: {
+        sku?: string | null;
+        Size?: string | null;
+        Color?: string | null;
+        product?: { title: string };
+      } | null;
+    }>;
+  } | null;
   createdByUser?: { id: number; name?: string | null; email: string } | null;
 };
 
@@ -38,17 +54,22 @@ type CurrentAccount = {
 };
 
 type FilterStatus = "debt" | "paid" | "all";
+type MovementVariant = NonNullable<NonNullable<Movement["order"]>["items"]>[number]["variant"];
 
 const paymentMethods = ["Efectivo", "Tarjeta", "Transferencia", "Mercado Pago"];
 
-export default function AdminCurrentAccountsSection() {
+export default function AdminCurrentAccountsSection({
+  onRegisterSale,
+}: {
+  onRegisterSale?: (customer: Customer) => void;
+}) {
   const [accounts, setAccounts] = useState<CurrentAccount[]>([]);
   const [selected, setSelected] = useState<CurrentAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<FilterStatus>("debt");
+  const [status, setStatus] = useState<FilterStatus>("all");
   const [paymentCustomer, setPaymentCustomer] = useState<CurrentAccount | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentAccounts, setPaymentAccounts] = useState<CurrentAccount[]>([]);
@@ -66,6 +87,9 @@ export default function AdminCurrentAccountsSection() {
   const [savingBalance, setSavingBalance] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [downloadingReceiptId, setDownloadingReceiptId] = useState<number | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ firstName: "", lastName: "", email: "", phone: "", document: "", notes: "" });
+  const [savingCreate, setSavingCreate] = useState(false);
 
   const loadAccounts = async () => {
     setLoading(true);
@@ -87,6 +111,19 @@ export default function AdminCurrentAccountsSection() {
     const timeoutId = window.setTimeout(() => void loadAccounts(), 220);
     return () => window.clearTimeout(timeoutId);
   }, [query, status]);
+
+  useEffect(() => {
+    if (!selected) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelected(null);
+      }
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selected]);
 
   const totals = useMemo(() => {
     const debtAccounts = accounts.filter((account) => Number(account.balance) > 0);
@@ -286,6 +323,40 @@ export default function AdminCurrentAccountsSection() {
     }
   };
 
+  const openCreateAccount = () => {
+    setCreateForm({ firstName: "", lastName: "", email: "", phone: "", document: "", notes: "" });
+    setCreateModalOpen(true);
+    setError("");
+  };
+
+  const createAccount = async () => {
+    if (!createForm.firstName.trim() && !createForm.lastName.trim() && !createForm.phone.trim() && !createForm.email.trim() && !createForm.document.trim()) {
+      setError("Carga al menos un dato del cliente.");
+      return;
+    }
+
+    setSavingCreate(true);
+    setError("");
+    try {
+      const created = (await api("/current-accounts", {
+        method: "POST",
+        body: JSON.stringify(createForm),
+      })) as CurrentAccount;
+      setCreateModalOpen(false);
+      await loadAccounts();
+      setSelected(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear la cuenta corriente.");
+    } finally {
+      setSavingCreate(false);
+    }
+  };
+
+  const registerSaleForAccount = (account: CurrentAccount) => {
+    onRegisterSale?.({ ...account.customer, source: "current_account" } as Customer);
+    setSelected(null);
+  };
+
   return (
     <section data-account-panel style={panelStyle}>
       <header style={headerStyle}>
@@ -295,6 +366,9 @@ export default function AdminCurrentAccountsSection() {
           <p style={copyStyle}>Clientes con saldo pendiente, movimientos y cobros parciales o totales.</p>
         </div>
         <div style={statsStyle}>
+          <button type="button" onClick={openCreateAccount} style={softButtonStyle}>
+            Agregar cuenta
+          </button>
           <button type="button" onClick={() => void openGlobalPayment()} style={primaryButtonStyle}>
             Registrar pago
           </button>
@@ -314,9 +388,9 @@ export default function AdminCurrentAccountsSection() {
         />
         <div style={segmentedStyle}>
           {[
+            ["all", "Todos"],
             ["debt", "Con deuda"],
             ["paid", "Saldados"],
-            ["all", "Todos"],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -365,11 +439,8 @@ export default function AdminCurrentAccountsSection() {
                       <button type="button" onClick={() => void openDetail(account)} style={softButtonStyle}>
                         Ver detalle
                       </button>
-                      <button type="button" onClick={() => openEdit(account)} style={softButtonStyle}>
-                        Editar
-                      </button>
-                      <button type="button" onClick={() => openBalance(account)} style={softButtonStyle}>
-                        Ajustar saldo
+                      <button type="button" onClick={() => registerSaleForAccount(account)} style={primaryButtonStyle}>
+                        Registrar venta
                       </button>
                       <button
                         type="button"
@@ -378,14 +449,6 @@ export default function AdminCurrentAccountsSection() {
                         disabled={Number(account.balance) <= 0}
                       >
                         Registrar pago
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deactivateAccount(account)}
-                        style={dangerButtonStyle}
-                        disabled={deactivatingId === account.id}
-                      >
-                        Dar de baja
                       </button>
                     </div>
                   </Td>
@@ -399,9 +462,17 @@ export default function AdminCurrentAccountsSection() {
       {selected ? (
         <div style={modalOverlayStyle} onClick={() => setSelected(null)}>
           <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              aria-label="Cerrar detalle"
+              style={modalCloseButtonStyle}
+            >
+              ×
+            </button>
             <header style={modalHeaderStyle}>
               <div>
-                <p style={eyebrowStyle}>Detalle</p>
+                <p style={eyebrowStyle}>Cuenta corriente</p>
                 <h3 style={modalTitleStyle}>{customerName(selected.customer)}</h3>
                 <p style={copyStyle}>
                   {selected.customer.phone || "Sin telefono"}
@@ -412,20 +483,20 @@ export default function AdminCurrentAccountsSection() {
               <strong style={balanceStyle}>{money(Number(selected.balance))}</strong>
             </header>
             <div style={rowActionsStyle}>
+              <button type="button" onClick={() => registerSaleForAccount(selected)} style={primaryButtonStyle}>
+                Registrar venta
+              </button>
               <button type="button" onClick={() => openPayment(selected)} style={primaryButtonStyle}>
                 Registrar pago
               </button>
               <button type="button" onClick={() => openEdit(selected)} style={softButtonStyle}>
-                Editar
+                Editar datos
               </button>
               <button type="button" onClick={() => openBalance(selected)} style={softButtonStyle}>
                 Ajustar saldo
               </button>
               <button type="button" onClick={() => void deactivateAccount(selected)} style={dangerButtonStyle}>
                 Dar de baja
-              </button>
-              <button type="button" onClick={() => setSelected(null)} style={softButtonStyle}>
-                Cerrar
               </button>
             </div>
             {detailLoading ? (
@@ -442,6 +513,15 @@ export default function AdminCurrentAccountsSection() {
                         {movement.order ? ` · Venta #${movement.order.id}` : ""}
                         {movement.createdByUser ? ` · ${movement.createdByUser.name || movement.createdByUser.email}` : ""}
                       </span>
+                      {movement.order?.items?.length ? (
+                        <div style={movementItemsStyle}>
+                          {movement.order.items.map((item) => (
+                            <span key={item.id}>
+                              {item.variant?.product?.title || "Producto"} {variantLabel(item.variant)} x{item.quantity} - {money(Number(item.price) * item.quantity)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <strong>{money(Number(movement.amount))}</strong>
@@ -461,6 +541,42 @@ export default function AdminCurrentAccountsSection() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {createModalOpen ? (
+        <div style={modalOverlayStyle} onClick={() => setCreateModalOpen(false)}>
+          <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+            <header style={modalHeaderStyle}>
+              <div>
+                <p style={eyebrowStyle}>Nueva cuenta</p>
+                <h3 style={modalTitleStyle}>Agregar cuenta corriente</h3>
+              </div>
+            </header>
+            <div style={twoColumnFormStyle}>
+              <Field label="Nombre" value={createForm.firstName} onChange={(value) => setCreateForm((current) => ({ ...current, firstName: value }))} />
+              <Field label="Apellido" value={createForm.lastName} onChange={(value) => setCreateForm((current) => ({ ...current, lastName: value }))} />
+              <Field label="Email" value={createForm.email} onChange={(value) => setCreateForm((current) => ({ ...current, email: value }))} />
+              <Field label="Telefono" value={createForm.phone} onChange={(value) => setCreateForm((current) => ({ ...current, phone: value }))} />
+              <Field label="Documento" value={createForm.document} onChange={(value) => setCreateForm((current) => ({ ...current, document: value }))} />
+              <label style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
+                <span>Notas</span>
+                <textarea
+                  value={createForm.notes}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, notes: event.target.value }))}
+                  style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
+                />
+              </label>
+            </div>
+            <div style={rowActionsStyle}>
+              <button type="button" onClick={() => void createAccount()} disabled={savingCreate} style={primaryButtonStyle}>
+                {savingCreate ? "Creando..." : "Crear cuenta"}
+              </button>
+              <button type="button" onClick={() => setCreateModalOpen(false)} style={softButtonStyle}>
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -671,6 +787,12 @@ function customerName(customer: Customer) {
   return [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || customer.email || customer.phone || `Cliente #${customer.id}`;
 }
 
+function variantLabel(variant?: MovementVariant) {
+  if (!variant) return "";
+  const label = [variant.Size, variant.Color, variant.sku].filter(Boolean).join(" · ");
+  return label ? `(${label})` : "";
+}
+
 function movementLabel(type: string) {
   const labels: Record<string, string> = {
     SALE: "Venta a cuenta corriente",
@@ -726,17 +848,19 @@ const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collap
 const thStyle: React.CSSProperties = { textAlign: "left", padding: "13px 14px", fontSize: 12, color: "var(--account-text-soft)", borderBottom: "1px solid var(--account-item-border)", textTransform: "uppercase", letterSpacing: "0.12em" };
 const tdStyle: React.CSSProperties = { padding: "14px", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-strong)", verticalAlign: "top" };
 const mutedBlockStyle: React.CSSProperties = { display: "block", marginTop: 4, color: "var(--account-text-muted)", fontSize: 12 };
-const rowActionsStyle: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" };
-const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 12, background: "var(--account-item-bg-active)", color: "var(--account-text-strong)", padding: "10px 12px", cursor: "pointer", fontWeight: 800 };
-const softButtonStyle: React.CSSProperties = { border: "1px solid var(--account-item-border)", borderRadius: 12, background: "transparent", color: "var(--account-text-strong)", padding: "10px 12px", cursor: "pointer", fontWeight: 700 };
-const dangerButtonStyle: React.CSSProperties = { border: "1px solid var(--admin-danger-border)", borderRadius: 12, background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)", padding: "10px 12px", cursor: "pointer", fontWeight: 800 };
+const rowActionsStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: 12, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
+const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 12, background: "var(--account-item-bg-active)", color: "var(--account-text-strong)", padding: "11px 14px", cursor: "pointer", fontWeight: 800, minHeight: 42 };
+const softButtonStyle: React.CSSProperties = { border: "1px solid var(--account-item-border)", borderRadius: 12, background: "var(--account-sidebar-bg)", color: "var(--account-text-strong)", padding: "10px 13px", cursor: "pointer", fontWeight: 700, minHeight: 42 };
+const dangerButtonStyle: React.CSSProperties = { border: "1px solid var(--admin-danger-border)", borderRadius: 12, background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)", padding: "10px 13px", cursor: "pointer", fontWeight: 800, minHeight: 42 };
 const stateStyle: React.CSSProperties = { padding: 24, borderRadius: 18, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-muted)" };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 120, background: "var(--admin-overlay-bg, rgba(0,0,0,.42))", display: "grid", placeItems: "center", padding: 16 };
-const modalStyle: React.CSSProperties = { width: "min(720px, 100%)", maxHeight: "min(760px, calc(100vh - 32px))", overflow: "auto", borderRadius: 20, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", padding: 20, display: "grid", gap: 16, boxShadow: "var(--admin-modal-shadow)" };
-const modalHeaderStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" };
-const balanceStyle: React.CSSProperties = { color: "var(--account-text-strong)", fontSize: 22 };
+const modalStyle: React.CSSProperties = { position: "relative", width: "min(780px, 100%)", maxHeight: "min(760px, calc(100vh - 32px))", overflow: "auto", borderRadius: 22, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", padding: "38px 24px 24px", display: "grid", gap: 16, boxShadow: "var(--admin-modal-shadow)" };
+const modalCloseButtonStyle: React.CSSProperties = { position: "absolute", top: 12, right: 12, width: 36, height: 36, borderRadius: 999, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-strong)", cursor: "pointer", fontSize: 22, lineHeight: "32px", display: "grid", placeItems: "center" };
+const modalHeaderStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 18, alignItems: "stretch", padding: 16, borderRadius: 18, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
+const balanceStyle: React.CSSProperties = { color: "var(--account-text-strong)", fontSize: 24, minWidth: 150, padding: "14px 16px", borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", display: "grid", placeItems: "center end", alignSelf: "stretch" };
 const movementListStyle: React.CSSProperties = { display: "grid", gap: 10 };
-const movementStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, padding: 14, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
+const movementStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, padding: 16, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
+const movementItemsStyle: React.CSSProperties = { display: "grid", gap: 4, marginTop: 8, color: "var(--account-text-muted)", fontSize: 12 };
 const fieldGroupStyle: React.CSSProperties = { display: "grid", gap: 8, color: "var(--account-text-muted)", fontWeight: 700 };
 const amountRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center" };
 const moneyInputWrapStyle: React.CSSProperties = { position: "relative", minWidth: 0 };

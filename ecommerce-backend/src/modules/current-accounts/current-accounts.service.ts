@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
 import { normalizeEmail } from '../../common/utils/email.util';
 import { AdjustCurrentAccountDto } from './dto/adjust-current-account.dto';
+import { CreateCurrentAccountDto } from './dto/create-current-account.dto';
 import { RegisterCurrentAccountPaymentDto } from './dto/register-current-account-payment.dto';
 import { UpdateCurrentAccountDto } from './dto/update-current-account.dto';
 
@@ -40,6 +41,70 @@ const accountInclude = {
 @Injectable()
 export class CurrentAccountsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async create(storeId: number, dto: CreateCurrentAccountDto) {
+    const customerData = this.buildCustomerUpdateData(dto);
+
+    if (!customerData.firstName && !customerData.lastName && !customerData.phone && !customerData.email && !customerData.document) {
+      throw new BadRequestException('Customer data is required');
+    }
+
+    const customer = await this.prisma.$transaction(async (tx) => {
+      const existingCustomer = customerData.email
+        ? await tx.customer.findUnique({
+            where: {
+              storeId_email: {
+                storeId,
+                email: customerData.email,
+              },
+            },
+          })
+        : null;
+
+      const savedCustomer = existingCustomer
+        ? await tx.customer.update({
+            where: { id: existingCustomer.id },
+            data: {
+              source: 'current_account',
+              ...this.removeUndefinedCustomerData(customerData),
+            },
+          })
+        : await tx.customer.create({
+            data: {
+              storeId,
+              source: 'current_account',
+              email: customerData.email,
+              firstName: customerData.firstName,
+              lastName: customerData.lastName,
+              phone: customerData.phone,
+              document: customerData.document,
+              notes: customerData.notes,
+            },
+          });
+
+      await tx.currentAccount.upsert({
+        where: {
+          storeId_customerId: {
+            storeId,
+            customerId: savedCustomer.id,
+          },
+        },
+        create: {
+          storeId,
+          customerId: savedCustomer.id,
+          balance: 0,
+        },
+        update: {
+          deletedAt: null,
+          lastMovementAt: new Date(),
+        },
+      });
+
+      return savedCustomer;
+    });
+
+    return this.findByCustomer(storeId, customer.id);
+  }
 
   async findAll(storeId: number, status: 'debt' | 'paid' | 'all' = 'debt', search = '') {
     const normalizedSearch = search.trim();
@@ -102,11 +167,20 @@ export class CurrentAccountsService {
           orderBy: { createdAt: 'desc' },
           include: {
             order: {
-              select: {
-                id: true,
-                total: true,
-                status: true,
-                createdAt: true,
+              include: {
+                items: {
+                  include: {
+                    variant: {
+                      include: {
+                        product: {
+                          select: {
+                            title: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
             createdByUser: {
@@ -450,6 +524,12 @@ export class CurrentAccountsService {
     }
 
     return data;
+  }
+
+  private removeUndefinedCustomerData(data: Record<string, string | null>) {
+    return Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined),
+    );
   }
 
   private renderPaymentReceiptPdf(movement: {

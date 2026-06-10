@@ -13,6 +13,7 @@ import { ApproveReturnDto } from './dto/approve-return.dto';
 import { ReviewReturnDto } from './dto/review-return.dto';
 import { ReceiveReturnDto } from './dto/receive-return.dto';
 import { ShipReturnDto } from './dto/ship-return.dto';
+import { CreateManualReturnDto } from './dto/create-manual-return.dto';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { AdminNotificationMailService } from '../notifications/admin-notification-mail.service';
 import { privateUploadsDir, uploadsDir } from '../../common/uploads';
@@ -27,6 +28,162 @@ export class ReturnsService {
     private mercadopago: MercadoPagoProvider,
     private adminNotificationMailService: AdminNotificationMailService,
   ) {}
+
+  async findManualReturns(storeId: number) {
+    return this.prisma.manualReturn.findMany({
+      where: { storeId },
+      include: this.manualReturnInclude(),
+      orderBy: { createdAt: 'desc' },
+      take: 80,
+    });
+  }
+
+  async createManualReturn(storeId: number, dto: CreateManualReturnDto) {
+    const returnedItems = dto.returnedItems ?? [];
+    const exchangeItems = dto.exchangeItems ?? [];
+
+    if (!returnedItems.length) {
+      throw new BadRequestException('Select at least one returned item');
+    }
+
+    for (const item of [...returnedItems, ...exchangeItems]) {
+      if (!Number.isInteger(item.variantId) || item.variantId <= 0) {
+        throw new BadRequestException('Invalid variant');
+      }
+
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+        throw new BadRequestException('Quantity must be greater than zero');
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const variantIds = [...returnedItems, ...exchangeItems].map((item) => item.variantId);
+      const variants = await tx.productVariant.findMany({
+        where: {
+          id: { in: variantIds },
+          product: { storeId },
+        },
+        include: {
+          product: true,
+          inventories: {
+            where: { storeId },
+          },
+        },
+      });
+      const variantsById = new Map(variants.map((variant) => [variant.id, variant]));
+
+      const normalizeItem = (item: { variantId: number; quantity: number; price?: number }) => {
+        const variant = variantsById.get(item.variantId);
+
+        if (!variant) {
+          throw new NotFoundException(`Variant ${item.variantId} not found`);
+        }
+
+        const price = Number(item.price ?? variant.price);
+
+        if (!Number.isFinite(price) || price < 0) {
+          throw new BadRequestException('Price must be zero or greater');
+        }
+
+        return {
+          variant,
+          variantId: item.variantId,
+          quantity: item.quantity,
+          price: this.roundMoney(price),
+        };
+      };
+
+      const normalizedReturned = returnedItems.map(normalizeItem);
+      const normalizedExchange = exchangeItems.map(normalizeItem);
+
+      for (const item of normalizedExchange) {
+        const inventory = item.variant.inventories[0];
+        const available = Number(inventory?.quantity ?? 0) - Number(inventory?.reserved ?? 0);
+
+        if (!inventory || available < item.quantity) {
+          throw new BadRequestException(
+            `Not enough stock for variant ${item.variantId}`,
+          );
+        }
+      }
+
+      for (const item of normalizedReturned) {
+        await tx.inventory.upsert({
+          where: {
+            storeId_variantId: {
+              storeId,
+              variantId: item.variantId,
+            },
+          },
+          create: {
+            storeId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            reserved: 0,
+          },
+          update: {
+            quantity: {
+              increment: item.quantity,
+            },
+          },
+        });
+      }
+
+      for (const item of normalizedExchange) {
+        await tx.inventory.update({
+          where: {
+            storeId_variantId: {
+              storeId,
+              variantId: item.variantId,
+            },
+          },
+          data: {
+            quantity: {
+              decrement: item.quantity,
+            },
+          },
+        });
+      }
+
+      const totalReturned = this.roundMoney(
+        normalizedReturned.reduce((sum, item) => sum + item.price * item.quantity, 0),
+      );
+      const totalExchange = this.roundMoney(
+        normalizedExchange.reduce((sum, item) => sum + item.price * item.quantity, 0),
+      );
+      const differenceAmount = this.roundMoney(totalExchange - totalReturned);
+
+      return tx.manualReturn.create({
+        data: {
+          storeId,
+          customerName: dto.customerName?.trim() || null,
+          notes: dto.notes?.trim() || null,
+          totalReturned,
+          totalExchange,
+          differenceAmount,
+          items: {
+            create: [
+              ...normalizedReturned.map((item) => ({
+                storeId,
+                variantId: item.variantId,
+                kind: 'returned',
+                quantity: item.quantity,
+                price: item.price,
+              })),
+              ...normalizedExchange.map((item) => ({
+                storeId,
+                variantId: item.variantId,
+                kind: 'exchange',
+                quantity: item.quantity,
+                price: item.price,
+              })),
+            ],
+          },
+        },
+        include: this.manualReturnInclude(),
+      });
+    });
+  }
 
   async createReturn(storeId: number, customerId: number, dto: CreateReturnDto) {
     const order = await this.prisma.order.findFirst({
@@ -610,6 +767,31 @@ export class ReturnsService {
       ...entry,
       customerShipmentProofUrl: `/returns/${entry.id}/proof`,
     };
+  }
+
+  private manualReturnInclude() {
+    return {
+      items: {
+        include: {
+          variant: {
+            include: {
+              product: {
+                select: {
+                  title: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          id: 'asc' as const,
+        },
+      },
+    };
+  }
+
+  private roundMoney(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
   private async resolveProofAbsolutePath(proofUrl: string) {

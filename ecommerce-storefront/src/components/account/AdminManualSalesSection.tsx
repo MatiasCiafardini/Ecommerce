@@ -58,7 +58,7 @@ type CreatedOrder = {
   status: string;
 };
 
-type ManualSaleCustomer = {
+export type ManualSaleCustomer = {
   id: number;
   email?: string | null;
   firstName?: string | null;
@@ -149,8 +149,12 @@ const filterVariantRows = (rows: ManualSaleVariantRow[], query: string) => {
 
 export default function AdminManualSalesSection({
   onSaleRegistered,
+  initialCustomer,
+  initialPaymentMethod,
 }: {
   onSaleRegistered?: () => Promise<void> | void;
+  initialCustomer?: ManualSaleCustomer | null;
+  initialPaymentMethod?: string;
 }) {
   const [products, setProducts] = useState<ManualSaleProduct[]>([]);
   const [productQuery, setProductQuery] = useState("");
@@ -194,6 +198,17 @@ export default function AdminManualSalesSection({
       setStoreId(null);
     }
   }, []);
+
+  useEffect(() => {
+    if (!initialCustomer) return;
+
+    setSelectedCustomer(initialCustomer);
+    setCustomerName(getCustomerName(initialCustomer));
+    setPaymentMethod(initialPaymentMethod || "Cuenta corriente");
+    setCustomerModalOpen(false);
+    setShowNewCustomerForm(false);
+    window.requestAnimationFrame(() => searchInputRef.current?.focus());
+  }, [initialCustomer, initialPaymentMethod]);
 
   const searchProducts = async (query: string, signal?: AbortSignal) => {
     const normalizedQuery = normalizeScannerSkuInput(query).trim();

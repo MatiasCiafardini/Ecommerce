@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import AdminManualSalesSection from "@/components/account/AdminManualSalesSection";
+import AdminCurrentAccountsSection from "@/components/account/AdminCurrentAccountsSection";
+import ManualReturnsPanel from "@/components/manual-sales/ManualReturnsPanel";
 import ThemeSelect from "@/components/ui/ThemeSelect";
 import { money, orderStatusLabel, paymentMethodLabel } from "@/components/account/order-utils";
 
@@ -58,6 +60,16 @@ type EditDraft = {
   }>;
 };
 
+type ManualSaleCustomer = {
+  id: number;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  document?: string | null;
+  source?: string | null;
+};
+
 const paymentOptions = [
   { value: "Efectivo", label: "Efectivo" },
   { value: "Tarjeta", label: "Tarjeta" },
@@ -76,7 +88,8 @@ export default function ManualSalesWorkspace() {
   const [orders, setOrders] = useState<ManualSaleOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"manual-sale" | "metrics">("manual-sale");
+  const [activeTab, setActiveTab] = useState<"manual-sale" | "current-accounts" | "returns" | "metrics">("manual-sale");
+  const [initialSaleCustomer, setInitialSaleCustomer] = useState<ManualSaleCustomer | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<ManualSaleOrder | null>(null);
   const [modalMode, setModalMode] = useState<"view" | "edit" | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
@@ -184,6 +197,11 @@ export default function ManualSalesWorkspace() {
     setEditDraft(null);
     setEditError("");
     setSavingEdit(false);
+  };
+
+  const startCurrentAccountSale = (customer: ManualSaleCustomer) => {
+    setInitialSaleCustomer(customer);
+    setActiveTab("manual-sale");
   };
 
   const requestCancelSale = (order: ManualSaleOrder) => {
@@ -315,6 +333,20 @@ export default function ManualSalesWorkspace() {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab("current-accounts")}
+              style={tabStyle(activeTab === "current-accounts")}
+            >
+              Cuentas corrientes
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("returns")}
+              style={tabStyle(activeTab === "returns")}
+            >
+              Devoluciones
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab("metrics")}
               style={tabStyle(activeTab === "metrics")}
             >
@@ -324,7 +356,15 @@ export default function ManualSalesWorkspace() {
         </section>
 
         {activeTab === "manual-sale" ? (
-          <AdminManualSalesSection onSaleRegistered={loadOrders} />
+          <AdminManualSalesSection
+            onSaleRegistered={loadOrders}
+            initialCustomer={initialSaleCustomer}
+            initialPaymentMethod={initialSaleCustomer ? "Cuenta corriente" : undefined}
+          />
+        ) : activeTab === "current-accounts" ? (
+          <AdminCurrentAccountsSection onRegisterSale={startCurrentAccountSale} />
+        ) : activeTab === "returns" ? (
+          <ManualReturnsPanel />
         ) : (
           <>
             <section data-account-panel style={panelStyle}>

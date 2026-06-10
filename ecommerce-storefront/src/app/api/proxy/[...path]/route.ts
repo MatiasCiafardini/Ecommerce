@@ -83,6 +83,28 @@ function buildResponseHeaders(upstreamHeaders: Headers) {
   return headers;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithDevRetry(url: URL, init: RequestInit) {
+  const attempts = process.env.NODE_ENV === "production" ? 1 : 8;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fetch(url, init);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await sleep(350);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function proxyRequest(
   request: NextRequest,
   context: { params: Promise<{ path?: string[] }> },
@@ -125,7 +147,7 @@ async function proxyRequest(
   let upstreamResponse: Response;
 
   try {
-    upstreamResponse = await fetch(targetUrl, {
+    upstreamResponse = await fetchWithDevRetry(targetUrl, {
       method: request.method,
       headers: buildProxyHeaders(request, tenant.storeId, tenant.host, path),
       body: BODYLESS_METHODS.has(request.method)

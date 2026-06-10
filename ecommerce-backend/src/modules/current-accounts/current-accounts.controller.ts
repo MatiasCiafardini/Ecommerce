@@ -15,6 +15,7 @@ import type { Response } from 'express';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { CurrentAccountsService } from './current-accounts.service';
 import { AdjustCurrentAccountDto } from './dto/adjust-current-account.dto';
+import { CreateCurrentAccountDto } from './dto/create-current-account.dto';
 import { RegisterCurrentAccountPaymentDto } from './dto/register-current-account-payment.dto';
 import { UpdateCurrentAccountDto } from './dto/update-current-account.dto';
 
@@ -42,6 +43,11 @@ export class CurrentAccountsController {
       req.storeId,
       phone ?? '',
     );
+  }
+
+  @Post()
+  create(@Req() req, @Body() dto: CreateCurrentAccountDto) {
+    return this.currentAccountsService.create(req.storeId, dto);
   }
 
   @Get('payments/:movementId/receipt.pdf')

@@ -14,7 +14,7 @@ import AdminProductsSection, {
 import AdminCustomersSection, { type Customer } from "./admin-customers/AdminCustomersSection";
 import AdminCurrentAccountsSection from "./AdminCurrentAccountsSection";
 import AdminCashRegisterSection from "./AdminCashRegisterSection";
-import AdminManualSalesSection from "./AdminManualSalesSection";
+import AdminManualSalesSection, { type ManualSaleCustomer } from "./AdminManualSalesSection";
 import AdminAccountingSection from "./admin-accounting/AdminAccountingSection";
 import AdminOrdersPanelSection from "./admin-orders/AdminOrdersPanelSection";
 import AdminShipmentsSection from "./AdminShipmentsSection";
@@ -87,6 +87,12 @@ function AdminManualSalesWorkspace({
   initialTab?: ManualSalesTab;
 }) {
   const [activeTab, setActiveTab] = useState<ManualSalesTab>(initialTab);
+  const [initialSaleCustomer, setInitialSaleCustomer] = useState<ManualSaleCustomer | null>(null);
+
+  const startCurrentAccountSale = (customer: ManualSaleCustomer) => {
+    setInitialSaleCustomer({ ...customer, source: "current_account" });
+    setActiveTab("sale");
+  };
 
   return (
     <section style={panelStyle} data-account-panel>
@@ -121,8 +127,15 @@ function AdminManualSalesWorkspace({
       </div>
 
       <div role="tabpanel">
-        {activeTab === "sale" ? <AdminManualSalesSection /> : null}
-        {activeTab === "current-accounts" ? <AdminCurrentAccountsSection /> : null}
+        {activeTab === "sale" ? (
+          <AdminManualSalesSection
+            initialCustomer={initialSaleCustomer}
+            initialPaymentMethod={initialSaleCustomer ? "Cuenta corriente" : undefined}
+          />
+        ) : null}
+        {activeTab === "current-accounts" ? (
+          <AdminCurrentAccountsSection onRegisterSale={startCurrentAccountSale} />
+        ) : null}
         {activeTab === "cash-register" ? <AdminCashRegisterSection /> : null}
       </div>
     </section>

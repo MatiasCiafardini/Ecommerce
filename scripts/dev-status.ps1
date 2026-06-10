@@ -37,10 +37,10 @@ foreach ($service in $services) {
     }
   }
 
-  if ($process) {
-    Write-Host "$($service.Name): activo | PID $($process.Id) | puerto $($service.Port) | $($service.Url)"
-  } elseif ($portOwner) {
-    Write-Host "$($service.Name): puerto ocupado por PID $portOwner | puerto $($service.Port) | $($service.Url)"
+  if ($portOwner) {
+    Write-Host "$($service.Name): activo | PID $portOwner | puerto $($service.Port) | $($service.Url)"
+  } elseif ($process) {
+    Write-Host "$($service.Name): proceso sin puerto | PID $($process.Id) | puerto $($service.Port) | $($service.Url)"
   } else {
     Write-Host "$($service.Name): detenido | puerto $($service.Port) | $($service.Url)"
   }

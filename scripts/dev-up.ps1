@@ -53,12 +53,22 @@ function Start-ManagedProcess {
   )
 
   $existing = Get-TrackedProcess -Name $Name
-  if ($existing) {
+  $portOwner = Get-PortOwner -Port $Port
+
+  if ($existing -and $portOwner) {
     Write-Host "$Name ya esta corriendo con PID $($existing.Id) en puerto $Port."
     return
   }
 
-  $portOwner = Get-PortOwner -Port $Port
+  if ($existing -and -not $portOwner) {
+    Write-Warning "$Name tenia PID guardado ($($existing.Id)) pero el puerto $Port no responde. Reinicio el servicio."
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    taskkill /PID $existing.Id /T /F *> $null
+    $ErrorActionPreference = $previousErrorActionPreference
+    Remove-Item (Join-Path $pidDir "$Name.pid") -Force -ErrorAction SilentlyContinue
+  }
+
   if ($portOwner) {
     Write-Warning "El puerto $Port ya esta ocupado por PID $portOwner. No arranco $Name para evitar conflictos."
     return
@@ -79,6 +89,21 @@ function Start-ManagedProcess {
 
   Set-Content -Path (Join-Path $pidDir "$Name.pid") -Value $process.Id
   Write-Host "$Name iniciado con PID $($process.Id). Logs: $stdoutLog"
+
+  $ready = $false
+  for ($attempt = 0; $attempt -lt 30; $attempt++) {
+    Start-Sleep -Milliseconds 500
+    if (Get-PortOwner -Port $Port) {
+      $ready = $true
+      break
+    }
+  }
+
+  if ($ready) {
+    Write-Host "$Name listo en puerto $Port."
+  } else {
+    Write-Warning "$Name se inicio, pero todavia no escucha en el puerto $Port. Revisa $stderrLog"
+  }
 }
 
 Start-ManagedProcess `

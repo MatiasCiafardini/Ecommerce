@@ -22,6 +22,7 @@ import { ApproveReturnDto } from './dto/approve-return.dto';
 import { ReviewReturnDto } from './dto/review-return.dto';
 import { ReceiveReturnDto } from './dto/receive-return.dto';
 import { ShipReturnDto } from './dto/ship-return.dto';
+import { CreateManualReturnDto } from './dto/create-manual-return.dto';
 
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -115,6 +116,18 @@ export class ReturnsController {
   @Post(':id/receive')
   receive(@Req() req, @Param('id') id: string, @Body() dto: ReceiveReturnDto) {
     return this.returnsService.receiveReturn(req.storeId, Number(id), dto);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('manual')
+  createManual(@Req() req, @Body() dto: CreateManualReturnDto) {
+    return this.returnsService.createManualReturn(req.storeId, dto);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Get('manual')
+  findManual(@Req() req) {
+    return this.returnsService.findManualReturns(req.storeId);
   }
 
   @UseGuards(AdminAuthGuard)
