@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/context/auth-context";
 import { api, apiBlob } from "@/lib/api";
 import { downloadBlobFile } from "@/lib/download";
 import { money } from "./order-utils";
@@ -10,7 +11,7 @@ type CashRegisterMode = "automatic" | "manual";
 
 type CashMovement = {
   id: string;
-  kind: "sale_payment" | "current_account_payment";
+  kind: "sale_payment" | "current_account_payment" | "current_account_assignment";
   createdAt: string;
   method: string;
   amount: number;
@@ -25,8 +26,12 @@ type CashSummary = {
   receivedTotal: number;
   expectedAmount: number;
   movementCount: number;
+  accountAssignedTotal?: number;
+  accountAssignedCount?: number;
   byMethod: Record<string, number>;
+  byAccountMethod?: Record<string, number>;
   movements: CashMovement[];
+  accountAssignedMovements?: CashMovement[];
 };
 
 type CashSession = {
@@ -50,9 +55,11 @@ type CashPayload = {
 };
 
 export default function AdminCashRegisterSection() {
+  const { user } = useAuth();
   const [payload, setPayload] = useState<CashPayload | null>(null);
   const [history, setHistory] = useState<CashPayload[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [openingModalOpen, setOpeningModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [openingAmount, setOpeningAmount] = useState("");
@@ -65,10 +72,15 @@ export default function AdminCashRegisterSection() {
   const session = payload?.session ?? null;
   const summary = payload?.summary ?? null;
   const canCloseManual = mode === "manual" && Boolean(session?.id && !session.closedAt);
+  const canOpenNewManual = mode === "manual" && Boolean(session?.closedAt);
   const canPrint = mode === "automatic" || Boolean(session?.closedAt);
 
   const methods = useMemo(
     () => Object.entries(summary?.byMethod ?? {}).sort((a, b) => b[1] - a[1]),
+    [summary],
+  );
+  const accountMethods = useMemo(
+    () => Object.entries(summary?.byAccountMethod ?? {}).sort((a, b) => b[1] - a[1]),
     [summary],
   );
 
@@ -109,6 +121,7 @@ export default function AdminCashRegisterSection() {
       setOpeningAmount("");
       setNotes("");
       setClosingAmount(String(data.summary?.expectedAmount ?? 0));
+      setOpeningModalOpen(false);
       setMessage("Caja abierta.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo abrir la caja.");
@@ -227,8 +240,16 @@ export default function AdminCashRegisterSection() {
               ? "Caja automatica por dia, con movimientos recibidos y cierre imprimible."
               : "Caja manual para abrir, controlar movimientos y cerrar cuando corresponda."}
           </p>
+          {user?.storeLocation?.name ? (
+            <p style={mutedStyle}>Local: {user.storeLocation.name}</p>
+          ) : null}
         </div>
         <div style={actionsStyle}>
+          {canOpenNewManual ? (
+            <button type="button" onClick={() => setOpeningModalOpen(true)} style={primaryButtonStyle} disabled={saving}>
+              Abrir nueva caja
+            </button>
+          ) : null}
           <button type="button" onClick={() => void openHistory()} style={softButtonStyle}>
             Historial
           </button>
@@ -282,6 +303,7 @@ export default function AdminCashRegisterSection() {
           <div style={statsGridStyle}>
             {mode === "manual" ? <Stat label="Apertura" value={money(summary.openingAmount)} /> : null}
             <Stat label="Recibido" value={money(summary.receivedTotal)} />
+            <Stat label="Cuenta corriente" value={money(summary.accountAssignedTotal ?? 0)} />
             {mode === "manual" ? <Stat label="Total esperado en caja" value={money(summary.expectedAmount)} /> : null}
             <Stat label="Movimientos" value={String(summary.movementCount)} />
           </div>
@@ -298,12 +320,22 @@ export default function AdminCashRegisterSection() {
               </div>
 
               <div style={methodListStyle}>
+                <p style={eyebrowStyle}>Recibido por metodo</p>
                 {methods.length ? methods.map(([method, amount]) => (
                   <div key={method} style={methodRowStyle}>
                     <span>{method}</span>
                     <strong>{money(amount)}</strong>
                   </div>
                 )) : <p style={copyStyle}>Todavia no hay movimientos recibidos.</p>}
+              </div>
+              <div style={methodListStyle}>
+                <p style={eyebrowStyle}>Asignado a cuenta corriente</p>
+                {accountMethods.length ? accountMethods.map(([method, amount]) => (
+                  <div key={method} style={methodRowStyle}>
+                    <span>{method}</span>
+                    <strong>{money(amount)}</strong>
+                  </div>
+                )) : <p style={copyStyle}>Todavia no hay importes asignados a cuenta corriente.</p>}
               </div>
             </section>
 
@@ -363,6 +395,30 @@ export default function AdminCashRegisterSection() {
               {!summary.movements.length ? <State label="No hay movimientos para esta caja." /> : null}
             </div>
           </section>
+
+          <section style={cardStyle}>
+            <div>
+              <p style={eyebrowStyle}>Cuenta corriente</p>
+              <h3 style={subtitleStyle}>Asignado a cuenta corriente</h3>
+            </div>
+            <div style={movementListStyle}>
+              {(summary.accountAssignedMovements ?? []).map((movement) => (
+                <article key={movement.id} style={movementStyle}>
+                  <div>
+                    <strong>{movement.description}</strong>
+                    <p style={copyStyle}>
+                      {movement.customerName || "Sin cliente"}
+                      {" Â· "}
+                      {movement.method}
+                    </p>
+                    <span style={mutedStyle}>{formatDate(movement.createdAt)}</span>
+                  </div>
+                  <strong>{money(movement.amount)}</strong>
+                </article>
+              ))}
+              {!(summary.accountAssignedMovements ?? []).length ? <State label="No hay importes asignados a cuenta corriente en esta caja." /> : null}
+            </div>
+          </section>
         </>
       ) : null}
 
@@ -404,6 +460,47 @@ export default function AdminCashRegisterSection() {
           </div>
         </div>
       ) : null}
+
+      {openingModalOpen ? (
+        <div style={modalOverlayStyle} onClick={() => setOpeningModalOpen(false)}>
+          <form style={modalStyle} onSubmit={openManualCash} onClick={(event) => event.stopPropagation()}>
+            <header style={modalHeaderStyle}>
+              <div>
+                <p style={eyebrowStyle}>Apertura manual</p>
+                <h3 style={modalTitleStyle}>Abrir nueva caja</h3>
+              </div>
+              <button type="button" onClick={() => setOpeningModalOpen(false)} style={softButtonStyle}>
+                Cerrar
+              </button>
+            </header>
+            <label style={fieldStyle}>
+              <span>Importe inicial</span>
+              <div style={moneyInputWrapStyle}>
+                <span style={moneyPrefixStyle}>$</span>
+                <input
+                  value={openingAmount}
+                  onChange={(event) => setOpeningAmount(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="0"
+                  style={{ ...inputStyle, paddingLeft: 30 }}
+                  autoFocus
+                />
+              </div>
+            </label>
+            <label style={fieldStyle}>
+              <span>Notas</span>
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                style={{ ...inputStyle, minHeight: 80, resize: "vertical" }}
+              />
+            </label>
+            <button type="submit" disabled={saving} style={primaryButtonStyle}>
+              {saving ? "Abriendo..." : "Abrir caja"}
+            </button>
+          </form>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -419,15 +516,6 @@ function cashTitle(payload: CashPayload | null) {
 function formatDate(value?: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

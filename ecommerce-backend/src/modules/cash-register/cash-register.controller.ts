@@ -23,7 +23,7 @@ export class CashRegisterController {
 
   @Get('current')
   getCurrent(@Req() req) {
-    return this.cashRegisterService.getCurrent(req.storeId);
+    return this.cashRegisterService.getCurrent(req.storeId, req.user?.sub);
   }
 
   @Post('open')
@@ -38,7 +38,7 @@ export class CashRegisterController {
 
   @Get('history')
   history(@Req() req) {
-    return this.cashRegisterService.getHistory(req.storeId);
+    return this.cashRegisterService.getHistory(req.storeId, req.user?.sub);
   }
 
   @Get('closure.pdf')
@@ -49,6 +49,7 @@ export class CashRegisterController {
   ) {
     const document = await this.cashRegisterService.getClosurePdf(
       req.storeId,
+      req.user?.sub,
       sessionId ? Number(sessionId) : undefined,
     );
     res.setHeader('Content-Type', 'application/pdf');

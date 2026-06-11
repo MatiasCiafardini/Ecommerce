@@ -41,10 +41,31 @@ model Store {
   shippingQuotes                 ShippingQuote[]
   storeShippingMethods           StoreShippingMethod[]
   storeShippingProviderConfigs   StoreShippingProviderConfig[]
+  storeLocations                 StoreLocation[]
   users                          User[]
   webhooks                       Webhook[]
 
   @@index([domain])
+}
+
+model StoreLocation {
+  id                   Int                   @id @default(autoincrement())
+  storeId              Int
+  name                 String
+  address              String?
+  active               Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  store                Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  users                User[]
+  orders               Order[]
+  payments             Payment[]
+  currentAccounts      CurrentAccount[]
+  cashRegisterSessions CashRegisterSession[]
+  currentAccountMovements CurrentAccountMovement[]
+
+  @@unique([storeId, name])
+  @@index([storeId, active])
 }
 
 model Category {
@@ -205,6 +226,8 @@ model Inventory {
 model Order {
   id                          Int                          @id @default(autoincrement())
   storeId                     Int
+  storeLocationId             Int?
+  cashRegisterId              Int?
   customerId                  Int
   total                       Decimal                      @db.Decimal(10, 2)
   createdAt                   DateTime                     @default(now())
@@ -247,6 +270,8 @@ model Order {
   storeShippingProviderConfig StoreShippingProviderConfig? @relation(fields: [shippingProviderConfigId], references: [id])
   shippingQuote               ShippingQuote?               @relation(fields: [shippingQuoteId], references: [id])
   store                       Store                        @relation(fields: [storeId], references: [id])
+  storeLocation               StoreLocation?               @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  cashRegister                CashRegisterSession?         @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
   events                      OrderEvent[]
   currentAccountMovements     CurrentAccountMovement[]
   items                       OrderItem[]
@@ -257,6 +282,8 @@ model Order {
 
   @@unique([storeId, idempotencyKey])
   @@index([storeId])
+  @@index([storeId, storeLocationId])
+  @@index([cashRegisterId])
   @@index([shippingProviderConfigId])
   @@index([shippingQuoteId])
 }
@@ -301,12 +328,15 @@ model User {
   name                    String?
   role                    Role
   storeId                 Int
+  storeLocationId         Int?
   createdAt               DateTime                 @default(now())
   store                   Store                    @relation(fields: [storeId], references: [id])
+  storeLocation           StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
   currentAccountMovements CurrentAccountMovement[]
 
   @@unique([storeId, email])
   @@index([storeId])
+  @@index([storeId, storeLocationId])
 }
 
 model Customer {
@@ -393,6 +423,8 @@ model CartItem {
 model Payment {
   id             Int       @id @default(autoincrement())
   storeId        Int
+  storeLocationId Int?
+  cashRegisterId Int?
   orderId        Int
   provider       String
   status         String
@@ -410,14 +442,19 @@ model Payment {
   updatedAt      DateTime  @updatedAt
   order          Order     @relation(fields: [orderId], references: [id])
   store          Store     @relation(fields: [storeId], references: [id])
+  storeLocation  StoreLocation? @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  cashRegister   CashRegisterSession? @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
 
   @@unique([storeId, idempotencyKey])
   @@index([orderId])
+  @@index([storeId, storeLocationId])
+  @@index([cashRegisterId])
 }
 
 model CurrentAccount {
   id             Int                      @id @default(autoincrement())
   storeId        Int
+  storeLocationId Int?
   customerId     Int
   balance        Decimal                  @default(0) @db.Decimal(10, 2)
   lastMovementAt DateTime?
@@ -425,17 +462,20 @@ model CurrentAccount {
   updatedAt      DateTime                 @updatedAt
   deletedAt      DateTime?
   store          Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeLocation  StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
   customer       Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
   movements      CurrentAccountMovement[]
 
   @@unique([storeId, customerId])
   @@index([storeId, balance])
+  @@index([storeId, storeLocationId])
   @@index([customerId])
 }
 
 model CurrentAccountMovement {
   id              Int                        @id @default(autoincrement())
   storeId         Int
+  storeLocationId Int?
   accountId       Int
   customerId      Int
   orderId         Int?
@@ -448,20 +488,25 @@ model CurrentAccountMovement {
   createdAt       DateTime                   @default(now())
   balanceAfter    Decimal                    @db.Decimal(10, 2)
   store           Store                      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeLocation   StoreLocation?             @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
   account         CurrentAccount             @relation(fields: [accountId], references: [id], onDelete: Cascade)
   customer        Customer                   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   order           Order?                     @relation(fields: [orderId], references: [id], onDelete: SetNull)
   createdByUser   User?                      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  cashRegister    CashRegisterSession?       @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
 
   @@index([storeId, customerId, createdAt])
+  @@index([storeId, storeLocationId])
   @@index([storeId, type])
   @@index([orderId])
+  @@index([cashRegisterId])
   @@index([accountId, createdAt])
 }
 
 model CashRegisterSession {
   id               Int       @id @default(autoincrement())
   storeId          Int
+  storeLocationId  Int?
   mode             String    @default("automatic")
   businessDate     DateTime?
   openingAmount    Decimal   @default(0) @db.Decimal(10, 2)
@@ -478,8 +523,13 @@ model CashRegisterSession {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   store            Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeLocation    StoreLocation? @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  orders           Order[]
+  payments         Payment[]
+  currentAccountMovements CurrentAccountMovement[]
 
   @@index([storeId, mode, openedAt])
+  @@index([storeId, storeLocationId, mode, openedAt])
   @@index([storeId, closedAt])
   @@index([storeId, businessDate])
 }

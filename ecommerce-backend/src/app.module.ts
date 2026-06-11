@@ -29,6 +29,7 @@ import { SystemModule } from './modules/system/system.module';
 import { LabelsModule } from './modules/labels/labels.module';
 import { CurrentAccountsModule } from './modules/current-accounts/current-accounts.module';
 import { CashRegisterModule } from './modules/cash-register/cash-register.module';
+import { StoreLocationsModule } from './modules/store-locations/store-locations.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 import { CustomerAddressesModule } from './modules/customers/customer-addresses/customer-addresses.module';
@@ -81,6 +82,7 @@ import { PrismaModule } from './prisma/prisma.module';
     LabelsModule,
     CurrentAccountsModule,
     CashRegisterModule,
+    StoreLocationsModule,
     PrismaModule,
   ],
 })

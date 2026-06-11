@@ -269,11 +269,10 @@ export class CustomersService {
     const hasName = Boolean(
       [data.firstName, data.lastName].filter(Boolean).join(' ').trim(),
     );
-    const hasPhone = Boolean(data.phone?.trim());
 
-    if (!hasName || !hasPhone) {
+    if (!hasName) {
       throw new BadRequestException(
-        'Para crear un cliente sin email, nombre y telefono son obligatorios.',
+        'Para crear un cliente sin email, nombre o apellido son obligatorios.',
       );
     }
   }

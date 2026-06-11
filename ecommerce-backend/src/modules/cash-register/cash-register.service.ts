@@ -13,7 +13,7 @@ type CashRegisterMode = 'automatic' | 'manual';
 
 type CashMovement = {
   id: string;
-  kind: 'sale_payment' | 'current_account_payment';
+  kind: 'sale_payment' | 'current_account_payment' | 'current_account_assignment';
   createdAt: Date;
   method: string;
   amount: number;
@@ -49,17 +49,23 @@ export class CashRegisterService {
     };
   }
 
-  async getCurrent(storeId: number) {
+  async getCurrent(storeId: number, userId?: number) {
     const { mode } = await this.getConfig(storeId);
+    const location = await this.resolveUserLocation(storeId, userId);
 
     if (mode === 'automatic') {
-      const session = await this.ensureAutomaticSession(storeId);
+      const session = await this.ensureAutomaticSession(storeId, location?.id ?? null);
       return this.withSummary(session);
+    }
+
+    if (!location) {
+      throw new BadRequestException('Asigna este usuario a un local fisico para usar caja manual.');
     }
 
     const session = await this.prisma.cashRegisterSession.findFirst({
       where: {
         storeId,
+        storeLocationId: location.id,
         mode: 'manual',
         closedAt: null,
       },
@@ -75,23 +81,34 @@ export class CashRegisterService {
 
   async openManual(storeId: number, userId: number | undefined, dto: OpenCashRegisterDto) {
     const { mode } = await this.getConfig(storeId);
+    const location = await this.resolveUserLocation(storeId, userId);
 
     if (mode !== 'manual') {
       throw new BadRequestException('La caja manual no esta configurada para esta tienda.');
     }
 
+    if (!location) {
+      throw new BadRequestException('Asigna este usuario a un local fisico para abrir caja.');
+    }
+
     const current = await this.prisma.cashRegisterSession.findFirst({
-      where: { storeId, mode: 'manual', closedAt: null },
+      where: {
+        storeId,
+        storeLocationId: location.id,
+        mode: 'manual',
+        closedAt: null,
+      },
       select: { id: true },
     });
 
     if (current) {
-      throw new BadRequestException('Ya hay una caja manual abierta.');
+      throw new BadRequestException(`Ya hay una caja manual abierta para ${location.name}.`);
     }
 
     const session = await this.prisma.cashRegisterSession.create({
       data: {
         storeId,
+        storeLocationId: location.id,
         mode: 'manual',
         openingAmount: this.roundMoney(Number(dto.openingAmount ?? 0)),
         openedByUserId: userId,
@@ -103,8 +120,19 @@ export class CashRegisterService {
   }
 
   async closeManual(storeId: number, userId: number | undefined, dto: CloseCashRegisterDto) {
+    const location = await this.resolveUserLocation(storeId, userId);
+
+    if (!location) {
+      throw new BadRequestException('Asigna este usuario a un local fisico para cerrar caja.');
+    }
+
     const session = await this.prisma.cashRegisterSession.findFirst({
-      where: { storeId, mode: 'manual', closedAt: null },
+      where: {
+        storeId,
+        storeLocationId: location.id,
+        mode: 'manual',
+        closedAt: null,
+      },
       orderBy: { openedAt: 'desc' },
     });
 
@@ -132,9 +160,13 @@ export class CashRegisterService {
     return this.withSummary(closedSession);
   }
 
-  async getHistory(storeId: number) {
+  async getHistory(storeId: number, userId?: number) {
+    const location = await this.resolveUserLocation(storeId, userId);
     const sessions = await this.prisma.cashRegisterSession.findMany({
-      where: { storeId },
+      where: {
+        storeId,
+        ...(location ? { storeLocationId: location.id } : {}),
+      },
       orderBy: { openedAt: 'desc' },
       take: 60,
     });
@@ -142,12 +174,17 @@ export class CashRegisterService {
     return Promise.all(sessions.map((session) => this.withSummary(session)));
   }
 
-  async getClosurePdf(storeId: number, sessionId?: number) {
+  async getClosurePdf(storeId: number, userId?: number, sessionId?: number) {
+    const location = await this.resolveUserLocation(storeId, userId);
     const session = sessionId
       ? await this.prisma.cashRegisterSession.findFirst({
-          where: { id: sessionId, storeId },
+          where: {
+            id: sessionId,
+            storeId,
+            ...(location ? { storeLocationId: location.id } : {}),
+          },
         })
-      : await this.resolveCurrentPrintableSession(storeId);
+      : await this.resolveCurrentPrintableSession(storeId, location?.id ?? null);
 
     if (!session) {
       throw new NotFoundException('Cash register session not found');
@@ -166,11 +203,12 @@ export class CashRegisterService {
     };
   }
 
-  private async ensureAutomaticSession(storeId: number) {
+  private async ensureAutomaticSession(storeId: number, storeLocationId: number | null) {
     const { start } = this.getBuenosAiresDayRange(new Date());
     const existing = await this.prisma.cashRegisterSession.findFirst({
       where: {
         storeId,
+        storeLocationId,
         mode: 'automatic',
         businessDate: start,
       },
@@ -182,6 +220,7 @@ export class CashRegisterService {
     return this.prisma.cashRegisterSession.create({
       data: {
         storeId,
+        storeLocationId,
         mode: 'automatic',
         businessDate: start,
         openingAmount: 0,
@@ -190,15 +229,20 @@ export class CashRegisterService {
     });
   }
 
-  private async resolveCurrentPrintableSession(storeId: number) {
+  private async resolveCurrentPrintableSession(storeId: number, storeLocationId: number | null) {
     const { mode } = await this.getConfig(storeId);
 
     if (mode === 'automatic') {
-      return this.ensureAutomaticSession(storeId);
+      return this.ensureAutomaticSession(storeId, storeLocationId);
     }
 
     return this.prisma.cashRegisterSession.findFirst({
-      where: { storeId, mode: 'manual', closedAt: { not: null } },
+      where: {
+        storeId,
+        storeLocationId,
+        mode: 'manual',
+        closedAt: { not: null },
+      },
       orderBy: { closedAt: 'desc' },
     });
   }
@@ -214,14 +258,22 @@ export class CashRegisterService {
 
   private async buildSummary(session: any) {
     const range = this.getSessionRange(session);
-    const [payments, accountPayments] = await Promise.all([
+    const [payments, accountPayments, accountAssignments] = await Promise.all([
       this.prisma.payment.findMany({
         where: {
           storeId: session.storeId,
-          createdAt: {
-            gte: range.start,
-            lt: range.end,
-          },
+          OR: [
+            { cashRegisterId: session.id },
+            {
+              createdAt: {
+                gte: range.start,
+                lt: range.end,
+              },
+              ...(session.storeLocationId
+                ? { storeLocationId: session.storeLocationId }
+                : {}),
+            },
+          ],
           status: { in: ['approved', 'paid'] },
         },
         include: {
@@ -246,10 +298,46 @@ export class CashRegisterService {
         where: {
           storeId: session.storeId,
           type: 'PAYMENT',
-          createdAt: {
-            gte: range.start,
-            lt: range.end,
+          OR: [
+            { cashRegisterId: session.id },
+            {
+              createdAt: {
+                gte: range.start,
+                lt: range.end,
+              },
+              ...(session.storeLocationId
+                ? { storeLocationId: session.storeLocationId }
+                : {}),
+            },
+          ],
+        },
+        include: {
+          customer: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+            },
           },
+        },
+      }),
+      this.prisma.currentAccountMovement.findMany({
+        where: {
+          storeId: session.storeId,
+          type: 'SALE',
+          OR: [
+            { cashRegisterId: session.id },
+            {
+              createdAt: {
+                gte: range.start,
+                lt: range.end,
+              },
+              ...(session.storeLocationId
+                ? { storeLocationId: session.storeLocationId }
+                : {}),
+            },
+          ],
         },
         include: {
           customer: {
@@ -290,14 +378,32 @@ export class CashRegisterService {
         customerName: this.customerName(movement.customer),
       })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const accountAssignedMovements: CashMovement[] = accountAssignments.map((movement) => ({
+      id: `account-assigned-${movement.id}`,
+      kind: 'current_account_assignment' as const,
+      createdAt: movement.createdAt,
+      method: movement.paymentMethod?.trim() || 'Cuenta corriente',
+      amount: Number(movement.amount),
+      description: movement.description || 'Asignado a cuenta corriente',
+      orderId: movement.orderId,
+      customerName: this.customerName(movement.customer),
+    })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     const byMethod = movements.reduce<Record<string, number>>((acc, movement) => {
       const key = movement.method || 'Sin metodo';
       acc[key] = this.roundMoney((acc[key] ?? 0) + movement.amount);
       return acc;
     }, {});
+    const byAccountMethod = accountAssignedMovements.reduce<Record<string, number>>((acc, movement) => {
+      const key = movement.method || 'Cuenta corriente';
+      acc[key] = this.roundMoney((acc[key] ?? 0) + movement.amount);
+      return acc;
+    }, {});
     const receivedTotal = this.roundMoney(
       movements.reduce((sum, movement) => sum + movement.amount, 0),
+    );
+    const accountAssignedTotal = this.roundMoney(
+      accountAssignedMovements.reduce((sum, movement) => sum + movement.amount, 0),
     );
     const openingAmount = Number(session.openingAmount ?? 0);
 
@@ -307,8 +413,12 @@ export class CashRegisterService {
       receivedTotal,
       expectedAmount: this.roundMoney(openingAmount + receivedTotal),
       movementCount: movements.length,
+      accountAssignedTotal,
+      accountAssignedCount: accountAssignedMovements.length,
       byMethod,
+      byAccountMethod,
       movements,
+      accountAssignedMovements,
     };
   }
 
@@ -348,6 +458,36 @@ export class CashRegisterService {
     return mode === 'manual' ? 'manual' : 'automatic';
   }
 
+  private async resolveUserLocation(storeId: number, userId?: number) {
+    if (userId) {
+      const user = await this.prisma.user.findFirst({
+        where: { id: userId, storeId },
+        select: {
+          storeLocation: {
+            select: {
+              id: true,
+              name: true,
+              active: true,
+            },
+          },
+        },
+      });
+
+      if (user?.storeLocation?.active) {
+        return user.storeLocation;
+      }
+    }
+
+    const locations = await this.prisma.storeLocation.findMany({
+      where: { storeId, active: true },
+      select: { id: true, name: true, active: true },
+      take: 2,
+      orderBy: { id: 'asc' },
+    });
+
+    return locations.length === 1 ? locations[0] : null;
+  }
+
   private customerName(customer?: {
     firstName?: string | null;
     lastName?: string | null;
@@ -381,6 +521,10 @@ export class CashRegisterService {
         ...movement,
         createdAt: movement.createdAt.toISOString(),
       })),
+      accountAssignedMovements: (summary.accountAssignedMovements ?? []).map((movement: CashMovement) => ({
+        ...movement,
+        createdAt: movement.createdAt.toISOString(),
+      })),
     };
   }
 
@@ -388,7 +532,9 @@ export class CashRegisterService {
     const width = 226;
     const movementHeight = Math.max(summary.movements.length, 1) * 36;
     const methodHeight = Math.max(Object.keys(summary.byMethod).length, 1) * 16;
-    const height = Math.max(520, 330 + movementHeight + methodHeight);
+    const accountMovementHeight = Math.max(summary.accountAssignedMovements?.length ?? 0, 1) * 28;
+    const accountMethodHeight = Math.max(Object.keys(summary.byAccountMethod ?? {}).length, 1) * 16;
+    const height = Math.max(560, 380 + movementHeight + methodHeight + accountMovementHeight + accountMethodHeight);
     const pdf = new SimplePdfDocument(width, height);
     const margin = 14;
     const contentWidth = width - margin * 2;
@@ -438,6 +584,7 @@ export class CashRegisterService {
       row('Apertura', this.formatMoney(summary.openingAmount));
     }
     row('Recibido', this.formatMoney(summary.receivedTotal), true);
+    row('Cuenta cte.', this.formatMoney(summary.accountAssignedTotal ?? 0), true);
     if (session.mode === 'manual') {
       row('Total esperado', this.formatMoney(summary.expectedAmount), true);
       if (session.closingAmount !== null && session.closingAmount !== undefined) {
@@ -457,11 +604,50 @@ export class CashRegisterService {
     }
     line();
 
+    text('ASIGNADO A CUENTA CORRIENTE', 8, true);
+    const accountMethods = Object.entries(summary.byAccountMethod ?? {}) as Array<[string, number]>;
+    if (!accountMethods.length) {
+      text('Sin movimientos', 8);
+    } else {
+      accountMethods.forEach(([method, amount]) => row(method, this.formatMoney(Number(amount))));
+    }
+    line();
+
     text('MOVIMIENTOS', 8, true);
     if (!summary.movements.length) {
       text('Sin movimientos', 8);
     } else {
       summary.movements.forEach((movement: CashMovement) => {
+        const nextY = pdf.drawWrappedText({
+          x: margin,
+          y,
+          text: `${this.formatDate(movement.createdAt)} - ${movement.method}`,
+          maxWidth: contentWidth,
+          size: 7,
+          lineHeight: 9,
+        });
+        y = (nextY ?? y - 9) - 1;
+        const detailY = pdf.drawWrappedText({
+          x: margin,
+          y,
+          text: `${movement.description}${movement.customerName ? ` - ${movement.customerName}` : ''}`,
+          maxWidth: contentWidth,
+          size: 7,
+          lineHeight: 9,
+          font: 'Helvetica-Bold',
+        });
+        y = (detailY ?? y - 9) - 1;
+        row('Importe', this.formatMoney(movement.amount), true);
+      });
+    }
+
+    line();
+    text('CUENTA CORRIENTE', 8, true);
+    const accountMovements = (summary.accountAssignedMovements ?? []) as CashMovement[];
+    if (!accountMovements.length) {
+      text('Sin movimientos', 8);
+    } else {
+      accountMovements.forEach((movement: CashMovement) => {
         const nextY = pdf.drawWrappedText({
           x: margin,
           y,

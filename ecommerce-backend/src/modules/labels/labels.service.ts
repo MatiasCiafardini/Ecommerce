@@ -622,9 +622,8 @@ export class LabelsService {
   private formatVariantName(variant: {
     Color?: string | null;
     Size?: string | null;
-    waistSize?: string | null;
   }) {
-    return [variant.Color, variant.Size, variant.waistSize]
+    return [variant.Color, variant.Size]
       .map((value) => value?.trim())
       .filter(Boolean)
       .join(' ');

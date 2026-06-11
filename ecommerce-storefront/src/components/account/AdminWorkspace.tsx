@@ -15,6 +15,7 @@ import AdminCustomersSection, { type Customer } from "./admin-customers/AdminCus
 import AdminCurrentAccountsSection from "./AdminCurrentAccountsSection";
 import AdminCashRegisterSection from "./AdminCashRegisterSection";
 import AdminManualSalesSection, { type ManualSaleCustomer } from "./AdminManualSalesSection";
+import ManualReturnsPanel from "@/components/manual-sales/ManualReturnsPanel";
 import AdminAccountingSection from "./admin-accounting/AdminAccountingSection";
 import AdminOrdersPanelSection from "./admin-orders/AdminOrdersPanelSection";
 import AdminShipmentsSection from "./AdminShipmentsSection";
@@ -47,7 +48,7 @@ const operationalPendingStatuses = new Set([
   "packed",
 ]);
 
-type ManualSalesTab = "sale" | "current-accounts" | "cash-register";
+type ManualSalesTab = "sale" | "current-accounts" | "returns" | "cash-register";
 
 export default function AdminWorkspace({
   section,
@@ -124,6 +125,15 @@ function AdminManualSalesWorkspace({
         >
           Caja
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "returns"}
+          style={workspaceTabStyle(activeTab === "returns")}
+          onClick={() => setActiveTab("returns")}
+        >
+          Devoluciones
+        </button>
       </div>
 
       <div role="tabpanel">
@@ -136,6 +146,7 @@ function AdminManualSalesWorkspace({
         {activeTab === "current-accounts" ? (
           <AdminCurrentAccountsSection onRegisterSale={startCurrentAccountSale} />
         ) : null}
+        {activeTab === "returns" ? <ManualReturnsPanel /> : null}
         {activeTab === "cash-register" ? <AdminCashRegisterSection /> : null}
       </div>
     </section>
@@ -182,6 +193,30 @@ type DefaultLabelPayload = {
     quantityMode?: "one" | "stock";
   };
 };
+type StoreLocation = {
+  id: number;
+  name: string;
+  address?: string | null;
+  active: boolean;
+  _count?: {
+    users?: number;
+    cashRegisterSessions?: number;
+    orders?: number;
+    currentAccounts?: number;
+  };
+};
+type StoreLocationUser = {
+  id: number;
+  email: string;
+  name?: string | null;
+  role: "OWNER" | "ADMIN" | "STAFF";
+  storeLocationId?: number | null;
+  storeLocation?: { id: number; name: string; active: boolean } | null;
+};
+type StoreLocationsPayload = {
+  locations: StoreLocation[];
+  users: StoreLocationUser[];
+};
 
 const defaultLabelOptions: LabelOptions = {
   showPrice: true,
@@ -220,10 +255,16 @@ function resolveTemplateOptions(
 }
 
 function AdminSettingsSection() {
-  const [settingsTab, setSettingsTab] = useState<"transfer" | "labels" | "cash">("transfer");
+  const [settingsTab, setSettingsTab] = useState<"transfer" | "labels" | "cash" | "locations">("transfer");
   const [alias, setAlias] = useState("");
   const [discountPercentage, setDiscountPercentage] = useState("0");
   const [cashRegisterMode, setCashRegisterMode] = useState<"automatic" | "manual">("automatic");
+  const [locations, setLocations] = useState<StoreLocation[]>([]);
+  const [users, setUsers] = useState<StoreLocationUser[]>([]);
+  const [locationForm, setLocationForm] = useState({ name: "", address: "" });
+  const [userForm, setUserForm] = useState({ email: "", password: "", name: "", storeLocationId: "" });
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [userModalOpen, setUserModalOpen] = useState(false);
   const [labelTemplates, setLabelTemplates] = useState<LabelTemplate[]>([]);
   const [labelPriceSettings, setLabelPriceSettings] = useState<LabelTemplatesPayload["priceSettings"]>({
     hasTransferPrice: false,
@@ -236,6 +277,8 @@ function AdminSettingsSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingLabels, setSavingLabels] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -243,6 +286,18 @@ function AdminSettingsSection() {
     () => labelTemplates.find((template) => template.key === labelTemplate) ?? labelTemplates[0] ?? null,
     [labelTemplate, labelTemplates],
   );
+  const locationSummary = useMemo(() => {
+    const activeLocations = locations.filter((location) => location.active);
+    const unassignedUsers = users.filter((entry) => !entry.storeLocationId && entry.role !== "OWNER");
+
+    return {
+      activeLocations: activeLocations.length,
+      totalUsers: users.length,
+      assignedUsers: users.filter((entry) => Boolean(entry.storeLocationId)).length,
+      unassignedUsers: unassignedUsers.length,
+      totalSales: locations.reduce((sum, location) => sum + Number(location._count?.orders ?? 0), 0),
+    };
+  }, [locations, users]);
 
   useEffect(() => {
     let mounted = true;
@@ -252,12 +307,15 @@ function AdminSettingsSection() {
       api("/admin/labels/templates") as Promise<LabelTemplatesPayload>,
       api("/admin/labels/default") as Promise<DefaultLabelPayload>,
       api("/cash-register/config") as Promise<{ mode: "automatic" | "manual" }>,
+      api("/store-locations") as Promise<StoreLocationsPayload>,
     ])
-      .then(([config, templatesPayload, defaultLabelPayload, cashConfig]) => {
+      .then(([config, templatesPayload, defaultLabelPayload, cashConfig, locationsPayload]) => {
         if (!mounted) return;
         setAlias(config?.bankTransfer?.alias?.trim() ?? "");
         setDiscountPercentage(String(Number(config?.bankTransfer?.discountPercentage ?? 0)));
         setCashRegisterMode(cashConfig.mode === "manual" ? "manual" : "automatic");
+        setLocations(locationsPayload.locations ?? []);
+        setUsers(locationsPayload.users ?? []);
         setLabelTemplates(templatesPayload.templates ?? []);
         setLabelPriceSettings(templatesPayload.priceSettings);
         const allowedTemplates = templatesPayload.templates ?? [];
@@ -356,6 +414,103 @@ function AdminSettingsSection() {
     }
   }
 
+  async function reloadLocations() {
+    const payload = await api("/store-locations") as StoreLocationsPayload;
+    setLocations(payload.locations ?? []);
+    setUsers(payload.users ?? []);
+  }
+
+  async function onCreateLocation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingLocation(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await api("/store-locations", {
+        method: "POST",
+        body: JSON.stringify({
+          name: locationForm.name,
+          address: locationForm.address || undefined,
+        }),
+      });
+      setLocationForm({ name: "", address: "" });
+      await reloadLocations();
+      setMessage("Local creado.");
+      setLocationModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear el local.");
+    } finally {
+      setSavingLocation(false);
+    }
+  }
+
+  async function updateLocation(locationId: number, patch: Partial<Pick<StoreLocation, "name" | "address" | "active">>) {
+    setSavingLocation(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await api(`/store-locations/${locationId}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      await reloadLocations();
+      setMessage("Local actualizado.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar el local.");
+    } finally {
+      setSavingLocation(false);
+    }
+  }
+
+  async function onCreateUser(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingUser(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await api("/store-locations/users", {
+        method: "POST",
+        body: JSON.stringify({
+          email: userForm.email,
+          password: userForm.password,
+          name: userForm.name || undefined,
+          role: "ADMIN",
+          storeLocationId: userForm.storeLocationId ? Number(userForm.storeLocationId) : undefined,
+        }),
+      });
+      setUserForm({ email: "", password: "", name: "", storeLocationId: "" });
+      await reloadLocations();
+      setMessage("Usuario creado.");
+      setUserModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear el usuario.");
+    } finally {
+      setSavingUser(false);
+    }
+  }
+
+  async function updateUser(userId: number, patch: { storeLocationId?: number | null }) {
+    setSavingUser(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await api(`/store-locations/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      await reloadLocations();
+      setMessage("Usuario actualizado.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar el usuario.");
+    } finally {
+      setSavingUser(false);
+    }
+  }
+
   function nextPriceMode(current: PriceMode, target: "normal" | "transfer", checked: boolean): PriceMode {
     const normalChecked = target === "normal" ? checked : current === "normal" || current === "both";
     const transferChecked = target === "transfer" ? checked : current === "transfer" || current === "both";
@@ -397,6 +552,13 @@ function AdminSettingsSection() {
           onClick={() => setSettingsTab("cash")}
         >
           Caja
+        </button>
+        <button
+          type="button"
+          style={workspaceTabStyle(settingsTab === "locations")}
+          onClick={() => setSettingsTab("locations")}
+        >
+          Locales fisicos
         </button>
       </div>
 
@@ -618,6 +780,271 @@ function AdminSettingsSection() {
           </button>
         </form>
       ) : null}
+
+      {settingsTab === "locations" ? (
+        <div style={blockStyle}>
+          <div>
+            <p style={eyebrowStyle}>Operacion fisica</p>
+            <h3 style={title3Style}>Locales y usuarios</h3>
+            <p style={copyStyle}>Organiza cada punto de venta y asigna usuarios para que caja, ventas y cuentas corrientes queden separadas por local.</p>
+          </div>
+
+          {loading ? <p style={copyStyle}>Cargando locales...</p> : null}
+          {error ? <p style={{ ...copyStyle, color: "#ffb7b7" }}>{error}</p> : null}
+          {message ? <p style={{ ...copyStyle, color: "var(--admin-tone-success-color)" }}>{message}</p> : null}
+
+          <div style={locationStatsGridStyle}>
+            <Stat label="Locales activos" value={String(locationSummary.activeLocations)} />
+            <Stat label="Usuarios asignados" value={`${locationSummary.assignedUsers}/${locationSummary.totalUsers}`} />
+            <Stat label="Sin local" value={String(locationSummary.unassignedUsers)} />
+            <Stat label="Ventas registradas" value={String(locationSummary.totalSales)} />
+          </div>
+
+          <div style={locationActionsStyle}>
+            <button
+              type="button"
+              onClick={() => setLocationModalOpen(true)}
+              style={primaryButtonStyle}
+            >
+              Crear local
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserModalOpen(true)}
+              style={secondaryButtonStyle}
+            >
+              Crear usuario
+            </button>
+          </div>
+
+          <section style={compactPanelStyle}>
+            <div style={betweenStyle}>
+              <div>
+                <span style={metaStyle}>Locales existentes</span>
+                <h4 style={subheadingStyle}>Editar locales</h4>
+              </div>
+              <small style={copyStyle}>Los cambios en nombre o direccion se guardan al salir del campo.</small>
+            </div>
+            <div style={locationCardsGridStyle}>
+              {locations.map((location) => (
+                <article key={location.id} style={locationCardStyle(location.active)}>
+                  <div style={betweenStyle}>
+                    <span style={locationStatusStyle(location.active)}>{location.active ? "Activo" : "Inactivo"}</span>
+                    <button
+                      type="button"
+                      onClick={() => void updateLocation(location.id, { active: !location.active })}
+                      disabled={savingLocation}
+                      style={secondaryButtonStyle}
+                    >
+                      {location.active ? "Desactivar" : "Activar"}
+                    </button>
+                  </div>
+                  <label style={fieldGroupStyle}>
+                    <span>Nombre</span>
+                    <input
+                      defaultValue={location.name}
+                      onBlur={(event) => {
+                        const nextName = event.target.value.trim();
+                        if (nextName && nextName !== location.name) {
+                          void updateLocation(location.id, { name: nextName });
+                        }
+                      }}
+                      style={fieldStyle}
+                    />
+                  </label>
+                  <label style={fieldGroupStyle}>
+                    <span>Direccion</span>
+                    <input
+                      defaultValue={location.address ?? ""}
+                      onBlur={(event) => {
+                        const nextAddress = event.target.value.trim();
+                        if (nextAddress !== (location.address ?? "")) {
+                          void updateLocation(location.id, { address: nextAddress });
+                        }
+                      }}
+                      placeholder="Sin direccion"
+                      style={fieldStyle}
+                    />
+                  </label>
+                  <div style={locationMetricsStyle}>
+                    <span>{location._count?.users ?? 0} usuarios</span>
+                    <span>{location._count?.orders ?? 0} ventas</span>
+                    <span>{location._count?.currentAccounts ?? 0} cuentas</span>
+                  </div>
+                </article>
+              ))}
+              {!locations.length ? <p style={copyStyle}>Todavia no hay locales cargados.</p> : null}
+            </div>
+          </section>
+
+          <section style={compactPanelStyle}>
+            <div style={betweenStyle}>
+              <div>
+                <span style={metaStyle}>Usuarios existentes</span>
+                <h4 style={subheadingStyle}>Asignar local de trabajo</h4>
+              </div>
+              <small style={copyStyle}>Los duenios no se asignan desde aca.</small>
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {users.map((entry) => (
+                <div key={entry.id} style={locationUserRowStyle}>
+                  <div>
+                    <strong>{entry.name || entry.email}</strong>
+                    <small style={copyStyle}>{entry.email}</small>
+                  </div>
+                  <select
+                    value={entry.storeLocationId ?? ""}
+                    onChange={(event) => void updateUser(entry.id, { storeLocationId: event.target.value ? Number(event.target.value) : null })}
+                    disabled={savingUser || entry.role === "OWNER"}
+                    style={fieldStyle}
+                  >
+                    <option value="">Sin local</option>
+                    {locations.filter((location) => location.active || location.id === entry.storeLocationId).map((location) => (
+                      <option key={location.id} value={location.id}>{location.name}</option>
+                    ))}
+                  </select>
+                  <span style={roleBadgeStyle(entry.role)}>
+                    {formatStoreUserRole(entry.role)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {locationModalOpen ? (
+            <div
+              style={modalOverlayStyle}
+              role="presentation"
+              onClick={() => {
+                if (savingLocation) return;
+                setLocationModalOpen(false);
+                setLocationForm({ name: "", address: "" });
+              }}
+            >
+              <form style={modalCardStyle} onSubmit={onCreateLocation} onClick={(event) => event.stopPropagation()}>
+                <div>
+                  <p style={eyebrowStyle}>Nuevo local</p>
+                  <h3 style={title3Style}>Crear punto de venta</h3>
+                </div>
+                <label style={fieldGroupStyle}>
+                  <span>Nombre</span>
+                  <input
+                    value={locationForm.name}
+                    onChange={(event) => setLocationForm((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Ej. Local Centro"
+                    style={fieldStyle}
+                    autoFocus
+                  />
+                </label>
+                <label style={fieldGroupStyle}>
+                  <span>Direccion</span>
+                  <input
+                    value={locationForm.address}
+                    onChange={(event) => setLocationForm((current) => ({ ...current, address: event.target.value }))}
+                    placeholder="Direccion opcional"
+                    style={fieldStyle}
+                  />
+                </label>
+                <div style={modalActionsStyle}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocationModalOpen(false);
+                      setLocationForm({ name: "", address: "" });
+                    }}
+                    disabled={savingLocation}
+                    style={secondaryButtonStyle}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={savingLocation || !locationForm.name.trim()} style={primaryButtonStyle}>
+                    {savingLocation ? "Guardando..." : "Crear local"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+
+          {userModalOpen ? (
+            <div
+              style={modalOverlayStyle}
+              role="presentation"
+              onClick={() => {
+                if (savingUser) return;
+                setUserModalOpen(false);
+                setUserForm({ email: "", password: "", name: "", storeLocationId: "" });
+              }}
+            >
+              <form style={{ ...modalCardStyle, width: "min(100%, 760px)" }} onSubmit={onCreateUser} onClick={(event) => event.stopPropagation()}>
+                <div>
+                  <p style={eyebrowStyle}>Nuevo usuario</p>
+                  <h3 style={title3Style}>Crear acceso de encargado</h3>
+                </div>
+                <div style={compactFormGridStyle}>
+                  <label style={fieldGroupStyle}>
+                    <span>Email</span>
+                    <input
+                      value={userForm.email}
+                      onChange={(event) => setUserForm((current) => ({ ...current, email: event.target.value }))}
+                      placeholder="email@tienda.com"
+                      style={fieldStyle}
+                      autoFocus
+                    />
+                  </label>
+                  <label style={fieldGroupStyle}>
+                    <span>Contrasena inicial</span>
+                    <input
+                      value={userForm.password}
+                      onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))}
+                      placeholder="Minimo 8 caracteres"
+                      type="password"
+                      style={fieldStyle}
+                    />
+                  </label>
+                  <label style={fieldGroupStyle}>
+                    <span>Nombre</span>
+                    <input
+                      value={userForm.name}
+                      onChange={(event) => setUserForm((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="Nombre opcional"
+                      style={fieldStyle}
+                    />
+                  </label>
+                  <label style={fieldGroupStyle}>
+                    <span>Local de trabajo</span>
+                    <select
+                      value={userForm.storeLocationId}
+                      onChange={(event) => setUserForm((current) => ({ ...current, storeLocationId: event.target.value }))}
+                      style={fieldStyle}
+                    >
+                      <option value="">Sin local</option>
+                      {locations.filter((location) => location.active).map((location) => (
+                        <option key={location.id} value={location.id}>{location.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div style={modalActionsStyle}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserModalOpen(false);
+                      setUserForm({ email: "", password: "", name: "", storeLocationId: "" });
+                    }}
+                    disabled={savingUser}
+                    style={secondaryButtonStyle}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={savingUser || !userForm.email.trim() || userForm.password.length < 8} style={primaryButtonStyle}>
+                    {savingUser ? "Creando..." : "Crear usuario"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -802,6 +1229,12 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function StateCard({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
+}
+
+function formatStoreUserRole(role: StoreLocationUser["role"]) {
+  if (role === "OWNER") return "Duenio";
+  if (role === "STAFF") return "Vendedor";
+  return "Encargado";
 }
 
 const panelStyle: React.CSSProperties = {
@@ -1209,6 +1642,88 @@ const editingBannerStyle: React.CSSProperties = {
   gap: 12,
 };
 const itemStyle: React.CSSProperties = { ...blockStyle, gap: 10 };
+const compactPanelStyle: React.CSSProperties = {
+  ...blockStyle,
+  borderRadius: 18,
+  gap: 14,
+};
+const subheadingStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "var(--account-text-strong)",
+  fontSize: 18,
+};
+const fieldGroupStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  color: "var(--account-text-muted)",
+  fontWeight: 700,
+};
+const locationStatsGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+  gap: 12,
+};
+const locationActionsStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: 10,
+  flexWrap: "wrap",
+};
+const compactFormGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};
+const locationCardsGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))",
+  gap: 12,
+};
+const locationMetricsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  color: "var(--account-text-muted)",
+  fontSize: 13,
+};
+const locationCardStyle = (active: boolean): React.CSSProperties => ({
+  display: "grid",
+  gap: 12,
+  border: `1px solid ${active ? "var(--checkout-border-strong)" : "var(--checkout-border)"}`,
+  borderRadius: 14,
+  padding: 14,
+  background: active ? "var(--page-panel-bg)" : "var(--muted-field-bg)",
+  opacity: active ? 1 : 0.72,
+});
+const locationStatusStyle = (active: boolean): React.CSSProperties => ({
+  ...metaStyle,
+  width: "fit-content",
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: active ? "rgba(116, 184, 168, 0.18)" : "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+});
+const roleBadgeStyle = (role: StoreLocationUser["role"]): React.CSSProperties => ({
+  ...metaStyle,
+  justifySelf: "end",
+  width: "fit-content",
+  padding: "7px 10px",
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: role === "OWNER" ? "var(--muted-field-bg)" : "rgba(116, 184, 168, 0.16)",
+  color: "var(--account-text-strong)",
+  textAlign: "center",
+});
+const locationUserRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(220px, 1fr) minmax(190px, 260px) minmax(110px, auto)",
+  gap: 12,
+  alignItems: "center",
+  border: "1px solid var(--account-item-border)",
+  borderRadius: 12,
+  padding: 12,
+};
 const newOrderItemStyle: React.CSSProperties = {
   border: "1px solid var(--admin-tone-warning-border, var(--checkout-border-strong))",
   background:
@@ -1485,3 +2000,4 @@ const removeChipStyle: React.CSSProperties = {
   color: "var(--admin-danger-color)",
   cursor: "pointer",
 };
+

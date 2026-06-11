@@ -38,7 +38,11 @@ export class ReturnsService {
     });
   }
 
-  async createManualReturn(storeId: number, dto: CreateManualReturnDto) {
+  async createManualReturn(
+    storeId: number,
+    createdByUserId: number | undefined,
+    dto: CreateManualReturnDto,
+  ) {
     const returnedItems = dto.returnedItems ?? [];
     const exchangeItems = dto.exchangeItems ?? [];
 
@@ -152,11 +156,28 @@ export class ReturnsService {
         normalizedExchange.reduce((sum, item) => sum + item.price * item.quantity, 0),
       );
       const differenceAmount = this.roundMoney(totalExchange - totalReturned);
+      const settlementMethod = dto.settlementMethod?.trim() || 'Cuenta corriente';
+      const cashContext = await this.resolveManualReturnCashContext(
+        storeId,
+        createdByUserId,
+        differenceAmount > 0 && settlementMethod !== 'Cuenta corriente',
+      );
+      const { customer, account } = await this.ensureManualReturnAccountTx(
+        tx,
+        storeId,
+        cashContext.storeLocationId,
+        dto,
+      );
 
-      return tx.manualReturn.create({
+      const manualReturn = await tx.manualReturn.create({
         data: {
           storeId,
-          customerName: dto.customerName?.trim() || null,
+          customerName:
+            dto.customerName?.trim() ||
+            this.joinCustomerName(customer.firstName, customer.lastName) ||
+            customer.email ||
+            customer.phone ||
+            null,
           notes: dto.notes?.trim() || null,
           totalReturned,
           totalExchange,
@@ -182,6 +203,20 @@ export class ReturnsService {
         },
         include: this.manualReturnInclude(),
       });
+
+      await this.recordManualReturnSettlementTx(tx, {
+        storeId,
+        storeLocationId: cashContext.storeLocationId,
+        cashRegisterId: cashContext.cashRegisterId,
+        account,
+        customerId: customer.id,
+        manualReturnId: manualReturn.id,
+        differenceAmount,
+        settlementMethod,
+        createdByUserId,
+      });
+
+      return manualReturn;
     });
   }
 
@@ -788,6 +823,320 @@ export class ReturnsService {
         },
       },
     };
+  }
+
+  private async resolveManualReturnCashContext(
+    storeId: number,
+    userId: number | undefined,
+    requireOpenCash: boolean,
+  ) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { cashRegisterMode: true },
+    });
+
+    if (store?.cashRegisterMode !== 'manual') {
+      return {
+        storeLocationId: null as number | null,
+        cashRegisterId: null as number | null,
+      };
+    }
+
+    const location = await this.resolveUserLocation(storeId, userId);
+
+    if (!location) {
+      throw new BadRequestException(
+        'Asigna este usuario a un local fisico antes de registrar devoluciones manuales.',
+      );
+    }
+
+    const session = await this.prisma.cashRegisterSession.findFirst({
+      where: {
+        storeId,
+        storeLocationId: location.id,
+        mode: 'manual',
+        closedAt: null,
+      },
+      select: { id: true },
+      orderBy: { openedAt: 'desc' },
+    });
+
+    if (requireOpenCash && !session) {
+      throw new BadRequestException(
+        `No hay una caja abierta para ${location.name}. Un encargado debe abrirla antes de cobrar diferencias.`,
+      );
+    }
+
+    return {
+      storeLocationId: location.id,
+      cashRegisterId: session?.id ?? null,
+    };
+  }
+
+  private async resolveUserLocation(storeId: number, userId?: number) {
+    if (!userId) {
+      return null;
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, storeId },
+      select: {
+        storeLocation: {
+          select: {
+            id: true,
+            name: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    return user?.storeLocation?.active ? user.storeLocation : null;
+  }
+
+  private async ensureManualReturnAccountTx(
+    tx: any,
+    storeId: number,
+    storeLocationId: number | null,
+    dto: CreateManualReturnDto,
+  ) {
+    const customer = dto.customerId
+      ? await tx.customer.findFirst({
+          where: {
+            id: dto.customerId,
+            storeId,
+          },
+        })
+      : await this.findOrCreateManualReturnCustomerTx(tx, storeId, dto);
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    await tx.customer.update({
+      where: { id: customer.id },
+      data: {
+        source: 'current_account',
+        firstName: dto.customerFirstName?.trim() || customer.firstName,
+        lastName: dto.customerLastName?.trim() || customer.lastName,
+        phone: dto.customerPhone?.trim() || customer.phone,
+        email: dto.customerEmail?.trim().toLowerCase() || customer.email,
+      },
+    });
+
+    const existingAccount = await tx.currentAccount.findUnique({
+      where: {
+        storeId_customerId: {
+          storeId,
+          customerId: customer.id,
+        },
+      },
+    });
+
+    const account = existingAccount
+      ? await tx.currentAccount.update({
+          where: { id: existingAccount.id },
+          data: {
+            deletedAt: null,
+            ...(storeLocationId && !existingAccount.storeLocationId
+              ? { storeLocationId }
+              : {}),
+            lastMovementAt: new Date(),
+          },
+        })
+      : await tx.currentAccount.create({
+          data: {
+            storeId,
+            storeLocationId,
+            customerId: customer.id,
+            balance: 0,
+            lastMovementAt: new Date(),
+          },
+        });
+
+    return { customer, account };
+  }
+
+  private async findOrCreateManualReturnCustomerTx(
+    tx: any,
+    storeId: number,
+    dto: CreateManualReturnDto,
+  ) {
+    const email = dto.customerEmail?.trim().toLowerCase() || null;
+    const phone = dto.customerPhone?.trim() || null;
+    const explicitFirstName = dto.customerFirstName?.trim();
+    const explicitLastName = dto.customerLastName?.trim();
+    const parsedName = this.parseCustomerName(dto.customerName);
+    const firstName = explicitFirstName || parsedName.firstName;
+    const lastName = explicitLastName || parsedName.lastName;
+
+    if (!email && !phone && !firstName && !lastName) {
+      throw new BadRequestException(
+        'Selecciona una cuenta corriente o carga el nombre del cliente.',
+      );
+    }
+
+    if (email) {
+      const existing = await tx.customer.findUnique({
+        where: {
+          storeId_email: {
+            storeId,
+            email,
+          },
+        },
+      });
+
+      if (existing) {
+        return existing;
+      }
+    }
+
+    if (phone) {
+      const existingByPhone = await tx.customer.findFirst({
+        where: {
+          storeId,
+          phone,
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      if (existingByPhone) {
+        return existingByPhone;
+      }
+    }
+
+    return tx.customer.create({
+      data: {
+        storeId,
+        source: 'current_account',
+        email,
+        phone,
+        firstName,
+        lastName,
+      },
+    });
+  }
+
+  private async recordManualReturnSettlementTx(
+    tx: any,
+    input: {
+      storeId: number;
+      storeLocationId: number | null;
+      cashRegisterId: number | null;
+      account: { id: number; balance: unknown };
+      customerId: number;
+      manualReturnId: number;
+      differenceAmount: number;
+      settlementMethod: string;
+      createdByUserId?: number;
+    },
+  ) {
+    const previousBalance = Number(input.account.balance ?? 0);
+    const description = `Devolucion/cambio manual #${input.manualReturnId}`;
+
+    if (input.differenceAmount < 0) {
+      const creditAmount = this.roundMoney(input.differenceAmount);
+      const nextBalance = this.roundMoney(previousBalance + creditAmount);
+
+      await tx.currentAccount.update({
+        where: { id: input.account.id },
+        data: {
+          balance: nextBalance,
+          lastMovementAt: new Date(),
+        },
+      });
+
+      await tx.currentAccountMovement.create({
+        data: {
+          storeId: input.storeId,
+          storeLocationId: input.storeLocationId,
+          accountId: input.account.id,
+          customerId: input.customerId,
+          type: 'CREDIT_NOTE',
+          amount: creditAmount,
+          paymentMethod: 'Saldo a favor',
+          description,
+          createdByUserId: input.createdByUserId,
+          balanceAfter: nextBalance,
+        },
+      });
+      return;
+    }
+
+    if (input.differenceAmount === 0) {
+      return;
+    }
+
+    const chargeAmount = this.roundMoney(input.differenceAmount);
+    const chargeBalance = this.roundMoney(previousBalance + chargeAmount);
+
+    await tx.currentAccount.update({
+      where: { id: input.account.id },
+      data: {
+        balance: chargeBalance,
+        lastMovementAt: new Date(),
+      },
+    });
+
+    await tx.currentAccountMovement.create({
+      data: {
+        storeId: input.storeId,
+        storeLocationId: input.storeLocationId,
+        accountId: input.account.id,
+        customerId: input.customerId,
+        type: 'SALE',
+        amount: chargeAmount,
+        paymentMethod: 'Cuenta corriente',
+        description,
+        createdByUserId: input.createdByUserId,
+        balanceAfter: chargeBalance,
+      },
+    });
+
+    if (input.settlementMethod === 'Cuenta corriente') {
+      return;
+    }
+
+    await tx.currentAccount.update({
+      where: { id: input.account.id },
+      data: {
+        balance: previousBalance,
+        lastMovementAt: new Date(),
+      },
+    });
+
+    await tx.currentAccountMovement.create({
+      data: {
+        storeId: input.storeId,
+        storeLocationId: input.storeLocationId,
+        accountId: input.account.id,
+        customerId: input.customerId,
+        cashRegisterId: input.cashRegisterId,
+        type: 'PAYMENT',
+        amount: -chargeAmount,
+        paymentMethod: input.settlementMethod,
+        description: `${description} - diferencia abonada`,
+        createdByUserId: input.createdByUserId,
+        balanceAfter: previousBalance,
+      },
+    });
+  }
+
+  private parseCustomerName(value?: string | null) {
+    const parts = (value ?? '').trim().split(/\s+/).filter(Boolean);
+
+    if (parts.length === 0) {
+      return { firstName: null, lastName: null };
+    }
+
+    return {
+      firstName: parts[0],
+      lastName: parts.slice(1).join(' ') || null,
+    };
+  }
+
+  private joinCustomerName(firstName?: string | null, lastName?: string | null) {
+    return [firstName, lastName].filter(Boolean).join(' ').trim();
   }
 
   private roundMoney(value: number) {

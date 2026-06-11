@@ -1,4 +1,6 @@
-import { IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsOptional, IsString, ValidateNested } from 'class-validator';
+import { CurrentAccountAddressDto } from './create-current-account.dto';
 
 export class UpdateCurrentAccountDto {
   @IsOptional()
@@ -24,4 +26,9 @@ export class UpdateCurrentAccountDto {
   @IsOptional()
   @IsString()
   notes?: string | null;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CurrentAccountAddressDto)
+  address?: CurrentAccountAddressDto;
 }

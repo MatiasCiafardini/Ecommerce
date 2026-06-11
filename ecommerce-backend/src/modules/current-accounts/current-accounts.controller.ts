@@ -32,6 +32,7 @@ export class CurrentAccountsController {
   ) {
     return this.currentAccountsService.findAll(
       req.storeId,
+      req.user?.sub,
       status === 'paid' || status === 'all' ? status : 'debt',
       search ?? '',
     );
@@ -47,7 +48,7 @@ export class CurrentAccountsController {
 
   @Post()
   create(@Req() req, @Body() dto: CreateCurrentAccountDto) {
-    return this.currentAccountsService.create(req.storeId, dto);
+    return this.currentAccountsService.create(req.storeId, req.user?.sub, dto);
   }
 
   @Get('payments/:movementId/receipt.pdf')
@@ -69,6 +70,7 @@ export class CurrentAccountsController {
   findByCustomer(@Req() req, @Param('customerId') customerId: string) {
     return this.currentAccountsService.findByCustomer(
       req.storeId,
+      req.user?.sub,
       Number(customerId),
     );
   }
@@ -96,6 +98,7 @@ export class CurrentAccountsController {
     return this.currentAccountsService.updateCustomer(
       req.storeId,
       Number(customerId),
+      req.user?.sub,
       dto,
     );
   }
@@ -109,6 +112,7 @@ export class CurrentAccountsController {
     return this.currentAccountsService.reactivate(
       req.storeId,
       Number(customerId),
+      req.user?.sub,
       dto,
     );
   }

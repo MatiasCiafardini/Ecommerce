@@ -21,6 +21,11 @@ type User = {
   lastName?: string | null;
   phone?: string | null;
   name?: string | null;
+  storeLocationId?: number | null;
+  storeLocation?: {
+    id: number;
+    name: string;
+  } | null;
   storeFeatures?: {
     manualSalesEnabled?: boolean;
   };

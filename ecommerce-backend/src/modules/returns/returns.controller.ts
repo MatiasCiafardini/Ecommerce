@@ -121,7 +121,7 @@ export class ReturnsController {
   @UseGuards(AdminAuthGuard)
   @Post('manual')
   createManual(@Req() req, @Body() dto: CreateManualReturnDto) {
-    return this.returnsService.createManualReturn(req.storeId, dto);
+    return this.returnsService.createManualReturn(req.storeId, req.user?.sub, dto);
   }
 
   @UseGuards(AdminAuthGuard)

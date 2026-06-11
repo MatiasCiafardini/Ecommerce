@@ -514,6 +514,7 @@ export class ProductsService {
 
       await this.ensureCategoriesBelongToStore(tx, normalizedCategoryIds, storeId);
       await this.ensureOptionValuesBelongToStore(tx, normalizedOptionValues, storeId);
+      await this.ensureReusableVariantAttributeValues(tx, storeId, normalizedVariants);
       await this.syncCategories(tx, product.id, normalizedCategoryIds);
       await this.syncOptionValues(tx, product.id, normalizedOptionValues);
       await this.syncVariants(tx, product.id, storeId, normalizedVariants);
@@ -814,6 +815,142 @@ export class ProductsService {
       })),
       skipDuplicates: true,
     });
+  }
+
+  private async ensureReusableVariantAttributeValues(
+    tx: Prisma.TransactionClient,
+    storeId: number,
+    variants: Array<{
+      Size?: string | null;
+      Color?: string | null;
+      waistSize?: string | null;
+    }>,
+  ) {
+    const specs = [
+      { name: 'Color', type: 'color', values: variants.map((variant) => variant.Color) },
+      { name: 'Talle', type: 'text', values: variants.map((variant) => variant.Size) },
+      { name: 'Talle cintura', type: 'number', values: variants.map((variant) => variant.waistSize) },
+    ];
+
+    for (const spec of specs) {
+      const values = this.uniqueDisplayValues(spec.values);
+      if (values.length === 0) {
+        continue;
+      }
+
+      const option = await this.findOrCreateProductOptionTx(
+        tx,
+        storeId,
+        spec.name,
+        spec.type,
+      );
+
+      await this.ensureReusableValuesTx(tx, option.id, values);
+    }
+  }
+
+  private uniqueDisplayValues(values: Array<string | null | undefined>) {
+    const seen = new Set<string>();
+    const normalized: string[] = [];
+
+    for (const value of values) {
+      const displayValue = normalizeDisplayText(value);
+      if (!displayValue) {
+        continue;
+      }
+
+      const key = displayValue.toLocaleLowerCase('es-AR');
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      normalized.push(displayValue);
+    }
+
+    return normalized;
+  }
+
+  private async findOrCreateProductOptionTx(
+    tx: Prisma.TransactionClient,
+    storeId: number,
+    name: string,
+    attributeType: string,
+  ) {
+    const existing = await tx.productOption.findFirst({
+      where: {
+        storeId,
+        name: {
+          equals: name,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        id: true,
+        attributeType: true,
+      },
+    });
+
+    if (existing) {
+      if (existing.attributeType !== attributeType) {
+        await tx.productOption.update({
+          where: { id: existing.id },
+          data: { attributeType },
+        });
+      }
+
+      return existing;
+    }
+
+    return tx.productOption.create({
+      data: {
+        storeId,
+        name,
+        attributeType,
+      },
+      select: {
+        id: true,
+        attributeType: true,
+      },
+    });
+  }
+
+  private async ensureReusableValuesTx(
+    tx: Prisma.TransactionClient,
+    productOptionId: number,
+    values: string[],
+  ) {
+    const existingValues = await tx.productOptionReusableValue.findMany({
+      where: { productOptionId },
+      select: { value: true },
+    });
+    const existingKeys = new Set(
+      existingValues.map((entry) => entry.value.trim().toLocaleLowerCase('es-AR')),
+    );
+
+    let nextPosition =
+      (await tx.productOptionReusableValue.findFirst({
+        where: { productOptionId },
+        orderBy: { position: 'desc' },
+        select: { position: true },
+      }))?.position ?? -1;
+
+    for (const value of values) {
+      const key = value.trim().toLocaleLowerCase('es-AR');
+      if (existingKeys.has(key)) {
+        continue;
+      }
+
+      nextPosition += 1;
+      await tx.productOptionReusableValue.create({
+        data: {
+          productOptionId,
+          value,
+          position: nextPosition,
+        },
+      });
+      existingKeys.add(key);
+    }
   }
 
   private async syncOptionValues(

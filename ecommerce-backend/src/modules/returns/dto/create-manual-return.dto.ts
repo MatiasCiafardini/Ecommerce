@@ -2,6 +2,8 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsEmail,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -26,8 +28,32 @@ export class CreateManualReturnItemDto {
 
 export class CreateManualReturnDto {
   @IsOptional()
+  @IsInt()
+  customerId?: number;
+
+  @IsOptional()
   @IsString()
   customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  customerFirstName?: string;
+
+  @IsOptional()
+  @IsString()
+  customerLastName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  customerEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  customerPhone?: string;
+
+  @IsOptional()
+  @IsIn(['Efectivo', 'Tarjeta', 'Transferencia', 'Mercado Pago', 'Cuenta corriente'])
+  settlementMethod?: string;
 
   @IsOptional()
   @IsString()

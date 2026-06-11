@@ -88,7 +88,17 @@ export default function AdminCurrentAccountsSection({
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [downloadingReceiptId, setDownloadingReceiptId] = useState<number | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({ firstName: "", lastName: "", email: "", phone: "", document: "", notes: "" });
+  const [createForm, setCreateForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    document: "",
+    address1: "",
+    city: "",
+    zip: "",
+    notes: "",
+  });
   const [savingCreate, setSavingCreate] = useState(false);
 
   const loadAccounts = async () => {
@@ -324,23 +334,40 @@ export default function AdminCurrentAccountsSection({
   };
 
   const openCreateAccount = () => {
-    setCreateForm({ firstName: "", lastName: "", email: "", phone: "", document: "", notes: "" });
+    setCreateForm({ firstName: "", lastName: "", email: "", phone: "", document: "", address1: "", city: "", zip: "", notes: "" });
     setCreateModalOpen(true);
     setError("");
   };
 
   const createAccount = async () => {
-    if (!createForm.firstName.trim() && !createForm.lastName.trim() && !createForm.phone.trim() && !createForm.email.trim() && !createForm.document.trim()) {
-      setError("Carga al menos un dato del cliente.");
+    if (!createForm.firstName.trim() && !createForm.lastName.trim()) {
+      setError("Carga el nombre o apellido del cliente.");
       return;
     }
+
+    const hasAddress = [createForm.address1, createForm.city, createForm.zip].some((value) => value.trim());
+    const payload = {
+      firstName: createForm.firstName.trim() || undefined,
+      lastName: createForm.lastName.trim() || undefined,
+      email: createForm.email.trim() || undefined,
+      phone: createForm.phone.trim() || undefined,
+      document: createForm.document.trim() || undefined,
+      notes: createForm.notes.trim() || undefined,
+      address: hasAddress
+        ? {
+            address1: createForm.address1.trim() || undefined,
+            city: createForm.city.trim() || undefined,
+            zip: createForm.zip.trim() || undefined,
+          }
+        : undefined,
+    };
 
     setSavingCreate(true);
     setError("");
     try {
       const created = (await api("/current-accounts", {
         method: "POST",
-        body: JSON.stringify(createForm),
+        body: JSON.stringify(payload),
       })) as CurrentAccount;
       setCreateModalOpen(false);
       await loadAccounts();
@@ -557,14 +584,23 @@ export default function AdminCurrentAccountsSection({
             <div style={twoColumnFormStyle}>
               <Field label="Nombre" value={createForm.firstName} onChange={(value) => setCreateForm((current) => ({ ...current, firstName: value }))} />
               <Field label="Apellido" value={createForm.lastName} onChange={(value) => setCreateForm((current) => ({ ...current, lastName: value }))} />
-              <Field label="Email" value={createForm.email} onChange={(value) => setCreateForm((current) => ({ ...current, email: value }))} />
-              <Field label="Telefono" value={createForm.phone} onChange={(value) => setCreateForm((current) => ({ ...current, phone: value }))} />
-              <Field label="Documento" value={createForm.document} onChange={(value) => setCreateForm((current) => ({ ...current, document: value }))} />
+              <Field label="Email" placeholder="Email opcional" value={createForm.email} onChange={(value) => setCreateForm((current) => ({ ...current, email: value }))} />
+              <Field label="Telefono" placeholder="Telefono opcional" value={createForm.phone} onChange={(value) => setCreateForm((current) => ({ ...current, phone: value }))} />
+              <Field label="Documento" placeholder="Documento opcional" value={createForm.document} onChange={(value) => setCreateForm((current) => ({ ...current, document: value }))} />
+              <div style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
+                <span>Direccion</span>
+                <Field label="Calle, numero, piso/depto" placeholder="Direccion opcional" value={createForm.address1} onChange={(value) => setCreateForm((current) => ({ ...current, address1: value }))} />
+                <div style={twoColumnFormStyle}>
+                  <Field label="Localidad" placeholder="Localidad opcional" value={createForm.city} onChange={(value) => setCreateForm((current) => ({ ...current, city: value }))} />
+                  <Field label="Codigo postal" placeholder="Codigo postal opcional" value={createForm.zip} onChange={(value) => setCreateForm((current) => ({ ...current, zip: value }))} />
+                </div>
+              </div>
               <label style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
                 <span>Notas</span>
                 <textarea
                   value={createForm.notes}
                   onChange={(event) => setCreateForm((current) => ({ ...current, notes: event.target.value }))}
+                  placeholder="Notas opcionales"
                   style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
                 />
               </label>
@@ -770,15 +806,17 @@ function Field({
   label,
   value,
   onChange,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  placeholder?: string;
 }) {
   return (
     <label style={fieldGroupStyle}>
       <span>{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} style={inputStyle} />
+      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} style={inputStyle} />
     </label>
   );
 }

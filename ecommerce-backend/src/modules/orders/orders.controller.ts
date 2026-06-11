@@ -65,7 +65,7 @@ export class OrdersController {
 
   @Get('manual/list')
   findManualSales(@Req() req) {
-    return this.ordersService.findManualSales(req.storeId);
+    return this.ordersService.findManualSales(req.storeId, req.user?.sub);
   }
 
   @Get('accounting/export')

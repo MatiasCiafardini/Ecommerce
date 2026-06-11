@@ -437,4 +437,187 @@ describe('ReturnsService', () => {
       },
     ]);
   });
+
+  it('records a manual return credit in the customer current account', async () => {
+    (prisma as any).store = {
+      findUnique: jest.fn().mockResolvedValue({ cashRegisterMode: 'automatic' }),
+    };
+
+    const tx = {
+      productVariant: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 701,
+            price: 100,
+            product: { id: 1, storeId: 3 },
+            inventories: [{ quantity: 0, reserved: 0 }],
+          },
+        ]),
+      },
+      inventory: {
+        upsert: jest.fn().mockResolvedValue({}),
+        update: jest.fn(),
+      },
+      customer: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 44,
+          firstName: 'Ana',
+          lastName: 'Lopez',
+          email: null,
+          phone: null,
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      currentAccount: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 88,
+          balance: 20,
+          storeLocationId: null,
+        }),
+        update: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 88, balance: 20, storeLocationId: null })
+          .mockResolvedValueOnce({ id: 88, balance: -80 }),
+        create: jest.fn(),
+      },
+      currentAccountMovement: {
+        create: jest.fn().mockResolvedValue({ id: 99 }),
+      },
+      manualReturn: {
+        create: jest.fn().mockResolvedValue({
+          id: 12,
+          differenceAmount: -100,
+          items: [],
+        }),
+      },
+    };
+
+    prisma.$transaction.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await service.createManualReturn(3, 9, {
+      customerId: 44,
+      customerName: 'Ana Lopez',
+      returnedItems: [{ variantId: 701, quantity: 1, price: 100 }],
+      exchangeItems: [],
+    });
+
+    expect(tx.currentAccount.update).toHaveBeenLastCalledWith({
+      where: { id: 88 },
+      data: {
+        balance: -80,
+        lastMovementAt: expect.any(Date),
+      },
+    });
+    expect(tx.currentAccountMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accountId: 88,
+        customerId: 44,
+        type: 'CREDIT_NOTE',
+        amount: -100,
+        paymentMethod: 'Saldo a favor',
+        balanceAfter: -80,
+      }),
+    });
+  });
+
+  it('records an immediately paid exchange difference as a cash-visible account payment', async () => {
+    (prisma as any).store = {
+      findUnique: jest.fn().mockResolvedValue({ cashRegisterMode: 'manual' }),
+    };
+    (prisma as any).user = {
+      findFirst: jest.fn().mockResolvedValue({
+        storeLocation: { id: 5, name: 'Local Centro', active: true },
+      }),
+    };
+    (prisma as any).cashRegisterSession = {
+      findFirst: jest.fn().mockResolvedValue({ id: 77 }),
+    };
+
+    const tx = {
+      productVariant: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 801,
+            price: 50,
+            product: { id: 1, storeId: 3 },
+            inventories: [{ quantity: 0, reserved: 0 }],
+          },
+          {
+            id: 802,
+            price: 80,
+            product: { id: 2, storeId: 3 },
+            inventories: [{ quantity: 4, reserved: 0 }],
+          },
+        ]),
+      },
+      inventory: {
+        upsert: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      customer: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 45,
+          firstName: 'Luis',
+          lastName: 'Perez',
+          email: null,
+          phone: null,
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      currentAccount: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 89,
+          balance: 10,
+          storeLocationId: 5,
+        }),
+        update: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 89, balance: 10, storeLocationId: 5 })
+          .mockResolvedValue({ id: 89 }),
+        create: jest.fn(),
+      },
+      currentAccountMovement: {
+        create: jest.fn().mockResolvedValue({ id: 100 }),
+      },
+      manualReturn: {
+        create: jest.fn().mockResolvedValue({
+          id: 13,
+          differenceAmount: 30,
+          items: [],
+        }),
+      },
+    };
+
+    prisma.$transaction.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await service.createManualReturn(3, 9, {
+      customerId: 45,
+      customerName: 'Luis Perez',
+      settlementMethod: 'Efectivo',
+      returnedItems: [{ variantId: 801, quantity: 1, price: 50 }],
+      exchangeItems: [{ variantId: 802, quantity: 1, price: 80 }],
+    });
+
+    expect(tx.currentAccountMovement.create).toHaveBeenNthCalledWith(1, {
+      data: expect.objectContaining({
+        type: 'SALE',
+        amount: 30,
+        paymentMethod: 'Cuenta corriente',
+        balanceAfter: 40,
+      }),
+    });
+    expect(tx.currentAccountMovement.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        cashRegisterId: 77,
+        type: 'PAYMENT',
+        amount: -30,
+        paymentMethod: 'Efectivo',
+        balanceAfter: 10,
+      }),
+    });
+  });
 });

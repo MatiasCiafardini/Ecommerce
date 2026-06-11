@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
 import { normalizeEmail } from '../../common/utils/email.util';
@@ -38,11 +39,14 @@ const accountInclude = {
   },
 } as const;
 
+type AccountLocation = { id: number; name: string; active: boolean } | null;
+
 @Injectable()
 export class CurrentAccountsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(storeId: number, dto: CreateCurrentAccountDto) {
+  async create(storeId: number, userId: number | undefined, dto: CreateCurrentAccountDto) {
+    const location = await this.resolveUserLocation(storeId, userId);
     const customerData = this.buildCustomerUpdateData(dto);
 
     if (!customerData.firstName && !customerData.lastName && !customerData.phone && !customerData.email && !customerData.document) {
@@ -91,22 +95,32 @@ export class CurrentAccountsService {
         },
         create: {
           storeId,
+          storeLocationId: location?.id ?? null,
           customerId: savedCustomer.id,
           balance: 0,
         },
         update: {
           deletedAt: null,
+          ...(location ? { storeLocationId: location.id } : {}),
           lastMovementAt: new Date(),
         },
       });
 
+      await this.syncDefaultAddress(tx, storeId, savedCustomer.id, customerData, dto.address);
+
       return savedCustomer;
     });
 
-    return this.findByCustomer(storeId, customer.id);
+    return this.findByCustomer(storeId, userId, customer.id);
   }
 
-  async findAll(storeId: number, status: 'debt' | 'paid' | 'all' = 'debt', search = '') {
+  async findAll(
+    storeId: number,
+    userId: number | undefined,
+    status: 'debt' | 'paid' | 'all' = 'debt',
+    search = '',
+  ) {
+    const location = await this.resolveUserLocation(storeId, userId);
     const normalizedSearch = search.trim();
 
     const balanceFilter =
@@ -116,11 +130,19 @@ export class CurrentAccountsService {
           ? { equals: 0 }
           : undefined;
 
-    return this.prisma.currentAccount.findMany({
+    const accounts = await this.prisma.currentAccount.findMany({
       where: {
         storeId,
         deletedAt: null,
-        ...(balanceFilter ? { balance: balanceFilter } : {}),
+        ...(location
+          ? {
+              OR: [
+                { storeLocationId: location.id },
+                { movements: { some: { storeLocationId: location.id } } },
+              ],
+            }
+          : {}),
+        ...(!location && balanceFilter ? { balance: balanceFilter } : {}),
         ...(normalizedSearch
           ? {
               customer: {
@@ -141,9 +163,22 @@ export class CurrentAccountsService {
         { lastMovementAt: 'desc' },
       ],
     });
+
+    const localized = location
+      ? await Promise.all(accounts.map((account) => this.withLocalBalance(account, location.id)))
+      : accounts;
+
+    return localized.filter((account) => {
+      if (!location) return true;
+      const balance = Number(account.balance);
+      if (status === 'debt') return balance > 0;
+      if (status === 'paid') return balance === 0;
+      return true;
+    });
   }
 
-  async findByCustomer(storeId: number, customerId: number) {
+  async findByCustomer(storeId: number, userId: number | undefined, customerId: number) {
+    const location = await this.resolveUserLocation(storeId, userId);
     const account = await this.prisma.currentAccount.findUnique({
       where: {
         storeId_customerId: {
@@ -164,6 +199,7 @@ export class CurrentAccountsService {
           },
         },
         movements: {
+          where: location ? { storeLocationId: location.id } : undefined,
           orderBy: { createdAt: 'desc' },
           include: {
             order: {
@@ -199,7 +235,18 @@ export class CurrentAccountsService {
       throw new NotFoundException('Current account not found');
     }
 
-    return account;
+    if (!location) {
+      return account;
+    }
+
+    if (
+      account.storeLocationId !== location.id &&
+      !account.movements.some((movement) => movement.storeLocationId === location.id)
+    ) {
+      throw new NotFoundException('Current account not found for this location');
+    }
+
+    return this.withLocalBalance(account, location.id);
   }
 
   async findInactiveByPhone(storeId: number, phone: string) {
@@ -244,6 +291,8 @@ export class CurrentAccountsService {
     createdByUserId: number | undefined,
     dto: RegisterCurrentAccountPaymentDto,
   ) {
+    const cashContext = await this.resolveCashContext(storeId, createdByUserId);
+
     return this.prisma.$transaction(async (tx) => {
       const account = await tx.currentAccount.findUnique({
         where: {
@@ -259,13 +308,16 @@ export class CurrentAccountsService {
       }
 
       const currentBalance = Number(account.balance);
+      const currentLocalBalance = cashContext.storeLocationId
+        ? await this.calculateLocalBalanceTx(tx, account.id, cashContext.storeLocationId)
+        : currentBalance;
       const amount = Number(dto.amount);
 
       if (!Number.isFinite(amount) || amount <= 0) {
         throw new BadRequestException('Payment amount must be greater than 0');
       }
 
-      if (amount > currentBalance) {
+      if (amount > currentLocalBalance) {
         throw new BadRequestException('Payment cannot exceed current balance');
       }
 
@@ -275,6 +327,9 @@ export class CurrentAccountsService {
         where: { id: account.id },
         data: {
           balance: nextBalance,
+          ...(cashContext.storeLocationId && !account.storeLocationId
+            ? { storeLocationId: cashContext.storeLocationId }
+            : {}),
           lastMovementAt: new Date(),
         },
       });
@@ -282,8 +337,10 @@ export class CurrentAccountsService {
       const movement = await tx.currentAccountMovement.create({
         data: {
           storeId,
+          storeLocationId: cashContext.storeLocationId,
           accountId: account.id,
           customerId,
+          cashRegisterId: cashContext.cashRegisterId,
           type: 'PAYMENT',
           amount: -amount,
           paymentMethod: dto.paymentMethod,
@@ -298,6 +355,64 @@ export class CurrentAccountsService {
         movement,
       };
     });
+  }
+
+  private async resolveCashContext(storeId: number, userId?: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { cashRegisterMode: true },
+    });
+
+    if (store?.cashRegisterMode !== 'manual') {
+      return {
+        storeLocationId: null as number | null,
+        cashRegisterId: null as number | null,
+      };
+    }
+
+    const user = userId
+      ? await this.prisma.user.findFirst({
+          where: { id: userId, storeId },
+          select: {
+            storeLocation: {
+              select: {
+                id: true,
+                name: true,
+                active: true,
+              },
+            },
+          },
+        })
+      : null;
+    const location = user?.storeLocation?.active ? user.storeLocation : null;
+
+    if (!location) {
+      throw new BadRequestException(
+        'Asigna este usuario a un local fisico antes de registrar pagos.',
+      );
+    }
+
+    const session = await this.prisma.cashRegisterSession.findFirst({
+      where: {
+        storeId,
+        storeLocationId: location.id,
+        mode: 'manual',
+        closedAt: null,
+      },
+      select: { id: true },
+      orderBy: { openedAt: 'desc' },
+    });
+
+    if (!session) {
+      throw new BadRequestException(
+        `No hay una caja abierta para ${location.name}. Un encargado debe abrirla antes de cobrar.`,
+      );
+    }
+
+    return {
+      storeLocationId: location.id,
+      cashRegisterId: session.id,
+    };
   }
 
   async getPaymentReceiptPdf(storeId: number, movementId: number) {
@@ -346,16 +461,22 @@ export class CurrentAccountsService {
   async updateCustomer(
     storeId: number,
     customerId: number,
+    userId: number | undefined,
     dto: UpdateCurrentAccountDto,
   ) {
     const account = await this.findActiveAccount(storeId, customerId);
+    const customerData = this.buildCustomerUpdateData(dto);
 
-    await this.prisma.customer.update({
-      where: { id: account.customerId },
-      data: this.buildCustomerUpdateData(dto),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.customer.update({
+        where: { id: account.customerId },
+        data: customerData,
+      });
+
+      await this.syncDefaultAddress(tx, storeId, account.customerId, customerData, dto.address);
     });
 
-    return this.findByCustomer(storeId, customerId);
+    return this.findByCustomer(storeId, userId, customerId);
   }
 
   async adjustBalance(
@@ -364,6 +485,8 @@ export class CurrentAccountsService {
     createdByUserId: number | undefined,
     dto: AdjustCurrentAccountDto,
   ) {
+    const location = await this.resolveUserLocation(storeId, createdByUserId);
+
     return this.prisma.$transaction(async (tx) => {
       const account = await tx.currentAccount.findUnique({
         where: {
@@ -378,7 +501,9 @@ export class CurrentAccountsService {
         throw new NotFoundException('Current account not found');
       }
 
-      const previousBalance = Number(account.balance);
+      const previousBalance = location
+        ? await this.calculateLocalBalanceTx(tx, account.id, location.id)
+        : Number(account.balance);
       const nextBalance = roundCurrency(Number(dto.balance));
 
       if (!Number.isFinite(nextBalance) || nextBalance < 0) {
@@ -397,7 +522,10 @@ export class CurrentAccountsService {
       const updatedAccount = await tx.currentAccount.update({
         where: { id: account.id },
         data: {
-          balance: nextBalance,
+          balance: roundCurrency(Number(account.balance) + delta),
+          ...(location && !account.storeLocationId
+            ? { storeLocationId: location.id }
+            : {}),
           lastMovementAt: new Date(),
         },
       });
@@ -405,6 +533,7 @@ export class CurrentAccountsService {
       const movement = await tx.currentAccountMovement.create({
         data: {
           storeId,
+          storeLocationId: location?.id ?? null,
           accountId: account.id,
           customerId,
           type: delta >= 0 ? 'ADJUSTMENT_POSITIVE' : 'ADJUSTMENT_NEGATIVE',
@@ -437,8 +566,10 @@ export class CurrentAccountsService {
   async reactivate(
     storeId: number,
     customerId: number,
+    userId: number | undefined,
     dto: UpdateCurrentAccountDto,
   ) {
+    const location = await this.resolveUserLocation(storeId, userId);
     const account = await this.prisma.currentAccount.findUnique({
       where: {
         storeId_customerId: {
@@ -454,24 +585,28 @@ export class CurrentAccountsService {
 
     const customerData = this.buildCustomerUpdateData(dto);
 
-    await this.prisma.$transaction([
-      this.prisma.customer.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.customer.update({
         where: { id: customerId },
         data: {
           ...customerData,
           source: 'current_account',
         },
-      }),
-      this.prisma.currentAccount.update({
+      });
+
+      await tx.currentAccount.update({
         where: { id: account.id },
         data: {
           deletedAt: null,
+          ...(location ? { storeLocationId: location.id } : {}),
           lastMovementAt: new Date(),
         },
-      }),
-    ]);
+      });
 
-    return this.findByCustomer(storeId, customerId);
+      await this.syncDefaultAddress(tx, storeId, customerId, customerData, dto.address);
+    });
+
+    return this.findByCustomer(storeId, userId, customerId);
   }
 
   private async findActiveAccount(storeId: number, customerId: number) {
@@ -494,6 +629,75 @@ export class CurrentAccountsService {
     }
 
     return account;
+  }
+
+  private async resolveUserLocation(
+    storeId: number,
+    userId?: number,
+  ): Promise<AccountLocation> {
+    if (!userId) {
+      return null;
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, storeId },
+      select: {
+        storeLocation: {
+          select: {
+            id: true,
+            name: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    return user?.storeLocation?.active ? user.storeLocation : null;
+  }
+
+  private async withLocalBalance<T extends { id: number; balance: unknown }>(
+    account: T,
+    storeLocationId: number,
+  ): Promise<T & { globalBalance: unknown; balance: number }> {
+    const localBalance = await this.calculateLocalBalance(account.id, storeLocationId);
+
+    return {
+      ...account,
+      globalBalance: account.balance,
+      balance: localBalance,
+    };
+  }
+
+  private async calculateLocalBalance(accountId: number, storeLocationId: number) {
+    const result = await this.prisma.currentAccountMovement.aggregate({
+      where: {
+        accountId,
+        storeLocationId,
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    return roundCurrency(Number(result._sum.amount ?? 0));
+  }
+
+  private async calculateLocalBalanceTx(
+    tx: any,
+    accountId: number,
+    storeLocationId: number,
+  ) {
+    const result = await tx.currentAccountMovement.aggregate({
+      where: {
+        accountId,
+        storeLocationId,
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    return roundCurrency(Number(result._sum.amount ?? 0));
   }
 
   private buildCustomerUpdateData(dto: UpdateCurrentAccountDto) {
@@ -530,6 +734,69 @@ export class CurrentAccountsService {
     return Object.fromEntries(
       Object.entries(data).filter(([, value]) => value !== undefined),
     );
+  }
+
+  private async syncDefaultAddress(
+    tx: Prisma.TransactionClient,
+    storeId: number,
+    customerId: number,
+    customerData: Record<string, string | null>,
+    rawAddress?: CreateCurrentAccountDto['address'],
+  ) {
+    const hasAddress = Boolean(
+      [
+        rawAddress?.address1,
+        rawAddress?.address2,
+        rawAddress?.city,
+        rawAddress?.state,
+        rawAddress?.zip,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim(),
+    );
+
+    if (!hasAddress) {
+      return;
+    }
+
+    const addressData = {
+      firstName: customerData.firstName?.trim() || 'Cliente',
+      lastName: customerData.lastName?.trim() || '-',
+      phone: customerData.phone?.trim() || null,
+      address1: rawAddress?.address1?.trim() || 'Direccion no informada',
+      address2: rawAddress?.address2?.trim() || null,
+      city: rawAddress?.city?.trim() || 'Sin localidad',
+      state: rawAddress?.state?.trim() || null,
+      zip: rawAddress?.zip?.trim() || '0000',
+      country: 'AR',
+      isDefault: true,
+    };
+
+    const existingAddress = await tx.customerAddress.findFirst({
+      where: {
+        storeId,
+        customerId,
+        isDefault: true,
+      },
+      select: { id: true },
+    });
+
+    if (existingAddress) {
+      await tx.customerAddress.update({
+        where: { id: existingAddress.id },
+        data: addressData,
+      });
+      return;
+    }
+
+    await tx.customerAddress.create({
+      data: {
+        ...addressData,
+        storeId,
+        customerId,
+      },
+    });
   }
 
   private renderPaymentReceiptPdf(movement: {

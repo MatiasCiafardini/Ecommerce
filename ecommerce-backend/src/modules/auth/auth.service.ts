@@ -21,6 +21,11 @@ type AuthEntity = {
   lastName?: string | null;
   phone?: string | null;
   name?: string | null;
+  storeLocationId?: number | null;
+  storeLocation?: {
+    id: number;
+    name: string;
+  } | null;
   storeFeatures?: {
     manualSalesEnabled: boolean;
   };
@@ -50,6 +55,7 @@ export class AuthService {
     const normalizedEmail = normalizeEmail(email);
     const user = await this.prisma.user.findFirst({
       where: { email: normalizedEmail, storeId },
+      include: { storeLocation: { select: { id: true, name: true } } },
     });
 
     if (!user) {
@@ -72,6 +78,7 @@ export class AuthService {
         email: normalizedEmail,
         role: 'SUPER_ADMIN' as any,
       },
+      include: { storeLocation: { select: { id: true, name: true } } },
     });
 
     if (!user) {
@@ -139,6 +146,7 @@ export class AuthService {
         email: normalizedEmail,
         storeId,
       },
+      include: { storeLocation: { select: { id: true, name: true } } },
     });
 
     if (adminUser) {
@@ -186,6 +194,7 @@ export class AuthService {
         storeId,
         email,
       },
+      include: { storeLocation: { select: { id: true, name: true } } },
     });
 
     if (existingUser) {
@@ -283,6 +292,7 @@ export class AuthService {
         where: {
           id,
         },
+        include: { storeLocation: { select: { id: true, name: true } } },
       });
 
       if (!user || user.role !== ('SUPER_ADMIN' as any)) {
@@ -317,6 +327,7 @@ export class AuthService {
         id,
         storeId,
       },
+      include: { storeLocation: { select: { id: true, name: true } } },
     });
 
     if (!user) {
@@ -427,6 +438,7 @@ export class AuthService {
         id,
         storeId,
       },
+      include: { storeLocation: { select: { id: true, name: true } } },
     });
 
     if (!user) {
@@ -470,6 +482,8 @@ export class AuthService {
       lastName: user.lastName ?? null,
       phone: user.phone ?? null,
       name: user.name ?? null,
+      storeLocationId: user.storeLocationId ?? null,
+      storeLocation: user.storeLocation ?? null,
       storeFeatures,
     };
   }

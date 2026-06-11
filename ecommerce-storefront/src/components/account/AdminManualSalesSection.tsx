@@ -87,6 +87,7 @@ type NewCustomerPayload = {
   lastName?: string;
   phone?: string;
   document?: string;
+  notes?: string;
   source: "current_account";
   address?: {
     address1?: string;
@@ -164,13 +165,15 @@ export default function AdminManualSalesSection({
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [customerLoading, setCustomerLoading] = useState(false);
-  const [newCustomerFullName, setNewCustomerFullName] = useState("");
+  const [newCustomerFirstName, setNewCustomerFirstName] = useState("");
+  const [newCustomerLastName, setNewCustomerLastName] = useState("");
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newCustomerDocument, setNewCustomerDocument] = useState("");
   const [newCustomerAddress, setNewCustomerAddress] = useState("");
   const [newCustomerCity, setNewCustomerCity] = useState("");
   const [newCustomerZip, setNewCustomerZip] = useState("");
+  const [newCustomerNotes, setNewCustomerNotes] = useState("");
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [inactiveAccountPrompt, setInactiveAccountPrompt] = useState<CurrentAccountLookup | null>(null);
   const [pendingCustomerPayload, setPendingCustomerPayload] = useState<NewCustomerPayload | null>(null);
@@ -633,23 +636,25 @@ export default function AdminManualSalesSection({
   };
 
   const clearNewCustomerFields = () => {
-    setNewCustomerFullName("");
+    setNewCustomerFirstName("");
+    setNewCustomerLastName("");
     setNewCustomerEmail("");
     setNewCustomerPhone("");
     setNewCustomerDocument("");
     setNewCustomerAddress("");
     setNewCustomerCity("");
     setNewCustomerZip("");
+    setNewCustomerNotes("");
   };
 
   const createCustomer = async () => {
-    const parsedName = parseCustomerFullName(newCustomerFullName);
     const customerPayload: NewCustomerPayload = {
       email: newCustomerEmail.trim() || undefined,
-      firstName: parsedName.firstName,
-      lastName: parsedName.lastName,
+      firstName: newCustomerFirstName.trim() || undefined,
+      lastName: newCustomerLastName.trim() || undefined,
       phone: newCustomerPhone.trim() || undefined,
       document: newCustomerDocument.trim() || undefined,
+      notes: newCustomerNotes.trim() || undefined,
       source: "current_account",
       address: [
         newCustomerAddress,
@@ -664,20 +669,17 @@ export default function AdminManualSalesSection({
         : undefined,
     };
 
-    if (!newCustomerFullName.trim()) {
-      setError("El nombre del cliente es obligatorio.");
-      return;
-    }
-
-    if (!newCustomerPhone.trim()) {
-      setError("El telefono del cliente es obligatorio.");
+    if (!newCustomerFirstName.trim() && !newCustomerLastName.trim()) {
+      setError("Carga el nombre o apellido del cliente.");
       return;
     }
 
     setCustomerLoading(true);
     setError("");
     try {
-      const inactiveAccount = await findInactiveCurrentAccountByPhone(newCustomerPhone.trim());
+      const inactiveAccount = newCustomerPhone.trim()
+        ? await findInactiveCurrentAccountByPhone(newCustomerPhone.trim())
+        : null;
 
       if (inactiveAccount) {
         setInactiveAccountPrompt(inactiveAccount);
@@ -717,6 +719,8 @@ export default function AdminManualSalesSection({
           email: pendingCustomerPayload.email,
           phone: pendingCustomerPayload.phone,
           document: pendingCustomerPayload.document,
+          notes: pendingCustomerPayload.notes,
+          address: pendingCustomerPayload.address,
         }),
       })) as CurrentAccountLookup;
 
@@ -1243,20 +1247,26 @@ export default function AdminManualSalesSection({
                 <div className="manual-sale-new-customer-header">
                   <p className="manual-sale-eyebrow">Registrar nuevo</p>
                 </div>
-                <input value={newCustomerFullName} onChange={(event) => setNewCustomerFullName(event.target.value)} placeholder="Nombre completo" className="manual-sale-field" />
                 <div className="manual-sale-discount-row">
-                  <input value={newCustomerPhone} onChange={(event) => setNewCustomerPhone(event.target.value)} placeholder="Telefono" className="manual-sale-field" />
+                  <input value={newCustomerFirstName} onChange={(event) => setNewCustomerFirstName(event.target.value)} placeholder="Nombre" className="manual-sale-field" />
+                  <input value={newCustomerLastName} onChange={(event) => setNewCustomerLastName(event.target.value)} placeholder="Apellido" className="manual-sale-field" />
+                </div>
+                <div className="manual-sale-discount-row">
+                  <input value={newCustomerEmail} onChange={(event) => setNewCustomerEmail(event.target.value)} placeholder="Email opcional" className="manual-sale-field" />
+                  <input value={newCustomerPhone} onChange={(event) => setNewCustomerPhone(event.target.value)} placeholder="Telefono opcional" className="manual-sale-field" />
+                </div>
+                <div className="manual-sale-discount-row">
                   <input value={newCustomerDocument} onChange={(event) => setNewCustomerDocument(event.target.value)} placeholder="Documento opcional" className="manual-sale-field" />
                 </div>
-                <input value={newCustomerEmail} onChange={(event) => setNewCustomerEmail(event.target.value)} placeholder="Email opcional" className="manual-sale-field" />
                 <div className="manual-sale-current-account-address">
-                  <p className="manual-sale-eyebrow">Direccion opcional</p>
+                  <p className="manual-sale-eyebrow">Direccion</p>
                   <input value={newCustomerAddress} onChange={(event) => setNewCustomerAddress(event.target.value)} placeholder="Calle, numero, piso/depto" className="manual-sale-field" />
                   <div className="manual-sale-discount-row">
                     <input value={newCustomerCity} onChange={(event) => setNewCustomerCity(event.target.value)} placeholder="Localidad" className="manual-sale-field" />
                     <input value={newCustomerZip} onChange={(event) => setNewCustomerZip(event.target.value)} placeholder="Codigo postal" className="manual-sale-field" />
                   </div>
                 </div>
+                <textarea value={newCustomerNotes} onChange={(event) => setNewCustomerNotes(event.target.value)} placeholder="Notas opcionales" className="manual-sale-field manual-sale-notes-field" />
                 <div className="manual-sale-modal-actions">
                   <button
                     type="button"
@@ -1895,6 +1905,11 @@ export default function AdminManualSalesSection({
           margin: 0;
         }
 
+        .manual-sale-notes-field {
+          min-height: 84px;
+          resize: vertical;
+        }
+
         .manual-sale-modal-actions {
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
@@ -2236,21 +2251,6 @@ function getCustomerName(customer: ManualSaleCustomer) {
 function formatAccountDate(value?: string | null) {
   if (!value) return "Sin movimientos";
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
-}
-
-function parseCustomerFullName(fullName: string) {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) {
-    return {
-      firstName: parts[0] || undefined,
-      lastName: undefined,
-    };
-  }
-
-  return {
-    firstName: parts.slice(0, -1).join(" "),
-    lastName: parts.at(-1),
-  };
 }
 
 function getVariantLabel(variant: Pick<ManualSaleVariant, "Size" | "Color">) {

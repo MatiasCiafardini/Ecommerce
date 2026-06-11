@@ -49,12 +49,26 @@ type ManualReturn = {
   }>;
 };
 
+type CurrentAccountLookup = {
+  customerId: number;
+  balance: string | number;
+  customer: {
+    id: number;
+    email?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
+    document?: string | null;
+  };
+};
+
 type VariantRow = {
   product: Product;
   variant: Variant;
   available: number;
 };
 
+const settlementMethods = ["Efectivo", "Tarjeta", "Transferencia", "Mercado Pago", "Cuenta corriente"];
 const normalizeSearch = (value: string) => value.trim().toLowerCase();
 
 export default function ManualReturnsPanel() {
@@ -64,6 +78,9 @@ export default function ManualReturnsPanel() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState<CurrentAccountLookup | null>(null);
+  const [accountRows, setAccountRows] = useState<CurrentAccountLookup[]>([]);
+  const [settlementMethod, setSettlementMethod] = useState("Efectivo");
   const [notes, setNotes] = useState("");
   const [returnedQuery, setReturnedQuery] = useState("");
   const [exchangeQuery, setExchangeQuery] = useState("");
@@ -97,6 +114,14 @@ export default function ManualReturnsPanel() {
     void searchProducts(exchangeQuery, setExchangeRows);
   }, [exchangeQuery]);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void searchAccounts(customerName, setAccountRows);
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [customerName]);
+
   const totalReturned = useMemo(() => lineTotal(returnedLines), [returnedLines]);
   const totalExchange = useMemo(() => lineTotal(exchangeLines), [exchangeLines]);
   const difference = totalExchange - totalReturned;
@@ -107,6 +132,11 @@ export default function ManualReturnsPanel() {
       return;
     }
 
+    if (!selectedAccount && !customerName.trim()) {
+      setError("Selecciona una cuenta corriente o carga el nombre del cliente.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setSuccess("");
@@ -114,7 +144,9 @@ export default function ManualReturnsPanel() {
       const created = (await api("/returns/manual", {
         method: "POST",
         body: JSON.stringify({
+          customerId: selectedAccount?.customerId,
           customerName: customerName.trim() || undefined,
+          settlementMethod: difference > 0 ? settlementMethod : "Cuenta corriente",
           notes: notes.trim() || undefined,
           returnedItems: returnedLines.map(toPayloadItem),
           exchangeItems: exchangeLines.map(toPayloadItem),
@@ -122,6 +154,9 @@ export default function ManualReturnsPanel() {
       })) as ManualReturn;
       setHistory((current) => [created, ...current]);
       setCustomerName("");
+      setSelectedAccount(null);
+      setAccountRows([]);
+      setSettlementMethod("Efectivo");
       setNotes("");
       setReturnedQuery("");
       setExchangeQuery("");
@@ -129,7 +164,7 @@ export default function ManualReturnsPanel() {
       setExchangeRows([]);
       setReturnedLines([]);
       setExchangeLines([]);
-      setSuccess(`Devolucion #${created.id} registrada. Diferencia: ${money(Number(created.differenceAmount))}.`);
+      setSuccess(getSuccessMessage(created, difference > 0 ? settlementMethod : "Cuenta corriente"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo registrar la devolucion.");
     } finally {
@@ -143,7 +178,7 @@ export default function ManualReturnsPanel() {
         <div>
           <p style={eyebrowStyle}>Mostrador</p>
           <h2 style={titleStyle}>Devoluciones y cambios</h2>
-          <p style={copyStyle}>Carga lo que vuelve, lo que se lleva como cambio y registra la diferencia.</p>
+          <p style={copyStyle}>Carga lo que vuelve, lo que se lleva como cambio y registra la cuenta corriente.</p>
         </div>
         <strong style={differenceStyle(difference)}>
           {difference >= 0 ? "A cobrar " : "A favor "}
@@ -183,9 +218,50 @@ export default function ManualReturnsPanel() {
       </div>
 
       <div style={detailsGridStyle}>
-        <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Cliente opcional" style={inputStyle} />
+        <div style={customerBoxStyle}>
+          <input
+            value={customerName}
+            onChange={(event) => {
+              setCustomerName(event.target.value);
+              setSelectedAccount(null);
+            }}
+            placeholder="Buscar o cargar cliente"
+            style={inputStyle}
+          />
+          {selectedAccount ? (
+            <div style={selectedAccountStyle}>
+              <span>Cuenta corriente: {getAccountCustomerName(selectedAccount)}</span>
+              <button type="button" onClick={() => setSelectedAccount(null)} style={miniButtonStyle}>Cambiar</button>
+            </div>
+          ) : accountRows.length > 0 ? (
+            <div style={accountListStyle}>
+              {accountRows.slice(0, 5).map((account) => (
+                <button
+                  key={account.customerId}
+                  type="button"
+                  onClick={() => {
+                    setSelectedAccount(account);
+                    setCustomerName(getAccountCustomerName(account));
+                    setAccountRows([]);
+                  }}
+                  style={accountButtonStyle}
+                >
+                  <span>{getAccountCustomerName(account)}</span>
+                  <small>Saldo {money(Number(account.balance))}</small>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {difference > 0 ? (
+          <select value={settlementMethod} onChange={(event) => setSettlementMethod(event.target.value)} style={inputStyle}>
+            {settlementMethods.map((method) => <option key={method}>{method}</option>)}
+          </select>
+        ) : (
+          <div style={settlementInfoStyle}>{difference < 0 ? "Se acredita saldo a favor en cuenta corriente." : "Sin diferencia a liquidar."}</div>
+        )}
         <input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notas opcionales" style={inputStyle} />
-        <button type="button" onClick={() => void createReturn()} disabled={saving || returnedLines.length === 0} style={primaryButtonStyle}>
+        <button type="button" onClick={() => void createReturn()} disabled={saving || returnedLines.length === 0 || (!selectedAccount && !customerName.trim())} style={primaryButtonStyle}>
           {saving ? "Registrando..." : "Registrar devolucion/cambio"}
         </button>
       </div>
@@ -311,6 +387,20 @@ async function searchProducts(query: string, setRows: (rows: VariantRow[]) => vo
   }))));
 }
 
+async function searchAccounts(query: string, setRows: (rows: CurrentAccountLookup[]) => void) {
+  const normalized = query.trim();
+  if (normalized.length < 2) {
+    setRows([]);
+    return;
+  }
+
+  const params = new URLSearchParams();
+  params.set("status", "all");
+  params.set("search", normalized);
+  const data = await api(`/current-accounts?${params.toString()}`);
+  setRows(Array.isArray(data) ? (data as CurrentAccountLookup[]) : []);
+}
+
 function addLine(row: VariantRow, setLines: React.Dispatch<React.SetStateAction<Line[]>>, allowNoStock: boolean) {
   if (!allowNoStock && row.available <= 0) return;
   setLines((current) => {
@@ -353,6 +443,25 @@ function getVariantLabel(variant?: Variant | null) {
   return [variant?.Size, variant?.Color, variant?.sku].filter(Boolean).join(" · ") || "Sin variante";
 }
 
+function getAccountCustomerName(account: CurrentAccountLookup) {
+  const customer = account.customer;
+  return [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || customer.email || customer.phone || `Cliente #${account.customerId}`;
+}
+
+function getSuccessMessage(created: ManualReturn, settlementMethod: string) {
+  const difference = Number(created.differenceAmount);
+  if (difference < 0) {
+    return `Devolucion #${created.id} registrada. Saldo a favor: ${money(Math.abs(difference))}.`;
+  }
+  if (difference > 0 && settlementMethod === "Cuenta corriente") {
+    return `Devolucion #${created.id} registrada. Diferencia a cuenta corriente: ${money(difference)}.`;
+  }
+  if (difference > 0) {
+    return `Devolucion #${created.id} registrada. Cobro en ${settlementMethod}: ${money(difference)}.`;
+  }
+  return `Devolucion #${created.id} registrada sin diferencia.`;
+}
+
 const panelStyle: React.CSSProperties = { display: "grid", gap: 18, borderRadius: 22, border: "1px solid var(--border-soft)", background: "var(--page-panel-bg)", padding: 20 };
 const headerStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" };
 const eyebrowStyle: React.CSSProperties = { margin: "0 0 8px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.14em", fontSize: 11, fontWeight: 700 };
@@ -366,6 +475,12 @@ const smallInputStyle: React.CSSProperties = { ...inputStyle, width: 90 };
 const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 12, background: "var(--theme-colors-primary, #111)", color: "var(--theme-colors-primary-contrast, #fff)", padding: "11px 14px", cursor: "pointer", fontWeight: 800 };
 const ghostButtonStyle: React.CSSProperties = { border: "1px solid var(--border-soft)", borderRadius: 12, background: "transparent", color: "var(--text-strong)", padding: "9px 12px", cursor: "pointer", fontWeight: 700 };
 const detailsGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, alignItems: "center" };
+const customerBoxStyle: React.CSSProperties = { position: "relative", display: "grid", gap: 8 };
+const selectedAccountStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", border: "1px solid rgba(22, 163, 74, .35)", borderRadius: 12, padding: "9px 10px", color: "var(--text-strong)", background: "rgba(22, 163, 74, .10)" };
+const miniButtonStyle: React.CSSProperties = { border: "1px solid var(--border-soft)", borderRadius: 10, background: "transparent", color: "var(--text-strong)", padding: "6px 8px", cursor: "pointer", fontWeight: 700 };
+const accountListStyle: React.CSSProperties = { position: "absolute", zIndex: 20, top: 48, left: 0, right: 0, display: "grid", gap: 6, border: "1px solid var(--border-soft)", borderRadius: 14, background: "var(--page-panel-bg)", padding: 8, boxShadow: "0 16px 40px rgba(0,0,0,.16)" };
+const accountButtonStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10, border: "1px solid var(--border-soft)", borderRadius: 10, background: "transparent", color: "var(--text-strong)", padding: 9, cursor: "pointer", textAlign: "left" };
+const settlementInfoStyle: React.CSSProperties = { minHeight: 42, display: "flex", alignItems: "center", borderRadius: 12, border: "1px solid var(--border-soft)", background: "var(--page-panel-bg)", color: "var(--text-muted)", padding: "10px 12px" };
 const pickerListStyle: React.CSSProperties = { display: "grid", gap: 8, maxHeight: 260, overflow: "auto" };
 const pickerButtonStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", textAlign: "left", border: "1px solid var(--border-soft)", borderRadius: 12, background: "transparent", color: "var(--text-strong)", padding: 10, cursor: "pointer" };
 const lineListStyle: React.CSSProperties = { display: "grid", gap: 8 };

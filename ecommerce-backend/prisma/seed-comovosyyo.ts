@@ -294,8 +294,41 @@ async function main() {
 
   await prisma.store.update({
     where: { id: STORE_ID },
-    data: { storefrontConfig: storefrontConfig as any, manualSalesEnabled: true },
+    data: {
+      storefrontConfig: storefrontConfig as any,
+      manualSalesEnabled: true,
+      cashRegisterMode: 'manual',
+    },
   });
+
+  const [centroLocation, shoppingLocation] = await Promise.all([
+    prisma.storeLocation.upsert({
+      where: {
+        storeId_name: {
+          storeId: STORE_ID,
+          name: 'Local Centro',
+        },
+      },
+      update: { active: true },
+      create: {
+        storeId: STORE_ID,
+        name: 'Local Centro',
+      },
+    }),
+    prisma.storeLocation.upsert({
+      where: {
+        storeId_name: {
+          storeId: STORE_ID,
+          name: 'Local Shopping',
+        },
+      },
+      update: { active: true },
+      create: {
+        storeId: STORE_ID,
+        name: 'Local Shopping',
+      },
+    }),
+  ]);
 
   await resetStoreCatalog(STORE_ID);
 
@@ -399,6 +432,7 @@ async function main() {
       password: await bcrypt.hash('Admin123456!', 10),
       role: Role.ADMIN,
       name: 'Admin Como Vos y Yo',
+      storeLocationId: null,
     },
     create: {
       storeId: STORE_ID,
@@ -406,8 +440,56 @@ async function main() {
       password: await bcrypt.hash('Admin123456!', 10),
       role: Role.ADMIN,
       name: 'Admin Como Vos y Yo',
+      storeLocationId: null,
     },
   });
+
+  await Promise.all([
+    prisma.user.upsert({
+      where: {
+        storeId_email: {
+          storeId: STORE_ID,
+          email: normalizeEmail('encargado.centro@comovosyyo.com'),
+        },
+      },
+      update: {
+        password: await bcrypt.hash('Encargado123456!', 10),
+        role: Role.ADMIN,
+        name: 'Encargado Local Centro',
+        storeLocationId: centroLocation.id,
+      },
+      create: {
+        storeId: STORE_ID,
+        email: normalizeEmail('encargado.centro@comovosyyo.com'),
+        password: await bcrypt.hash('Encargado123456!', 10),
+        role: Role.ADMIN,
+        name: 'Encargado Local Centro',
+        storeLocationId: centroLocation.id,
+      },
+    }),
+    prisma.user.upsert({
+      where: {
+        storeId_email: {
+          storeId: STORE_ID,
+          email: normalizeEmail('encargado.shopping@comovosyyo.com'),
+        },
+      },
+      update: {
+        password: await bcrypt.hash('Encargado123456!', 10),
+        role: Role.ADMIN,
+        name: 'Encargado Local Shopping',
+        storeLocationId: shoppingLocation.id,
+      },
+      create: {
+        storeId: STORE_ID,
+        email: normalizeEmail('encargado.shopping@comovosyyo.com'),
+        password: await bcrypt.hash('Encargado123456!', 10),
+        role: Role.ADMIN,
+        name: 'Encargado Local Shopping',
+        storeLocationId: shoppingLocation.id,
+      },
+    }),
+  ]);
 
   await prisma.customer.upsert({
     where: {

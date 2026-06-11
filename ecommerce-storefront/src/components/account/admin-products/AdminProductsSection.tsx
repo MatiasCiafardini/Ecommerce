@@ -424,6 +424,7 @@ type ProductAdminTab =
   | "catalog"
   | "create"
   | "options"
+  | "variant-options"
   | "categories";
 
 function useViewportFlags() {
@@ -570,8 +571,65 @@ function variantCombinationKey(variant: Pick<EditableVariant, "Color" | "Size" |
   ].join("|");
 }
 
-function isColorOption(option: Pick<ProductOption, "name">) {
-  return normalizeComparableName(option.name) === "color";
+const variantOptionDefinitions: Array<{
+  kind: "color" | "size";
+  name: string;
+  label: string;
+  description: string;
+  attributeType: ProductOption["attributeType"];
+}> = [
+  {
+    kind: "color",
+    name: "Color",
+    label: "Colores",
+    description: "Opciones que aparecen en el desplegable Color de cada variante.",
+    attributeType: "color",
+  },
+  {
+    kind: "size",
+    name: "Talle",
+    label: "Talles",
+    description: "Opciones que aparecen en el desplegable Talle normal.",
+    attributeType: "text",
+  },
+];
+const variantSystemOptionKinds: Array<"color" | "size" | "waistSize"> = ["color", "size", "waistSize"];
+
+function isVariantAttributeOption(option: Pick<ProductOption, "name">, kind: "color" | "size" | "waistSize") {
+  const normalized = normalizeComparableName(option.name);
+  const aliases = {
+    color: ["color", "colores"],
+    size: ["talle", "talles", "size", "sizes"],
+    waistSize: ["talle cintura", "talles cintura", "cintura", "waist", "waist size"],
+  };
+
+  return aliases[kind].includes(normalized);
+}
+
+function isVariantConfigOption(option: Pick<ProductOption, "name">) {
+  return variantSystemOptionKinds.some((kind) => isVariantAttributeOption(option, kind));
+}
+
+function reusableValuesForOption(option?: ProductOption) {
+  return option?.reusableValues?.map((value) => value.value.trim()).filter(Boolean) ?? [];
+}
+
+function mergeSuggestionValues(...groups: string[][]) {
+  const seen = new Set<string>();
+  const values: string[] = [];
+
+  for (const group of groups) {
+    for (const value of group) {
+      const normalizedValue = value.trim();
+      if (!normalizedValue) continue;
+      const key = normalizeComparableName(normalizedValue);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      values.push(normalizedValue);
+    }
+  }
+
+  return values;
 }
 
 function attributeSaveErrorMessage(error: unknown) {
@@ -936,12 +994,13 @@ export default function AdminProductsSection({
 
   const filteredOptions = useMemo(() => {
     const query = optionQuery.trim().toLowerCase();
+    const attributeOptions = options.filter((option) => !isVariantConfigOption(option));
 
     if (!query) {
-      return options;
+      return attributeOptions;
     }
 
-    return options.filter((option) => {
+    return attributeOptions.filter((option) => {
       const valuesText = (option.reusableValues ?? [])
         .map((value) => value.value)
         .join(" ")
@@ -953,26 +1012,38 @@ export default function AdminProductsSection({
     });
   }, [optionQuery, options]);
 
+  const variantConfigOptions = useMemo(
+    () =>
+      variantOptionDefinitions.map((definition) => ({
+        definition,
+        option: options.find((option) => isVariantAttributeOption(option, definition.kind)),
+      })),
+    [options],
+  );
+
   const variantAutocomplete = useMemo(() => {
     const collect = (selector: (variant: EditableVariant) => string) => [
       ...new Set(
         variants.map((variant) => selector(variant).trim()).filter(Boolean),
       ),
     ];
+    const colorOption = options.find((option) => isVariantAttributeOption(option, "color"));
+    const sizeOption = options.find((option) => isVariantAttributeOption(option, "size"));
+    const waistSizeOption = options.find((option) => isVariantAttributeOption(option, "waistSize"));
 
     return {
       sku: collect((variant) => variant.sku),
       price: collect((variant) => variant.price),
-      size: collect((variant) => variant.Size),
-      color: collect((variant) => variant.Color),
-      waistSize: collect((variant) => variant.waistSize),
+      size: mergeSuggestionValues(reusableValuesForOption(sizeOption), collect((variant) => variant.Size)),
+      color: mergeSuggestionValues(reusableValuesForOption(colorOption), collect((variant) => variant.Color)),
+      waistSize: mergeSuggestionValues(reusableValuesForOption(waistSizeOption), collect((variant) => variant.waistSize)),
       inventoryQuantity: collect((variant) => variant.inventoryQuantity),
       weight: collect((variant) => variant.weight),
       width: collect((variant) => variant.width),
       height: collect((variant) => variant.height),
       length: collect((variant) => variant.length),
     };
-  }, [variants]);
+  }, [options, variants]);
 
   const pendingImageCount = useMemo(
     () =>
@@ -1515,7 +1586,7 @@ export default function AdminProductsSection({
 
   const generateVariantsFromMatrix = () => {
     const selectedAttributes = options.filter((option) =>
-      selectedVariantAttributeIds.includes(option.id) && !isColorOption(option),
+      selectedVariantAttributeIds.includes(option.id) && !isVariantConfigOption(option),
     );
     const selectedValuesByAttribute = selectedAttributes.map((option) => ({
       option,
@@ -1786,6 +1857,33 @@ export default function AdminProductsSection({
       showToast(message);
     } finally {
       setCreatingOption(false);
+    }
+  };
+
+  const createVariantConfigOption = async (definition: (typeof variantOptionDefinitions)[number]) => {
+    const alreadyExists = options.some((option) => isVariantAttributeOption(option, definition.kind));
+
+    if (alreadyExists) {
+      return;
+    }
+
+    try {
+      setSavingOptionKey(`variant-option-${definition.kind}`);
+      await api("/product-options", {
+        method: "POST",
+        body: JSON.stringify({
+          name: definition.name,
+          attributeType: definition.attributeType,
+        }),
+      });
+      await loadOptions();
+      setSuccess(`${definition.name} creado para variantes.`);
+    } catch (err) {
+      const message = attributeSaveErrorMessage(err);
+      setError(message);
+      showToast(message);
+    } finally {
+      setSavingOptionKey(null);
     }
   };
 
@@ -3274,7 +3372,7 @@ export default function AdminProductsSection({
           </details>
 
           <div style={attributeAccordionStyle}>
-            {options.filter((option) => !isColorOption(option)).map((option) => {
+            {options.filter((option) => !isVariantConfigOption(option)).map((option) => {
               const selectedValues = selectedOptionValues[option.id] ?? [];
               const availableValues = option.reusableValues ?? [];
               const orderedValues = [
@@ -3360,13 +3458,13 @@ export default function AdminProductsSection({
 
           <div style={attributeSummaryStyle}>
             <strong>
-              {options.filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length > 0
-                ? `${options.filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length} atributo(s) seleccionados`
+              {options.filter((option) => !isVariantConfigOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length > 0
+                ? `${options.filter((option) => !isVariantConfigOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length} atributo(s) seleccionados`
                 : "Producto sin atributos seleccionados"}
             </strong>
             <span style={metaStyle}>
-              {options.filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length > 0
-                ? `Se pueden generar ${options.filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).reduce((total, option) => total * Math.max(1, (selectedOptionValues[option.id] ?? []).length), 1)} variante(s).`
+              {options.filter((option) => !isVariantConfigOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).length > 0
+                ? `Se pueden generar ${options.filter((option) => !isVariantConfigOption(option) && (selectedOptionValues[option.id] ?? []).length > 0).reduce((total, option) => total * Math.max(1, (selectedOptionValues[option.id] ?? []).length), 1)} variante(s).`
                 : "Si no elegis atributos, podes cargar una variante unica en el paso siguiente."}
             </span>
           </div>
@@ -3384,12 +3482,12 @@ export default function AdminProductsSection({
             <span style={metaStyle}>
               Completa los datos base. Si elegiste valores en Atributos, se generan combinaciones; si no, se crea una variante unica.
             </span>
-            {options.some((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0) ? (
+            {options.some((option) => !isVariantConfigOption(option) && (selectedOptionValues[option.id] ?? []).length > 0) ? (
               <div style={variantSourceSummaryStyle}>
                 <strong>Combinaciones desde atributos</strong>
                 <span style={metaStyle}>
                   {options
-                    .filter((option) => !isColorOption(option) && (selectedOptionValues[option.id] ?? []).length > 0)
+                    .filter((option) => !isVariantConfigOption(option) && (selectedOptionValues[option.id] ?? []).length > 0)
                     .map((option) => `${option.name}: ${(selectedOptionValues[option.id] ?? []).join(", ")}`)
                     .join(" - ")}
                 </span>
@@ -3412,9 +3510,9 @@ export default function AdminProductsSection({
               <div style={variantGridStyle}>
                 <input value={bulkVariantPatch.price} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, price: event.target.value }))} placeholder={`Cambiar ${variantPricePlaceholder.toLowerCase()}`} style={fieldStyle} />
                 <input value={bulkVariantPatch.stock} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, stock: event.target.value }))} placeholder="Cambiar stock" style={fieldStyle} />
-                <input value={bulkVariantPatch.color} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, color: event.target.value }))} placeholder="Cambiar color" style={fieldStyle} />
-                <input value={bulkVariantPatch.size} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, size: event.target.value }))} placeholder="Cambiar talle" style={fieldStyle} />
-                <input value={bulkVariantPatch.waistSize} onChange={(event) => setBulkVariantPatch((current) => ({ ...current, waistSize: event.target.value }))} placeholder="Cambiar talle cintura" style={fieldStyle} />
+                <SuggestionInput value={bulkVariantPatch.color} onChange={(value) => setBulkVariantPatch((current) => ({ ...current, color: value }))} placeholder="Cambiar color" suggestions={variantAutocomplete.color} />
+                <SuggestionInput value={bulkVariantPatch.size} onChange={(value) => setBulkVariantPatch((current) => ({ ...current, size: value }))} placeholder="Cambiar talle" suggestions={variantAutocomplete.size} />
+                <SuggestionInput value={bulkVariantPatch.waistSize} onChange={(value) => setBulkVariantPatch((current) => ({ ...current, waistSize: value }))} placeholder="Cambiar talle cintura" suggestions={variantAutocomplete.waistSize} />
               </div>
               <button type="button" onClick={applyBulkVariantPatch} style={secondaryButtonStyle}>Aplicar cambios</button>
             </div>
@@ -3448,27 +3546,30 @@ export default function AdminProductsSection({
                       />
                     </td>
                     <td style={tdStyle}>
-                      <input
+                      <SuggestionInput
                         value={variant.Color}
-                        onChange={(event) => updateVariantAt(index, { Color: event.target.value })}
+                        onChange={(value) => updateVariantAt(index, { Color: value })}
                         placeholder="Color"
-                        style={compactCellInputStyle}
+                        suggestions={variantAutocomplete.color}
+                        inputStyleOverride={compactCellInputStyle}
                       />
                     </td>
                     <td style={tdStyle}>
-                      <input
+                      <SuggestionInput
                         value={variant.Size}
-                        onChange={(event) => updateVariantAt(index, { Size: event.target.value })}
+                        onChange={(value) => updateVariantAt(index, { Size: value })}
                         placeholder="Talle"
-                        style={compactCellInputStyle}
+                        suggestions={variantAutocomplete.size}
+                        inputStyleOverride={compactCellInputStyle}
                       />
                     </td>
                     <td style={tdStyle}>
-                      <input
+                      <SuggestionInput
                         value={variant.waistSize}
-                        onChange={(event) => updateVariantAt(index, { waistSize: event.target.value })}
+                        onChange={(value) => updateVariantAt(index, { waistSize: value })}
                         placeholder="Talle cintura"
-                        style={compactCellInputStyle}
+                        suggestions={variantAutocomplete.waistSize}
+                        inputStyleOverride={compactCellInputStyle}
                       />
                     </td>
                     <td style={tdStyle}>
@@ -3758,6 +3859,13 @@ export default function AdminProductsSection({
                 style={workspaceTabStyle(activeTab === "options")}
               >
                 Atributos
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("variant-options")}
+                style={workspaceTabStyle(activeTab === "variant-options")}
+              >
+                Opciones de variantes
               </button>
               <button
                 type="button"
@@ -4630,6 +4738,96 @@ export default function AdminProductsSection({
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {error ? <p style={errorStyle}>{error}</p> : null}
+          {success ? <p style={successStyle}>{success}</p> : null}
+        </section>
+        <section
+          style={{
+            ...stackedSectionStyle,
+            display: activeTab === "variant-options" ? "grid" : "none",
+          }}
+        >
+          <div style={blockStyle}>
+            <div>
+              <p style={eyebrowStyle}>Variantes</p>
+              <h3 style={title3Style}>Opciones de variantes</h3>
+              <p style={helperTextStyle}>
+                Estos valores alimentan los desplegables de Color y Talle al cargar variantes. No se usan como atributos del producto.
+              </p>
+            </div>
+            <div style={variantOptionCardsGridStyle}>
+              {variantConfigOptions.map(({ definition, option }) => (
+                <article key={definition.kind} style={variantOptionCardStyle}>
+                  <div style={betweenStyle}>
+                    <div>
+                      <strong style={{ color: "var(--account-text-strong)" }}>{definition.label}</strong>
+                      <p style={{ ...helperTextStyle, margin: "6px 0 0" }}>{definition.description}</p>
+                    </div>
+                    <span style={statusChipStyle(option ? "active" : "draft")}>
+                      {option ? `${option.reusableValues?.length ?? 0} valores` : "Sin crear"}
+                    </span>
+                  </div>
+
+                  {option ? (
+                    <>
+                      <div style={variantOptionValuesStyle}>
+                        {(option.reusableValues ?? []).map((value) => (
+                          <div key={`${option.id}-${value.id}`} style={variantOptionValueChipStyle}>
+                            {option.attributeType === "color" && value.visualColor ? <span style={colorSwatchStyle(value.visualColor)} /> : null}
+                            {editingValueKey === `${option.id}:${value.value.toLowerCase()}` ? (
+                              <input
+                                value={editingValueName}
+                                onChange={(event) => setEditingValueName(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") void saveOptionValue(option.id, value.value);
+                                }}
+                                style={chipInputStyle}
+                              />
+                            ) : (
+                              <span>{value.value}</span>
+                            )}
+                            <span style={variantOptionChipActionsStyle}>
+                              <button type="button" title="Renombrar" onClick={() => startEditingValue(option.id, value.value)} style={compactChipIconButtonStyle}>&#9998;</button>
+                              <button type="button" title="Eliminar" onClick={() => setPendingRemoval({ kind: "value", optionId: option.id, optionName: option.name, value: value.value, productsCount: value.productsCount ?? 0 })} style={compactChipIconButtonStyle}>&times;</button>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={variantOptionAddRowStyle}>
+                        <input
+                          value={draftOptionValues[option.id] ?? ""}
+                          onChange={(event) =>
+                            setDraftOptionValues((current) => ({
+                              ...current,
+                              [option.id]: event.target.value,
+                            }))
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") void createReusableAttributeValue(option.id);
+                          }}
+                          placeholder={`Agregar ${definition.label.toLowerCase()}`}
+                          style={variantOptionInputStyle}
+                        />
+                        <button type="button" onClick={() => void createReusableAttributeValue(option.id)} style={secondaryButtonStyle}>
+                          Agregar
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void createVariantConfigOption(definition)}
+                      disabled={savingOptionKey === `variant-option-${definition.kind}`}
+                      style={secondaryButtonStyle}
+                    >
+                      {savingOptionKey === `variant-option-${definition.kind}` ? "Creando..." : `Crear ${definition.name}`}
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
           </div>
 
           {error ? <p style={errorStyle}>{error}</p> : null}
@@ -6044,12 +6242,14 @@ function SuggestionInput({
   placeholder,
   suggestions,
   sanitize,
+  inputStyleOverride,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   suggestions: string[];
   sanitize?: (value: string) => string;
+  inputStyleOverride?: React.CSSProperties;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -6093,7 +6293,7 @@ function SuggestionInput({
           }
         }}
         placeholder={placeholder}
-        style={fieldStyle}
+        style={inputStyleOverride ?? fieldStyle}
         autoComplete="off"
         inputMode={sanitize ? "decimal" : undefined}
       />
@@ -6209,6 +6409,81 @@ const attributeValueChipStyle: React.CSSProperties = {
   background: "var(--muted-field-bg)",
   color: "var(--account-text-strong)",
   cursor: "grab",
+};
+const variantOptionCardsGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))",
+  gap: 14,
+  alignItems: "start",
+};
+const variantOptionCardStyle: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-bg)",
+  padding: 16,
+  display: "grid",
+  gap: 14,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  alignContent: "start",
+  minHeight: "auto",
+};
+const variantOptionValuesStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  alignContent: "start",
+  gap: 8,
+};
+const variantOptionValueChipStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  minHeight: 34,
+  maxWidth: "100%",
+  padding: "6px 8px 6px 12px",
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  fontSize: 14,
+  lineHeight: 1.1,
+};
+const variantOptionChipActionsStyle: React.CSSProperties = {
+  display: "inline-flex",
+  gap: 3,
+  flex: "0 0 auto",
+};
+const compactChipIconButtonStyle: React.CSSProperties = {
+  width: 22,
+  height: 22,
+  borderRadius: 999,
+  border: "1px solid var(--checkout-border)",
+  background: "var(--page-panel-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  lineHeight: 1,
+  padding: 0,
+};
+const variantOptionAddRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  gap: 10,
+  alignItems: "center",
+};
+const variantOptionInputStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: "100%",
+  padding: "14px 16px",
+  background: "var(--muted-field-bg)",
+  color: "var(--account-text-strong)",
+  border: "1px solid var(--checkout-border)",
+  borderRadius: 16,
+  outline: "none",
+  boxSizing: "border-box",
+  minWidth: 0,
 };
 const attributeChipActionsStyle: React.CSSProperties = {
   display: "inline-flex",
@@ -7204,3 +7479,4 @@ const removeChipStyle: React.CSSProperties = {
   color: "var(--admin-danger-color)",
   cursor: "pointer",
 };
+

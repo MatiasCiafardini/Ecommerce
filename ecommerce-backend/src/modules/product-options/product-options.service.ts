@@ -264,6 +264,20 @@ export class ProductOptionsService {
       select: { position: true },
     });
 
+    const existingValue = await this.prisma.productOptionReusableValue.findFirst({
+      where: {
+        productOptionId: optionId,
+        value: {
+          equals: normalizedValue,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    if (existingValue) {
+      return existingValue;
+    }
+
     return this.prisma.productOptionReusableValue.create({
       data: {
         productOptionId: optionId,

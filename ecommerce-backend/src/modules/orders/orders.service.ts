@@ -180,6 +180,10 @@ export class OrdersService {
     await this.ensureManualSalesEnabled(storeId);
 
     const currentAccountPayment = this.isCurrentAccountPaymentMethod(data.paymentMethod);
+    const cashContext = await this.resolveManualSaleCashContext(
+      storeId,
+      createdByUserId,
+    );
 
     if (currentAccountPayment && !data.customerId) {
       throw new BadRequestException(
@@ -295,6 +299,8 @@ export class OrdersService {
       const order = await tx.order.create({
         data: {
           storeId,
+          storeLocationId: cashContext.storeLocationId,
+          cashRegisterId: cashContext.cashRegisterId,
           customerId,
           subtotal,
           shippingCost,
@@ -317,6 +323,8 @@ export class OrdersService {
           payments: {
             create: {
               storeId,
+              storeLocationId: cashContext.storeLocationId,
+              cashRegisterId: cashContext.cashRegisterId,
               provider: 'manual',
               method: data.paymentMethod?.trim() || 'Efectivo',
               status: paymentStatus,
@@ -367,6 +375,9 @@ export class OrdersService {
               where: { id: existingAccount.id },
               data: {
                 balance: nextBalance,
+                ...(cashContext.storeLocationId && !existingAccount.storeLocationId
+                  ? { storeLocationId: cashContext.storeLocationId }
+                  : {}),
                 lastMovementAt: new Date(),
                 deletedAt: null,
               },
@@ -374,6 +385,7 @@ export class OrdersService {
           : await tx.currentAccount.create({
               data: {
                 storeId,
+                storeLocationId: cashContext.storeLocationId,
                 customerId,
                 balance: nextBalance,
                 lastMovementAt: new Date(),
@@ -383,9 +395,11 @@ export class OrdersService {
         await tx.currentAccountMovement.create({
           data: {
             storeId,
+            storeLocationId: cashContext.storeLocationId,
             accountId: account.id,
             customerId,
             orderId: order.id,
+            cashRegisterId: cashContext.cashRegisterId,
             type: 'SALE',
             amount: total,
             paymentMethod: 'Cuenta corriente',
@@ -856,6 +870,71 @@ export class OrdersService {
     }
   }
 
+  private async resolveManualSaleCashContext(storeId: number, userId?: number) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { cashRegisterMode: true },
+    });
+
+    if (store?.cashRegisterMode !== 'manual') {
+      return {
+        storeLocationId: null as number | null,
+        cashRegisterId: null as number | null,
+      };
+    }
+
+    const location = await this.resolveUserLocation(storeId, userId);
+
+    if (!location) {
+      throw new BadRequestException(
+        'Asigna este usuario a un local fisico antes de registrar ventas manuales.',
+      );
+    }
+
+    const session = await this.prisma.cashRegisterSession.findFirst({
+      where: {
+        storeId,
+        storeLocationId: location.id,
+        mode: 'manual',
+        closedAt: null,
+      },
+      select: { id: true },
+      orderBy: { openedAt: 'desc' },
+    });
+
+    if (!session) {
+      throw new BadRequestException(
+        `No hay una caja abierta para ${location.name}. Un encargado debe abrirla antes de vender.`,
+      );
+    }
+
+    return {
+      storeLocationId: location.id,
+      cashRegisterId: session.id,
+    };
+  }
+
+  private async resolveUserLocation(storeId: number, userId?: number) {
+    if (!userId) {
+      return null;
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, storeId },
+      select: {
+        storeLocation: {
+          select: {
+            id: true,
+            name: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    return user?.storeLocation?.active ? user.storeLocation : null;
+  }
+
   async updateStatus(orderId: number, status: OrderStatus, storeId: number) {
     let shouldProvisionShipment = false;
 
@@ -1277,10 +1356,13 @@ export class OrdersService {
     }).then((orders) => this.withCancellationRequestsList(orders));
   }
 
-  findManualSales(storeId: number) {
+  async findManualSales(storeId: number, userId?: number) {
+    const location = await this.resolveUserLocation(storeId, userId);
+
     return this.prisma.order.findMany({
       where: {
         storeId,
+        ...(location ? { storeLocationId: location.id } : {}),
         payments: {
           some: {
             provider: 'manual',
