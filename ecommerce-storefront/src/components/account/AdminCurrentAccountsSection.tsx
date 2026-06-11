@@ -53,7 +53,7 @@ type CurrentAccount = {
   movements?: Movement[];
 };
 
-type FilterStatus = "debt" | "paid" | "all";
+type FilterStatus = "debt" | "credit" | "paid" | "all";
 type MovementVariant = NonNullable<NonNullable<Movement["order"]>["items"]>[number]["variant"];
 
 const paymentMethods = ["Efectivo", "Tarjeta", "Transferencia", "Mercado Pago"];
@@ -137,9 +137,12 @@ export default function AdminCurrentAccountsSection({
 
   const totals = useMemo(() => {
     const debtAccounts = accounts.filter((account) => Number(account.balance) > 0);
+    const creditAccounts = accounts.filter((account) => Number(account.balance) < 0);
     return {
       debtAccounts: debtAccounts.length,
       totalDebt: debtAccounts.reduce((sum, account) => sum + Number(account.balance), 0),
+      creditAccounts: creditAccounts.length,
+      totalCredit: creditAccounts.reduce((sum, account) => sum + Math.abs(Number(account.balance)), 0),
     };
   }, [accounts]);
 
@@ -209,8 +212,8 @@ export default function AdminCurrentAccountsSection({
     if (!balanceAccount) return;
     const balance = Number(balanceValue);
 
-    if (!Number.isFinite(balance) || balance < 0) {
-      setError("El saldo debe ser 0 o mayor.");
+    if (!Number.isFinite(balance)) {
+      setError("El saldo debe ser un numero valido. Usa negativo para saldo a favor.");
       return;
     }
 
@@ -390,7 +393,7 @@ export default function AdminCurrentAccountsSection({
         <div>
           <p style={eyebrowStyle}>Administracion</p>
           <h2 style={titleStyle}>Cuentas corrientes</h2>
-          <p style={copyStyle}>Clientes con saldo pendiente, movimientos y cobros parciales o totales.</p>
+          <p style={copyStyle}>Clientes con deuda, saldo a favor, movimientos y cobros parciales o totales.</p>
         </div>
         <div style={statsStyle}>
           <button type="button" onClick={openCreateAccount} style={softButtonStyle}>
@@ -400,7 +403,8 @@ export default function AdminCurrentAccountsSection({
             Registrar pago
           </button>
           <Stat label="Con deuda" value={String(totals.debtAccounts)} />
-          <Stat label="Saldo total" value={money(totals.totalDebt)} />
+          <Stat label="Deuda total" value={money(totals.totalDebt)} />
+          <Stat label="A favor" value={money(totals.totalCredit)} />
         </div>
       </header>
 
@@ -417,6 +421,7 @@ export default function AdminCurrentAccountsSection({
           {[
             ["all", "Todos"],
             ["debt", "Con deuda"],
+            ["credit", "Saldo a favor"],
             ["paid", "Saldados"],
           ].map(([id, label]) => (
             <button
@@ -434,7 +439,7 @@ export default function AdminCurrentAccountsSection({
       {loading ? (
         <State label="Cargando cuentas..." />
       ) : accounts.length === 0 ? (
-        <State label={status === "debt" ? "No hay clientes con deuda pendiente." : "No hay cuentas para este filtro."} />
+        <State label={emptyAccountsLabel(status)} />
       ) : (
         <div style={tableShellStyle}>
           <table style={tableStyle}>
@@ -458,7 +463,7 @@ export default function AdminCurrentAccountsSection({
                   <Td>{account.customer.phone || "Sin telefono"}</Td>
                   <Td>{account.customer.email || account.customer.document || "Sin email"}</Td>
                   <Td>
-                    <strong>{money(Number(account.balance))}</strong>
+                    <BalanceAmount value={Number(account.balance)} />
                   </Td>
                   <Td>{formatDate(account.lastMovementAt)}</Td>
                   <Td>
@@ -507,13 +512,15 @@ export default function AdminCurrentAccountsSection({
                   {selected.customer.document ? ` · Doc. ${selected.customer.document}` : ""}
                 </p>
               </div>
-              <strong style={balanceStyle}>{money(Number(selected.balance))}</strong>
+              <div style={balanceStyle}>
+                <BalanceAmount value={Number(selected.balance)} />
+              </div>
             </header>
             <div style={rowActionsStyle}>
               <button type="button" onClick={() => registerSaleForAccount(selected)} style={primaryButtonStyle}>
                 Registrar venta
               </button>
-              <button type="button" onClick={() => openPayment(selected)} style={primaryButtonStyle}>
+              <button type="button" onClick={() => openPayment(selected)} disabled={Number(selected.balance) <= 0} style={primaryButtonStyle}>
                 Registrar pago
               </button>
               <button type="button" onClick={() => openEdit(selected)} style={softButtonStyle}>
@@ -552,7 +559,7 @@ export default function AdminCurrentAccountsSection({
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <strong>{money(Number(movement.amount))}</strong>
-                      <span style={mutedBlockStyle}>Saldo {money(Number(movement.balanceAfter))}</span>
+                      <span style={mutedBlockStyle}>{balanceLabel(Number(movement.balanceAfter))}</span>
                       {movement.type === "PAYMENT" ? (
                         <button
                           type="button"
@@ -627,7 +634,11 @@ export default function AdminCurrentAccountsSection({
                   {paymentCustomer ? customerName(paymentCustomer.customer) : "Seleccionar cliente"}
                 </h3>
               </div>
-              {paymentCustomer ? <strong style={balanceStyle}>{money(Number(paymentCustomer.balance))}</strong> : null}
+              {paymentCustomer ? (
+                <div style={balanceStyle}>
+                  <BalanceAmount value={Number(paymentCustomer.balance)} />
+                </div>
+              ) : null}
             </header>
             {!paymentCustomer ? (
               <>
@@ -661,7 +672,7 @@ export default function AdminCurrentAccountsSection({
                           <strong>{customerName(account.customer)}</strong>
                           <small style={mutedBlockStyle}>{account.customer.phone || account.customer.email || account.customer.document || `Cliente #${account.customerId}`}</small>
                         </span>
-                        <strong>{money(Number(account.balance))}</strong>
+                        <BalanceAmount value={Number(account.balance)} />
                       </button>
                     ))}
                   {paymentAccounts.length === 0 ? <State label="No hay clientes con deuda pendiente." /> : null}
@@ -765,7 +776,9 @@ export default function AdminCurrentAccountsSection({
                 <p style={eyebrowStyle}>Ajustar saldo</p>
                 <h3 style={modalTitleStyle}>{customerName(balanceAccount.customer)}</h3>
               </div>
-              <strong style={balanceStyle}>{money(Number(balanceAccount.balance))}</strong>
+              <div style={balanceStyle}>
+                <BalanceAmount value={Number(balanceAccount.balance)} />
+              </div>
             </header>
             <label style={fieldGroupStyle}>
               <span>Nuevo saldo</span>
@@ -775,6 +788,7 @@ export default function AdminCurrentAccountsSection({
                   value={balanceValue}
                   onChange={(event) => setBalanceValue(event.target.value)}
                   inputMode="decimal"
+                  placeholder="-1000 para saldo a favor"
                   style={{ ...inputStyle, paddingLeft: 30 }}
                 />
               </div>
@@ -847,6 +861,35 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
+function balanceState(value: number): "debt" | "credit" | "paid" {
+  if (value > 0) return "debt";
+  if (value < 0) return "credit";
+  return "paid";
+}
+
+function balanceLabel(value: number) {
+  const state = balanceState(value);
+  if (state === "credit") return `A favor ${money(Math.abs(value))}`;
+  if (state === "debt") return `Debe ${money(value)}`;
+  return "Saldado";
+}
+
+function emptyAccountsLabel(status: FilterStatus) {
+  if (status === "debt") return "No hay clientes con deuda pendiente.";
+  if (status === "credit") return "No hay clientes con saldo a favor.";
+  if (status === "paid") return "No hay cuentas saldadas.";
+  return "No hay cuentas para este filtro.";
+}
+
+function BalanceAmount({ value }: { value: number }) {
+  const state = balanceState(value);
+  return (
+    <span style={balanceAmountStyle(state)}>
+      {balanceLabel(value)}
+    </span>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div style={statStyle}>
@@ -876,6 +919,20 @@ const modalTitleStyle: React.CSSProperties = { margin: 0, fontSize: 22, color: "
 const copyStyle: React.CSSProperties = { margin: 0, color: "var(--account-text-muted)", lineHeight: 1.5 };
 const statsStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const statStyle: React.CSSProperties = { minWidth: 140, padding: 16, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", display: "grid", gap: 6 };
+const balanceAmountStyle = (state: "debt" | "credit" | "paid"): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "fit-content",
+  maxWidth: "100%",
+  padding: "7px 10px",
+  borderRadius: 999,
+  border: state === "credit" ? "1px solid var(--admin-tone-success-border)" : "1px solid var(--account-item-border)",
+  background: state === "credit" ? "var(--admin-tone-success-bg)" : state === "debt" ? "var(--account-item-bg-active)" : "var(--account-sidebar-bg)",
+  color: state === "credit" ? "var(--admin-tone-success-color)" : "var(--account-text-strong)",
+  fontWeight: 800,
+  whiteSpace: "nowrap",
+});
 const errorStyle: React.CSSProperties = { margin: 0, padding: 14, borderRadius: 14, border: "1px solid var(--admin-danger-border)", background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)" };
 const toolbarStyle: React.CSSProperties = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" };
 const inputStyle: React.CSSProperties = { width: "100%", minHeight: 42, borderRadius: 12, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-strong)", padding: "10px 12px" };

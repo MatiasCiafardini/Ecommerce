@@ -27,13 +27,13 @@ export class CurrentAccountsController {
   @Get()
   findAll(
     @Req() req,
-    @Query('status') status?: 'debt' | 'paid' | 'all',
+    @Query('status') status?: 'debt' | 'credit' | 'paid' | 'all',
     @Query('search') search?: string,
   ) {
     return this.currentAccountsService.findAll(
       req.storeId,
       req.user?.sub,
-      status === 'paid' || status === 'all' ? status : 'debt',
+      status === 'paid' || status === 'all' || status === 'credit' ? status : 'debt',
       search ?? '',
     );
   }

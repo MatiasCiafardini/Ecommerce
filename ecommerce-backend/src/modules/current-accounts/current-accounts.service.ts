@@ -117,7 +117,7 @@ export class CurrentAccountsService {
   async findAll(
     storeId: number,
     userId: number | undefined,
-    status: 'debt' | 'paid' | 'all' = 'debt',
+    status: 'debt' | 'credit' | 'paid' | 'all' = 'debt',
     search = '',
   ) {
     const location = await this.resolveUserLocation(storeId, userId);
@@ -126,6 +126,8 @@ export class CurrentAccountsService {
     const balanceFilter =
       status === 'debt'
         ? { gt: 0 }
+        : status === 'credit'
+          ? { lt: 0 }
         : status === 'paid'
           ? { equals: 0 }
           : undefined;
@@ -172,6 +174,7 @@ export class CurrentAccountsService {
       if (!location) return true;
       const balance = Number(account.balance);
       if (status === 'debt') return balance > 0;
+      if (status === 'credit') return balance < 0;
       if (status === 'paid') return balance === 0;
       return true;
     });
@@ -506,8 +509,8 @@ export class CurrentAccountsService {
         : Number(account.balance);
       const nextBalance = roundCurrency(Number(dto.balance));
 
-      if (!Number.isFinite(nextBalance) || nextBalance < 0) {
-        throw new BadRequestException('Balance must be zero or greater');
+      if (!Number.isFinite(nextBalance)) {
+        throw new BadRequestException('Balance must be a valid number');
       }
 
       const delta = roundCurrency(nextBalance - previousBalance);
