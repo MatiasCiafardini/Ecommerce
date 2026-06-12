@@ -324,12 +324,13 @@ export class CurrentAccountsService {
         throw new BadRequestException('Payment cannot exceed current balance');
       }
 
-      const nextBalance = roundCurrency(currentBalance - amount);
+      const nextGlobalBalance = roundCurrency(currentBalance - amount);
+      const nextLocalBalance = roundCurrency(currentLocalBalance - amount);
 
       const updatedAccount = await tx.currentAccount.update({
         where: { id: account.id },
         data: {
-          balance: nextBalance,
+          balance: nextGlobalBalance,
           ...(cashContext.storeLocationId && !account.storeLocationId
             ? { storeLocationId: cashContext.storeLocationId }
             : {}),
@@ -349,14 +350,22 @@ export class CurrentAccountsService {
           paymentMethod: dto.paymentMethod,
           description: dto.description?.trim() || 'Pago de cuenta corriente',
           createdByUserId,
-          balanceAfter: nextBalance,
+          balanceAfter: cashContext.storeLocationId ? nextLocalBalance : nextGlobalBalance,
         },
       });
 
       return {
-        account: updatedAccount,
+        account: cashContext.storeLocationId
+          ? {
+              ...updatedAccount,
+              globalBalance: updatedAccount.balance,
+              balance: nextLocalBalance,
+            }
+          : updatedAccount,
         movement,
       };
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
   }
 
@@ -365,29 +374,19 @@ export class CurrentAccountsService {
       where: { id: storeId },
       select: { cashRegisterMode: true },
     });
+    const location = await this.resolveUserLocation(storeId, userId);
 
     if (store?.cashRegisterMode !== 'manual') {
+      const session = await this.ensureAutomaticCashRegisterSession(
+        storeId,
+        location?.id ?? null,
+      );
+
       return {
-        storeLocationId: null as number | null,
-        cashRegisterId: null as number | null,
+        storeLocationId: location?.id ?? null,
+        cashRegisterId: session.id,
       };
     }
-
-    const user = userId
-      ? await this.prisma.user.findFirst({
-          where: { id: userId, storeId },
-          select: {
-            storeLocation: {
-              select: {
-                id: true,
-                name: true,
-                active: true,
-              },
-            },
-          },
-        })
-      : null;
-    const location = user?.storeLocation?.active ? user.storeLocation : null;
 
     if (!location) {
       throw new BadRequestException(
@@ -416,6 +415,55 @@ export class CurrentAccountsService {
       storeLocationId: location.id,
       cashRegisterId: session.id,
     };
+  }
+
+  private async ensureAutomaticCashRegisterSession(
+    storeId: number,
+    storeLocationId: number | null,
+  ) {
+    const { start } = this.getBuenosAiresDayRange(new Date());
+    const existing = await this.prisma.cashRegisterSession.findFirst({
+      where: {
+        storeId,
+        storeLocationId,
+        mode: 'automatic',
+        businessDate: start,
+      },
+      select: { id: true },
+      orderBy: { openedAt: 'desc' },
+    });
+
+    if (existing) return existing;
+
+    return this.prisma.cashRegisterSession.create({
+      data: {
+        storeId,
+        storeLocationId,
+        mode: 'automatic',
+        businessDate: start,
+        openingAmount: 0,
+        openedAt: start,
+      },
+      select: { id: true },
+    });
+  }
+
+  private getBuenosAiresDayRange(date: Date) {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = Object.fromEntries(
+      formatter.formatToParts(date).map((part) => [part.type, part.value]),
+    );
+    const year = Number(parts.year);
+    const month = Number(parts.month);
+    const day = Number(parts.day);
+    const start = new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    return { start, end };
   }
 
   async getPaymentReceiptPdf(storeId: number, movementId: number) {

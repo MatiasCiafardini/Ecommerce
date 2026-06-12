@@ -25,10 +25,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const router = useRouter();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const sessionUiPending = authUiLocked;
-  const manualSalesEnabled = Boolean(
-    ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "") &&
-      user?.storeFeatures?.manualSalesEnabled,
-  );
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -211,11 +207,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               <HeaderSessionPlaceholder />
             ) : user ? (
               <>
-                {manualSalesEnabled ? (
-                  <Link href="/manual-sales" style={navLinkStyle}>
-                    Venta manual
-                  </Link>
-                ) : null}
                 <Link href="/account" style={navLinkStyle}>
                   Cuenta
                 </Link>
@@ -315,15 +306,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                 <HeaderSessionPlaceholder mobile />
               ) : user ? (
                 <>
-                  {manualSalesEnabled ? (
-                    <Link
-                      href="/manual-sales"
-                      onClick={() => setMenuOpen(false)}
-                      style={mobileNavLinkStyle}
-                    >
-                      Venta manual
-                    </Link>
-                  ) : null}
                   <Link
                     href="/account"
                     onClick={() => setMenuOpen(false)}

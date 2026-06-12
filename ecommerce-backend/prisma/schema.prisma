@@ -63,6 +63,7 @@ model StoreLocation {
   currentAccounts      CurrentAccount[]
   cashRegisterSessions CashRegisterSession[]
   currentAccountMovements CurrentAccountMovement[]
+  manualReturns        ManualReturn[]
 
   @@unique([storeId, name])
   @@index([storeId, active])
@@ -527,6 +528,7 @@ model CashRegisterSession {
   orders           Order[]
   payments         Payment[]
   currentAccountMovements CurrentAccountMovement[]
+  manualReturns    ManualReturn[]
 
   @@index([storeId, mode, openedAt])
   @@index([storeId, storeLocationId, mode, openedAt])
@@ -661,7 +663,10 @@ model ReturnItem {
 model ManualReturn {
   id               Int                @id @default(autoincrement())
   storeId          Int
+  storeLocationId  Int?
+  cashRegisterId   Int?
   customerName     String?
+  settlementMethod String?
   notes            String?
   totalReturned    Decimal            @default(0) @db.Decimal(10, 2)
   totalExchange    Decimal            @default(0) @db.Decimal(10, 2)
@@ -669,9 +674,13 @@ model ManualReturn {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   store            Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeLocation    StoreLocation?     @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  cashRegister     CashRegisterSession? @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
   items            ManualReturnItem[]
 
   @@index([storeId, createdAt])
+  @@index([storeId, storeLocationId])
+  @@index([cashRegisterId])
 }
 
 model ManualReturnItem {

@@ -145,6 +145,12 @@ export default function AdminCurrentAccountsSection({
       totalCredit: creditAccounts.reduce((sum, account) => sum + Math.abs(Number(account.balance)), 0),
     };
   }, [accounts]);
+  const paymentBalance = Number(paymentCustomer?.balance ?? 0);
+  const paymentAmountNumber = parsePaymentAmount(paymentAmount);
+  const paymentRemainingAmount =
+    paymentCustomer && Number.isFinite(paymentAmountNumber)
+      ? roundCurrency(Math.max(paymentBalance - paymentAmountNumber, 0))
+      : paymentBalance;
 
   const openDetail = async (account: CurrentAccount) => {
     setSelected(account);
@@ -283,8 +289,8 @@ export default function AdminCurrentAccountsSection({
 
   const registerPayment = async () => {
     if (!paymentCustomer) return;
-    const amount = Number(paymentAmount);
-    const balance = Number(paymentCustomer.balance);
+    const amount = roundCurrency(parsePaymentAmount(paymentAmount));
+    const balance = roundCurrency(Number(paymentCustomer.balance));
 
     if (!Number.isFinite(amount) || amount <= 0) {
       setError("El monto debe ser mayor a 0.");
@@ -558,7 +564,7 @@ export default function AdminCurrentAccountsSection({
                       ) : null}
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <strong>{money(Number(movement.amount))}</strong>
+                      <strong>{movementAmountLabel(movement)}</strong>
                       <span style={mutedBlockStyle}>{balanceLabel(Number(movement.balanceAfter))}</span>
                       {movement.type === "PAYMENT" ? (
                         <button
@@ -701,6 +707,16 @@ export default function AdminCurrentAccountsSection({
                     </button>
                   </div>
                 </label>
+                <div style={paymentSummaryStyle}>
+                  <div>
+                    <span>Pago</span>
+                    <strong>{Number.isFinite(paymentAmountNumber) ? money(Math.max(paymentAmountNumber, 0)) : money(0)}</strong>
+                  </div>
+                  <div>
+                    <span>Saldo restante</span>
+                    <strong>{balanceLabel(paymentRemainingAmount)}</strong>
+                  </div>
+                </div>
                 <label style={fieldGroupStyle}>
                   <span>Metodo de pago</span>
                   <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} style={inputStyle}>
@@ -874,6 +890,21 @@ function balanceLabel(value: number) {
   return "Saldado";
 }
 
+function movementAmountLabel(movement: Movement) {
+  const amount = Number(movement.amount);
+  return money(movement.type === "PAYMENT" ? Math.abs(amount) : amount);
+}
+
+function parsePaymentAmount(value: string) {
+  const raw = value.trim().replace(/\s/g, "");
+  const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  return Number(normalized);
+}
+
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function emptyAccountsLabel(status: FilterStatus) {
   if (status === "debt") return "No hay clientes con deuda pendiente.";
   if (status === "credit") return "No hay clientes con saldo a favor.";
@@ -960,6 +991,7 @@ const fieldGroupStyle: React.CSSProperties = { display: "grid", gap: 8, color: "
 const amountRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center" };
 const moneyInputWrapStyle: React.CSSProperties = { position: "relative", minWidth: 0 };
 const moneyPrefixStyle: React.CSSProperties = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--account-text-muted)", fontWeight: 800, pointerEvents: "none" };
+const paymentSummaryStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, padding: 14, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-muted)" };
 const paymentCustomerListStyle: React.CSSProperties = { display: "grid", gap: 10, maxHeight: 320, overflow: "auto" };
 const paymentCustomerOptionStyle: React.CSSProperties = { width: "100%", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", border: "1px solid var(--account-item-border)", borderRadius: 14, background: "var(--account-item-bg)", color: "var(--account-text-strong)", padding: 14, cursor: "pointer", textAlign: "left" };
 const twoColumnFormStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 };

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 const toOptionalBoolean = ({ value }: { value: unknown }) => {
   if (value === undefined || value === null || value === '') return undefined;
@@ -8,6 +8,9 @@ const toOptionalBoolean = ({ value }: { value: unknown }) => {
   if (value === false || value === 'false' || value === '0') return false;
   return value;
 };
+
+const sortFields = ['product', 'variant', 'sku', 'stock', 'price'] as const;
+const sortDirections = ['asc', 'desc'] as const;
 
 export class ListLabelProductsDto {
   @ApiPropertyOptional()
@@ -53,6 +56,16 @@ export class ListLabelProductsDto {
   @Transform(toOptionalBoolean)
   @IsBoolean()
   activeOnly?: boolean;
+
+  @ApiPropertyOptional({ enum: sortFields })
+  @IsOptional()
+  @IsIn(sortFields)
+  sortBy?: typeof sortFields[number];
+
+  @ApiPropertyOptional({ enum: sortDirections })
+  @IsOptional()
+  @IsIn(sortDirections)
+  sortDirection?: typeof sortDirections[number];
 
   @ApiPropertyOptional()
   @IsOptional()

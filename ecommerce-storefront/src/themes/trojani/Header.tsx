@@ -49,9 +49,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const hasAdminAccess = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(
     user?.role ?? "",
   );
-  const manualSalesEnabled = Boolean(
-    hasAdminAccess && user?.storeFeatures?.manualSalesEnabled,
-  );
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
@@ -276,14 +273,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               <HeaderSessionPlaceholder />
             ) : user ? (
               <>
-                {manualSalesEnabled ? (
-                  <Link
-                    href="/manual-sales"
-                    style={{ ...navLinkStyle, color: "var(--theme-colors-text-strong)" }}
-                  >
-                    Venta manual
-                  </Link>
-                ) : null}
                 <Link
                   href="/account"
                   aria-label="Cuenta"
@@ -469,15 +458,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                 <HeaderSessionPlaceholder mobile />
               ) : user ? (
                 <>
-                  {manualSalesEnabled ? (
-                    <Link
-                      href="/manual-sales"
-                      onClick={() => setMenuOpen(false)}
-                      style={mobileNavLinkStyle}
-                    >
-                      Venta manual
-                    </Link>
-                  ) : null}
                   <Link
                     href="/account"
                     onClick={() => setMenuOpen(false)}

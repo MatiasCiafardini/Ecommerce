@@ -57,6 +57,7 @@ const adminSections: NavigationItem[] = [
   { id: "admin-overview", label: "Dashboard", description: "Estado general", icon: "dashboard" },
   { id: "admin-manual-sales", label: "Venta manual", description: "Mostrador y cuentas", icon: "sales" },
   { id: "admin-products", label: "Productos", description: "Catalogo y altas", icon: "products" },
+  { id: "admin-stock", label: "Stock", description: "Inventario rapido", icon: "stock" },
   { id: "admin-labels", label: "Etiquetas", description: "Codigos de barras", icon: "labels" },
   { id: "admin-orders", label: "Pedidos", description: "Operacion diaria", icon: "orders" },
   { id: "admin-customers", label: "Clientes", description: "Base activa", icon: "customers" },
@@ -181,6 +182,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
     { id: "admin-accounting", label: "Fiscal", shortLabel: "Fiscal", icon: "accounting" },
     { id: "admin-customers", label: "Clientes", shortLabel: "Clientes", icon: "customers" },
     { id: "admin-products", label: "Productos", shortLabel: "Prod.", icon: "products" },
+    { id: "admin-stock", label: "Stock", shortLabel: "Stock", icon: "stock" },
     { id: "admin-settings", label: "Ajustes", shortLabel: "Ajustes", icon: "settings" },
   ];
 
@@ -753,6 +755,7 @@ function renderSection(
     case "admin-manual-sales":
     case "admin-developer":
     case "admin-products":
+    case "admin-stock":
     case "admin-labels":
     case "admin-promotions":
     case "admin-categories":
@@ -807,6 +810,7 @@ function MenuIcon({ name }: { name: string }) {
     sales: <><path d="M8 7h10l-1 9H9L8 7Z" /><path d="M8 7 7 4H4" /><path d="M10 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" /><path d="M16 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" /></>,
     history: <><path d="M9 7H5v4" /><path d="M5 11a7 7 0 1 0 2-5" /><path d="M12 8v5l3 2" /></>,
     products: <><path d="M6 7h12l1 13H5L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></>,
+    stock: <><path d="M4 7h16v14H4z" /><path d="M4 7l2-4h12l2 4" /><path d="M8 11h8" /><path d="M8 15h5" /></>,
     labels: <><path d="M4 7V4h3" /><path d="M17 4h3v3" /><path d="M20 17v3h-3" /><path d="M7 20H4v-3" /><path d="M7 8v8" /><path d="M10 8v8" /><path d="M14 8v8" /><path d="M17 8v8" /></>,
     orders: <><path d="M7 3h10v18H7z" /><path d="M9 8h6" /><path d="M9 12h6" /><path d="M9 16h4" /></>,
     customers: <><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M4 21a8 8 0 0 1 16 0" /></>,

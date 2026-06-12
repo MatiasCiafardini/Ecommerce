@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
@@ -76,6 +76,9 @@ type DefaultLabelPayload = {
   };
 };
 type Toast = { type: "success" | "error" | "info"; message: string };
+type VariantSortKey = "product" | "variant" | "sku" | "stock" | "price";
+type SelectedLabelSortKey = "product" | "sku" | "stock" | "quantity";
+type SortDirection = "asc" | "desc";
 
 const storageKey = "labels-wizard-state-v5";
 const ADMIN_LABELS_RESET_EVENT = "admin-labels:reset";
@@ -239,6 +242,10 @@ export default function AdminLabelsGenerator() {
     stockOnly: false,
     activeOnly: false,
   });
+  const [sortKey, setSortKey] = useState<VariantSortKey>("product");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [selectedSortKey, setSelectedSortKey] = useState<SelectedLabelSortKey>("product");
+  const [selectedSortDirection, setSelectedSortDirection] = useState<SortDirection>("asc");
   const [loadingRows, setLoadingRows] = useState(false);
   const [loadingBase, setLoadingBase] = useState(false);
   const [selectingFiltered, setSelectingFiltered] = useState(false);
@@ -249,6 +256,25 @@ export default function AdminLabelsGenerator() {
   const didMountFilterEffect = useRef(false);
 
   const selectedRows = useMemo(() => Object.values(selected), [selected]);
+  const sortedSelectedRows = useMemo(() => {
+    const direction = selectedSortDirection === "asc" ? 1 : -1;
+
+    return [...selectedRows].sort((a, b) => {
+      const left = selectedLabelSortValue(a, selectedSortKey, quantities);
+      const right = selectedLabelSortValue(b, selectedSortKey, quantities);
+
+      if (typeof left === "number" && typeof right === "number") {
+        return (left - right) * direction;
+      }
+
+      return String(left).localeCompare(String(right), "es", { numeric: true }) * direction;
+    });
+  }, [quantities, selectedRows, selectedSortDirection, selectedSortKey]);
+  const visibleRows = useMemo(() => {
+    if (sortKey !== "stock") return rows;
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => (Number(a.stock ?? 0) - Number(b.stock ?? 0)) * direction);
+  }, [rows, sortDirection, sortKey]);
   const items = useMemo(
     () => selectedRows.map((row) => ({ variantId: row.id, quantity: quantities[row.id] ?? row.stock ?? 1 })),
     [quantities, selectedRows],
@@ -374,7 +400,7 @@ export default function AdminLabelsGenerator() {
 
   useEffect(() => {
     setFilteredSelectionIds(null);
-  }, [filters]);
+  }, [filters, sortDirection, sortKey]);
 
   useEffect(() => {
     setLoadingBase(true);
@@ -459,7 +485,32 @@ export default function AdminLabelsGenerator() {
     if (filters.sku) params.set("sku", filters.sku);
     if (filters.name) params.set("name", filters.name);
     if (filters.categoryId) params.set("categoryId", filters.categoryId);
+    params.set("sortBy", sortKey);
+    params.set("sortDirection", sortDirection);
     return params;
+  }
+
+  function changeSort(nextKey: VariantSortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection(nextKey === "stock" ? "desc" : "asc");
+    if (page !== 1) {
+      setPage(1);
+    }
+  }
+
+  function changeSelectedSort(nextKey: SelectedLabelSortKey) {
+    if (selectedSortKey === nextKey) {
+      setSelectedSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSelectedSortKey(nextKey);
+    setSelectedSortDirection(["stock", "quantity"].includes(nextKey) ? "desc" : "asc");
   }
 
   async function loadRows(nextPage = page) {
@@ -650,11 +701,20 @@ export default function AdminLabelsGenerator() {
 
           <TableWrap>
             <table style={styles.table}>
-              <thead><tr><Th /><Th>Producto</Th><Th>Variante</Th><Th>SKU</Th><Th>Stock</Th><Th>Precio</Th></tr></thead>
+              <thead>
+                <tr>
+                  <Th />
+                  <SortableTh sortKey="product" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Producto</SortableTh>
+                  <SortableTh sortKey="variant" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Variante</SortableTh>
+                  <SortableTh sortKey="sku" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>SKU</SortableTh>
+                  <SortableTh sortKey="stock" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Stock</SortableTh>
+                  <SortableTh sortKey="price" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Precio</SortableTh>
+                </tr>
+              </thead>
               <tbody>
                 {loadingRows ? <StateRow colSpan={6} label="Cargando variantes..." /> : null}
                 {!loadingRows && rows.length === 0 ? <StateRow colSpan={6} label="No hay variantes para estos filtros." /> : null}
-                {!loadingRows && rows.map((row) => (
+                {!loadingRows && visibleRows.map((row) => (
                   <tr key={row.id} onClick={() => toggle(row)} style={selectableRowStyle(Boolean(selected[row.id]))}>
                     <Td><input type="checkbox" checked={Boolean(selected[row.id])} onClick={(event) => event.stopPropagation()} onChange={() => toggle(row)} /></Td>
                     <Td><div style={styles.productCell}><ProductThumb row={row} /><strong>{row.productName}</strong></div></Td>
@@ -683,9 +743,16 @@ export default function AdminLabelsGenerator() {
             <button type="button" style={ghostButtonStyle} onClick={() => setAllQuantity("clear")}>Limpiar</button>
           </div>
           <table style={styles.table}>
-            <thead><tr><Th>Producto</Th><Th>SKU</Th><Th>Stock</Th><Th>Cantidad etiquetas</Th></tr></thead>
+            <thead>
+              <tr>
+                <SortableSelectedTh sortKey="product" activeKey={selectedSortKey} direction={selectedSortDirection} onSort={changeSelectedSort}>Producto</SortableSelectedTh>
+                <SortableSelectedTh sortKey="sku" activeKey={selectedSortKey} direction={selectedSortDirection} onSort={changeSelectedSort}>SKU</SortableSelectedTh>
+                <SortableSelectedTh sortKey="stock" activeKey={selectedSortKey} direction={selectedSortDirection} onSort={changeSelectedSort}>Stock</SortableSelectedTh>
+                <SortableSelectedTh sortKey="quantity" activeKey={selectedSortKey} direction={selectedSortDirection} onSort={changeSelectedSort}>Cantidad etiquetas</SortableSelectedTh>
+              </tr>
+            </thead>
             <tbody>
-              {selectedRows.map((row) => (
+              {sortedSelectedRows.map((row) => (
                 <tr key={row.id}>
                   <Td>{variantLabel(row)}</Td>
                   <Td>{row.sku?.trim() ? <code>{row.sku}</code> : <span style={styles.skuMissing}>Sin SKU</span>}</Td>
@@ -715,7 +782,7 @@ export default function AdminLabelsGenerator() {
                 <span>
                   {selectedTemplate.label.widthMm} mm x {selectedTemplate.continuous ? "continuo" : `${selectedTemplate.label.heightMm} mm`}
                 </span>
-                <small>{templateUseCaseLabel(selectedTemplate)} · {selectedTemplate.fields?.join(", ")}</small>
+                <small>{templateUseCaseLabel(selectedTemplate)} - {selectedTemplate.fields?.join(", ")}</small>
               </div>
             ) : null}
           </div>
@@ -981,6 +1048,67 @@ function Th({ children }: { children?: React.ReactNode }) {
   return <th style={styles.th}>{children}</th>;
 }
 
+function SortableTh({
+  children,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+}: {
+  children: React.ReactNode;
+  sortKey: VariantSortKey;
+  activeKey: VariantSortKey;
+  direction: SortDirection;
+  onSort: (key: VariantSortKey) => void;
+}) {
+  const active = activeKey === sortKey;
+
+  return (
+    <th style={styles.th}>
+      <button type="button" style={styles.sortButton} onClick={() => onSort(sortKey)}>
+        {children}
+        {active ? <span>{direction === "asc" ? "^" : "v"}</span> : null}
+      </button>
+    </th>
+  );
+}
+
+function SortableSelectedTh({
+  children,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+}: {
+  children: React.ReactNode;
+  sortKey: SelectedLabelSortKey;
+  activeKey: SelectedLabelSortKey;
+  direction: SortDirection;
+  onSort: (key: SelectedLabelSortKey) => void;
+}) {
+  const active = activeKey === sortKey;
+
+  return (
+    <th style={styles.th}>
+      <button type="button" style={styles.sortButton} onClick={() => onSort(sortKey)}>
+        {children}
+        {active ? <span>{direction === "asc" ? "^" : "v"}</span> : null}
+      </button>
+    </th>
+  );
+}
+
+function selectedLabelSortValue(
+  row: VariantRow,
+  key: SelectedLabelSortKey,
+  quantities: Record<number, number>,
+) {
+  if (key === "sku") return row.sku ?? "";
+  if (key === "stock") return Number(row.stock ?? 0);
+  if (key === "quantity") return Number(quantities[row.id] ?? 0);
+  return variantLabel(row);
+}
+
 function Td({ children }: { children: React.ReactNode }) {
   return <td style={styles.td}>{children}</td>;
 }
@@ -1159,6 +1287,7 @@ const styles = {
   tableWrap: { minWidth: 0, overflowX: "auto" } satisfies React.CSSProperties,
   table: { width: "100%", borderCollapse: "collapse", minWidth: 760 } satisfies React.CSSProperties,
   th: { padding: 12, borderBottom: "1px solid var(--checkout-border)", textAlign: "left", verticalAlign: "middle", color: "var(--account-text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" } satisfies React.CSSProperties,
+  sortButton: { border: 0, background: "transparent", color: "inherit", padding: 0, font: "inherit", textTransform: "inherit", letterSpacing: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 } satisfies React.CSSProperties,
   td: { padding: 12, borderBottom: "1px solid var(--checkout-border)", textAlign: "left", verticalAlign: "middle" } satisfies React.CSSProperties,
   stateCell: { padding: 22, textAlign: "center", color: "var(--account-text-muted)" } satisfies React.CSSProperties,
   stateRow: { gridColumn: "1 / -1", padding: 22, textAlign: "center", color: "var(--account-text-muted)", border: "1px solid var(--checkout-border)", borderRadius: 16 } satisfies React.CSSProperties,

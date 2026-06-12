@@ -31,10 +31,6 @@ export function BrandedHeader({
   const { user, authUiLocked } = useAuth();
   const { cart } = useCart();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const manualSalesEnabled = Boolean(
-    ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "") &&
-      user?.storeFeatures?.manualSalesEnabled,
-  );
 
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -212,11 +208,7 @@ export function BrandedHeader({
             </Link>
 
             {isMobile === false ? (
-              authUiLocked ? null : user ? (
-                manualSalesEnabled ? (
-                  <Link href="/manual-sales" style={textLinkStyle}>Venta manual</Link>
-                ) : null
-              ) : (
+              authUiLocked ? null : user ? null : (
                 <Link href="/login" style={loginBtnStyle}>Ingresar</Link>
               )
             ) : null}
@@ -339,16 +331,6 @@ export function BrandedHeader({
               <span style={mutedStyle}>Cargando...</span>
             ) : user ? (
               <>
-                {manualSalesEnabled ? (
-                  <Link
-                    href="/manual-sales"
-                    onClick={closeMenu}
-                    className="milashoes-drawer-secondary"
-                    style={drawerSecondaryStyle}
-                  >
-                    Venta manual
-                  </Link>
-                ) : null}
                 <Link
                   href="/account"
                   onClick={closeMenu}
@@ -473,13 +455,6 @@ const badgeStyle = {
   position: "absolute" as const,
   top: -3,
   right: -3,
-};
-
-const textLinkStyle = {
-  textDecoration: "none",
-  color: "#4A4A4A",
-  fontSize: 13,
-  letterSpacing: "0.06em",
 };
 
 const loginBtnStyle = {

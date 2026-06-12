@@ -16,10 +16,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const { cart } = useCart();
   const router = useRouter();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const manualSalesEnabled = Boolean(
-    ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "") &&
-      user?.storeFeatures?.manualSalesEnabled,
-  );
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -116,7 +112,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
           {!isMobile ? (
             authUiLocked ? null : user ? (
               <>
-                {manualSalesEnabled ? <Link href="/manual-sales" style={navLinkStyle}>Venta manual</Link> : null}
                 <Link href="/account" style={navLinkStyle}>Cuenta</Link>
                 <button type="button" onClick={handleLogout} style={btnStyle}>Salir</button>
               </>
@@ -168,7 +163,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
             <div style={{ height: 1, background: "rgba(160,100,90,0.1)", margin: "10px 0" }} />
             {authUiLocked ? null : user ? (
               <>
-                {manualSalesEnabled ? <Link href="/manual-sales" onClick={() => setMenuOpen(false)} style={mobileLinkStyle}>Venta manual</Link> : null}
                 <Link href="/account" onClick={() => setMenuOpen(false)} style={mobileLinkStyle}>Mi cuenta</Link>
                 <button type="button" onClick={handleLogout} style={{ ...mobileLinkStyle, cursor: "pointer", textAlign: "left" }}>Salir</button>
               </>

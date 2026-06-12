@@ -21,10 +21,6 @@ export default function Header({
   const { user, authUiLocked } = useAuth();
   const { cart } = useCart();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const manualSalesEnabled = Boolean(
-    ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "") &&
-      user?.storeFeatures?.manualSalesEnabled,
-  );
 
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -317,15 +313,7 @@ export default function Header({
             {isMobile === true ? null : isMobile === false ? (
               authUiLocked ? (
                 <span style={placeholderStyle}>Cargando...</span>
-              ) : user ? (
-                <>
-                  {manualSalesEnabled ? (
-                    <Link href="/manual-sales" style={utilityLinkStyle}>
-                      Venta manual
-                    </Link>
-                  ) : null}
-                </>
-              ) : (
+              ) : user ? null : (
                 <Link href="/login" style={sessionButtonStyle}>
                   Ingresar
                 </Link>
@@ -471,16 +459,6 @@ export default function Header({
               <span style={mobileMutedStyle}>Cargando...</span>
             ) : user ? (
               <>
-                {manualSalesEnabled ? (
-                  <Link
-                    href="/manual-sales"
-                    onClick={handleCloseMenu}
-                    className="mimaria-menu-secondary"
-                    style={drawerSecondaryLinkStyle}
-                  >
-                    Venta manual
-                  </Link>
-                ) : null}
                 <Link
                   href="/account"
                   onClick={handleCloseMenu}
@@ -609,13 +587,6 @@ const navMenuButtonStyle = {
   cursor: "pointer",
   borderRadius: 10,
   minHeight: 42,
-} as const;
-
-const utilityLinkStyle = {
-  textDecoration: "none",
-  color: "var(--theme-colors-text-strong)",
-  padding: "10px 0",
-  fontSize: 13,
 } as const;
 
 const iconActionStyle = {

@@ -131,6 +131,7 @@ export type AdminSection =
   | "admin-accounting"
   | "admin-manual-sales"
   | "admin-products"
+  | "admin-stock"
   | "admin-labels"
   | "admin-categories"
   | "admin-orders"

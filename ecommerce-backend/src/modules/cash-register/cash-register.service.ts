@@ -13,7 +13,7 @@ type CashRegisterMode = 'automatic' | 'manual';
 
 type CashMovement = {
   id: string;
-  kind: 'sale_payment' | 'current_account_payment' | 'current_account_assignment';
+  kind: 'sale_payment' | 'current_account_payment' | 'current_account_assignment' | 'manual_return_payment';
   createdAt: Date;
   method: string;
   amount: number;
@@ -174,6 +174,32 @@ export class CashRegisterService {
     return Promise.all(sessions.map((session) => this.withSummary(session)));
   }
 
+  async getRangeSummary(
+    storeId: number,
+    userId: number | undefined,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const location = await this.resolveUserLocation(storeId, userId);
+    const range = this.resolveBusinessDateRange(startDate, endDate);
+    const summary = await this.buildSummaryForRange(
+      storeId,
+      location?.id ?? null,
+      range.start,
+      range.end,
+    );
+    const currentAccountDebt = await this.calculateCurrentAccountDebt(
+      storeId,
+      location?.id ?? null,
+    );
+
+    return {
+      ...summary,
+      currentAccountDebt: currentAccountDebt.total,
+      currentAccountDebtCount: currentAccountDebt.count,
+    };
+  }
+
   async getClosurePdf(storeId: number, userId?: number, sessionId?: number) {
     const location = await this.resolveUserLocation(storeId, userId);
     const session = sessionId
@@ -258,7 +284,7 @@ export class CashRegisterService {
 
   private async buildSummary(session: any) {
     const range = this.getSessionRange(session);
-    const [payments, accountPayments, accountAssignments] = await Promise.all([
+    const [payments, accountPayments, accountAssignments, manualReturnPayments] = await Promise.all([
       this.prisma.payment.findMany({
         where: {
           storeId: session.storeId,
@@ -350,6 +376,25 @@ export class CashRegisterService {
           },
         },
       }),
+      this.prisma.manualReturn.findMany({
+        where: {
+          storeId: session.storeId,
+          differenceAmount: { gt: 0 },
+          settlementMethod: { not: 'Cuenta corriente' },
+          OR: [
+            { cashRegisterId: session.id },
+            {
+              createdAt: {
+                gte: range.start,
+                lt: range.end,
+              },
+              ...(session.storeLocationId
+                ? { storeLocationId: session.storeLocationId }
+                : {}),
+            },
+          ],
+        },
+      }),
     ]);
 
     const movements: CashMovement[] = [
@@ -376,6 +421,16 @@ export class CashRegisterService {
         description: movement.description || 'Pago de cuenta corriente',
         orderId: movement.orderId,
         customerName: this.customerName(movement.customer),
+      })),
+      ...manualReturnPayments.map((manualReturn) => ({
+        id: `manual-return-${manualReturn.id}`,
+        kind: 'manual_return_payment' as const,
+        createdAt: manualReturn.createdAt,
+        method: manualReturn.settlementMethod?.trim() || 'Pago',
+        amount: Number(manualReturn.differenceAmount),
+        description: `Cambio/devolucion #${manualReturn.id}`,
+        orderId: null,
+        customerName: manualReturn.customerName,
       })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const accountAssignedMovements: CashMovement[] = accountAssignments.map((movement) => ({
@@ -422,6 +477,217 @@ export class CashRegisterService {
     };
   }
 
+  private async buildSummaryForRange(
+    storeId: number,
+    storeLocationId: number | null,
+    start: Date,
+    end: Date,
+  ) {
+    const [payments, accountPayments, accountAssignments, manualReturnPayments] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: {
+          storeId,
+          createdAt: {
+            gte: start,
+            lt: end,
+          },
+          ...(storeLocationId ? { storeLocationId } : {}),
+          status: { in: ['approved', 'paid'] },
+        },
+        include: {
+          order: {
+            select: {
+              id: true,
+              customerFirstNameSnapshot: true,
+              customerLastNameSnapshot: true,
+              customer: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.currentAccountMovement.findMany({
+        where: {
+          storeId,
+          storeLocationId: storeLocationId ?? undefined,
+          type: 'PAYMENT',
+          createdAt: {
+            gte: start,
+            lt: end,
+          },
+        },
+        include: {
+          customer: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+      }),
+      this.prisma.currentAccountMovement.findMany({
+        where: {
+          storeId,
+          storeLocationId: storeLocationId ?? undefined,
+          type: 'SALE',
+          createdAt: {
+            gte: start,
+            lt: end,
+          },
+        },
+        include: {
+          customer: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+      }),
+      this.prisma.manualReturn.findMany({
+        where: {
+          storeId,
+          storeLocationId: storeLocationId ?? undefined,
+          differenceAmount: { gt: 0 },
+          settlementMethod: { not: 'Cuenta corriente' },
+          createdAt: {
+            gte: start,
+            lt: end,
+          },
+        },
+      }),
+    ]);
+
+    const movements: CashMovement[] = [
+      ...payments.map((payment) => ({
+        id: `payment-${payment.id}`,
+        kind: 'sale_payment' as const,
+        createdAt: payment.createdAt,
+        method: payment.method?.trim() || payment.provider || 'Pago',
+        amount: Number(payment.amount),
+        description: `Venta #${payment.orderId}`,
+        orderId: payment.orderId,
+        customerName:
+          this.joinName(
+            payment.order.customerFirstNameSnapshot,
+            payment.order.customerLastNameSnapshot,
+          ) || this.customerName(payment.order.customer),
+      })),
+      ...accountPayments.map((movement) => ({
+        id: `account-${movement.id}`,
+        kind: 'current_account_payment' as const,
+        createdAt: movement.createdAt,
+        method: movement.paymentMethod?.trim() || 'Pago',
+        amount: Math.abs(Number(movement.amount)),
+        description: movement.description || 'Pago de cuenta corriente',
+        orderId: movement.orderId,
+        customerName: this.customerName(movement.customer),
+      })),
+      ...manualReturnPayments.map((manualReturn) => ({
+        id: `manual-return-${manualReturn.id}`,
+        kind: 'manual_return_payment' as const,
+        createdAt: manualReturn.createdAt,
+        method: manualReturn.settlementMethod?.trim() || 'Pago',
+        amount: Number(manualReturn.differenceAmount),
+        description: `Cambio/devolucion #${manualReturn.id}`,
+        orderId: null,
+        customerName: manualReturn.customerName,
+      })),
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const accountAssignedMovements: CashMovement[] = accountAssignments.map((movement) => ({
+      id: `account-assigned-${movement.id}`,
+      kind: 'current_account_assignment' as const,
+      createdAt: movement.createdAt,
+      method: movement.paymentMethod?.trim() || 'Cuenta corriente',
+      amount: Number(movement.amount),
+      description: movement.description || 'Asignado a cuenta corriente',
+      orderId: movement.orderId,
+      customerName: this.customerName(movement.customer),
+    })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const byMethod = movements.reduce<Record<string, number>>((acc, movement) => {
+      const key = movement.method || 'Sin metodo';
+      acc[key] = this.roundMoney((acc[key] ?? 0) + movement.amount);
+      return acc;
+    }, {});
+    const byAccountMethod = accountAssignedMovements.reduce<Record<string, number>>((acc, movement) => {
+      const key = movement.method || 'Cuenta corriente';
+      acc[key] = this.roundMoney((acc[key] ?? 0) + movement.amount);
+      return acc;
+    }, {});
+    const receivedTotal = this.roundMoney(
+      movements.reduce((sum, movement) => sum + movement.amount, 0),
+    );
+    const accountAssignedTotal = this.roundMoney(
+      accountAssignedMovements.reduce((sum, movement) => sum + movement.amount, 0),
+    );
+
+    return {
+      range: { start, end },
+      openingAmount: 0,
+      receivedTotal,
+      expectedAmount: receivedTotal,
+      movementCount: movements.length,
+      accountAssignedTotal,
+      accountAssignedCount: accountAssignedMovements.length,
+      byMethod,
+      byAccountMethod,
+      movements,
+      accountAssignedMovements,
+    };
+  }
+
+  private async calculateCurrentAccountDebt(
+    storeId: number,
+    storeLocationId: number | null,
+  ) {
+    if (!storeLocationId) {
+      const accounts = await this.prisma.currentAccount.findMany({
+        where: {
+          storeId,
+          deletedAt: null,
+          balance: { gt: 0 },
+        },
+        select: { balance: true },
+      });
+
+      return {
+        total: this.roundMoney(
+          accounts.reduce((sum, account) => sum + Number(account.balance), 0),
+        ),
+        count: accounts.length,
+      };
+    }
+
+    const balances = await this.prisma.currentAccountMovement.groupBy({
+      by: ['accountId'],
+      where: {
+        storeId,
+        storeLocationId,
+        account: { deletedAt: null },
+      },
+      _sum: { amount: true },
+    });
+    const debts = balances
+      .map((entry) => this.roundMoney(Number(entry._sum.amount ?? 0)))
+      .filter((balance) => balance > 0);
+
+    return {
+      total: this.roundMoney(debts.reduce((sum, balance) => sum + balance, 0)),
+      count: debts.length,
+    };
+  }
+
   private getSessionRange(session: any) {
     if (session.mode === 'automatic') {
       const businessDate = session.businessDate
@@ -452,6 +718,57 @@ export class CashRegisterService {
     const start = new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
     return { start, end };
+  }
+
+  private resolveBusinessDateRange(startDate?: string, endDate?: string) {
+    const today = new Date();
+    const fallback = this.getBuenosAiresCalendarParts(today);
+    const start = this.parseBusinessDate(startDate) ??
+      this.businessDateStart(fallback.year, fallback.month, 1);
+    const endStart = this.parseBusinessDate(endDate) ??
+      this.businessDateStart(fallback.year, fallback.month, fallback.day);
+    const end = new Date(endStart.getTime() + 24 * 60 * 60 * 1000);
+
+    if (start >= end) {
+      throw new BadRequestException('El rango de fechas no es valido.');
+    }
+
+    return { start, end };
+  }
+
+  private parseBusinessDate(value?: string) {
+    if (!value) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) {
+      throw new BadRequestException('La fecha debe tener formato YYYY-MM-DD.');
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    return this.businessDateStart(year, month, day);
+  }
+
+  private businessDateStart(year: number, month: number, day: number) {
+    return new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
+  }
+
+  private getBuenosAiresCalendarParts(date: Date) {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = Object.fromEntries(
+      formatter.formatToParts(date).map((part) => [part.type, part.value]),
+    );
+
+    return {
+      year: Number(parts.year),
+      month: Number(parts.month),
+      day: Number(parts.day),
+    };
   }
 
   private normalizeMode(mode?: string | null): CashRegisterMode {

@@ -22,6 +22,7 @@ import AdminShipmentsSection from "./AdminShipmentsSection";
 import AdminReturnsSection from "./AdminReturnsSection";
 import AdminPromotionsSection from "./AdminPromotionsSection";
 import AdminLabelsGenerator from "./AdminLabelsGenerator";
+import AdminStockSection from "./AdminStockSection";
 import DeveloperModePanel from "./DeveloperModePanel";
 import type { AdminReturn, AdminSection, AdminShipment } from "./admin-types";
 
@@ -65,6 +66,7 @@ export default function AdminWorkspace({
   if (section === "admin-accounting") return <AdminAccountingSection />;
   if (section === "admin-manual-sales") return <AdminManualSalesWorkspace />;
   if (section === "admin-products") return <AdminProductsSection />;
+  if (section === "admin-stock") return <AdminStockSection />;
   if (section === "admin-labels") return <AdminLabelsSection />;
   if (section === "admin-categories")
     return <AdminProductsSection initialTab="categories" />;

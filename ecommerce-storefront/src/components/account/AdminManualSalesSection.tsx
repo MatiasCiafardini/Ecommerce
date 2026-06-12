@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   calculateManualSaleDiscountAmount,
+  roundToNearestHundred,
   resolveManualSaleUnitPrice,
   resolveStorePricingPolicy,
 } from "@/lib/pricing-policy";
@@ -257,25 +258,12 @@ export default function AdminManualSalesSection({
   const applyPaymentMethod = (method: string) => {
     setPaymentMethod(method);
 
-    const shouldApplyTransferDiscount = method === "Efectivo" || method === "Transferencia";
-    setDiscountType("percentage");
-    setDiscountValue(shouldApplyTransferDiscount && bankTransferDiscountPercentage > 0
-      ? String(bankTransferDiscountPercentage)
-      : "");
-
     if (method === "Cuenta corriente") {
       setCustomerModalOpen(true);
     } else {
       setCustomerModalOpen(false);
     }
   };
-
-  useEffect(() => {
-    if (paymentMethod === "Efectivo" || paymentMethod === "Transferencia") {
-      setDiscountType("percentage");
-      setDiscountValue(bankTransferDiscountPercentage > 0 ? String(bankTransferDiscountPercentage) : "");
-    }
-  }, [bankTransferDiscountPercentage, paymentMethod]);
 
   useEffect(() => {
     const normalizedQuery = normalizeScannerSkuInput(productQuery).trim();
@@ -364,16 +352,35 @@ export default function AdminManualSalesSection({
   const safeDiscountValue = Number.isFinite(normalizedDiscountValue)
     ? Math.max(normalizedDiscountValue, 0)
     : 0;
-  const discountAmount =
-    discountType === "percentage"
+  const paymentMethodDiscountPercentage =
+    (paymentMethod === "Efectivo" || paymentMethod === "Transferencia")
+      ? bankTransferDiscountPercentage
+      : 0;
+  const paymentMethodDiscountAmount =
+    paymentMethodDiscountPercentage > 0
       ? calculateManualSaleDiscountAmount(
           normalizedSaleLines,
           subtotal,
+          paymentMethodDiscountPercentage,
+          pricingPolicy,
+        )
+      : 0;
+  const manualDiscountBase = Math.max(subtotal - paymentMethodDiscountAmount, 0);
+  const manualDiscountAmount =
+    discountType === "percentage"
+      ? calculateDiscountOnRemainingBase(
+          manualDiscountBase,
           safeDiscountValue,
           pricingPolicy,
         )
-      : Math.min(safeDiscountValue, subtotal);
+      : Math.min(safeDiscountValue, manualDiscountBase);
+  const discountAmount = Math.min(
+    paymentMethodDiscountAmount + manualDiscountAmount,
+    subtotal,
+  );
   const total = Math.max(subtotal - discountAmount, 0);
+  const hasPaymentMethodDiscount = paymentMethodDiscountAmount > 0;
+  const hasManualDiscount = manualDiscountAmount > 0;
   const hasDiscount = discountAmount > 0;
   const currentAccountSelected = paymentMethod === "Cuenta corriente";
   const filteredCustomers = useMemo(() => {
@@ -540,6 +547,8 @@ export default function AdminManualSalesSection({
     setCustomerName("");
     setSelectedCustomer(null);
     applyPaymentMethod("Efectivo");
+    setDiscountType("percentage");
+    setDiscountValue("");
     setNotes("");
     setProductQuery("");
     setLines([]);
@@ -595,8 +604,8 @@ export default function AdminManualSalesSection({
         shippingMethod: undefined,
         shippingCost: 0,
         paymentMethod: paymentMethod.trim() || undefined,
-        discountType,
-        discountValue: safeDiscountValue,
+        discountType: "fixed" as const,
+        discountValue: discountAmount,
         paymentStatus: "approved" as const,
         notes: notes.trim() || undefined,
         items: normalizedSaleLines.map((line) => ({
@@ -995,14 +1004,22 @@ export default function AdminManualSalesSection({
                 {hasDiscount ? (
                   <div className="manual-sale-discount-summary">
                     <SummaryRow label="Subtotal" value={money(subtotal)} />
-                    <SummaryRow
-                      label={
-                        discountType === "percentage"
-                          ? `Descuento (${safeDiscountValue}%)`
-                          : "Descuento"
-                      }
-                      value={`- ${money(discountAmount)}`}
-                    />
+                    {hasPaymentMethodDiscount ? (
+                      <SummaryRow
+                        label={`Descuento por pago (${paymentMethodDiscountPercentage}%)`}
+                        value={`- ${money(paymentMethodDiscountAmount)}`}
+                      />
+                    ) : null}
+                    {hasManualDiscount ? (
+                      <SummaryRow
+                        label={
+                          discountType === "percentage"
+                            ? `Descuento manual (${safeDiscountValue}%)`
+                            : "Descuento manual"
+                        }
+                        value={`- ${money(manualDiscountAmount)}`}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -1141,14 +1158,22 @@ export default function AdminManualSalesSection({
                 <SummaryRow label="Cliente" value={selectedCustomer ? getCustomerName(selectedCustomer) : customerName.trim()} />
               ) : null}
               <SummaryRow label="Pago" value={paymentMethod} />
-              <SummaryRow
-                label={
-                  discountType === "percentage"
-                    ? `Descuento (${safeDiscountValue}%)`
-                    : "Descuento"
-                }
-                value={`- ${money(discountAmount)}`}
-              />
+              {hasPaymentMethodDiscount ? (
+                <SummaryRow
+                  label={`Descuento por pago (${paymentMethodDiscountPercentage}%)`}
+                  value={`- ${money(paymentMethodDiscountAmount)}`}
+                />
+              ) : null}
+              {hasManualDiscount ? (
+                <SummaryRow
+                  label={
+                    discountType === "percentage"
+                      ? `Descuento manual (${safeDiscountValue}%)`
+                      : "Descuento manual"
+                  }
+                  value={`- ${money(manualDiscountAmount)}`}
+                />
+              ) : null}
               <SummaryRow
                 label="Estado"
                 value={currentAccountSelected ? "Pendiente de pago" : "Pagado"}
@@ -2242,6 +2267,28 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 
 function StateCard({ label }: { label: string }) {
   return <div className="manual-sale-state">{label}</div>;
+}
+
+function calculateDiscountOnRemainingBase(
+  base: number,
+  discountValue: number,
+  policy: { manualSaleDiscountRounding: boolean },
+) {
+  const safeBase = Number.isFinite(base) ? Math.max(base, 0) : 0;
+  const safePercentage = Number.isFinite(discountValue)
+    ? Math.min(Math.max(discountValue, 0), 100)
+    : 0;
+
+  if (safeBase <= 0 || safePercentage <= 0) return 0;
+
+  if (!policy.manualSaleDiscountRounding) {
+    return Number(Math.min(safeBase * (safePercentage / 100), safeBase).toFixed(2));
+  }
+
+  const discountedTotal = roundToNearestHundred(
+    safeBase * (1 - safePercentage / 100),
+  );
+  return Number(Math.min(Math.max(safeBase - discountedTotal, 0), safeBase).toFixed(2));
 }
 
 function getCustomerName(customer: ManualSaleCustomer) {

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -11,7 +11,7 @@ type CashRegisterMode = "automatic" | "manual";
 
 type CashMovement = {
   id: string;
-  kind: "sale_payment" | "current_account_payment" | "current_account_assignment";
+  kind: "sale_payment" | "current_account_payment" | "current_account_assignment" | "manual_return_payment";
   createdAt: string;
   method: string;
   amount: number;
@@ -28,6 +28,8 @@ type CashSummary = {
   movementCount: number;
   accountAssignedTotal?: number;
   accountAssignedCount?: number;
+  currentAccountDebt?: number;
+  currentAccountDebtCount?: number;
   byMethod: Record<string, number>;
   byAccountMethod?: Record<string, number>;
   movements: CashMovement[];
@@ -59,6 +61,11 @@ export default function AdminCashRegisterSection() {
   const [payload, setPayload] = useState<CashPayload | null>(null);
   const [history, setHistory] = useState<CashPayload[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyTab, setHistoryTab] = useState<"daily" | "range">("daily");
+  const [rangeSummary, setRangeSummary] = useState<CashSummary | null>(null);
+  const [rangeStart, setRangeStart] = useState(() => firstDayOfCurrentMonth());
+  const [rangeEnd, setRangeEnd] = useState(() => todayInputValue());
+  const [rangeLoading, setRangeLoading] = useState(false);
   const [openingModalOpen, setOpeningModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -155,14 +162,89 @@ export default function AdminCashRegisterSection() {
 
   async function openHistory() {
     setHistoryOpen(true);
+    setHistoryTab("daily");
     setError("");
     try {
-      const data = await api("/cash-register/history");
-      setHistory(Array.isArray(data) ? (data as CashPayload[]) : []);
+      const [historyData] = await Promise.all([
+        api("/cash-register/history"),
+        loadRangeSummary(),
+      ]);
+      setHistory(Array.isArray(historyData) ? (historyData as CashPayload[]) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar el historial.");
       setHistory([]);
     }
+  }
+
+  async function loadRangeSummary(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    setRangeLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (rangeStart) params.set("start", rangeStart);
+      if (rangeEnd) params.set("end", rangeEnd);
+      const data = (await api(`/cash-register/range-summary?${params.toString()}`)) as CashSummary;
+      setRangeSummary(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cargar el resumen por fechas.");
+    } finally {
+      setRangeLoading(false);
+    }
+  }
+
+  function printRangeSummary() {
+    if (!rangeSummary) return;
+
+    const methodRows = Object.entries(rangeSummary.byMethod ?? {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([method, amount]) => `<tr><td>${escapeHtml(method)}</td><td>${money(amount)}</td></tr>`)
+      .join("");
+    const accountRows = Object.entries(rangeSummary.byAccountMethod ?? {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([method, amount]) => `<tr><td>${escapeHtml(method)}</td><td>${money(amount)}</td></tr>`)
+      .join("");
+    const printWindow = window.open("", "_blank", "width=820,height=900");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Resumen de caja</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 28px; color: #1f1f1f; }
+            h1 { margin: 0 0 8px; font-size: 28px; }
+            .meta { color: #555; margin-bottom: 20px; }
+            .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+            .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
+            .box span { display: block; color: #666; font-size: 12px; text-transform: uppercase; }
+            .box strong { font-size: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; }
+            th { font-size: 12px; text-transform: uppercase; color: #666; }
+            td:last-child { text-align: right; font-weight: 700; }
+          </style>
+        </head>
+        <body>
+          <h1>Resumen de caja</h1>
+          <div class="meta">Desde ${escapeHtml(rangeStart)} hasta ${escapeHtml(rangeEnd)}${user?.storeLocation?.name ? ` - ${escapeHtml(user.storeLocation.name)}` : ""}</div>
+          <div class="grid">
+            <div class="box"><span>Recibido</span><strong>${money(rangeSummary.receivedTotal)}</strong></div>
+            <div class="box"><span>Asignado a cuenta corriente</span><strong>${money(rangeSummary.accountAssignedTotal ?? 0)}</strong></div>
+            <div class="box"><span>Deuda cuentas corrientes</span><strong>${money(rangeSummary.currentAccountDebt ?? 0)}</strong></div>
+            <div class="box"><span>Clientes con deuda</span><strong>${rangeSummary.currentAccountDebtCount ?? 0}</strong></div>
+            <div class="box"><span>Movimientos</span><strong>${rangeSummary.movementCount}</strong></div>
+          </div>
+          <h2>Recibido por metodo</h2>
+          <table><tbody>${methodRows || "<tr><td>Sin cobros</td><td>$0</td></tr>"}</tbody></table>
+          <h2>Cuenta corriente por metodo</h2>
+          <table><tbody>${accountRows || "<tr><td>Sin ventas asignadas</td><td>$0</td></tr>"}</tbody></table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   }
 
   async function downloadClosure(targetPayload = payload) {
@@ -210,7 +292,7 @@ export default function AdminCashRegisterSection() {
         </head>
         <body>
           <h1>Cierre de caja</h1>
-          <div class="meta">${cashTitle(targetPayload)} · ${formatDate(targetSession.openedAt)}${targetSession.closedAt ? ` a ${formatDate(targetSession.closedAt)}` : ""}</div>
+          <div class="meta">${cashTitle(targetPayload)} - ${formatDate(targetSession.openedAt)}${targetSession.closedAt ? ` a ${formatDate(targetSession.closedAt)}` : ""}</div>
           <div class="grid">
             ${isManualPrint ? `<div class="box"><span>Apertura</span><strong>${money(targetSummary.openingAmount)}</strong></div>` : ""}
             <div class="box"><span>Recibido</span><strong>${money(targetSummary.receivedTotal)}</strong></div>
@@ -384,7 +466,7 @@ export default function AdminCashRegisterSection() {
                     <strong>{movement.description}</strong>
                     <p style={copyStyle}>
                       {movement.customerName || "Sin cliente"}
-                      {" · "}
+                      {" - "}
                       {movement.method}
                     </p>
                     <span style={mutedStyle}>{formatDate(movement.createdAt)}</span>
@@ -408,7 +490,7 @@ export default function AdminCashRegisterSection() {
                     <strong>{movement.description}</strong>
                     <p style={copyStyle}>
                       {movement.customerName || "Sin cliente"}
-                      {" Â· "}
+                      {" - "}
                       {movement.method}
                     </p>
                     <span style={mutedStyle}>{formatDate(movement.createdAt)}</span>
@@ -428,35 +510,70 @@ export default function AdminCashRegisterSection() {
             <header style={modalHeaderStyle}>
               <div>
                 <p style={eyebrowStyle}>Historial</p>
-                <h3 style={modalTitleStyle}>Cierres anteriores</h3>
+                <h3 style={modalTitleStyle}>
+                  {historyTab === "daily" ? "Cierres anteriores" : "Resumen por fechas"}
+                </h3>
               </div>
               <button type="button" onClick={() => setHistoryOpen(false)} style={softButtonStyle}>
                 Cerrar
               </button>
             </header>
-            <div style={historyListStyle}>
-              {history.map((item) => (
-                <article key={item.session?.id ?? `${item.mode}-${item.summary?.range.start}`} style={historyItemStyle}>
-                  <div>
-                    <strong>{cashTitle(item)}</strong>
-                    <span style={mutedStyle}>
-                      {item.session ? formatDate(item.session.openedAt) : ""}
-                      {item.session?.closedAt ? ` a ${formatDate(item.session.closedAt)}` : ""}
-                    </span>
-                  </div>
-                  <div style={historyAmountsStyle}>
-                    <span>Recibido {money(item.summary?.receivedTotal ?? 0)}</span>
-                    {item.mode === "manual" ? (
-                      <strong>Total esperado {money(item.summary?.expectedAmount ?? 0)}</strong>
-                    ) : null}
-                  </div>
-                  <button type="button" onClick={() => void downloadClosure(item)} style={softButtonStyle}>
-                    Descargar
-                  </button>
-                </article>
-              ))}
-              {!history.length ? <State label="Todavia no hay cierres registrados." /> : null}
+            <div style={tabsStyle} role="tablist" aria-label="Historial de caja">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={historyTab === "daily"}
+                onClick={() => setHistoryTab("daily")}
+                style={tabButtonStyle(historyTab === "daily")}
+              >
+                Cierres diarios
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={historyTab === "range"}
+                onClick={() => setHistoryTab("range")}
+                style={tabButtonStyle(historyTab === "range")}
+              >
+                Resumen por fechas
+              </button>
             </div>
+            {historyTab === "daily" ? (
+              <div style={historyListStyle}>
+                {history.map((item) => (
+                  <article key={item.session?.id ?? `${item.mode}-${item.summary?.range.start}`} style={historyItemStyle}>
+                    <div>
+                      <strong>{cashTitle(item)}</strong>
+                      <span style={mutedStyle}>
+                        {item.session ? formatDate(item.session.openedAt) : ""}
+                        {item.session?.closedAt ? ` a ${formatDate(item.session.closedAt)}` : ""}
+                      </span>
+                    </div>
+                    <div style={historyAmountsStyle}>
+                      <span>Recibido {money(item.summary?.receivedTotal ?? 0)}</span>
+                      {item.mode === "manual" ? (
+                        <strong>Total esperado {money(item.summary?.expectedAmount ?? 0)}</strong>
+                      ) : null}
+                    </div>
+                    <button type="button" onClick={() => void downloadClosure(item)} style={softButtonStyle}>
+                      Descargar
+                    </button>
+                  </article>
+                ))}
+                {!history.length ? <State label="Todavia no hay cierres registrados." /> : null}
+              </div>
+            ) : (
+              <RangeSummaryPanel
+                rangeStart={rangeStart}
+                rangeEnd={rangeEnd}
+                rangeSummary={rangeSummary}
+                rangeLoading={rangeLoading}
+                onStartChange={setRangeStart}
+                onEndChange={setRangeEnd}
+                onSubmit={loadRangeSummary}
+                onPrint={printRangeSummary}
+              />
+            )}
           </div>
         </div>
       ) : null}
@@ -513,9 +630,134 @@ function cashTitle(payload: CashPayload | null) {
   return payload.session.closedAt ? `Caja cerrada #${payload.session.id}` : `Caja abierta #${payload.session.id}`;
 }
 
+function RangeSummaryPanel({
+  rangeStart,
+  rangeEnd,
+  rangeSummary,
+  rangeLoading,
+  onStartChange,
+  onEndChange,
+  onSubmit,
+  onPrint,
+}: {
+  rangeStart: string;
+  rangeEnd: string;
+  rangeSummary: CashSummary | null;
+  rangeLoading: boolean;
+  onStartChange: (value: string) => void;
+  onEndChange: (value: string) => void;
+  onSubmit: (event?: React.FormEvent<HTMLFormElement>) => void | Promise<void>;
+  onPrint: () => void;
+}) {
+  return (
+    <section style={cardStyle}>
+      <div>
+        <p style={eyebrowStyle}>Control por fechas</p>
+        <h3 style={subtitleStyle}>Resumen acumulado</h3>
+        <p style={copyStyle}>Totales de caja para el periodo seleccionado y deuda vigente de cuentas corrientes.</p>
+      </div>
+      <form style={rangeFormStyle} onSubmit={onSubmit}>
+        <label style={fieldStyle}>
+          <span>Desde</span>
+          <input
+            type="date"
+            value={rangeStart}
+            onChange={(event) => onStartChange(event.target.value)}
+            style={inputStyle}
+          />
+        </label>
+        <label style={fieldStyle}>
+          <span>Hasta</span>
+          <input
+            type="date"
+            value={rangeEnd}
+            onChange={(event) => onEndChange(event.target.value)}
+            style={inputStyle}
+          />
+        </label>
+        <button type="submit" style={primaryButtonStyle} disabled={rangeLoading}>
+          {rangeLoading ? "Calculando..." : "Actualizar"}
+        </button>
+        <button type="button" style={softButtonStyle} disabled={!rangeSummary || rangeLoading} onClick={onPrint}>
+          Imprimir resumen
+        </button>
+      </form>
+      {rangeLoading && !rangeSummary ? <State label="Calculando resumen..." /> : null}
+      {rangeSummary ? (
+        <>
+          <div style={statsGridStyle}>
+            <Stat label="Recibido" value={money(rangeSummary.receivedTotal)} />
+            <Stat label="Asignado a cuenta corriente" value={money(rangeSummary.accountAssignedTotal ?? 0)} />
+            <Stat label="Deuda cuentas corrientes" value={money(rangeSummary.currentAccountDebt ?? 0)} />
+            <Stat label="Clientes con deuda" value={String(rangeSummary.currentAccountDebtCount ?? 0)} />
+            <Stat label="Movimientos" value={String(rangeSummary.movementCount)} />
+          </div>
+          <div style={twoColumnStyle}>
+            <div style={methodListStyle}>
+              <p style={eyebrowStyle}>Recibido por metodo</p>
+              {Object.entries(rangeSummary.byMethod ?? {}).length ? (
+                Object.entries(rangeSummary.byMethod)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([method, amount]) => (
+                    <div key={method} style={methodRowStyle}>
+                      <span>{method}</span>
+                      <strong>{money(amount)}</strong>
+                    </div>
+                  ))
+              ) : (
+                <p style={copyStyle}>Sin cobros en el periodo.</p>
+              )}
+            </div>
+            <div style={methodListStyle}>
+              <p style={eyebrowStyle}>Cuenta corriente por metodo</p>
+              {Object.entries(rangeSummary.byAccountMethod ?? {}).length ? (
+                Object.entries(rangeSummary.byAccountMethod ?? {})
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([method, amount]) => (
+                    <div key={method} style={methodRowStyle}>
+                      <span>{method}</span>
+                      <strong>{money(amount)}</strong>
+                    </div>
+                  ))
+              ) : (
+                <p style={copyStyle}>Sin ventas asignadas a cuenta corriente.</p>
+              )}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function todayInputValue() {
+  return formatInputDate(new Date());
+}
+
+function firstDayOfCurrentMonth() {
+  const now = new Date();
+  return formatInputDate(new Date(now.getFullYear(), now.getMonth(), 1));
+}
+
+function formatInputDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -544,6 +786,7 @@ const statsGridStyle: React.CSSProperties = { display: "grid", gridTemplateColum
 const statStyle: React.CSSProperties = { padding: 16, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", display: "grid", gap: 6 };
 const twoColumnStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, alignItems: "start" };
 const cardStyle: React.CSSProperties = { border: "1px solid var(--account-item-border)", borderRadius: 18, background: "var(--account-item-bg)", padding: 18, display: "grid", gap: 14 };
+const rangeFormStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(160px, 220px)) auto auto", gap: 12, alignItems: "end" };
 const fieldStyle: React.CSSProperties = { display: "grid", gap: 8, color: "var(--account-text-muted)", fontWeight: 700 };
 const inputStyle: React.CSSProperties = { width: "100%", minHeight: 44, borderRadius: 12, border: "1px solid var(--account-item-border)", background: "var(--account-surface-bg)", color: "var(--account-text-strong)", padding: "10px 12px" };
 const moneyInputWrapStyle: React.CSSProperties = { position: "relative", minWidth: 0 };
@@ -560,6 +803,8 @@ const stateStyle: React.CSSProperties = { padding: 22, borderRadius: 16, border:
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 120, background: "var(--admin-overlay-bg, rgba(0,0,0,.42))", display: "grid", placeItems: "center", padding: 16 };
 const modalStyle: React.CSSProperties = { width: "min(760px, 100%)", maxHeight: "min(760px, calc(100vh - 32px))", overflow: "auto", borderRadius: 20, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", padding: 20, display: "grid", gap: 16, boxShadow: "var(--admin-modal-shadow)" };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" };
+const tabsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, padding: 4, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
+const tabButtonStyle = (active: boolean): React.CSSProperties => ({ border: 0, borderRadius: 10, background: active ? "var(--account-item-bg-active)" : "transparent", color: "var(--account-text-strong)", padding: "10px 12px", cursor: "pointer", fontWeight: 800 });
 const historyListStyle: React.CSSProperties = { display: "grid", gap: 10 };
 const historyItemStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 12, alignItems: "center", padding: 14, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
 const historyAmountsStyle: React.CSSProperties = { display: "grid", gap: 4, textAlign: "right", color: "var(--account-text-muted)" };

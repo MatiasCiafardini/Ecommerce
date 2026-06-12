@@ -41,6 +41,20 @@ export class CashRegisterController {
     return this.cashRegisterService.getHistory(req.storeId, req.user?.sub);
   }
 
+  @Get('range-summary')
+  rangeSummary(
+    @Req() req,
+    @Query('start') start: string | undefined,
+    @Query('end') end: string | undefined,
+  ) {
+    return this.cashRegisterService.getRangeSummary(
+      req.storeId,
+      req.user?.sub,
+      start,
+      end,
+    );
+  }
+
   @Get('closure.pdf')
   async closurePdf(
     @Req() req,

@@ -75,7 +75,7 @@ export class LabelsService {
           },
           inventories: { where: { storeId } },
         },
-        orderBy: [{ product: { title: 'asc' } }, { sku: 'asc' }],
+        orderBy: this.buildVariantOrderBy(query),
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -272,6 +272,23 @@ export class LabelsService {
     }
 
     return where;
+  }
+
+  private buildVariantOrderBy(query: ListLabelProductsDto): Prisma.ProductVariantOrderByWithRelationInput[] {
+    const direction = query.sortDirection === 'desc' ? 'desc' : 'asc';
+
+    switch (query.sortBy) {
+      case 'product':
+        return [{ product: { title: direction } }, { sku: 'asc' }, { id: 'asc' }];
+      case 'variant':
+        return [{ Color: direction }, { Size: direction }, { product: { title: 'asc' } }, { id: 'asc' }];
+      case 'sku':
+        return [{ sku: direction }, { product: { title: 'asc' } }, { id: 'asc' }];
+      case 'price':
+        return [{ price: direction }, { product: { title: 'asc' } }, { id: 'asc' }];
+      default:
+        return [{ product: { title: 'asc' } }, { sku: 'asc' }, { id: 'asc' }];
+    }
   }
 
   private async buildLabels(storeId: number, dto: GenerateLabelsDto, maxLabels: number) {

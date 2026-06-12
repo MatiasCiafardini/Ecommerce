@@ -156,27 +156,51 @@ export class ReturnsService {
         normalizedExchange.reduce((sum, item) => sum + item.price * item.quantity, 0),
       );
       const differenceAmount = this.roundMoney(totalExchange - totalReturned);
-      const settlementMethod = dto.settlementMethod?.trim() || 'Cuenta corriente';
+      const settlementMethod =
+        dto.settlementMethod?.trim() ||
+        (differenceAmount > 0 ? 'Cuenta corriente' : 'Sin diferencia');
+      const needsCurrentAccount =
+        differenceAmount < 0 ||
+        (differenceAmount > 0 && settlementMethod === 'Cuenta corriente');
+
+      if (differenceAmount < 0 && !dto.customerId) {
+        throw new BadRequestException(
+          'Para dejar saldo a favor, selecciona o crea una cuenta corriente.',
+        );
+      }
+
       const cashContext = await this.resolveManualReturnCashContext(
         storeId,
         createdByUserId,
         differenceAmount > 0 && settlementMethod !== 'Cuenta corriente',
       );
-      const { customer, account } = await this.ensureManualReturnAccountTx(
-        tx,
-        storeId,
-        cashContext.storeLocationId,
-        dto,
-      );
+      const { customer, account } =
+        needsCurrentAccount || this.hasManualReturnCustomerData(dto)
+          ? await this.ensureManualReturnAccountTx(
+              tx,
+              storeId,
+              cashContext.storeLocationId,
+              dto,
+              needsCurrentAccount,
+            )
+          : { customer: null, account: null };
+      const manualReturnStoreLocationId =
+        cashContext.storeLocationId ?? account?.storeLocationId ?? null;
 
       const manualReturn = await tx.manualReturn.create({
         data: {
           storeId,
+          storeLocationId: manualReturnStoreLocationId,
+          cashRegisterId:
+            differenceAmount > 0 && settlementMethod !== 'Cuenta corriente'
+              ? cashContext.cashRegisterId
+              : null,
+          settlementMethod,
           customerName:
             dto.customerName?.trim() ||
-            this.joinCustomerName(customer.firstName, customer.lastName) ||
-            customer.email ||
-            customer.phone ||
+            this.joinCustomerName(customer?.firstName, customer?.lastName) ||
+            customer?.email ||
+            customer?.phone ||
             null,
           notes: dto.notes?.trim() || null,
           totalReturned,
@@ -204,17 +228,19 @@ export class ReturnsService {
         include: this.manualReturnInclude(),
       });
 
-      await this.recordManualReturnSettlementTx(tx, {
-        storeId,
-        storeLocationId: cashContext.storeLocationId,
-        cashRegisterId: cashContext.cashRegisterId,
-        account,
-        customerId: customer.id,
-        manualReturnId: manualReturn.id,
-        differenceAmount,
-        settlementMethod,
-        createdByUserId,
-      });
+      if (account) {
+        await this.recordManualReturnSettlementTx(tx, {
+          storeId,
+          storeLocationId: manualReturnStoreLocationId,
+          cashRegisterId: cashContext.cashRegisterId,
+          account,
+          customerId: customer!.id,
+          manualReturnId: manualReturn.id,
+          differenceAmount,
+          settlementMethod,
+          createdByUserId,
+        });
+      }
 
       return manualReturn;
     });
@@ -899,6 +925,7 @@ export class ReturnsService {
     storeId: number,
     storeLocationId: number | null,
     dto: CreateManualReturnDto,
+    needsCurrentAccount: boolean,
   ) {
     const customer = dto.customerId
       ? await tx.customer.findFirst({
@@ -916,13 +943,17 @@ export class ReturnsService {
     await tx.customer.update({
       where: { id: customer.id },
       data: {
-        source: 'current_account',
+        ...(needsCurrentAccount ? { source: 'current_account' } : {}),
         firstName: dto.customerFirstName?.trim() || customer.firstName,
         lastName: dto.customerLastName?.trim() || customer.lastName,
         phone: dto.customerPhone?.trim() || customer.phone,
         email: dto.customerEmail?.trim().toLowerCase() || customer.email,
       },
     });
+
+    if (!needsCurrentAccount) {
+      return { customer, account: null };
+    }
 
     const existingAccount = await tx.currentAccount.findUnique({
       where: {
@@ -1015,6 +1046,17 @@ export class ReturnsService {
         lastName,
       },
     });
+  }
+
+  private hasManualReturnCustomerData(dto: CreateManualReturnDto) {
+    return Boolean(
+      dto.customerId ||
+        dto.customerName?.trim() ||
+        dto.customerFirstName?.trim() ||
+        dto.customerLastName?.trim() ||
+        dto.customerEmail?.trim() ||
+        dto.customerPhone?.trim(),
+    );
   }
 
   private async recordManualReturnSettlementTx(

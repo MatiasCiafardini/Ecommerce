@@ -426,6 +426,8 @@ type ProductAdminTab =
   | "options"
   | "variant-options"
   | "categories";
+type ProductSortKey = "product" | "category" | "variants" | "stock" | "status" | "price" | "images";
+type SortDirection = "asc" | "desc";
 
 function useViewportFlags() {
   const [isTabletOrSmaller, setIsTabletOrSmaller] = useState(false);
@@ -538,6 +540,55 @@ function getProductCatalogStatus(product: Product) {
 
 function getProductCategoryNames(product: Product) {
   return (product.categories ?? []).map((entry) => entry.category.name);
+}
+
+function productSortValue(
+  product: Product,
+  key: ProductSortKey,
+  priceInputSettings: ProductPriceInputSettings,
+) {
+  switch (key) {
+    case "category":
+      return getProductCategoryNames(product).join(", ");
+    case "variants":
+      return product.variants?.length ?? 0;
+    case "stock":
+      return getProductTotalStock(product);
+    case "status":
+      return getProductCatalogStatus(product);
+    case "price":
+      return getProductPriceFrom(product, priceInputSettings);
+    case "images":
+      return product.images?.length ?? 0;
+    case "product":
+    default:
+      return product.title;
+  }
+}
+
+function SortableProductTh({
+  children,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+}: {
+  children: React.ReactNode;
+  sortKey: ProductSortKey;
+  activeKey: ProductSortKey;
+  direction: SortDirection;
+  onSort: (key: ProductSortKey) => void;
+}) {
+  const active = activeKey === sortKey;
+
+  return (
+    <th style={thStyle}>
+      <button type="button" style={sortButtonStyle} onClick={() => onSort(sortKey)}>
+        {children}
+        {active ? <span>{direction === "asc" ? "^" : "v"}</span> : null}
+      </button>
+    </th>
+  );
 }
 
 function nextClothingSize(size: string) {
@@ -687,6 +738,8 @@ export default function AdminProductsSection({
   const [productQuery, setProductQuery] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("all");
   const [productStatusFilter, setProductStatusFilter] = useState<"all" | "published" | "draft" | "without-stock">("all");
+  const [productSortKey, setProductSortKey] = useState<ProductSortKey>("product");
+  const [productSortDirection, setProductSortDirection] = useState<SortDirection>("asc");
   const [optionQuery, setOptionQuery] = useState("");
   const [attributeDraft, setAttributeDraft] = useState<AttributeDraft | null>(null);
   const [draggingAttributeValueId, setDraggingAttributeValueId] = useState<number | null>(null);
@@ -991,6 +1044,30 @@ export default function AdminProductsSection({
   const filteredProducts = useMemo(() => {
     return products;
   }, [products]);
+  const sortedProducts = useMemo(() => {
+    const direction = productSortDirection === "asc" ? 1 : -1;
+
+    return [...filteredProducts].sort((a, b) => {
+      const left = productSortValue(a, productSortKey, priceInputSettings);
+      const right = productSortValue(b, productSortKey, priceInputSettings);
+
+      if (typeof left === "number" && typeof right === "number") {
+        return (left - right) * direction;
+      }
+
+      return String(left).localeCompare(String(right), "es", { numeric: true }) * direction;
+    });
+  }, [filteredProducts, priceInputSettings, productSortDirection, productSortKey]);
+
+  const changeProductSort = (nextKey: ProductSortKey) => {
+    if (productSortKey === nextKey) {
+      setProductSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setProductSortKey(nextKey);
+    setProductSortDirection(["stock", "variants", "price", "images"].includes(nextKey) ? "desc" : "asc");
+  };
 
   const filteredOptions = useMemo(() => {
     const query = optionQuery.trim().toLowerCase();
@@ -3714,13 +3791,13 @@ export default function AdminProductsSection({
         <table style={tableStyle}>
           <thead>
             <tr>
-              <th style={thStyle}>Imagen</th>
-              <th style={thStyle}>Producto</th>
-              <th style={thStyle}>Categoria</th>
-              <th style={thStyle}>Variantes</th>
-              <th style={thStyle}>Stock total</th>
-              <th style={thStyle}>Estado</th>
-              <th style={thStyle}>Precio desde</th>
+              <SortableProductTh sortKey="images" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Imagen</SortableProductTh>
+              <SortableProductTh sortKey="product" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Producto</SortableProductTh>
+              <SortableProductTh sortKey="category" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Categoria</SortableProductTh>
+              <SortableProductTh sortKey="variants" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Variantes</SortableProductTh>
+              <SortableProductTh sortKey="stock" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Stock total</SortableProductTh>
+              <SortableProductTh sortKey="status" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Estado</SortableProductTh>
+              <SortableProductTh sortKey="price" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Precio desde</SortableProductTh>
               <th style={thStyle}>Acciones</th>
             </tr>
           </thead>
@@ -3738,7 +3815,7 @@ export default function AdminProductsSection({
                   </div>
                 </td>
               </tr>
-            ) : filteredProducts.map((product) => {
+            ) : sortedProducts.map((product) => {
               const priceFrom = getProductPriceFrom(product, priceInputSettings);
 
               return (
@@ -4525,7 +4602,7 @@ export default function AdminProductsSection({
           ) : (
             isTabletOrSmaller ? (
               <div style={{ display: "grid", gap: 12 }}>
-                {filteredProducts.map((product) => (
+                {sortedProducts.map((product) => (
                   <article key={product.id} style={{ ...itemStyle, padding: isPhone ? 16 : 18 }}>
                     <div style={betweenStyle}>
                       <div>
@@ -4601,16 +4678,16 @@ export default function AdminProductsSection({
                 <table style={tableStyle}>
                   <thead>
                     <tr>
-                      <th style={thStyle}>Producto</th>
-                      <th style={thStyle}>Estado</th>
-                      <th style={thStyle}>Categorias</th>
-                      <th style={thStyle}>Imagenes</th>
-                      <th style={thStyle}>Variantes</th>
+                      <SortableProductTh sortKey="product" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Producto</SortableProductTh>
+                      <SortableProductTh sortKey="status" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Estado</SortableProductTh>
+                      <SortableProductTh sortKey="category" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Categorias</SortableProductTh>
+                      <SortableProductTh sortKey="images" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Imagenes</SortableProductTh>
+                      <SortableProductTh sortKey="variants" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Variantes</SortableProductTh>
                       <th style={thStyle}>Accion</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredProducts.map((product) => (
+                    {sortedProducts.map((product) => (
                       <tr key={product.id}>
                         <td style={tdStyle}>
                           <strong
@@ -7277,6 +7354,19 @@ const thStyle: React.CSSProperties = {
   fontSize: 12,
   textTransform: "uppercase",
   letterSpacing: "0.12em",
+};
+const sortButtonStyle: React.CSSProperties = {
+  border: 0,
+  background: "transparent",
+  color: "inherit",
+  padding: 0,
+  font: "inherit",
+  textTransform: "inherit",
+  letterSpacing: "inherit",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
 };
 const tdStyle: React.CSSProperties = {
   padding: "14px 0",
