@@ -14,6 +14,7 @@ import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateVariantDto } from './dto/update-variant.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { CatalogManagerGuard } from '../auth/guards/catalog-manager.guard';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
@@ -29,11 +30,13 @@ export class ProductVariantsController {
   }
 
   @Post()
+  @UseGuards(CatalogManagerGuard)
   create(@Body() createVariantDto: CreateVariantDto, @Req() req) {
     return this.variantsService.create(createVariantDto, req.storeId);
   }
 
   @Patch(':id')
+  @UseGuards(CatalogManagerGuard)
   update(
     @Param('id') id: string,
     @Body() updateVariantDto: UpdateVariantDto,
@@ -47,6 +50,7 @@ export class ProductVariantsController {
   }
 
   @Delete(':id')
+  @UseGuards(CatalogManagerGuard)
   remove(@Param('id') id: string, @Req() req) {
     return this.variantsService.remove(Number(id), req.storeId);
   }

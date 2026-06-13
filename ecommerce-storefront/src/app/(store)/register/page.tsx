@@ -132,7 +132,7 @@ export default function RegisterPage() {
                 onError={setError}
                 onSuccess={(user) => {
                   router.push(
-                    user.role && ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user.role)
+                    user.role && ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user.role)
                       ? "/account?section=admin-overview"
                       : "/account?section=orders",
                   );

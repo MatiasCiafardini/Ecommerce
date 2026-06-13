@@ -28,7 +28,7 @@ export default function ThemeProvider({
   const Header = "Header" in theme ? theme.Header : null;
   const Footer = "Footer" in theme ? theme.Footer : null;
   const themeStyle = buildThemeStyle(theme.tokens, themePalette);
-  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user?.role ?? "");
   const isAdminWorkspace =
     pathname === "/account" || pathname === "/manual-sales";
   const showStoreChrome = !(isAdmin && isAdminWorkspace);

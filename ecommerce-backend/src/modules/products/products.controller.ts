@@ -16,6 +16,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { CatalogManagerGuard } from '../auth/guards/catalog-manager.guard';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
@@ -26,11 +27,13 @@ export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Post()
+  @UseGuards(CatalogManagerGuard)
   create(@Body() dto: CreateProductDto, @Req() req) {
     return this.productsService.create(dto, req.storeId);
   }
 
   @Post('save-complete')
+  @UseGuards(CatalogManagerGuard)
   createComplete(@Body() dto: SaveProductCompleteDto, @Req() req) {
     return this.productsService.saveComplete(undefined, dto, req.storeId);
   }
@@ -52,6 +55,7 @@ export class ProductsController {
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('includeMetrics') includeMetrics?: string,
   ) {
     return this.productsService.findAdminCatalog(req.storeId, {
       search,
@@ -59,20 +63,24 @@ export class ProductsController {
       status,
       page,
       pageSize,
+      includeMetrics,
     });
   }
 
   @Get('admin/:id')
+  @UseGuards(CatalogManagerGuard)
   findAdminOne(@Param('id') id: string, @Req() req) {
     return this.productsService.findOne(Number(id), req.storeId);
   }
 
   @Patch(':id')
+  @UseGuards(CatalogManagerGuard)
   update(@Param('id') id: string, @Body() dto: UpdateProductDto, @Req() req) {
     return this.productsService.update(Number(id), dto, req.storeId);
   }
 
   @Patch(':id/save-complete')
+  @UseGuards(CatalogManagerGuard)
   updateComplete(
     @Param('id') id: string,
     @Body() dto: SaveProductCompleteDto,
@@ -82,11 +90,13 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @UseGuards(CatalogManagerGuard)
   remove(@Param('id') id: string, @Req() req) {
     return this.productsService.remove(Number(id), req.storeId);
   }
 
   @Post(':id/categories/:categoryId')
+  @UseGuards(CatalogManagerGuard)
   addCategory(
     @Param('id') id: string,
     @Param('categoryId') categoryId: string,
@@ -96,6 +106,7 @@ export class ProductsController {
   }
 
   @Delete(':id/categories/:categoryId')
+  @UseGuards(CatalogManagerGuard)
   removeCategory(
     @Param('id') id: string,
     @Param('categoryId') categoryId: string,

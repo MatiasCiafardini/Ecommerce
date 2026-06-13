@@ -267,6 +267,28 @@ export class LabelsService {
       });
     }
 
+    if (query.withoutStockOnly) {
+      and.push({
+        OR: [
+          {
+            inventories: {
+              none: {
+                storeId,
+              },
+            },
+          },
+          {
+            inventories: {
+              some: {
+                storeId,
+                quantity: { lte: 0 },
+              },
+            },
+          },
+        ],
+      });
+    }
+
     if (and.length > 0) {
       where.AND = and;
     }

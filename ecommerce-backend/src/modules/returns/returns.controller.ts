@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Get,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -126,8 +127,12 @@ export class ReturnsController {
 
   @UseGuards(AdminAuthGuard)
   @Get('manual')
-  findManual(@Req() req) {
-    return this.returnsService.findManualReturns(req.storeId);
+  findManual(@Req() req, @Query('storeLocationId') storeLocationId?: string) {
+    return this.returnsService.findManualReturns(
+      req.storeId,
+      req.user?.sub,
+      parseOptionalId(storeLocationId),
+    );
   }
 
   @UseGuards(AdminAuthGuard)
@@ -135,4 +140,10 @@ export class ReturnsController {
   findAll(@Req() req) {
     return this.returnsService.findAll(req.storeId);
   }
+}
+
+function parseOptionalId(value?: string) {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }

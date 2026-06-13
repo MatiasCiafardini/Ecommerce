@@ -20,6 +20,7 @@ import { UpdateProductImageDto } from './dto/update-product-image.dto';
 import { UploadProductImageDto } from './dto/upload-product-image.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { CatalogManagerGuard } from '../auth/guards/catalog-manager.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { uploadsDir } from '../../common/uploads';
@@ -49,6 +50,7 @@ export class ProductImagesController {
   constructor(private service: ProductImagesService) {}
 
   @Post('upload')
+  @UseGuards(CatalogManagerGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -119,6 +121,7 @@ export class ProductImagesController {
   }
 
   @Post()
+  @UseGuards(CatalogManagerGuard)
   create(
     @Param('productId') productId: string,
     @Body() dto: CreateProductImageDto,
@@ -133,6 +136,7 @@ export class ProductImagesController {
   }
 
   @Patch(':id')
+  @UseGuards(CatalogManagerGuard)
   update(
     @Param('productId') productId: string,
     @Param('id') id: string,
@@ -143,6 +147,7 @@ export class ProductImagesController {
   }
 
   @Delete(':id')
+  @UseGuards(CatalogManagerGuard)
   remove(@Param('productId') productId: string, @Param('id') id: string, @Req() req) {
     return this.service.delete(Number(id), Number(productId), req.storeId);
   }

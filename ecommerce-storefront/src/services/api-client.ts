@@ -24,6 +24,24 @@ async function readResponseBody(response: Response) {
   }
 }
 
+function extractServerErrorMessage(responseBody: string, fallback = "No se pudo cargar la informacion.") {
+  if (!responseBody || responseBody === "<empty>") return fallback;
+
+  try {
+    const parsed = JSON.parse(responseBody) as { message?: string | string[] };
+    if (Array.isArray(parsed.message) && parsed.message.length) {
+      return parsed.message.join(", ");
+    }
+    if (typeof parsed.message === "string" && parsed.message.trim()) {
+      return parsed.message;
+    }
+  } catch {
+    // Fall back to a generic user-facing message below.
+  }
+
+  return fallback;
+}
+
 export async function apiFetch<T>(
   path: string,
   options?: ApiFetchOptions,
@@ -31,7 +49,7 @@ export async function apiFetch<T>(
   const apiUrl = getPublicApiUrl();
 
   if (!apiUrl) {
-    throw new Error(`API request failed for ${path}: missing NEXT_PUBLIC_API_URL`);
+    throw new Error("No se pudo conectar con el servidor.");
   }
 
   const { host, storeId, isPreview } = await getServerStoreContext();
@@ -51,18 +69,12 @@ export async function apiFetch<T>(
           : undefined,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    throw new Error(
-      `API network request failed for ${path} (host="${host}", storeId=${storeId}, apiUrl="${apiUrl}"). ${message}`,
-    );
+    throw new Error("No se pudo conectar con el servidor.");
   }
 
   if (!response.ok) {
     const responseBody = (await readResponseBody(response)).slice(0, 1000) || "<empty>";
-    throw new Error(
-      `API request failed for ${path} (host="${host}", storeId=${storeId}, status=${response.status} ${response.statusText}). Response body: ${responseBody}`,
-    );
+    throw new Error(extractServerErrorMessage(responseBody));
   }
 
   if (response.status === 204) {
@@ -78,9 +90,6 @@ export async function apiFetch<T>(
   try {
     return JSON.parse(text) as T;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `API request returned invalid JSON for ${path} (host="${host}", storeId=${storeId}). Parse error: ${message}. Response body: ${text.slice(0, 1000)}`,
-    );
+    throw new Error("No se pudo leer la respuesta del servidor.");
   }
 }

@@ -9,6 +9,7 @@ import {
 } from "@/lib/tenant/store-context";
 
 const BODYLESS_METHODS = new Set(["GET", "HEAD"]);
+const UPSTREAM_TIMEOUT_MS = 45_000;
 
 function normalizeApiUrl(rawUrl: string) {
   return rawUrl.trim().replace(/\/+$/, "");
@@ -87,13 +88,27 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function fetchUpstreamWithTimeout(url: URL, init: RequestInit) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function fetchWithDevRetry(url: URL, init: RequestInit) {
   const attempts = process.env.NODE_ENV === "production" ? 1 : 8;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      return await fetch(url, init);
+      return await fetchUpstreamWithTimeout(url, init);
     } catch (error) {
       lastError = error;
       if (attempt < attempts - 1) {
@@ -157,6 +172,7 @@ async function proxyRequest(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const timedOut = error instanceof Error && error.name === "AbortError";
     console.error("[proxy] upstream request failed", {
       targetUrl: targetUrl.toString(),
       incomingHost: tenant.host,
@@ -168,12 +184,14 @@ async function proxyRequest(
 
     return NextResponse.json(
       {
-        message: `No se pudo conectar con el backend configurado en ${apiUrl}.`,
+        message: timedOut
+          ? "La operacion tardo demasiado. Intentalo nuevamente en unos segundos."
+          : `No se pudo conectar con el backend configurado en ${apiUrl}.`,
         detail: message,
-        error: "Bad Gateway",
-        statusCode: 502,
+        error: timedOut ? "Gateway Timeout" : "Bad Gateway",
+        statusCode: timedOut ? 504 : 502,
       },
-      { status: 502 },
+      { status: timedOut ? 504 : 502 },
     );
   }
 

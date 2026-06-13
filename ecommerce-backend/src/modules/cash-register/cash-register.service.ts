@@ -49,9 +49,9 @@ export class CashRegisterService {
     };
   }
 
-  async getCurrent(storeId: number, userId?: number) {
+  async getCurrent(storeId: number, userId?: number, requestedStoreLocationId?: number) {
     const { mode } = await this.getConfig(storeId);
-    const location = await this.resolveUserLocation(storeId, userId);
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
 
     if (mode === 'automatic') {
       const session = await this.ensureAutomaticSession(storeId, location?.id ?? null);
@@ -81,7 +81,7 @@ export class CashRegisterService {
 
   async openManual(storeId: number, userId: number | undefined, dto: OpenCashRegisterDto) {
     const { mode } = await this.getConfig(storeId);
-    const location = await this.resolveUserLocation(storeId, userId);
+    const location = await this.resolveUserLocation(storeId, userId, dto.storeLocationId);
 
     if (mode !== 'manual') {
       throw new BadRequestException('La caja manual no esta configurada para esta tienda.');
@@ -120,7 +120,7 @@ export class CashRegisterService {
   }
 
   async closeManual(storeId: number, userId: number | undefined, dto: CloseCashRegisterDto) {
-    const location = await this.resolveUserLocation(storeId, userId);
+    const location = await this.resolveUserLocation(storeId, userId, dto.storeLocationId);
 
     if (!location) {
       throw new BadRequestException('Asigna este usuario a un local fisico para cerrar caja.');
@@ -160,8 +160,8 @@ export class CashRegisterService {
     return this.withSummary(closedSession);
   }
 
-  async getHistory(storeId: number, userId?: number) {
-    const location = await this.resolveUserLocation(storeId, userId);
+  async getHistory(storeId: number, userId?: number, requestedStoreLocationId?: number) {
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
     const sessions = await this.prisma.cashRegisterSession.findMany({
       where: {
         storeId,
@@ -179,8 +179,9 @@ export class CashRegisterService {
     userId: number | undefined,
     startDate?: string,
     endDate?: string,
+    requestedStoreLocationId?: number,
   ) {
-    const location = await this.resolveUserLocation(storeId, userId);
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
     const range = this.resolveBusinessDateRange(startDate, endDate);
     const summary = await this.buildSummaryForRange(
       storeId,
@@ -200,8 +201,13 @@ export class CashRegisterService {
     };
   }
 
-  async getClosurePdf(storeId: number, userId?: number, sessionId?: number) {
-    const location = await this.resolveUserLocation(storeId, userId);
+  async getClosurePdf(
+    storeId: number,
+    userId?: number,
+    sessionId?: number,
+    requestedStoreLocationId?: number,
+  ) {
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
     const session = sessionId
       ? await this.prisma.cashRegisterSession.findFirst({
           where: {
@@ -775,11 +781,16 @@ export class CashRegisterService {
     return mode === 'manual' ? 'manual' : 'automatic';
   }
 
-  private async resolveUserLocation(storeId: number, userId?: number) {
+  private async resolveUserLocation(
+    storeId: number,
+    userId?: number,
+    requestedStoreLocationId?: number,
+  ) {
     if (userId) {
       const user = await this.prisma.user.findFirst({
         where: { id: userId, storeId },
         select: {
+          role: true,
           storeLocation: {
             select: {
               id: true,
@@ -789,6 +800,19 @@ export class CashRegisterService {
           },
         },
       });
+
+      if (requestedStoreLocationId && ['OWNER', 'ADMIN', 'SUPER_ADMIN'].includes(String(user?.role))) {
+        const requested = await this.prisma.storeLocation.findFirst({
+          where: { id: requestedStoreLocationId, storeId, active: true },
+          select: { id: true, name: true, active: true },
+        });
+
+        if (!requested) {
+          throw new BadRequestException('El local seleccionado no existe o esta inactivo.');
+        }
+
+        return requested;
+      }
 
       if (user?.storeLocation?.active) {
         return user.storeLocation;

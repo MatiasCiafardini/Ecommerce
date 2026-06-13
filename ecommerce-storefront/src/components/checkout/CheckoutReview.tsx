@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useCart } from "@/context/cart-context";
 import { useAuth } from "@/context/auth-context";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import {
   canDownloadOrderReceipt,
@@ -182,27 +182,29 @@ const MAX_TRANSFER_PROOF_DIMENSION = 1600;
 const TRANSFER_PROOF_QUALITY_STEPS = [0.82, 0.72, 0.62, 0.52, 0.42];
 
 const buildXhrErrorMessage = (status: number, statusText: string, responseText: string) => {
-  const fallback = `API request failed with status ${status} ${statusText}`.trim();
+  const fallback = status >= 500
+    ? "El servidor tuvo un problema. Intentalo de nuevo en unos minutos."
+    : "No se pudo completar la accion.";
 
   if (!responseText.trim()) {
-    return `${fallback}. Response body: <empty>`;
+    return fallback;
   }
 
   try {
     const errorData = JSON.parse(responseText) as { message?: string | string[] };
 
     if (Array.isArray(errorData.message)) {
-      return `${fallback}. Response body: ${errorData.message.join(", ")}`;
+      return getErrorMessage(errorData.message.join(", "), fallback);
     }
 
     if (typeof errorData.message === "string" && errorData.message.trim()) {
-      return `${fallback}. Response body: ${errorData.message}`;
+      return getErrorMessage(errorData.message, fallback);
     }
   } catch {
     // Fall back to the raw body below.
   }
 
-  return `${fallback}. Response body: ${responseText}`;
+  return getErrorMessage(responseText, fallback);
 };
 
 const readFileAsDataUrl = (file: File) =>

@@ -4,6 +4,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CatalogManagerGuard } from '../auth/guards/catalog-manager.guard';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
@@ -14,11 +15,13 @@ export class CategoriesController {
   constructor(private service: CategoriesService) {}
 
   @Post()
+  @UseGuards(CatalogManagerGuard)
   create(@Body() dto: CreateCategoryDto, @Req() req) {
     return this.service.create(dto, req.storeId);
   }
 
   @Patch(':id')
+  @UseGuards(CatalogManagerGuard)
   update(@Param('id') id: string, @Body() dto: UpdateCategoryDto, @Req() req) {
     return this.service.update(Number(id), dto, req.storeId);
   }
@@ -29,6 +32,7 @@ export class CategoriesController {
   }
 
   @Delete(':id')
+  @UseGuards(CatalogManagerGuard)
   remove(@Param('id') id: string, @Req() req, @Query('reassignTo') reassignTo?: string) {
     return this.service.remove(
       Number(id),

@@ -59,6 +59,7 @@ const adminSections: NavigationItem[] = [
   { id: "admin-products", label: "Productos", description: "Catalogo y altas", icon: "products" },
   { id: "admin-stock", label: "Stock", description: "Inventario rapido", icon: "stock" },
   { id: "admin-labels", label: "Etiquetas", description: "Codigos de barras", icon: "labels" },
+  { id: "admin-categories", label: "Categorias", description: "Organizacion del catalogo", icon: "categories" },
   { id: "admin-orders", label: "Pedidos", description: "Operacion diaria", icon: "orders" },
   { id: "admin-customers", label: "Clientes", description: "Base activa", icon: "customers" },
   { id: "admin-shipments", label: "Envios", description: "Logistica y tracking", icon: "shipments" },
@@ -78,7 +79,7 @@ const customerSections: NavigationItem[] = [
 export default function AccountWorkspace({ user, section, onSectionChange }: Props) {
   const router = useRouter();
   const { logout } = useAuth();
-  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user.role ?? "");
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user.role ?? "");
   const manualSalesEnabled = Boolean(user.storeFeatures?.manualSalesEnabled);
   const displayName = [user.name, user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
@@ -167,14 +168,15 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
   const showSidebar = !isNarrowViewport;
   const useAdminSidebar = Boolean(isAdmin && showSidebar);
   const adminSidebarWidth = shouldCollapseSidebar ? 56 : 180;
-  const adminNavigationSections = adminSections.map((item) =>
-    item.id === "admin-orders"
-      ? { ...item, badgeCount: pendingOrdersCount }
-      : item.id === "admin-manual-sales" && !manualSalesEnabled
-        ? { ...item, description: "Mostrador deshabilitado" }
-      : item,
-  );
-  const mobileAdminNavigationItems: MobileAdminNavigationItem[] = [
+  const adminNavigationSections = adminSections
+    .map((item) =>
+      item.id === "admin-orders"
+        ? { ...item, badgeCount: pendingOrdersCount }
+        : item.id === "admin-manual-sales" && !manualSalesEnabled
+          ? { ...item, description: "Mostrador deshabilitado" }
+        : item,
+    );
+  const mobileAdminNavigationItems = ([
     { id: "admin-overview", label: "Dashboard", shortLabel: "Dashb.", icon: "dashboard" },
     { id: "admin-manual-sales", label: "Venta manual", shortLabel: "Ventas", icon: "sales" },
     { id: "admin-orders", label: "Historial", shortLabel: "Hist.", icon: "history", badgeCount: pendingOrdersCount },
@@ -183,8 +185,9 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
     { id: "admin-customers", label: "Clientes", shortLabel: "Clientes", icon: "customers" },
     { id: "admin-products", label: "Productos", shortLabel: "Prod.", icon: "products" },
     { id: "admin-stock", label: "Stock", shortLabel: "Stock", icon: "stock" },
+    { id: "admin-categories", label: "Categorias", shortLabel: "Cat.", icon: "categories" },
     { id: "admin-settings", label: "Ajustes", shortLabel: "Ajustes", icon: "settings" },
-  ];
+  ] satisfies MobileAdminNavigationItem[]);
 
   const handleMobileAdminNavigation = (item: MobileAdminNavigationItem) => {
     if (item.href) {
@@ -812,6 +815,7 @@ function MenuIcon({ name }: { name: string }) {
     products: <><path d="M6 7h12l1 13H5L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" /></>,
     stock: <><path d="M4 7h16v14H4z" /><path d="M4 7l2-4h12l2 4" /><path d="M8 11h8" /><path d="M8 15h5" /></>,
     labels: <><path d="M4 7V4h3" /><path d="M17 4h3v3" /><path d="M20 17v3h-3" /><path d="M7 20H4v-3" /><path d="M7 8v8" /><path d="M10 8v8" /><path d="M14 8v8" /><path d="M17 8v8" /></>,
+    categories: <><path d="M4 6h7l2 2h7v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M8 12h8" /><path d="M8 16h5" /></>,
     orders: <><path d="M7 3h10v18H7z" /><path d="M9 8h6" /><path d="M9 12h6" /><path d="M9 16h4" /></>,
     customers: <><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
     currentAccounts: <><path d="M4 7h16" /><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" /><path d="M8 12h8" /><path d="M8 16h5" /><path d="M17 12h.01" /></>,

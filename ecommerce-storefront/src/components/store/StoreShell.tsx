@@ -13,7 +13,7 @@ export default function StoreShell({
   const { user } = useAuth();
   const pathname = usePathname();
   const whatsappConfig = getWhatsAppConfig(themeName);
-  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user?.role ?? "");
   const isAdminWorkspace =
     pathname === "/account" || pathname === "/manual-sales";
   const showWhatsApp = Boolean(whatsappConfig) && !(isAdmin && isAdminWorkspace);

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { normalizeEmail } from '../../common/utils/email.util';
@@ -12,10 +12,18 @@ import { UpdateStoreLocationUserDto } from './dto/update-store-location-user.dto
 export class StoreLocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getOverview(storeId: number) {
+  async getOverview(storeId: number, requesterUserId?: number, requesterRole?: string) {
+    const staffLocationId =
+      requesterRole === 'STAFF'
+        ? await this.resolveUserLocationId(storeId, requesterUserId)
+        : null;
+
     const [locations, users] = await Promise.all([
       this.prisma.storeLocation.findMany({
-        where: { storeId },
+        where: {
+          storeId,
+          ...(staffLocationId ? { id: staffLocationId } : {}),
+        },
         orderBy: [{ active: 'desc' }, { name: 'asc' }],
         include: {
           _count: {
@@ -32,6 +40,7 @@ export class StoreLocationsService {
         where: {
           storeId,
           role: { in: ['OWNER', 'ADMIN', 'STAFF'] as any },
+          ...(staffLocationId ? { storeLocationId: staffLocationId } : {}),
         },
         orderBy: [{ role: 'asc' }, { email: 'asc' }],
         select: {
@@ -55,7 +64,8 @@ export class StoreLocationsService {
     return { locations, users };
   }
 
-  async createLocation(storeId: number, dto: CreateStoreLocationDto) {
+  async createLocation(storeId: number, requesterRole: string | undefined, dto: CreateStoreLocationDto) {
+    this.ensureCanManageLocations(requesterRole);
     const name = dto.name.trim();
 
     if (!name) {
@@ -71,7 +81,13 @@ export class StoreLocationsService {
     });
   }
 
-  async updateLocation(storeId: number, locationId: number, dto: UpdateStoreLocationDto) {
+  async updateLocation(
+    storeId: number,
+    requesterRole: string | undefined,
+    locationId: number,
+    dto: UpdateStoreLocationDto,
+  ) {
+    this.ensureCanManageLocations(requesterRole);
     await this.ensureLocation(storeId, locationId);
 
     return this.prisma.storeLocation.update({
@@ -84,7 +100,8 @@ export class StoreLocationsService {
     });
   }
 
-  async createUser(storeId: number, dto: CreateStoreLocationUserDto) {
+  async createUser(storeId: number, requesterRole: string | undefined, dto: CreateStoreLocationUserDto) {
+    this.ensureCanManageLocations(requesterRole);
     const email = normalizeEmail(dto.email);
 
     if (dto.storeLocationId) {
@@ -113,7 +130,13 @@ export class StoreLocationsService {
     });
   }
 
-  async updateUser(storeId: number, userId: number, dto: UpdateStoreLocationUserDto) {
+  async updateUser(
+    storeId: number,
+    requesterRole: string | undefined,
+    userId: number,
+    dto: UpdateStoreLocationUserDto,
+  ) {
+    this.ensureCanManageLocations(requesterRole);
     const user = await this.prisma.user.findFirst({
       where: { id: userId, storeId },
       select: { id: true, role: true },
@@ -170,6 +193,23 @@ export class StoreLocationsService {
     }
 
     return location;
+  }
+
+  private async resolveUserLocationId(storeId: number, userId?: number) {
+    if (!userId) return null;
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, storeId },
+      select: { storeLocationId: true },
+    });
+
+    return user?.storeLocationId ?? null;
+  }
+
+  private ensureCanManageLocations(role?: string) {
+    if (!['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role ?? '')) {
+      throw new ForbiddenException('Location management requires admin access');
+    }
   }
 
   private optional(value?: string | null) {

@@ -25,7 +25,6 @@ const adminSections: AccountSection[] = [
   "admin-shipments",
   "admin-returns",
 ];
-
 export default function AccountPage() {
   return (
     <Suspense fallback={<LoadingState label="Cargando cuenta..." />}>
@@ -47,10 +46,9 @@ function AccountPageInner() {
 
   const section = useMemo<AccountSection>(() => {
     const requestedSection = searchParams.get("section") as AccountSection | null;
-    const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
-    const enabledAdminSections = adminSections;
+    const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user?.role ?? "");
     const allowedSections = isAdmin
-      ? [...customerSections, ...enabledAdminSections]
+      ? [...customerSections, ...adminSections]
       : customerSections;
 
     if (requestedSection && allowedSections.includes(requestedSection)) {

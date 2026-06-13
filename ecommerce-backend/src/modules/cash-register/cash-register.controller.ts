@@ -22,8 +22,12 @@ export class CashRegisterController {
   }
 
   @Get('current')
-  getCurrent(@Req() req) {
-    return this.cashRegisterService.getCurrent(req.storeId, req.user?.sub);
+  getCurrent(@Req() req, @Query('storeLocationId') storeLocationId?: string) {
+    return this.cashRegisterService.getCurrent(
+      req.storeId,
+      req.user?.sub,
+      parseOptionalId(storeLocationId),
+    );
   }
 
   @Post('open')
@@ -37,8 +41,12 @@ export class CashRegisterController {
   }
 
   @Get('history')
-  history(@Req() req) {
-    return this.cashRegisterService.getHistory(req.storeId, req.user?.sub);
+  history(@Req() req, @Query('storeLocationId') storeLocationId?: string) {
+    return this.cashRegisterService.getHistory(
+      req.storeId,
+      req.user?.sub,
+      parseOptionalId(storeLocationId),
+    );
   }
 
   @Get('range-summary')
@@ -46,12 +54,14 @@ export class CashRegisterController {
     @Req() req,
     @Query('start') start: string | undefined,
     @Query('end') end: string | undefined,
+    @Query('storeLocationId') storeLocationId?: string,
   ) {
     return this.cashRegisterService.getRangeSummary(
       req.storeId,
       req.user?.sub,
       start,
       end,
+      parseOptionalId(storeLocationId),
     );
   }
 
@@ -59,15 +69,23 @@ export class CashRegisterController {
   async closurePdf(
     @Req() req,
     @Query('sessionId') sessionId: string | undefined,
+    @Query('storeLocationId') storeLocationId: string | undefined,
     @Res() res: Response,
   ) {
     const document = await this.cashRegisterService.getClosurePdf(
       req.storeId,
       req.user?.sub,
       sessionId ? Number(sessionId) : undefined,
+      parseOptionalId(storeLocationId),
     );
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${document.filename}"`);
     return res.send(document.pdf);
   }
+}
+
+function parseOptionalId(value?: string) {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }

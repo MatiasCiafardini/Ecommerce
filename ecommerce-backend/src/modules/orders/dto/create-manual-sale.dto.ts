@@ -28,6 +28,10 @@ export class CreateManualSaleItemDto {
 export class CreateManualSaleDto {
   @IsOptional()
   @IsInt()
+  storeLocationId?: number;
+
+  @IsOptional()
+  @IsInt()
   customerId?: number;
 
   @IsOptional()
@@ -63,6 +67,11 @@ export class CreateManualSaleDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   discountValue?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  appliedCurrentAccountCreditAmount?: number;
 
   @IsOptional()
   @IsString()

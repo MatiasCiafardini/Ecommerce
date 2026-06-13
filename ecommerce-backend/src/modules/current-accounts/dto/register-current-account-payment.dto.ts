@@ -1,5 +1,6 @@
 import {
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -7,6 +8,10 @@ import {
 } from 'class-validator';
 
 export class RegisterCurrentAccountPaymentDto {
+  @IsOptional()
+  @IsInt()
+  storeLocationId?: number;
+
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
   amount: number;

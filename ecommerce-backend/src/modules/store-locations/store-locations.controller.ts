@@ -13,12 +13,12 @@ export class StoreLocationsController {
 
   @Get()
   overview(@Req() req) {
-    return this.storeLocationsService.getOverview(req.storeId);
+    return this.storeLocationsService.getOverview(req.storeId, req.user?.sub, req.user?.role);
   }
 
   @Post()
   createLocation(@Req() req, @Body() dto: CreateStoreLocationDto) {
-    return this.storeLocationsService.createLocation(req.storeId, dto);
+    return this.storeLocationsService.createLocation(req.storeId, req.user?.role, dto);
   }
 
   @Patch(':locationId')
@@ -27,12 +27,12 @@ export class StoreLocationsController {
     @Param('locationId', ParseIntPipe) locationId: number,
     @Body() dto: UpdateStoreLocationDto,
   ) {
-    return this.storeLocationsService.updateLocation(req.storeId, locationId, dto);
+    return this.storeLocationsService.updateLocation(req.storeId, req.user?.role, locationId, dto);
   }
 
   @Post('users')
   createUser(@Req() req, @Body() dto: CreateStoreLocationUserDto) {
-    return this.storeLocationsService.createUser(req.storeId, dto);
+    return this.storeLocationsService.createUser(req.storeId, req.user?.role, dto);
   }
 
   @Patch('users/:userId')
@@ -41,6 +41,6 @@ export class StoreLocationsController {
     @Param('userId', ParseIntPipe) userId: number,
     @Body() dto: UpdateStoreLocationUserDto,
   ) {
-    return this.storeLocationsService.updateUser(req.storeId, userId, dto);
+    return this.storeLocationsService.updateUser(req.storeId, req.user?.role, userId, dto);
   }
 }

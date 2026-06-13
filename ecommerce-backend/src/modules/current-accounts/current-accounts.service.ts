@@ -46,7 +46,7 @@ export class CurrentAccountsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(storeId: number, userId: number | undefined, dto: CreateCurrentAccountDto) {
-    const location = await this.resolveUserLocation(storeId, userId);
+    const location = await this.resolveUserLocation(storeId, userId, dto.storeLocationId);
     const customerData = this.buildCustomerUpdateData(dto);
 
     if (!customerData.firstName && !customerData.lastName && !customerData.phone && !customerData.email && !customerData.document) {
@@ -86,25 +86,32 @@ export class CurrentAccountsService {
             },
           });
 
-      await tx.currentAccount.upsert({
+      const existingAccount = await tx.currentAccount.findFirst({
         where: {
-          storeId_customerId: {
-            storeId,
-            customerId: savedCustomer.id,
-          },
+          storeId,
+          customerId: savedCustomer.id,
+          storeLocationId: location?.id ?? null,
         },
-        create: {
+      });
+
+      if (existingAccount) {
+        await tx.currentAccount.update({
+          where: { id: existingAccount.id },
+          data: {
+            deletedAt: null,
+            lastMovementAt: new Date(),
+          },
+        });
+      } else {
+        await tx.currentAccount.create({
+          data: {
           storeId,
           storeLocationId: location?.id ?? null,
           customerId: savedCustomer.id,
           balance: 0,
         },
-        update: {
-          deletedAt: null,
-          ...(location ? { storeLocationId: location.id } : {}),
-          lastMovementAt: new Date(),
-        },
-      });
+        });
+      }
 
       await this.syncDefaultAddress(tx, storeId, savedCustomer.id, customerData, dto.address);
 
@@ -119,8 +126,9 @@ export class CurrentAccountsService {
     userId: number | undefined,
     status: 'debt' | 'credit' | 'paid' | 'all' = 'debt',
     search = '',
+    requestedStoreLocationId?: number,
   ) {
-    const location = await this.resolveUserLocation(storeId, userId);
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
     const normalizedSearch = search.trim();
 
     const balanceFilter =
@@ -180,14 +188,18 @@ export class CurrentAccountsService {
     });
   }
 
-  async findByCustomer(storeId: number, userId: number | undefined, customerId: number) {
-    const location = await this.resolveUserLocation(storeId, userId);
-    const account = await this.prisma.currentAccount.findUnique({
+  async findByCustomer(
+    storeId: number,
+    userId: number | undefined,
+    customerId: number,
+    requestedStoreLocationId?: number,
+  ) {
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
+    const account = await this.prisma.currentAccount.findFirst({
       where: {
-        storeId_customerId: {
-          storeId,
-          customerId,
-        },
+        storeId,
+        customerId,
+        ...(location ? { storeLocationId: location.id } : {}),
       },
       include: {
         customer: {
@@ -294,15 +306,14 @@ export class CurrentAccountsService {
     createdByUserId: number | undefined,
     dto: RegisterCurrentAccountPaymentDto,
   ) {
-    const cashContext = await this.resolveCashContext(storeId, createdByUserId);
+    const cashContext = await this.resolveCashContext(storeId, createdByUserId, dto.storeLocationId);
 
     return this.prisma.$transaction(async (tx) => {
-      const account = await tx.currentAccount.findUnique({
+      const account = await tx.currentAccount.findFirst({
         where: {
-          storeId_customerId: {
-            storeId,
-            customerId,
-          },
+          storeId,
+          customerId,
+          storeLocationId: cashContext.storeLocationId,
         },
       });
 
@@ -369,12 +380,12 @@ export class CurrentAccountsService {
     });
   }
 
-  private async resolveCashContext(storeId: number, userId?: number) {
+  private async resolveCashContext(storeId: number, userId?: number, requestedStoreLocationId?: number) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
       select: { cashRegisterMode: true },
     });
-    const location = await this.resolveUserLocation(storeId, userId);
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
 
     if (store?.cashRegisterMode !== 'manual') {
       const session = await this.ensureAutomaticCashRegisterSession(
@@ -515,7 +526,7 @@ export class CurrentAccountsService {
     userId: number | undefined,
     dto: UpdateCurrentAccountDto,
   ) {
-    const account = await this.findActiveAccount(storeId, customerId);
+    const account = await this.findActiveAccount(storeId, customerId, userId, dto.storeLocationId);
     const customerData = this.buildCustomerUpdateData(dto);
 
     await this.prisma.$transaction(async (tx) => {
@@ -527,7 +538,7 @@ export class CurrentAccountsService {
       await this.syncDefaultAddress(tx, storeId, account.customerId, customerData, dto.address);
     });
 
-    return this.findByCustomer(storeId, userId, customerId);
+    return this.findByCustomer(storeId, userId, customerId, dto.storeLocationId);
   }
 
   async adjustBalance(
@@ -536,15 +547,14 @@ export class CurrentAccountsService {
     createdByUserId: number | undefined,
     dto: AdjustCurrentAccountDto,
   ) {
-    const location = await this.resolveUserLocation(storeId, createdByUserId);
+    const location = await this.resolveUserLocation(storeId, createdByUserId, dto.storeLocationId);
 
     return this.prisma.$transaction(async (tx) => {
-      const account = await tx.currentAccount.findUnique({
+      const account = await tx.currentAccount.findFirst({
         where: {
-          storeId_customerId: {
-            storeId,
-            customerId,
-          },
+          storeId,
+          customerId,
+          storeLocationId: location?.id ?? null,
         },
       });
 
@@ -603,8 +613,13 @@ export class CurrentAccountsService {
     });
   }
 
-  async deactivate(storeId: number, customerId: number) {
-    const account = await this.findActiveAccount(storeId, customerId);
+  async deactivate(
+    storeId: number,
+    customerId: number,
+    userId?: number,
+    requestedStoreLocationId?: number,
+  ) {
+    const account = await this.findActiveAccount(storeId, customerId, userId, requestedStoreLocationId);
 
     return this.prisma.currentAccount.update({
       where: { id: account.id },
@@ -620,13 +635,12 @@ export class CurrentAccountsService {
     userId: number | undefined,
     dto: UpdateCurrentAccountDto,
   ) {
-    const location = await this.resolveUserLocation(storeId, userId);
-    const account = await this.prisma.currentAccount.findUnique({
+    const location = await this.resolveUserLocation(storeId, userId, dto.storeLocationId);
+    const account = await this.prisma.currentAccount.findFirst({
       where: {
-        storeId_customerId: {
-          storeId,
-          customerId,
-        },
+        storeId,
+        customerId,
+        storeLocationId: location?.id ?? null,
       },
     });
 
@@ -657,16 +671,21 @@ export class CurrentAccountsService {
       await this.syncDefaultAddress(tx, storeId, customerId, customerData, dto.address);
     });
 
-    return this.findByCustomer(storeId, userId, customerId);
+    return this.findByCustomer(storeId, userId, customerId, dto.storeLocationId);
   }
 
-  private async findActiveAccount(storeId: number, customerId: number) {
-    const account = await this.prisma.currentAccount.findUnique({
+  private async findActiveAccount(
+    storeId: number,
+    customerId: number,
+    userId?: number,
+    requestedStoreLocationId?: number,
+  ) {
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
+    const account = await this.prisma.currentAccount.findFirst({
       where: {
-        storeId_customerId: {
-          storeId,
-          customerId,
-        },
+        storeId,
+        customerId,
+        ...(location ? { storeLocationId: location.id } : {}),
       },
       select: {
         id: true,
@@ -685,6 +704,7 @@ export class CurrentAccountsService {
   private async resolveUserLocation(
     storeId: number,
     userId?: number,
+    requestedStoreLocationId?: number,
   ): Promise<AccountLocation> {
     if (!userId) {
       return null;
@@ -693,6 +713,7 @@ export class CurrentAccountsService {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, storeId },
       select: {
+        role: true,
         storeLocation: {
           select: {
             id: true,
@@ -702,6 +723,19 @@ export class CurrentAccountsService {
         },
       },
     });
+
+    if (requestedStoreLocationId && ['OWNER', 'ADMIN', 'SUPER_ADMIN'].includes(String(user?.role))) {
+      const requested = await this.prisma.storeLocation.findFirst({
+        where: { id: requestedStoreLocationId, storeId, active: true },
+        select: { id: true, name: true, active: true },
+      });
+
+      if (!requested) {
+        throw new BadRequestException('El local seleccionado no existe o esta inactivo.');
+      }
+
+      return requested;
+    }
 
     return user?.storeLocation?.active ? user.storeLocation : null;
   }

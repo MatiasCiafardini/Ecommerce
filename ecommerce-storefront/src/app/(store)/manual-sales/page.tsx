@@ -25,7 +25,7 @@ function ManualSalesPageInner() {
       return;
     }
 
-    const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user.role ?? "");
+    const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user.role ?? "");
     const manualSalesEnabled = isManualSalesEnabledForUser(user);
 
     if (!isAdmin || !manualSalesEnabled) {
@@ -37,7 +37,7 @@ function ManualSalesPageInner() {
     return <LoadingState label="Cargando venta manual..." />;
   }
 
-  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user.role ?? "");
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user.role ?? "");
   const manualSalesEnabled = isManualSalesEnabledForUser(user);
 
   if (!isAdmin || !manualSalesEnabled) {

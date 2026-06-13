@@ -17,7 +17,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateManualSaleDto } from './dto/create-manual-sale.dto';
 import { UpdateManualSaleDto } from './dto/update-manual-sale.dto';
 import { ExportAccountingDto } from './dto/export-accounting.dto';
-import { CancellationRequestStatus, OrderStatus } from '@prisma/client';
+import { CancellationRequestStatus, CurrentAccount, OrderStatus } from '@prisma/client';
 import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
 import { ShipmentService } from '../fulfillment/services/shipment.service';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
@@ -183,6 +183,7 @@ export class OrdersService {
     const cashContext = await this.resolveManualSaleCashContext(
       storeId,
       createdByUserId,
+      data.storeLocationId,
     );
 
     if (currentAccountPayment && !data.customerId) {
@@ -205,17 +206,6 @@ export class OrdersService {
         discountType: data.discountType,
         discountValue: data.discountValue,
       });
-      const paymentStatus = currentAccountPayment
-        ? 'pending'
-        : data.paymentStatus ?? 'approved';
-      const stockStatus = currentAccountPayment ? 'approved' : paymentStatus;
-      const initialOrderStatus =
-        currentAccountPayment
-          ? OrderStatus.pending
-          : stockStatus === 'approved'
-            ? OrderStatus.paid
-            : OrderStatus.pending;
-
       const variants = await tx.productVariant.findMany({
         where: {
           id: { in: variantIds },
@@ -282,6 +272,45 @@ export class OrdersService {
         pricingPolicy,
       );
       const total = Math.max(subtotal - discountAmount + shippingCost, 0);
+      const requestedCreditAmount = this.roundCurrency(
+        Math.max(Number(data.appliedCurrentAccountCreditAmount ?? 0), 0),
+      );
+      let appliedCreditAmount = 0;
+      let selectedCurrentAccount: CurrentAccount | null = null;
+
+      if (requestedCreditAmount > 0) {
+        if (!data.customerId) {
+          throw new BadRequestException(
+            'Para usar saldo a favor, selecciona una cuenta corriente.',
+          );
+        }
+
+        selectedCurrentAccount = await tx.currentAccount.findFirst({
+          where: {
+            storeId,
+            customerId,
+            storeLocationId: cashContext.storeLocationId,
+            deletedAt: null,
+          },
+        });
+
+        if (!selectedCurrentAccount) {
+          throw new BadRequestException(
+            'No encontramos una cuenta corriente activa para usar el saldo a favor.',
+          );
+        }
+
+        const availableCredit = Math.abs(Math.min(Number(selectedCurrentAccount.balance), 0));
+        appliedCreditAmount = Math.min(requestedCreditAmount, availableCredit, total);
+
+        if (appliedCreditAmount <= 0) {
+          throw new BadRequestException(
+            'La cuenta corriente seleccionada no tiene saldo a favor disponible.',
+          );
+        }
+      }
+
+      const amountToCollect = this.roundCurrency(Math.max(total - appliedCreditAmount, 0));
       const shippingMethod =
         data.shippingMethod?.trim() || 'Retiro en local';
       const customerFirstName =
@@ -295,6 +324,17 @@ export class OrdersService {
           ? 'store'
           : 'manual',
       });
+      const paymentStatus =
+        currentAccountPayment && amountToCollect > 0
+          ? 'pending'
+          : data.paymentStatus ?? 'approved';
+      const stockStatus = currentAccountPayment ? 'approved' : paymentStatus;
+      const initialOrderStatus =
+        currentAccountPayment && amountToCollect > 0
+          ? OrderStatus.pending
+          : stockStatus === 'approved'
+            ? OrderStatus.paid
+            : OrderStatus.pending;
 
       const order = await tx.order.create({
         data: {
@@ -328,7 +368,7 @@ export class OrdersService {
               provider: 'manual',
               method: data.paymentMethod?.trim() || 'Efectivo',
               status: paymentStatus,
-              amount: total,
+              amount: amountToCollect,
               reference: data.reference?.trim() || null,
               notes: data.notes?.trim() || null,
               metadata: {
@@ -336,6 +376,8 @@ export class OrdersService {
                 discountType: discount.type,
                 discountValue: discount.value,
                 currentAccount: currentAccountPayment,
+                appliedCurrentAccountCreditAmount: appliedCreditAmount,
+                collectedAmount: amountToCollect,
               },
             },
           },
@@ -354,22 +396,50 @@ export class OrdersService {
         }
       }
 
-      if (currentAccountPayment) {
+      if (appliedCreditAmount > 0 && selectedCurrentAccount) {
+        const previousCreditBalance = Number(selectedCurrentAccount.balance);
+        const nextCreditBalance = this.roundCurrency(previousCreditBalance + appliedCreditAmount);
+        const updatedAccount = await tx.currentAccount.update({
+          where: { id: selectedCurrentAccount.id },
+          data: {
+            balance: nextCreditBalance,
+            lastMovementAt: new Date(),
+          },
+        });
+
+        await tx.currentAccountMovement.create({
+          data: {
+            storeId,
+            storeLocationId: cashContext.storeLocationId,
+            accountId: updatedAccount.id,
+            customerId,
+            orderId: order.id,
+            cashRegisterId: cashContext.cashRegisterId,
+            type: 'ADJUSTMENT_POSITIVE',
+            amount: appliedCreditAmount,
+            paymentMethod: 'Saldo a favor',
+            description: `Saldo a favor usado en venta manual #${order.id}`,
+            createdByUserId,
+            balanceAfter: nextCreditBalance,
+          },
+        });
+      }
+
+      if (currentAccountPayment && amountToCollect > 0) {
         await tx.customer.update({
           where: { id: customerId },
           data: { source: 'current_account' },
         });
 
-        const existingAccount = await tx.currentAccount.findUnique({
+        const existingAccount = await tx.currentAccount.findFirst({
           where: {
-            storeId_customerId: {
-              storeId,
-              customerId,
-            },
+            storeId,
+            customerId,
+            storeLocationId: cashContext.storeLocationId,
           },
         });
         const previousBalance = Number(existingAccount?.balance ?? 0);
-        const nextBalance = this.roundCurrency(previousBalance + total);
+        const nextBalance = this.roundCurrency(previousBalance + amountToCollect);
         const account = existingAccount
           ? await tx.currentAccount.update({
               where: { id: existingAccount.id },
@@ -401,7 +471,7 @@ export class OrdersService {
             orderId: order.id,
             cashRegisterId: cashContext.cashRegisterId,
             type: 'SALE',
-            amount: total,
+            amount: amountToCollect,
             paymentMethod: 'Cuenta corriente',
             description: `Venta manual #${order.id}`,
             createdByUserId,
@@ -661,12 +731,11 @@ export class OrdersService {
       });
 
       if (currentAccountPayment && total !== previousTotal) {
-        const account = await tx.currentAccount.findUnique({
+        const account = await tx.currentAccount.findFirst({
           where: {
-            storeId_customerId: {
-              storeId,
-              customerId: order.customerId,
-            },
+            storeId,
+            customerId: order.customerId,
+            storeLocationId: order.storeLocationId,
           },
         });
 
@@ -685,6 +754,7 @@ export class OrdersService {
           await tx.currentAccountMovement.create({
             data: {
               storeId,
+              storeLocationId: order.storeLocationId,
               accountId: account.id,
               customerId: order.customerId,
               orderId: order.id,
@@ -793,12 +863,11 @@ export class OrdersService {
       });
 
       if (currentAccountPayment) {
-        const account = await tx.currentAccount.findUnique({
+        const account = await tx.currentAccount.findFirst({
           where: {
-            storeId_customerId: {
-              storeId,
-              customerId: order.customerId,
-            },
+            storeId,
+            customerId: order.customerId,
+            storeLocationId: order.storeLocationId,
           },
         });
 
@@ -818,6 +887,7 @@ export class OrdersService {
           await tx.currentAccountMovement.create({
             data: {
               storeId,
+              storeLocationId: order.storeLocationId,
               accountId: account.id,
               customerId: order.customerId,
               orderId: order.id,
@@ -870,12 +940,16 @@ export class OrdersService {
     }
   }
 
-  private async resolveManualSaleCashContext(storeId: number, userId?: number) {
+  private async resolveManualSaleCashContext(
+    storeId: number,
+    userId?: number,
+    requestedStoreLocationId?: number,
+  ) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
       select: { cashRegisterMode: true },
     });
-    const location = await this.resolveUserLocation(storeId, userId);
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
 
     if (store?.cashRegisterMode !== 'manual') {
       const session = await this.ensureAutomaticCashRegisterSession(
@@ -967,7 +1041,11 @@ export class OrdersService {
     return { start, end };
   }
 
-  private async resolveUserLocation(storeId: number, userId?: number) {
+  private async resolveUserLocation(
+    storeId: number,
+    userId?: number,
+    requestedStoreLocationId?: number,
+  ) {
     if (!userId) {
       return null;
     }
@@ -975,6 +1053,7 @@ export class OrdersService {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, storeId },
       select: {
+        role: true,
         storeLocation: {
           select: {
             id: true,
@@ -984,6 +1063,19 @@ export class OrdersService {
         },
       },
     });
+
+    if (requestedStoreLocationId && ['OWNER', 'ADMIN', 'SUPER_ADMIN'].includes(String(user?.role))) {
+      const requested = await this.prisma.storeLocation.findFirst({
+        where: { id: requestedStoreLocationId, storeId, active: true },
+        select: { id: true, name: true, active: true },
+      });
+
+      if (!requested) {
+        throw new BadRequestException('El local seleccionado no existe o esta inactivo.');
+      }
+
+      return requested;
+    }
 
     return user?.storeLocation?.active ? user.storeLocation : null;
   }
@@ -1409,8 +1501,8 @@ export class OrdersService {
     }).then((orders) => this.withCancellationRequestsList(orders));
   }
 
-  async findManualSales(storeId: number, userId?: number) {
-    const location = await this.resolveUserLocation(storeId, userId);
+  async findManualSales(storeId: number, userId?: number, requestedStoreLocationId?: number) {
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
 
     return this.prisma.order.findMany({
       where: {

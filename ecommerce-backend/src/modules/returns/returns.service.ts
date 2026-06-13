@@ -19,7 +19,7 @@ import { AdminNotificationMailService } from '../notifications/admin-notificatio
 import { privateUploadsDir, uploadsDir } from '../../common/uploads';
 
 type UploadedReturnProof = { filename: string; originalname: string };
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN']);
+const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'STAFF']);
 
 @Injectable()
 export class ReturnsService {
@@ -29,9 +29,18 @@ export class ReturnsService {
     private adminNotificationMailService: AdminNotificationMailService,
   ) {}
 
-  async findManualReturns(storeId: number) {
+  async findManualReturns(
+    storeId: number,
+    userId?: number,
+    requestedStoreLocationId?: number,
+  ) {
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
+
     return this.prisma.manualReturn.findMany({
-      where: { storeId },
+      where: {
+        storeId,
+        ...(location ? { storeLocationId: location.id } : {}),
+      },
       include: this.manualReturnInclude(),
       orderBy: { createdAt: 'desc' },
       take: 80,
@@ -173,6 +182,7 @@ export class ReturnsService {
         storeId,
         createdByUserId,
         differenceAmount > 0 && settlementMethod !== 'Cuenta corriente',
+        dto.storeLocationId,
       );
       const { customer, account } =
         needsCurrentAccount || this.hasManualReturnCustomerData(dto)
@@ -855,20 +865,20 @@ export class ReturnsService {
     storeId: number,
     userId: number | undefined,
     requireOpenCash: boolean,
+    requestedStoreLocationId?: number,
   ) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
       select: { cashRegisterMode: true },
     });
+    const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
 
     if (store?.cashRegisterMode !== 'manual') {
       return {
-        storeLocationId: null as number | null,
+        storeLocationId: location?.id ?? null,
         cashRegisterId: null as number | null,
       };
     }
-
-    const location = await this.resolveUserLocation(storeId, userId);
 
     if (!location) {
       throw new BadRequestException(
@@ -899,7 +909,11 @@ export class ReturnsService {
     };
   }
 
-  private async resolveUserLocation(storeId: number, userId?: number) {
+  private async resolveUserLocation(
+    storeId: number,
+    userId?: number,
+    requestedStoreLocationId?: number,
+  ) {
     if (!userId) {
       return null;
     }
@@ -907,6 +921,7 @@ export class ReturnsService {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, storeId },
       select: {
+        role: true,
         storeLocation: {
           select: {
             id: true,
@@ -916,6 +931,19 @@ export class ReturnsService {
         },
       },
     });
+
+    if (requestedStoreLocationId && ['OWNER', 'ADMIN', 'SUPER_ADMIN'].includes(String(user?.role))) {
+      const requested = await this.prisma.storeLocation.findFirst({
+        where: { id: requestedStoreLocationId, storeId, active: true },
+        select: { id: true, name: true, active: true },
+      });
+
+      if (!requested) {
+        throw new BadRequestException('El local seleccionado no existe o esta inactivo.');
+      }
+
+      return requested;
+    }
 
     return user?.storeLocation?.active ? user.storeLocation : null;
   }
@@ -955,12 +983,11 @@ export class ReturnsService {
       return { customer, account: null };
     }
 
-    const existingAccount = await tx.currentAccount.findUnique({
+    const existingAccount = await tx.currentAccount.findFirst({
       where: {
-        storeId_customerId: {
-          storeId,
-          customerId: customer.id,
-        },
+        storeId,
+        customerId: customer.id,
+        storeLocationId,
       },
     });
 

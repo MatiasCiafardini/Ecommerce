@@ -35,7 +35,7 @@ export function NotificationsMenuInner({
   const [forceMobileSheet, setForceMobileSheet] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
+  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user?.role ?? "");
   const useMobileSheet = mobileSheet || forceMobileSheet;
 
   const loadNotifications = useCallback(async () => {

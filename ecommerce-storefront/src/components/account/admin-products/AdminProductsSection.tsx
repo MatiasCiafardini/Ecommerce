@@ -695,14 +695,18 @@ function attributeSaveErrorMessage(error: unknown) {
 
 export default function AdminProductsSection({
   initialTab = "catalog",
+  userRole,
 }: {
   initialTab?: ProductAdminTab;
+  userRole?: string | null;
 }) {
   const { isTabletOrSmaller, isPhone } = useViewportFlags();
   const router = useRouter();
   const searchParams = useSearchParams();
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const catalogAutoReloadAttemptedRef = useRef(false);
+  const catalogBaseLoadedRef = useRef(false);
+  const canManageCatalog = userRole !== "STAFF";
   const [products, setProducts] = useState<Product[]>([]);
   const [productPage, setProductPage] = useState(1);
   const [productTotal, setProductTotal] = useState(0);
@@ -881,8 +885,8 @@ export default function AdminProductsSection({
 
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
+    setActiveTab(!canManageCatalog && ["create", "options", "variant-options"].includes(initialTab) ? "catalog" : initialTab);
+  }, [canManageCatalog, initialTab]);
 
   const loadOptions = async () => {
     const optionsData = await api("/product-options");
@@ -897,6 +901,7 @@ export default function AdminProductsSection({
 
     params.set("page", String(page));
     params.set("pageSize", String(ADMIN_PRODUCTS_PAGE_SIZE));
+    params.set("includeMetrics", page === 1 ? "true" : "false");
 
     if (query) {
       params.set("search", query);
@@ -919,11 +924,14 @@ export default function AdminProductsSection({
   const loadData = async (page = productPage): Promise<Product[]> => {
     setLoading(true);
     try {
+      const shouldLoadBase = !catalogBaseLoadedRef.current;
       const [p, c, o, integrations] = await Promise.all([
         api(`/products/admin/catalog?${buildCatalogQueryString(page)}`),
-        api("/categories"),
-        api("/product-options"),
-        api("/store/admin/integrations") as Promise<AdminIntegrationsConfig>,
+        shouldLoadBase ? api("/categories") : Promise.resolve(categories),
+        shouldLoadBase ? api("/product-options") : Promise.resolve(options),
+        shouldLoadBase
+          ? api("/store/admin/integrations") as Promise<AdminIntegrationsConfig>
+          : Promise.resolve({ priceInput: priceInputSettings }),
       ]);
       const catalog = p as Partial<ProductCatalogResponse>;
       const nextProducts = Array.isArray(catalog.items) ? catalog.items : [];
@@ -931,15 +939,18 @@ export default function AdminProductsSection({
       setProductPage(Number(catalog.page ?? page));
       setProductTotal(Number(catalog.total ?? nextProducts.length));
       setProductTotalPages(Math.max(1, Number(catalog.totalPages ?? 1)));
-      setProductMetrics({
-        total: Number(catalog.metrics?.total ?? nextProducts.length),
-        published: Number(catalog.metrics?.published ?? 0),
-        draft: Number(catalog.metrics?.draft ?? 0),
-        withoutStock: Number(catalog.metrics?.withoutStock ?? 0),
-      });
+      if (catalog.metrics) {
+        setProductMetrics({
+          total: Number(catalog.metrics.total ?? nextProducts.length),
+          published: Number(catalog.metrics.published ?? 0),
+          draft: Number(catalog.metrics.draft ?? 0),
+          withoutStock: Number(catalog.metrics.withoutStock ?? 0),
+        });
+      }
       setCategories(Array.isArray(c) ? scopeCategoriesToActiveStore(c as Category[]) : []);
       setOptions(Array.isArray(o) ? o : []);
       setPriceInputSettings(normalizePriceInputSettings(integrations?.priceInput));
+      catalogBaseLoadedRef.current = true;
       setError("");
       return nextProducts;
     } catch (err) {
@@ -1003,6 +1014,11 @@ export default function AdminProductsSection({
   }, []);
 
   useEffect(() => {
+    if (!canManageCatalog) {
+      setAutoOpenedProductId(null);
+      return;
+    }
+
     if (searchParams.get("section") === "admin-labels") {
       setAutoOpenedProductId(null);
       return;
@@ -1039,7 +1055,7 @@ export default function AdminProductsSection({
     };
 
     void openProduct();
-  }, [autoOpenedProductId, loading, products, searchParams]);
+  }, [autoOpenedProductId, canManageCatalog, loading, products, searchParams]);
 
   const filteredProducts = useMemo(() => {
     return products;
@@ -1182,6 +1198,7 @@ export default function AdminProductsSection({
   };
 
   const startNewProduct = () => {
+    if (!canManageCatalog) return;
     resetForm();
     setActiveTab("create");
     setWizardStep("info");
@@ -2232,6 +2249,8 @@ export default function AdminProductsSection({
 
   const hydrateFormFromProduct = useCallback(
     async (product: Product) => {
+      if (!canManageCatalog) return;
+
       setLoadingEditId(product.id);
       setError("");
       setSuccess("");
@@ -2340,11 +2359,13 @@ export default function AdminProductsSection({
         setLoadingEditId(null);
       }
     },
-    [clearVariantDraft, imageFiles, priceInputSettings],
+    [canManageCatalog, clearVariantDraft, imageFiles, priceInputSettings],
   );
 
   const duplicateProductDraft = useCallback(
     async (product: Product) => {
+      if (!canManageCatalog) return;
+
       setLoadingEditId(product.id);
       setError("");
       setSuccess("");
@@ -2436,7 +2457,7 @@ export default function AdminProductsSection({
         setLoadingEditId(null);
       }
     },
-    [clearVariantDraft, imageFiles, priceInputSettings],
+    [canManageCatalog, clearVariantDraft, imageFiles, priceInputSettings],
   );
 
   const syncExistingImages = async (productId: number) => {
@@ -2930,6 +2951,11 @@ export default function AdminProductsSection({
   }, [editingProductId, form, buildDraftProductPayload]);
 
   const saveProduct = async (autoGenerateSkus = false, publishedOverride = form.published) => {
+    if (!canManageCatalog) {
+      setError("El vendedor puede consultar productos, pero no crear ni editar el catalogo.");
+      return;
+    }
+
     if (saving) {
       return;
     }
@@ -3779,7 +3805,9 @@ export default function AdminProductsSection({
           <option value="draft">Borrador</option>
           <option value="without-stock">Sin stock</option>
         </select>
-        <button type="button" onClick={startNewProduct} style={primaryButtonStyle}>+ Crear nuevo producto</button>
+        {canManageCatalog ? (
+          <button type="button" onClick={startNewProduct} style={primaryButtonStyle}>+ Crear nuevo producto</button>
+        ) : null}
       </div>
       <div style={statsGridStyle}>
         <Stat label="Productos totales" value={String(productMetrics.total)} />
@@ -3798,15 +3826,15 @@ export default function AdminProductsSection({
               <SortableProductTh sortKey="stock" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Stock total</SortableProductTh>
               <SortableProductTh sortKey="status" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Estado</SortableProductTh>
               <SortableProductTh sortKey="price" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Precio desde</SortableProductTh>
-              <th style={thStyle}>Acciones</th>
+              {canManageCatalog ? <th style={thStyle}>Acciones</th> : null}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={tdStyle}>Cargando catalogo...</td></tr>
+              <tr><td colSpan={canManageCatalog ? 8 : 7} style={tdStyle}>Cargando catalogo...</td></tr>
             ) : filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan={8} style={tdStyle}>
+                <td colSpan={canManageCatalog ? 8 : 7} style={tdStyle}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                     <span>No hay productos para mostrar.</span>
                     <button type="button" onClick={() => void loadData()} style={ghostButtonStyle}>
@@ -3841,13 +3869,15 @@ export default function AdminProductsSection({
                 <td style={tdStyle}>{getProductTotalStock(product)}</td>
                 <td style={tdStyle}><span style={productCatalogStatusStyle(getProductCatalogStatus(product))}>{getProductCatalogStatus(product)}</span></td>
                 <td style={tdStyle}>{priceFrom ? money(priceFrom) : "-"}</td>
-                <td style={tdStyle}>
-                  <div style={iconActionsStyle}>
-                    <button type="button" title="Editar" aria-label="Editar producto" onClick={() => void hydrateFormFromProduct(product)} style={iconButtonStyle}>&#9998;</button>
-                    <button type="button" title="Duplicar" aria-label="Duplicar producto" onClick={() => void duplicateProductDraft(product)} style={iconButtonStyle}>&#10697;</button>
-                    <button type="button" title="Eliminar" aria-label="Eliminar producto" onClick={() => setPendingRemoval({ kind: "product", productId: product.id, productTitle: product.title, productsCount: 0 })} style={iconButtonStyle}>&times;</button>
-                  </div>
-                </td>
+                {canManageCatalog ? (
+                  <td style={tdStyle}>
+                    <div style={iconActionsStyle}>
+                      <button type="button" title="Editar" aria-label="Editar producto" onClick={() => void hydrateFormFromProduct(product)} style={iconButtonStyle}>&#9998;</button>
+                      <button type="button" title="Duplicar" aria-label="Duplicar producto" onClick={() => void duplicateProductDraft(product)} style={iconButtonStyle}>&#10697;</button>
+                      <button type="button" title="Eliminar" aria-label="Eliminar producto" onClick={() => setPendingRemoval({ kind: "product", productId: product.id, productTitle: product.title, productsCount: 0 })} style={iconButtonStyle}>&times;</button>
+                    </div>
+                  </td>
+                ) : null}
               </tr>
               );
             })}
@@ -3930,20 +3960,24 @@ export default function AdminProductsSection({
               >
                 Productos
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("options")}
-                style={workspaceTabStyle(activeTab === "options")}
-              >
-                Atributos
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("variant-options")}
-                style={workspaceTabStyle(activeTab === "variant-options")}
-              >
-                Opciones de variantes
-              </button>
+              {canManageCatalog ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("options")}
+                    style={workspaceTabStyle(activeTab === "options")}
+                  >
+                    Atributos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("variant-options")}
+                    style={workspaceTabStyle(activeTab === "variant-options")}
+                  >
+                    Opciones de variantes
+                  </button>
+                </>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setActiveTab("categories")}
@@ -3957,7 +3991,7 @@ export default function AdminProductsSection({
         <section
           style={{
             ...responsiveShellStyle,
-            display: activeTab === "create" ? "grid" : "none",
+            display: activeTab === "create" && canManageCatalog ? "grid" : "none",
           }}
         >
           {renderProductWizard()}
@@ -4917,6 +4951,7 @@ export default function AdminProductsSection({
           }}
         >
           <AdminCategoriesManager
+            readOnly={!canManageCatalog}
             onCategoriesChange={async () => {
               await loadData();
             }}
@@ -5407,8 +5442,10 @@ export default function AdminProductsSection({
 
 function AdminCategoriesManager({
   onCategoriesChange,
+  readOnly = false,
 }: {
   onCategoriesChange?: () => Promise<void> | void;
+  readOnly?: boolean;
 }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [query, setQuery] = useState("");
@@ -5495,6 +5532,8 @@ function AdminCategoriesManager({
   };
 
   const saveCategory = async () => {
+    if (readOnly) return;
+
     if (!draft?.name.trim()) {
       showCategoryToast("La categoria necesita un nombre.");
       return;
@@ -5542,6 +5581,8 @@ function AdminCategoriesManager({
   };
 
   const removeCategory = async () => {
+    if (readOnly) return;
+
     if (!pendingRemoval) {
       return;
     }
@@ -5618,7 +5659,7 @@ function AdminCategoriesManager({
         return;
       }
 
-      if (draft) {
+      if (draft && !readOnly) {
         event.preventDefault();
         if (event.key === "Escape") {
           setDraft(null);
@@ -5632,7 +5673,7 @@ function AdminCategoriesManager({
     window.addEventListener("keydown", handlePopupKeyDown);
     return () => window.removeEventListener("keydown", handlePopupKeyDown);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, pendingRemoval, saving]);
+  }, [draft, pendingRemoval, readOnly, saving]);
 
   return (
     <>
@@ -5643,9 +5684,11 @@ function AdminCategoriesManager({
           placeholder="Buscar categorias"
           style={searchFieldStyle}
         />
-        <button type="button" onClick={() => openCategoryModal()} style={primaryButtonStyle}>
-          + Nueva categoria
-        </button>
+        {!readOnly ? (
+          <button type="button" onClick={() => openCategoryModal()} style={primaryButtonStyle}>
+            + Nueva categoria
+          </button>
+        ) : null}
       </div>
 
       {loading ? (
@@ -5736,12 +5779,14 @@ function AdminCategoriesManager({
                   onChange={(event) => setDraft((current) => current ? { ...current, name: event.target.value } : current)}
                   placeholder="Nombre"
                   style={fieldStyle}
+                  readOnly={readOnly}
                 />
                 <input value={draft.slug} placeholder="Slug automatico" style={fieldStyle} disabled />
                 <select
                   value={draft.status}
                   onChange={(event) => setDraft((current) => current ? { ...current, status: event.target.value as CategoryDraft["status"] } : current)}
                   style={selectStyle}
+                  disabled={readOnly}
                 >
                   <option value="active">Activa</option>
                   <option value="hidden">Oculta</option>
@@ -5750,6 +5795,7 @@ function AdminCategoriesManager({
                   value={draft.parentId}
                   onChange={(event) => setDraft((current) => current ? { ...current, parentId: event.target.value } : current)}
                   style={selectStyle}
+                  disabled={readOnly}
                 >
                   <option value="">Categoria padre: Ninguna</option>
                   {availableParents.map((category) => (
@@ -5764,6 +5810,7 @@ function AdminCategoriesManager({
                 onChange={(event) => setDraft((current) => current ? { ...current, description: event.target.value } : current)}
                 placeholder="Descripcion"
                 style={{ ...fieldStyle, minHeight: 110, resize: "vertical" }}
+                readOnly={readOnly}
               />
             </section>
 
@@ -5781,29 +5828,31 @@ function AdminCategoriesManager({
               ) : (
                 <div style={categoryImageEmptyStyle}>Sin imagen</div>
               )}
-              <div style={rowWrapStyle}>
-                <label style={secondaryButtonStyle}>
-                  {draft.imageUrl || pendingImageFile ? "Cambiar imagen" : "Subir imagen"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setPendingImageFile(event.target.files?.[0] ?? null)}
-                    style={{ display: "none" }}
-                  />
-                </label>
-                {(draft.imageUrl || pendingImageFile) ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPendingImageFile(null);
-                      setDraft((current) => current ? { ...current, imageUrl: "" } : current);
-                    }}
-                    style={ghostButtonStyle}
-                  >
-                    Eliminar imagen
-                  </button>
-                ) : null}
-              </div>
+              {!readOnly ? (
+                <div style={rowWrapStyle}>
+                  <label style={secondaryButtonStyle}>
+                    {draft.imageUrl || pendingImageFile ? "Cambiar imagen" : "Subir imagen"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => setPendingImageFile(event.target.files?.[0] ?? null)}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                  {(draft.imageUrl || pendingImageFile) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingImageFile(null);
+                        setDraft((current) => current ? { ...current, imageUrl: "" } : current);
+                      }}
+                      style={ghostButtonStyle}
+                    >
+                      Eliminar imagen
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </section>
 
             {draft.id ? (
@@ -5829,7 +5878,7 @@ function AdminCategoriesManager({
             ) : null}
 
             <div style={modalActionsStyle}>
-              {draft.id ? (
+              {draft.id && !readOnly ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -5844,14 +5893,16 @@ function AdminCategoriesManager({
               <button type="button" onClick={() => setDraft(null)} style={ghostButtonStyle}>
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={() => void saveCategory()}
-                style={primaryButtonStyle}
-                disabled={saving || uploadingImage}
-              >
-                {saving || uploadingImage ? "Guardando..." : "Guardar"}
-              </button>
+              {!readOnly ? (
+                <button
+                  type="button"
+                  onClick={() => void saveCategory()}
+                  style={primaryButtonStyle}
+                  disabled={saving || uploadingImage}
+                >
+                  {saving || uploadingImage ? "Guardando..." : "Guardar"}
+                </button>
+              ) : null}
             </div>
           </section>
         </div>

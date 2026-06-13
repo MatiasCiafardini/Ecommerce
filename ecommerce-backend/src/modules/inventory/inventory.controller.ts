@@ -3,6 +3,7 @@ import { InventoryService } from './inventory.service';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { CatalogManagerGuard } from '../auth/guards/catalog-manager.guard';
 
 @ApiSecurity('x-store-id')
 @ApiBearerAuth('jwt')
@@ -13,6 +14,7 @@ export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
 
   @Post()
+  @UseGuards(CatalogManagerGuard)
   create(@Body() dto: CreateInventoryDto, @Req() req) {
     return this.inventoryService.create(dto, req.storeId);
   }
@@ -23,6 +25,7 @@ export class InventoryController {
   }
 
   @Patch(':variantId')
+  @UseGuards(CatalogManagerGuard)
   update(
     @Param('variantId') variantId: string,
     @Body('quantity') quantity: number,

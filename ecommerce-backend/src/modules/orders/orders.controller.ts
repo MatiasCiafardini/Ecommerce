@@ -64,8 +64,12 @@ export class OrdersController {
   }
 
   @Get('manual/list')
-  findManualSales(@Req() req) {
-    return this.ordersService.findManualSales(req.storeId, req.user?.sub);
+  findManualSales(@Req() req, @Query('storeLocationId') storeLocationId?: string) {
+    return this.ordersService.findManualSales(
+      req.storeId,
+      req.user?.sub,
+      parseOptionalId(storeLocationId),
+    );
   }
 
   @Get('accounting/export')
@@ -132,4 +136,10 @@ export class OrdersController {
       dto,
     );
   }
+}
+
+function parseOptionalId(value?: string) {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }

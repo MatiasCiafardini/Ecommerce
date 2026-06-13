@@ -1,8 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CurrentAccountAddressDto } from './create-current-account.dto';
 
 export class UpdateCurrentAccountDto {
+  @IsOptional()
+  @IsInt()
+  storeLocationId?: number;
+
   @IsOptional()
   @IsString()
   firstName?: string | null;

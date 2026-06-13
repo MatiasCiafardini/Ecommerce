@@ -46,7 +46,7 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const { cart } = useCart();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const sessionUiPending = authUiLocked;
-  const hasAdminAccess = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(
+  const hasAdminAccess = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(
     user?.role ?? "",
   );
   const [isMobile, setIsMobile] = useState(false);

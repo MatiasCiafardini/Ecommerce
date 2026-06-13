@@ -90,10 +90,12 @@ export class ProductsService {
       status?: string;
       page?: string;
       pageSize?: string;
+      includeMetrics?: string;
     },
   ) {
     const page = this.normalizePositiveInt(query.page, 1, 1, 10_000);
     const pageSize = this.normalizePositiveInt(query.pageSize, 80, 20, 120);
+    const includeMetrics = query.includeMetrics !== 'false';
     const where = this.buildAdminCatalogWhere(storeId, query);
     const metricsWhere = {
       storeId,
@@ -102,7 +104,33 @@ export class ProductsService {
     const hasStockWhere = this.buildHasStockWhere(storeId);
     const withoutStockWhere = this.buildWithoutStockWhere(storeId);
 
-    const [items, total, totalProducts, published, draft, withoutStock] =
+    const metricsPromise = includeMetrics
+      ? Promise.all([
+          this.prisma.product.count({ where: metricsWhere }),
+          this.prisma.product.count({
+            where: {
+              ...metricsWhere,
+              published: true,
+              ...hasStockWhere,
+            },
+          }),
+          this.prisma.product.count({
+            where: {
+              ...metricsWhere,
+              published: false,
+              ...hasStockWhere,
+            },
+          }),
+          this.prisma.product.count({
+            where: {
+              ...metricsWhere,
+              ...withoutStockWhere,
+            },
+          }),
+        ])
+      : Promise.resolve(null);
+
+    const [items, total, metrics] =
       await Promise.all([
         this.prisma.product.findMany({
           where,
@@ -170,28 +198,9 @@ export class ProductsService {
           },
         }),
         this.prisma.product.count({ where }),
-        this.prisma.product.count({ where: metricsWhere }),
-        this.prisma.product.count({
-          where: {
-            ...metricsWhere,
-            published: true,
-            ...hasStockWhere,
-          },
-        }),
-        this.prisma.product.count({
-          where: {
-            ...metricsWhere,
-            published: false,
-            ...hasStockWhere,
-          },
-        }),
-        this.prisma.product.count({
-          where: {
-            ...metricsWhere,
-            ...withoutStockWhere,
-          },
-        }),
+        metricsPromise,
       ]);
+    const [totalProducts, published, draft, withoutStock] = metrics ?? [undefined, undefined, undefined, undefined];
 
     return {
       items,
@@ -199,12 +208,16 @@ export class ProductsService {
       page,
       pageSize,
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
-      metrics: {
-        total: totalProducts,
-        published,
-        draft,
-        withoutStock,
-      },
+      ...(metrics
+        ? {
+            metrics: {
+              total: totalProducts,
+              published,
+              draft,
+              withoutStock,
+            },
+          }
+        : {}),
     };
   }
 

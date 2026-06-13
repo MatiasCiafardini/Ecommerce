@@ -467,7 +467,7 @@ model CurrentAccount {
   customer       Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
   movements      CurrentAccountMovement[]
 
-  @@unique([storeId, customerId])
+  @@unique([storeId, storeLocationId, customerId])
   @@index([storeId, balance])
   @@index([storeId, storeLocationId])
   @@index([customerId])

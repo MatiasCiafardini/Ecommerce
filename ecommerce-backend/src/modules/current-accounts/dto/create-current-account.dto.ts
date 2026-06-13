@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsEmail, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 
 export class CurrentAccountAddressDto {
   @IsOptional()
@@ -24,6 +24,10 @@ export class CurrentAccountAddressDto {
 }
 
 export class CreateCurrentAccountDto {
+  @IsOptional()
+  @IsInt()
+  storeLocationId?: number;
+
   @IsOptional()
   @IsString()
   firstName?: string;

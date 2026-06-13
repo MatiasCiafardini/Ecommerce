@@ -55,6 +55,12 @@ export class ListLabelProductsDto {
   @IsOptional()
   @Transform(toOptionalBoolean)
   @IsBoolean()
+  withoutStockOnly?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(toOptionalBoolean)
+  @IsBoolean()
   activeOnly?: boolean;
 
   @ApiPropertyOptional({ enum: sortFields })

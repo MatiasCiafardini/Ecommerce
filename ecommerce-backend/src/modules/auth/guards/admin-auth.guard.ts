@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN']);
+const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'STAFF']);
 
 @Injectable()
 export class AdminAuthGuard extends JwtAuthGuard {

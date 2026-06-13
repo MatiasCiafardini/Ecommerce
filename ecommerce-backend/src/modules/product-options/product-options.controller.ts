@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { CatalogManagerGuard } from '../auth/guards/catalog-manager.guard';
 import { ProductOptionsService } from './product-options.service';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { AddProductOptionValueDto } from './dto/add-product-option-value.dto';
@@ -35,11 +36,13 @@ export class ProductOptionsController {
   }
 
   @Post('product-options')
+  @UseGuards(CatalogManagerGuard)
   createOption(@Req() req, @Body() dto: CreateProductOptionDto) {
     return this.service.createOption(req.storeId, dto);
   }
 
   @Patch('product-options/:id')
+  @UseGuards(CatalogManagerGuard)
   updateOption(
     @Req() req,
     @Param('id') id: string,
@@ -49,6 +52,7 @@ export class ProductOptionsController {
   }
 
   @Delete('product-options/:id')
+  @UseGuards(CatalogManagerGuard)
   deleteOption(
     @Req() req,
     @Param('id') id: string,
@@ -58,6 +62,7 @@ export class ProductOptionsController {
   }
 
   @Delete('product-options/:id/products/:productId')
+  @UseGuards(CatalogManagerGuard)
   unlinkOptionFromProduct(
     @Req() req,
     @Param('id') id: string,
@@ -71,6 +76,7 @@ export class ProductOptionsController {
   }
 
   @Post('product-options/:id/reusable-values/rename')
+  @UseGuards(CatalogManagerGuard)
   renameReusableValue(
     @Req() req,
     @Param('id') id: string,
@@ -80,6 +86,7 @@ export class ProductOptionsController {
   }
 
   @Post('product-options/:id/reusable-values')
+  @UseGuards(CatalogManagerGuard)
   createReusableValue(
     @Req() req,
     @Param('id') id: string,
@@ -89,6 +96,7 @@ export class ProductOptionsController {
   }
 
   @Patch('product-options/:id/reusable-values/reorder')
+  @UseGuards(CatalogManagerGuard)
   reorderReusableValues(
     @Req() req,
     @Param('id') id: string,
@@ -98,6 +106,7 @@ export class ProductOptionsController {
   }
 
   @Post('product-options/:id/reusable-values/remove')
+  @UseGuards(CatalogManagerGuard)
   removeReusableValue(
     @Req() req,
     @Param('id') id: string,
@@ -112,6 +121,7 @@ export class ProductOptionsController {
   }
 
   @Post('products/:productId/option-values')
+  @UseGuards(CatalogManagerGuard)
   addValueToProduct(
     @Req() req,
     @Param('productId') productId: string,
@@ -126,6 +136,7 @@ export class ProductOptionsController {
   }
 
   @Delete('products/:productId/option-values/:id')
+  @UseGuards(CatalogManagerGuard)
   removeValueFromProduct(
     @Req() req,
     @Param('productId') productId: string,

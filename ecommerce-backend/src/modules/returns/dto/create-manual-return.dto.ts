@@ -29,6 +29,10 @@ export class CreateManualReturnItemDto {
 export class CreateManualReturnDto {
   @IsOptional()
   @IsInt()
+  storeLocationId?: number;
+
+  @IsOptional()
+  @IsInt()
   customerId?: number;
 
   @IsOptional()

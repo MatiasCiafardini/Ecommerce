@@ -22,7 +22,7 @@ import { ShipmentService } from '../fulfillment/services/shipment.service';
 type Requester = { sub: number; role?: string };
 type UploadedTransferProof = { filename: string; originalname: string };
 type PersistedTransferProof = { filename: string; originalname: string };
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN']);
+const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'STAFF']);
 const TRANSFER_PROOF_MAX_BYTES = 5 * 1024 * 1024;
 const allowedTransferProofExtensions = new Set(['.pdf', '.png', '.jpg', '.jpeg']);
 const allowedTransferProofMimeTypes = new Set([

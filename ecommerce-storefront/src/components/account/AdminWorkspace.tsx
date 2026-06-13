@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
+import { useAuth } from "@/context/auth-context";
 import {
   money,
   type CustomerOrder,
@@ -12,10 +13,10 @@ import AdminProductsSection, {
   type Product,
 } from "./admin-products/AdminProductsSection";
 import AdminCustomersSection, { type Customer } from "./admin-customers/AdminCustomersSection";
-import AdminCurrentAccountsSection from "./AdminCurrentAccountsSection";
-import AdminCashRegisterSection from "./AdminCashRegisterSection";
+import AdminCurrentAccountsSection, { CurrentAccountCreateModal, type CurrentAccountCreateForm } from "./AdminCurrentAccountsSection";
+import AdminCashRegisterSection, { SalesHistoryModal } from "./AdminCashRegisterSection";
 import AdminManualSalesSection, { type ManualSaleCustomer } from "./AdminManualSalesSection";
-import ManualReturnsPanel from "@/components/manual-sales/ManualReturnsPanel";
+import ManualReturnsPanel, { type ManualReturnDraft } from "@/components/manual-sales/ManualReturnsPanel";
 import AdminAccountingSection from "./admin-accounting/AdminAccountingSection";
 import AdminOrdersPanelSection from "./admin-orders/AdminOrdersPanelSection";
 import AdminShipmentsSection from "./AdminShipmentsSection";
@@ -49,7 +50,103 @@ const operationalPendingStatuses = new Set([
   "packed",
 ]);
 
-type ManualSalesTab = "sale" | "current-accounts" | "returns" | "cash-register";
+type ManualSalesTab = "dashboard" | "sale" | "current-accounts" | "returns" | "cash-register";
+
+type ManualCashSummary = {
+  openingAmount: number;
+  receivedTotal: number;
+  expectedAmount: number;
+  movementCount: number;
+  accountAssignedTotal?: number;
+  accountAssignedCount?: number;
+};
+
+type ManualCashPayload = {
+  mode: "automatic" | "manual";
+  session: { id: number; openedAt: string; closedAt?: string | null } | null;
+  summary: ManualCashSummary | null;
+};
+
+type ManualDashboardSale = {
+  id: number;
+  status: string;
+  createdAt: string;
+  total: string | number;
+  customerFirstNameSnapshot?: string | null;
+  customerLastNameSnapshot?: string | null;
+  customerEmailSnapshot?: string | null;
+  customerPhoneSnapshot?: string | null;
+  customer?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
+  payments?: Array<{ method?: string | null; provider?: string | null; status: string }>;
+  items?: Array<{
+    id: number;
+    quantity: number;
+    price: string | number;
+    variant?: {
+      id: number;
+      sku?: string | null;
+      Size?: string | null;
+      Color?: string | null;
+      product?: { title: string } | null;
+    } | null;
+  }>;
+};
+
+type ManualDashboardReturn = {
+  id: number;
+  customerName?: string | null;
+  createdAt: string;
+  totalReturned: string | number;
+  totalExchange: string | number;
+  items?: Array<{
+    id: number;
+    kind: "returned" | "exchange" | string;
+    quantity: number;
+    price: string | number;
+    variant?: {
+      sku?: string | null;
+      Size?: string | null;
+      Color?: string | null;
+      product?: { title: string } | null;
+    } | null;
+  }>;
+};
+
+type ManualDashboardCurrentAccount = {
+  id: number;
+  customerId: number;
+  balance: string | number;
+  createdAt?: string | null;
+  lastMovementAt?: string | null;
+  customer?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    document?: string | null;
+  } | null;
+  movements?: Array<{
+    id: number;
+    type: string;
+    amount: string | number;
+    paymentMethod?: string | null;
+    description?: string | null;
+    createdAt: string;
+    balanceAfter: string | number;
+  }>;
+};
+
+type ManualDashboardComment = {
+  id: string;
+  createdAt: string;
+  text: string;
+  tone: "sale" | "return" | "exchange" | "account";
+};
 
 export default function AdminWorkspace({
   section,
@@ -65,11 +162,11 @@ export default function AdminWorkspace({
     );
   if (section === "admin-accounting") return <AdminAccountingSection />;
   if (section === "admin-manual-sales") return <AdminManualSalesWorkspace />;
-  if (section === "admin-products") return <AdminProductsSection />;
-  if (section === "admin-stock") return <AdminStockSection />;
+  if (section === "admin-products") return <AdminProductsSection userRole={user.role} />;
+  if (section === "admin-stock") return <AdminStockSection userRole={user.role} />;
   if (section === "admin-labels") return <AdminLabelsSection />;
   if (section === "admin-categories")
-    return <AdminProductsSection initialTab="categories" />;
+    return <AdminProductsSection initialTab="categories" userRole={user.role} />;
   if (section === "admin-orders") return <AdminOrdersPanelSection />;
   if (section === "admin-customers") return <AdminCustomersSection />;
   if (section === "admin-current-accounts") return <AdminManualSalesWorkspace initialTab="current-accounts" />;
@@ -85,74 +182,712 @@ export default function AdminWorkspace({
 }
 
 function AdminManualSalesWorkspace({
-  initialTab = "sale",
+  initialTab = "dashboard",
 }: {
   initialTab?: ManualSalesTab;
 }) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ManualSalesTab>(initialTab);
   const [initialSaleCustomer, setInitialSaleCustomer] = useState<ManualSaleCustomer | null>(null);
+  const [initialReturnDraft, setInitialReturnDraft] = useState<ManualReturnDraft | null>(null);
+  const [locations, setLocations] = useState<StoreLocation[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.storeLocationId ?? null);
+  const canSelectLocation = user?.role === "ADMIN" || user?.role === "OWNER" || user?.role === "SUPER_ADMIN";
+  useEffect(() => {
+    let mounted = true;
+
+    const loadLocations = async () => {
+      try {
+        const payload = await api("/store-locations") as StoreLocationsPayload;
+        if (!mounted) return;
+        const activeLocations = (payload.locations ?? []).filter((location) => location.active);
+        setLocations(activeLocations);
+        setSelectedLocationId((current) => current ?? user?.storeLocationId ?? activeLocations[0]?.id ?? null);
+      } catch {
+        if (mounted) {
+          setLocations([]);
+        }
+      }
+    };
+
+    if (canSelectLocation) {
+      void loadLocations();
+    } else {
+      setSelectedLocationId(user?.storeLocationId ?? null);
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [canSelectLocation, user?.storeLocationId]);
 
   const startCurrentAccountSale = (customer: ManualSaleCustomer) => {
     setInitialSaleCustomer({ ...customer, source: "current_account" });
     setActiveTab("sale");
   };
 
+  const startManualReturn = (draft: ManualReturnDraft) => {
+    setInitialReturnDraft(draft);
+    setActiveTab("returns");
+  };
+
   return (
-    <section style={panelStyle} data-account-panel>
-      <div style={tabRailStyle} role="tablist" aria-label="Venta manual">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "sale"}
-          style={workspaceTabStyle(activeTab === "sale")}
-          onClick={() => setActiveTab("sale")}
-        >
-          Venta manual
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "current-accounts"}
-          style={workspaceTabStyle(activeTab === "current-accounts")}
-          onClick={() => setActiveTab("current-accounts")}
-        >
-          Cuentas corrientes
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "cash-register"}
-          style={workspaceTabStyle(activeTab === "cash-register")}
-          onClick={() => setActiveTab("cash-register")}
-        >
-          Caja
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "returns"}
-          style={workspaceTabStyle(activeTab === "returns")}
-          onClick={() => setActiveTab("returns")}
-        >
-          Devoluciones
-        </button>
+    <section style={manualSalesBoutiqueShellStyle} data-account-panel>
+      <style>
+        {`
+          .manual-sales-top-tab {
+            border-radius: 0 !important;
+            transition: color 160ms ease, box-shadow 160ms ease;
+          }
+
+          .manual-sales-top-tab:hover {
+            background: transparent !important;
+            color: #1F6F5B !important;
+            box-shadow: inset 0 -2px 0 rgba(94, 156, 141, 0.36) !important;
+          }
+
+          .manual-sales-top-tab[aria-selected="true"] {
+            background: transparent !important;
+            box-shadow: inset 0 -3px 0 #5E9C8D !important;
+          }
+        `}
+      </style>
+      <div style={manualSalesTopbarStyle}>
+        <div style={manualSalesTopbarCenterStyle}>
+          <div style={manualSalesNavStyle} role="tablist" aria-label="Venta manual">
+            {[
+              ["dashboard", "Inicio"],
+              ["sale", "Venta manual"],
+              ["current-accounts", "Cuentas corrientes"],
+              ["cash-register", "Caja"],
+              ["returns", "Devoluciones"],
+            ].map(([tab, label]) => (
+              <button
+                key={tab}
+                className="manual-sales-top-tab"
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                style={workspaceTabStyle(activeTab === tab)}
+                onClick={() => setActiveTab(tab as ManualSalesTab)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={manualSalesTopbarActionsStyle}>
+          {canSelectLocation && locations.length > 0 ? (
+            <label style={manualSalesLocationStyle}>
+              <span>Local</span>
+              <select
+                value={selectedLocationId ?? ""}
+                onChange={(event) => setSelectedLocationId(Number(event.target.value) || null)}
+                style={manualSalesLocationSelectStyle}
+              >
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
       </div>
 
       <div role="tabpanel">
+        {activeTab === "dashboard" ? (
+          <ManualSalesDashboard
+            storeLocationId={selectedLocationId}
+            onOpenSale={() => setActiveTab("sale")}
+            onOpenCash={() => setActiveTab("cash-register")}
+            onOpenReturns={() => setActiveTab("returns")}
+            onOpenAccounts={() => setActiveTab("current-accounts")}
+            onGenerateReturn={startManualReturn}
+          />
+        ) : null}
         {activeTab === "sale" ? (
           <AdminManualSalesSection
+            storeLocationId={selectedLocationId}
             initialCustomer={initialSaleCustomer}
             initialPaymentMethod={initialSaleCustomer ? "Cuenta corriente" : undefined}
           />
         ) : null}
         {activeTab === "current-accounts" ? (
-          <AdminCurrentAccountsSection onRegisterSale={startCurrentAccountSale} />
+          <AdminCurrentAccountsSection storeLocationId={selectedLocationId} onRegisterSale={startCurrentAccountSale} />
         ) : null}
-        {activeTab === "returns" ? <ManualReturnsPanel /> : null}
-        {activeTab === "cash-register" ? <AdminCashRegisterSection /> : null}
+        {activeTab === "returns" ? (
+          <ManualReturnsPanel storeLocationId={selectedLocationId} initialDraft={initialReturnDraft} />
+        ) : null}
+        {activeTab === "cash-register" ? (
+          <AdminCashRegisterSection storeLocationId={selectedLocationId} onGenerateReturn={startManualReturn} />
+        ) : null}
       </div>
     </section>
   );
+}
+
+function ManualSalesDashboard({
+  storeLocationId,
+  onOpenSale,
+  onOpenCash,
+  onOpenReturns,
+  onOpenAccounts,
+  onGenerateReturn,
+}: {
+  storeLocationId?: number | null;
+  onOpenSale: () => void;
+  onOpenCash: () => void;
+  onOpenReturns: () => void;
+  onOpenAccounts: () => void;
+  onGenerateReturn?: (draft: ManualReturnDraft) => void;
+}) {
+  const [cash, setCash] = useState<ManualCashPayload | null>(null);
+  const [sales, setSales] = useState<ManualDashboardSale[]>([]);
+  const [returns, setReturns] = useState<ManualDashboardReturn[]>([]);
+  const [currentAccounts, setCurrentAccounts] = useState<ManualDashboardCurrentAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [createAccountOpen, setCreateAccountOpen] = useState(false);
+  const [salesHistoryOpen, setSalesHistoryOpen] = useState(false);
+  const [salesHistorySearch, setSalesHistorySearch] = useState("");
+  const [salesHistoryLoading, setSalesHistoryLoading] = useState(false);
+  const [createAccountError, setCreateAccountError] = useState("");
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [accountForm, setAccountForm] = useState<CurrentAccountCreateForm>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    document: "",
+    address1: "",
+    city: "",
+    zip: "",
+    notes: "",
+  });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadDashboard = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [cashPayload, salesPayload, returnsPayload, currentAccountsPayload] = await Promise.all([
+          api(manualStoreLocationPath("/cash-register/current", storeLocationId)),
+          api(manualStoreLocationPath("/orders/manual/list", storeLocationId)),
+          api(manualStoreLocationPath("/returns/manual", storeLocationId)),
+          api(manualStoreLocationPath("/current-accounts", storeLocationId)),
+        ]);
+
+        if (!mounted) return;
+        setCash(cashPayload as ManualCashPayload);
+        setSales(Array.isArray(salesPayload) ? (salesPayload as ManualDashboardSale[]) : []);
+        setReturns(Array.isArray(returnsPayload) ? (returnsPayload as ManualDashboardReturn[]) : []);
+        setCurrentAccounts(Array.isArray(currentAccountsPayload) ? (currentAccountsPayload as ManualDashboardCurrentAccount[]) : []);
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err.message : "No se pudo cargar el resumen del mostrador.");
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void loadDashboard();
+
+    return () => {
+      mounted = false;
+    };
+  }, [storeLocationId]);
+
+  const todaySales = useMemo(() => sales.filter((sale) => sale.status !== "cancelled" && isToday(sale.createdAt)), [sales]);
+  const todayReturns = useMemo(() => returns.filter((entry) => isToday(entry.createdAt)), [returns]);
+  const comments = useMemo(() => buildManualDashboardComments(todaySales, todayReturns, currentAccounts), [currentAccounts, todaySales, todayReturns]);
+  const accountSalesCount = todaySales.filter((sale) => salePaymentMethod(sale) === "Cuenta corriente").length;
+  const cashSummary = cash?.summary ?? null;
+  const salesTotal = todaySales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
+  const isManualCash = cash?.mode === "manual";
+
+  const openCreateAccount = () => {
+    setAccountForm({ firstName: "", lastName: "", email: "", phone: "", document: "", address1: "", city: "", zip: "", notes: "" });
+    setCreateAccountError("");
+    setCreateAccountOpen(true);
+  };
+
+  const loadSalesHistory = async () => {
+    setSalesHistoryLoading(true);
+    setError("");
+    try {
+      const salesPayload = await api(manualStoreLocationPath("/orders/manual/list", storeLocationId));
+      setSales(Array.isArray(salesPayload) ? (salesPayload as ManualDashboardSale[]) : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cargar el historial de ventas.");
+    } finally {
+      setSalesHistoryLoading(false);
+    }
+  };
+
+  const openSalesHistory = () => {
+    setSalesHistoryOpen(true);
+    void loadSalesHistory();
+  };
+
+  const createCurrentAccount = async () => {
+    if (!accountForm.firstName.trim() && !accountForm.lastName.trim()) {
+      setCreateAccountError("Carga el nombre o apellido del cliente.");
+      return;
+    }
+
+    setSavingAccount(true);
+    setCreateAccountError("");
+    try {
+      const hasAddress = [accountForm.address1, accountForm.city, accountForm.zip].some((value) => value.trim());
+      await api("/current-accounts", {
+        method: "POST",
+        body: JSON.stringify({
+          firstName: accountForm.firstName.trim() || undefined,
+          lastName: accountForm.lastName.trim() || undefined,
+          email: accountForm.email.trim() || undefined,
+          phone: accountForm.phone.trim() || undefined,
+          document: accountForm.document.trim() || undefined,
+          notes: accountForm.notes.trim() || undefined,
+          storeLocationId: storeLocationId ?? undefined,
+          address: hasAddress
+            ? {
+                address1: accountForm.address1.trim() || undefined,
+                city: accountForm.city.trim() || undefined,
+                zip: accountForm.zip.trim() || undefined,
+              }
+            : undefined,
+        }),
+      });
+      setCreateAccountOpen(false);
+      setAccountForm({ firstName: "", lastName: "", email: "", phone: "", document: "", address1: "", city: "", zip: "", notes: "" });
+    } catch (err) {
+      setCreateAccountError(getErrorMessage(err, "No se pudo crear la cuenta corriente."));
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
+  return (
+    <section style={dashboardShellStyle}>
+      {error ? <p style={errorStyle}>{error}</p> : null}
+      {loading ? <StateCard label="Cargando resumen del mostrador..." /> : null}
+
+      {!loading ? (
+        <>
+          <div style={dashboardStatsStyle}>
+            <DashboardStat tone="cash" icon={<WalletIcon />} label="Recibido en caja" value={money(cashSummary?.receivedTotal ?? 0)} detail={`${cashSummary?.movementCount ?? 0} movimientos`} />
+            <DashboardStat tone="sale" icon={<CartIcon />} label="Ventas del dia" value={money(salesTotal)} detail={`${todaySales.length} operaciones`} />
+            <DashboardStat tone="account" icon={<PeopleIcon />} label="Cuenta corriente" value={money(cashSummary?.accountAssignedTotal ?? 0)} detail={`${accountSalesCount} ventas a cuenta`} />
+            <DashboardStat tone="return" icon={<ReturnIcon />} label="Devoluciones / cambios" value={String(todayReturns.length)} detail={money(todayReturns.reduce((sum, entry) => sum + Math.abs(Number(entry.totalReturned ?? 0) - Number(entry.totalExchange ?? 0)), 0))} />
+          </div>
+
+          <section style={dashboardCardStyle}>
+            <div style={betweenStyle}>
+              <div>
+                <p style={manualSalesSectionKickerStyle}>Atajos diarios</p>
+                <h3 style={dashboardSectionTitleStyle}>Trabajo rapido</h3>
+              </div>
+              {isManualCash ? (
+                <button type="button" style={secondaryButtonStyle} onClick={onOpenCash}>Abrir caja</button>
+              ) : null}
+            </div>
+            <div style={dashboardQuickActionsStyle}>
+              <QuickActionButton icon={<TagIcon />} title="Registrar venta" description="Nueva venta rapida" onClick={onOpenSale} />
+              <QuickActionButton icon={<PersonAddIcon />} title="Crear cuenta corriente" description="Nuevo cliente" onClick={openCreateAccount} />
+              <QuickActionButton icon={<ClockIcon />} title="Historial de ventas" description="Ver ventas realizadas" onClick={openSalesHistory} />
+            </div>
+          </section>
+
+          <section style={dashboardCardStyle}>
+            <div style={betweenStyle}>
+              <div>
+                <p style={manualSalesSectionKickerStyle}>Ultimos movimientos registrados</p>
+                <h3 style={dashboardSectionTitleStyle}>Actividad reciente</h3>
+              </div>
+              <button type="button" style={manualSalesViewAllButtonStyle} onClick={openSalesHistory}>
+                <ListIcon />
+                Ver todos
+              </button>
+            </div>
+            <div style={dashboardCommentsStyle}>
+              {comments.map((comment) => (
+                <article key={comment.id} style={dashboardCommentStyle}>
+                  <span style={dashboardToneDotStyle(comment.tone)} />
+                  <p style={dashboardCommentTextStyle}>{comment.text}</p>
+                  <time style={dashboardCommentTimeStyle}>{formatDashboardTime(comment.createdAt)}</time>
+                </article>
+              ))}
+              {!comments.length ? <StateCard label="Todavia no hay ventas, cambios o devoluciones en el dia." /> : null}
+            </div>
+          </section>
+
+          {createAccountOpen ? (
+            <CurrentAccountCreateModal
+              form={accountForm}
+              error={createAccountError}
+              saving={savingAccount}
+              onFormChange={setAccountForm}
+              onSubmit={() => void createCurrentAccount()}
+              onClose={() => { setCreateAccountOpen(false); setCreateAccountError(""); }}
+            />
+          ) : null}
+
+          {salesHistoryOpen ? (
+            <SalesHistoryModal
+              salesHistory={sales}
+              salesSearch={salesHistorySearch}
+              salesLoading={salesHistoryLoading}
+              onSearchChange={setSalesHistorySearch}
+              onRefresh={loadSalesHistory}
+              onClose={() => setSalesHistoryOpen(false)}
+              onGenerateReturn={onGenerateReturn}
+              onError={setError}
+            />
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function DashboardStat({
+  label,
+  value,
+  detail,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: React.ReactNode;
+  tone: "cash" | "sale" | "account" | "return";
+}) {
+  return (
+    <div style={dashboardStatStyle}>
+      <span style={dashboardStatIconStyle(tone)}>{icon}</span>
+      <div>
+        <span style={dashboardStatLabelStyle}>{label}</span>
+        <strong style={dashboardStatValueStyle}>{value}</strong>
+        <small style={dashboardStatDetailStyle}>{detail}</small>
+      </div>
+      <span style={dashboardMiniLineStyle(tone)} />
+    </div>
+  );
+}
+
+function QuickActionButton({
+  icon,
+  title,
+  description,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" style={dashboardActionButtonStyle} onClick={onClick}>
+      <span style={dashboardActionIconStyle}>{icon}</span>
+      <span style={dashboardActionTextStyle}>
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+      <ArrowRightIcon />
+    </button>
+  );
+}
+
+function BoutiqueIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {children}
+    </svg>
+  );
+}
+
+function WalletIcon() {
+  return <BoutiqueIcon><path d="M4 7h15a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4z" /><path d="M4 7V5a2 2 0 0 1 2-2h10" /><path d="M17 13h.01" /></BoutiqueIcon>;
+}
+
+function CartIcon() {
+  return <BoutiqueIcon><path d="M6 6h15l-2 8H8L6 6Z" /><path d="M6 6 5 3H3" /><path d="M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" /><path d="M18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" /></BoutiqueIcon>;
+}
+
+function PeopleIcon() {
+  return <BoutiqueIcon><path d="M16 21v-2a4 4 0 0 0-8 0v2" /><path d="M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M20 21v-2a3 3 0 0 0-2-2.8" /></BoutiqueIcon>;
+}
+
+function ReturnIcon() {
+  return <BoutiqueIcon><path d="M9 14 4 9l5-5" /><path d="M4 9h10a6 6 0 1 1 0 12h-1" /></BoutiqueIcon>;
+}
+
+function TagIcon() {
+  return <BoutiqueIcon><path d="M20 10 12 2H4v8l8 8 8-8Z" /><path d="M7.5 5.5h.01" /></BoutiqueIcon>;
+}
+
+function PersonAddIcon() {
+  return <BoutiqueIcon><path d="M15 21v-2a4 4 0 0 0-8 0v2" /><path d="M11 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M19 8v6" /><path d="M16 11h6" /></BoutiqueIcon>;
+}
+
+function ClockIcon() {
+  return <BoutiqueIcon><circle cx="12" cy="12" r="8" /><path d="M12 8v5l3 2" /></BoutiqueIcon>;
+}
+
+function ArrowRightIcon() {
+  return <BoutiqueIcon><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></BoutiqueIcon>;
+}
+
+function ListIcon() {
+  return <BoutiqueIcon><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></BoutiqueIcon>;
+}
+
+function buildManualDashboardComments(
+  sales: ManualDashboardSale[],
+  returns: ManualDashboardReturn[],
+  currentAccounts: ManualDashboardCurrentAccount[],
+) {
+  const saleComments: ManualDashboardComment[] = sales.map((sale) => {
+    const customer = saleCustomerName(sale);
+    const hasCustomer = hasSaleCustomer(sale);
+    const product = saleProductSummary(sale.items);
+    const method = salePaymentMethod(sale);
+
+    return {
+      id: `sale-${sale.id}`,
+      createdAt: sale.createdAt,
+      tone: method === "Cuenta corriente" ? "account" : "sale",
+      text: method === "Cuenta corriente"
+        ? hasCustomer
+          ? `Se realizo la venta en cuenta corriente de ${customer}: ${product}`
+          : `Se realizo una venta en cuenta corriente de ${product}`
+        : hasCustomer
+          ? `${customer} compro ${product} a ${money(Number(sale.total ?? 0))}`
+          : `Se realizo la venta de ${product} a ${money(Number(sale.total ?? 0))}`,
+    };
+  });
+
+  const returnComments: ManualDashboardComment[] = returns.map((entry) => {
+    const returned = returnProductSummary(entry.items, "returned");
+    const exchange = returnProductSummary(entry.items, "exchange");
+    const hasExchange = Number(entry.totalExchange ?? 0) > 0 || exchange !== "sin producto de cambio";
+    const customer = entry.customerName?.trim() || "cliente sin nombre";
+
+    return {
+      id: `return-${entry.id}`,
+      createdAt: entry.createdAt,
+      tone: hasExchange ? "exchange" : "return",
+      text: hasExchange
+        ? `Se realizo un cambio de ${returned} por ${exchange} para ${customer}`
+        : `Se realizo una devolucion de ${returned}`,
+    };
+  });
+
+  const currentAccountComments = buildCurrentAccountDashboardComments(currentAccounts, returns);
+
+  return [...saleComments, ...returnComments, ...currentAccountComments]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 12);
+}
+
+function buildCurrentAccountDashboardComments(
+  accounts: ManualDashboardCurrentAccount[],
+  returns: ManualDashboardReturn[],
+) {
+  const returnById = new Map(returns.map((entry) => [entry.id, entry]));
+
+  return accounts.flatMap((account) => {
+    const customer = currentAccountCustomerName(account);
+    const createdComment: ManualDashboardComment[] = account.createdAt && isToday(account.createdAt)
+      ? [{
+          id: `account-created-${account.id}`,
+          createdAt: account.createdAt,
+          tone: "account",
+          text: `Se creo la cuenta corriente de ${customer}`,
+        }]
+      : [];
+
+    const movementComments = (account.movements ?? [])
+      .filter((movement) => isToday(movement.createdAt))
+      .map((movement): ManualDashboardComment => {
+        const amount = Math.abs(Number(movement.amount ?? 0));
+        const type = movement.type?.toUpperCase() ?? "";
+        const paymentMethod = movement.paymentMethod?.trim() ?? "";
+        const description = movement.description?.trim() ?? "";
+        const returnId = extractManualReturnId(description);
+        const relatedReturn = returnId ? returnById.get(returnId) : undefined;
+        const returned = relatedReturn ? returnProductSummary(relatedReturn.items, "returned") : "producto";
+
+        if (type === "PAYMENT") {
+          return {
+            id: `account-payment-${account.id}-${movement.id}`,
+            createdAt: movement.createdAt,
+            tone: "account",
+            text: `Se registro un pago de ${money(amount)} en cuenta corriente de ${customer}`,
+          };
+        }
+
+        if (type === "CREDIT_NOTE" || /saldo a favor/i.test(paymentMethod)) {
+          return {
+            id: `account-credit-${account.id}-${movement.id}`,
+            createdAt: movement.createdAt,
+            tone: "return",
+            text: `Se realizo una devolucion con saldo a favor de ${money(amount)} por el producto ${returned} en la cuenta corriente de ${customer}`,
+          };
+        }
+
+        if (type === "SALE") {
+          return {
+            id: `account-sale-${account.id}-${movement.id}`,
+            createdAt: movement.createdAt,
+            tone: "account",
+            text: `Se realizo una venta en cuenta corriente de ${customer}`,
+          };
+        }
+
+        return {
+          id: `account-movement-${account.id}-${movement.id}`,
+          createdAt: movement.createdAt,
+          tone: "account",
+          text: `Se actualizo la cuenta corriente de ${customer}`,
+        };
+      });
+
+    return [...createdComment, ...movementComments];
+  });
+}
+
+function manualStoreLocationPath(path: string, storeLocationId?: number | null) {
+  if (!storeLocationId) return path;
+  const params = new URLSearchParams();
+  params.set("storeLocationId", String(storeLocationId));
+  return `${path}?${params.toString()}`;
+}
+
+function isToday(value?: string | null) {
+  if (!value) return false;
+  const date = new Date(value);
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate();
+}
+
+function saleCustomerName(sale: ManualDashboardSale) {
+  return (
+    resolveSaleCustomerName(sale) ||
+    "Venta"
+  );
+}
+
+function hasSaleCustomer(sale: ManualDashboardSale) {
+  return Boolean(resolveSaleCustomerName(sale));
+}
+
+function resolveSaleCustomerName(sale: ManualDashboardSale) {
+  const nameCandidates = [
+    [sale.customerFirstNameSnapshot, sale.customerLastNameSnapshot].filter(Boolean).join(" ").trim(),
+    [sale.customer?.firstName, sale.customer?.lastName].filter(Boolean).join(" ").trim(),
+  ];
+  const validName = nameCandidates.find((value) => isRealSaleCustomerLabel(value));
+
+  if (validName) return validName;
+
+  return (
+    cleanSaleCustomerContact(sale.customerEmailSnapshot) ||
+    cleanSaleCustomerContact(sale.customerPhoneSnapshot) ||
+    cleanSaleCustomerContact(sale.customer?.email) ||
+    cleanSaleCustomerContact(sale.customer?.phone) ||
+    ""
+  );
+}
+
+function cleanSaleCustomerContact(value?: string | null) {
+  const clean = value?.trim() ?? "";
+  return clean && isRealSaleCustomerLabel(clean) ? clean : "";
+}
+
+function isRealSaleCustomerLabel(value?: string | null) {
+  const clean = value?.trim();
+  if (!clean) return false;
+
+  const normalized = clean
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (
+    normalized.startsWith("manual-sale@") ||
+    normalized.includes("@store-") ||
+    normalized.includes("@manual-sale") ||
+    normalized.endsWith(".local")
+  ) {
+    return false;
+  }
+
+  return ![
+    "venta",
+    "cliente",
+    "cliente sin nombre",
+    "sin cliente",
+    "consumidor final",
+    "mostrador",
+    "venta mostrador",
+  ].includes(normalized);
+}
+
+function currentAccountCustomerName(account: ManualDashboardCurrentAccount) {
+  const customer = account.customer;
+  return (
+    [customer?.firstName, customer?.lastName].filter(Boolean).join(" ").trim() ||
+    cleanSaleCustomerContact(customer?.email) ||
+    cleanSaleCustomerContact(customer?.phone) ||
+    cleanSaleCustomerContact(customer?.document) ||
+    `Cliente #${account.customerId}`
+  );
+}
+
+function extractManualReturnId(value?: string | null) {
+  const match = value?.match(/#(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+function salePaymentMethod(sale: ManualDashboardSale) {
+  const payment = sale.payments?.find((entry) => entry.status === "approved" || entry.status === "paid") ?? sale.payments?.[0];
+  return payment?.method?.trim() || payment?.provider || "Sin metodo";
+}
+
+function saleProductSummary(items?: ManualDashboardSale["items"]) {
+  const labels = (items ?? []).slice(0, 2).map((item) => {
+    const title = item.variant?.product?.title || "producto";
+    return item.quantity > 1 ? `${title} x${item.quantity}` : title;
+  });
+
+  if (!labels.length) return "productos sin detalle";
+  const rest = Math.max((items?.length ?? 0) - labels.length, 0);
+  return `${labels.join(", ")}${rest > 0 ? ` y ${rest} mas` : ""}`;
+}
+
+function returnProductSummary(items: ManualDashboardReturn["items"], kind: "returned" | "exchange") {
+  const filtered = (items ?? []).filter((item) => item.kind === kind);
+  const labels = filtered.slice(0, 2).map((item) => {
+    const title = item.variant?.product?.title || "producto";
+    return item.quantity > 1 ? `${title} x${item.quantity}` : title;
+  });
+
+  if (!labels.length) return kind === "returned" ? "producto sin detalle" : "sin producto de cambio";
+  const rest = Math.max(filtered.length - labels.length, 0);
+  return `${labels.join(", ")}${rest > 0 ? ` y ${rest} mas` : ""}`;
+}
+
+function formatDashboardTime(value: string) {
+  return new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
 type AdminPaymentConfig = {
@@ -257,6 +992,7 @@ function resolveTemplateOptions(
 }
 
 function AdminSettingsSection() {
+  const { user } = useAuth();
   const [settingsTab, setSettingsTab] = useState<"transfer" | "labels" | "cash" | "locations">("transfer");
   const [alias, setAlias] = useState("");
   const [discountPercentage, setDiscountPercentage] = useState("0");
@@ -264,7 +1000,13 @@ function AdminSettingsSection() {
   const [locations, setLocations] = useState<StoreLocation[]>([]);
   const [users, setUsers] = useState<StoreLocationUser[]>([]);
   const [locationForm, setLocationForm] = useState({ name: "", address: "" });
-  const [userForm, setUserForm] = useState({ email: "", password: "", name: "", storeLocationId: "" });
+  const [userForm, setUserForm] = useState<{ email: string; password: string; name: string; role: "ADMIN" | "STAFF"; storeLocationId: string }>({
+    email: "",
+    password: "",
+    name: "",
+    role: "ADMIN",
+    storeLocationId: "",
+  });
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [labelTemplates, setLabelTemplates] = useState<LabelTemplate[]>([]);
@@ -283,6 +1025,7 @@ function AdminSettingsSection() {
   const [savingUser, setSavingUser] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const canManageLocations = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
 
   const selectedLabelTemplate = useMemo(
     () => labelTemplates.find((template) => template.key === labelTemplate) ?? labelTemplates[0] ?? null,
@@ -424,6 +1167,7 @@ function AdminSettingsSection() {
 
   async function onCreateLocation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canManageLocations) return;
     setSavingLocation(true);
     setMessage(null);
     setError(null);
@@ -448,6 +1192,7 @@ function AdminSettingsSection() {
   }
 
   async function updateLocation(locationId: number, patch: Partial<Pick<StoreLocation, "name" | "address" | "active">>) {
+    if (!canManageLocations) return;
     setSavingLocation(true);
     setMessage(null);
     setError(null);
@@ -468,6 +1213,7 @@ function AdminSettingsSection() {
 
   async function onCreateUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canManageLocations) return;
     setSavingUser(true);
     setMessage(null);
     setError(null);
@@ -479,11 +1225,11 @@ function AdminSettingsSection() {
           email: userForm.email,
           password: userForm.password,
           name: userForm.name || undefined,
-          role: "ADMIN",
+          role: userForm.role,
           storeLocationId: userForm.storeLocationId ? Number(userForm.storeLocationId) : undefined,
         }),
       });
-      setUserForm({ email: "", password: "", name: "", storeLocationId: "" });
+      resetUserForm();
       await reloadLocations();
       setMessage("Usuario creado.");
       setUserModalOpen(false);
@@ -494,7 +1240,8 @@ function AdminSettingsSection() {
     }
   }
 
-  async function updateUser(userId: number, patch: { storeLocationId?: number | null }) {
+  async function updateUser(userId: number, patch: { storeLocationId?: number | null; role?: "ADMIN" | "STAFF" }) {
+    if (!canManageLocations) return;
     setSavingUser(true);
     setMessage(null);
     setError(null);
@@ -511,6 +1258,10 @@ function AdminSettingsSection() {
     } finally {
       setSavingUser(false);
     }
+  }
+
+  function resetUserForm() {
+    setUserForm({ email: "", password: "", name: "", role: "ADMIN", storeLocationId: "" });
   }
 
   function nextPriceMode(current: PriceMode, target: "normal" | "transfer", checked: boolean): PriceMode {
@@ -794,6 +1545,9 @@ function AdminSettingsSection() {
           {loading ? <p style={copyStyle}>Cargando locales...</p> : null}
           {error ? <p style={{ ...copyStyle, color: "#ffb7b7" }}>{error}</p> : null}
           {message ? <p style={{ ...copyStyle, color: "var(--admin-tone-success-color)" }}>{message}</p> : null}
+          {!canManageLocations ? (
+            <p style={helperTextStyle}>Tu usuario vendedor esta fijado a su local asignado. Esta seccion queda en modo lectura.</p>
+          ) : null}
 
           <div style={locationStatsGridStyle}>
             <Stat label="Locales activos" value={String(locationSummary.activeLocations)} />
@@ -806,6 +1560,7 @@ function AdminSettingsSection() {
             <button
               type="button"
               onClick={() => setLocationModalOpen(true)}
+              disabled={!canManageLocations}
               style={primaryButtonStyle}
             >
               Crear local
@@ -813,6 +1568,7 @@ function AdminSettingsSection() {
             <button
               type="button"
               onClick={() => setUserModalOpen(true)}
+              disabled={!canManageLocations}
               style={secondaryButtonStyle}
             >
               Crear usuario
@@ -835,7 +1591,7 @@ function AdminSettingsSection() {
                     <button
                       type="button"
                       onClick={() => void updateLocation(location.id, { active: !location.active })}
-                      disabled={savingLocation}
+                      disabled={savingLocation || !canManageLocations}
                       style={secondaryButtonStyle}
                     >
                       {location.active ? "Desactivar" : "Activar"}
@@ -845,7 +1601,9 @@ function AdminSettingsSection() {
                     <span>Nombre</span>
                     <input
                       defaultValue={location.name}
+                      readOnly={!canManageLocations}
                       onBlur={(event) => {
+                        if (!canManageLocations) return;
                         const nextName = event.target.value.trim();
                         if (nextName && nextName !== location.name) {
                           void updateLocation(location.id, { name: nextName });
@@ -858,7 +1616,9 @@ function AdminSettingsSection() {
                     <span>Direccion</span>
                     <input
                       defaultValue={location.address ?? ""}
+                      readOnly={!canManageLocations}
                       onBlur={(event) => {
+                        if (!canManageLocations) return;
                         const nextAddress = event.target.value.trim();
                         if (nextAddress !== (location.address ?? "")) {
                           void updateLocation(location.id, { address: nextAddress });
@@ -897,17 +1657,31 @@ function AdminSettingsSection() {
                   <select
                     value={entry.storeLocationId ?? ""}
                     onChange={(event) => void updateUser(entry.id, { storeLocationId: event.target.value ? Number(event.target.value) : null })}
-                    disabled={savingUser || entry.role === "OWNER"}
+                    disabled={savingUser || entry.role === "OWNER" || !canManageLocations}
                     style={fieldStyle}
+                    aria-label={`Local de trabajo de ${entry.name || entry.email}`}
                   >
                     <option value="">Sin local</option>
                     {locations.filter((location) => location.active || location.id === entry.storeLocationId).map((location) => (
                       <option key={location.id} value={location.id}>{location.name}</option>
                     ))}
                   </select>
-                  <span style={roleBadgeStyle(entry.role)}>
-                    {formatStoreUserRole(entry.role)}
-                  </span>
+                  {entry.role === "OWNER" ? (
+                    <span style={roleBadgeStyle(entry.role)}>
+                      {formatStoreUserRole(entry.role)}
+                    </span>
+                  ) : (
+                    <select
+                      value={entry.role}
+                      onChange={(event) => void updateUser(entry.id, { role: event.target.value as "ADMIN" | "STAFF" })}
+                      disabled={savingUser || !canManageLocations}
+                      style={roleSelectStyle}
+                      aria-label={`Rol de ${entry.name || entry.email}`}
+                    >
+                      <option value="ADMIN">Encargado</option>
+                      <option value="STAFF">Vendedor</option>
+                    </select>
+                  )}
                 </div>
               ))}
             </div>
@@ -974,13 +1748,13 @@ function AdminSettingsSection() {
               onClick={() => {
                 if (savingUser) return;
                 setUserModalOpen(false);
-                setUserForm({ email: "", password: "", name: "", storeLocationId: "" });
+                resetUserForm();
               }}
             >
               <form style={{ ...modalCardStyle, width: "min(100%, 760px)" }} onSubmit={onCreateUser} onClick={(event) => event.stopPropagation()}>
                 <div>
                   <p style={eyebrowStyle}>Nuevo usuario</p>
-                  <h3 style={title3Style}>Crear acceso de encargado</h3>
+                  <h3 style={title3Style}>Crear acceso de trabajo</h3>
                 </div>
                 <div style={compactFormGridStyle}>
                   <label style={fieldGroupStyle}>
@@ -1013,6 +1787,17 @@ function AdminSettingsSection() {
                     />
                   </label>
                   <label style={fieldGroupStyle}>
+                    <span>Rol</span>
+                    <select
+                      value={userForm.role}
+                      onChange={(event) => setUserForm((current) => ({ ...current, role: event.target.value as "ADMIN" | "STAFF" }))}
+                      style={fieldStyle}
+                    >
+                      <option value="ADMIN">Encargado</option>
+                      <option value="STAFF">Vendedor</option>
+                    </select>
+                  </label>
+                  <label style={fieldGroupStyle}>
                     <span>Local de trabajo</span>
                     <select
                       value={userForm.storeLocationId}
@@ -1031,7 +1816,7 @@ function AdminSettingsSection() {
                     type="button"
                     onClick={() => {
                       setUserModalOpen(false);
-                      setUserForm({ email: "", password: "", name: "", storeLocationId: "" });
+                      resetUserForm();
                     }}
                     disabled={savingUser}
                     style={secondaryButtonStyle}
@@ -1382,6 +2167,295 @@ const tabRailStyle: React.CSSProperties = {
   paddingBottom: 4,
   scrollbarWidth: "thin",
 };
+const boutiquePalette = {
+  bg: "#FAF7F1",
+  surface: "#FFFFFF",
+  softSurface: "#F6EFE6",
+  green: "#5E9C8D",
+  greenDark: "#1F6F5B",
+  text: "#17202A",
+  muted: "#6B7280",
+  line: "rgba(31, 111, 91, 0.13)",
+  shadow: "0 18px 45px rgba(31, 111, 91, 0.08)",
+};
+const manualSalesBoutiqueShellStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 24,
+  minWidth: 0,
+  width: "100%",
+  maxWidth: "100%",
+  boxSizing: "border-box",
+  padding: "2px 0 24px",
+  background: boutiquePalette.bg,
+  color: boutiquePalette.text,
+};
+const manualSalesTopbarStyle: React.CSSProperties = {
+  position: "sticky",
+  top: 0,
+  zIndex: 20,
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 18,
+  padding: "14px 18px",
+  border: `1px solid ${boutiquePalette.line}`,
+  borderRadius: 28,
+  background: "rgba(255, 255, 255, 0.92)",
+  boxShadow: "0 14px 36px rgba(23, 32, 42, 0.06)",
+  backdropFilter: "blur(14px)",
+};
+const manualSalesTopbarCenterStyle: React.CSSProperties = {
+  flex: "1 1 auto",
+  minWidth: 0,
+  overflowX: "auto",
+  scrollbarWidth: "thin",
+};
+const manualSalesNavStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 22,
+  minWidth: 0,
+  width: "max-content",
+};
+const manualSalesHeaderStyle: React.CSSProperties = {
+  padding: "0 0 10px",
+  borderBottom: "1px solid var(--checkout-border)",
+};
+const manualSalesHeaderControlsStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
+};
+const manualSalesLocationStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  color: boutiquePalette.muted,
+  fontSize: 12,
+  fontWeight: 800,
+  flex: "0 0 auto",
+};
+const manualSalesTopbarActionsStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  flexWrap: "wrap",
+  gap: 10,
+  minWidth: 0,
+};
+const dashboardShellStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 22,
+};
+const dashboardStatsStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+  gap: 16,
+};
+const dashboardStatStyle: React.CSSProperties = {
+  position: "relative",
+  overflow: "hidden",
+  display: "grid",
+  gridTemplateColumns: "58px minmax(0, 1fr)",
+  gap: 16,
+  alignItems: "center",
+  minHeight: 132,
+  padding: 22,
+  borderRadius: 28,
+  border: `1px solid ${boutiquePalette.line}`,
+  background: boutiquePalette.surface,
+  boxShadow: boutiquePalette.shadow,
+};
+const dashboardStatIconStyle = (tone: "cash" | "sale" | "account" | "return"): React.CSSProperties => ({
+  display: "grid",
+  placeItems: "center",
+  width: 58,
+  height: 58,
+  borderRadius: 20,
+  color:
+    tone === "sale"
+      ? "#C97705"
+      : tone === "account"
+        ? "#6D5BD0"
+        : tone === "return"
+          ? "#D9533F"
+          : boutiquePalette.greenDark,
+  background:
+    tone === "sale"
+      ? "#FFF3D8"
+      : tone === "account"
+        ? "#EDE8FF"
+        : tone === "return"
+          ? "#FFE8E2"
+          : "#E8F4EE",
+});
+const dashboardStatLabelStyle: React.CSSProperties = {
+  display: "block",
+  color: boutiquePalette.muted,
+  fontSize: 14,
+  fontWeight: 700,
+};
+const dashboardStatValueStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: 7,
+  color: boutiquePalette.text,
+  fontSize: 24,
+  lineHeight: 1.1,
+};
+const dashboardStatDetailStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: 8,
+  color: boutiquePalette.muted,
+  fontSize: 13,
+};
+const dashboardMiniLineStyle = (tone: "cash" | "sale" | "account" | "return"): React.CSSProperties => ({
+  position: "absolute",
+  right: 22,
+  bottom: 20,
+  width: 96,
+  height: 24,
+  borderBottom: `3px solid ${
+    tone === "sale"
+      ? "#E6A01A"
+      : tone === "account"
+        ? "#7C6DE0"
+        : tone === "return"
+          ? "#E45E4A"
+          : boutiquePalette.greenDark
+  }`,
+  borderRadius: "0 0 55% 45%",
+  opacity: 0.7,
+  transform: "skewX(-18deg)",
+});
+const dashboardCardStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 22,
+  padding: 26,
+  borderRadius: 30,
+  border: `1px solid ${boutiquePalette.line}`,
+  background: "rgba(255, 255, 255, 0.9)",
+  boxShadow: boutiquePalette.shadow,
+};
+const dashboardSectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 23,
+  color: boutiquePalette.text,
+  letterSpacing: 0,
+};
+const manualSalesSectionKickerStyle: React.CSSProperties = {
+  margin: "0 0 5px",
+  color: boutiquePalette.muted,
+  fontSize: 13,
+};
+const dashboardQuickActionsStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+  gap: 14,
+};
+const dashboardActionButtonStyle: React.CSSProperties = {
+  minHeight: 82,
+  display: "grid",
+  gridTemplateColumns: "48px minmax(0, 1fr) auto",
+  alignItems: "center",
+  gap: 14,
+  border: `1px solid ${boutiquePalette.line}`,
+  background: "#FFFFFF",
+  color: boutiquePalette.text,
+  padding: "16px 18px",
+  cursor: "pointer",
+  textAlign: "left",
+  width: "100%",
+  borderRadius: 24,
+  boxShadow: "0 10px 26px rgba(23, 32, 42, 0.045)",
+};
+const dashboardActionIconStyle: React.CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  width: 48,
+  height: 48,
+  borderRadius: 18,
+  background: "#E8F4EE",
+  color: boutiquePalette.greenDark,
+};
+const dashboardActionTextStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  minWidth: 0,
+  color: boutiquePalette.text,
+};
+const manualSalesViewAllButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 9,
+  minHeight: 44,
+  padding: "10px 16px",
+  borderRadius: 16,
+  border: `1px solid ${boutiquePalette.line}`,
+  background: "#FFFFFF",
+  color: boutiquePalette.text,
+  cursor: "pointer",
+  fontWeight: 800,
+  boxShadow: "0 10px 22px rgba(23, 32, 42, 0.04)",
+};
+const errorBoxStyle: React.CSSProperties = {
+  margin: 0,
+  padding: 12,
+  borderRadius: 12,
+  border: "1px solid var(--admin-danger-border)",
+  background: "var(--admin-danger-bg)",
+  color: "var(--admin-danger-color)",
+};
+const dashboardCommentsStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+const dashboardCommentStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "12px minmax(0, 1fr) auto",
+  gap: 14,
+  alignItems: "center",
+  padding: "15px 16px",
+  border: `1px solid ${boutiquePalette.line}`,
+  borderRadius: 18,
+  background: "#FFFFFF",
+  boxShadow: "0 8px 20px rgba(23, 32, 42, 0.035)",
+};
+const dashboardCommentTextStyle: React.CSSProperties = {
+  margin: 0,
+  color: boutiquePalette.text,
+  minWidth: 0,
+};
+const dashboardCommentTimeStyle: React.CSSProperties = {
+  color: boutiquePalette.muted,
+  fontWeight: 800,
+  whiteSpace: "nowrap",
+};
+const dashboardToneDotStyle = (tone: ManualDashboardComment["tone"]): React.CSSProperties => ({
+  width: 10,
+  height: 10,
+  borderRadius: 999,
+  background:
+    tone === "return"
+      ? "var(--admin-danger-color)"
+      : tone === "exchange"
+        ? "var(--brand-accent)"
+        : tone === "account"
+          ? "var(--notification-badge-bg, #ef4444)"
+          : "var(--accent-strong)",
+});
+const manualSalesLocationSelectStyle: React.CSSProperties = {
+  minHeight: 40,
+  minWidth: 172,
+  borderRadius: 999,
+  border: `1px solid ${boutiquePalette.line}`,
+  background: "#FFFFFF",
+  color: boutiquePalette.text,
+  padding: "8px 13px",
+  fontWeight: 800,
+};
 const tableWrapStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: "100%",
@@ -1717,6 +2791,13 @@ const roleBadgeStyle = (role: StoreLocationUser["role"]): React.CSSProperties =>
   color: "var(--account-text-strong)",
   textAlign: "center",
 });
+const roleSelectStyle: React.CSSProperties = {
+  ...fieldStyle,
+  minWidth: 150,
+  width: "100%",
+  maxWidth: 180,
+  justifySelf: "end",
+};
 const locationUserRowStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "minmax(220px, 1fr) minmax(190px, 260px) minmax(110px, auto)",
@@ -1982,17 +3063,17 @@ const softChipStyle: React.CSSProperties = {
   fontSize: 12,
 };
 const workspaceTabStyle = (active: boolean): React.CSSProperties => ({
+  position: "relative",
   flex: "0 0 auto",
+  minHeight: 42,
   padding: "10px 14px",
-  borderRadius: 999,
-  border: active
-    ? "1px solid var(--checkout-border-strong)"
-    : "1px solid var(--checkout-border)",
-  background: active ? "var(--accent-strong)" : "var(--page-panel-strong-bg)",
-  color: active ? "var(--accent-contrast)" : "var(--account-text-strong)",
+  border: 0,
+  background: "transparent",
+  color: active ? boutiquePalette.greenDark : boutiquePalette.text,
   cursor: "pointer",
-  fontWeight: 700,
+  fontWeight: active ? 900 : 750,
   whiteSpace: "nowrap",
+  boxShadow: active ? `inset 0 -3px 0 ${boutiquePalette.green}` : "inset 0 -3px 0 transparent",
 });
 const removeChipStyle: React.CSSProperties = {
   padding: "8px 12px",

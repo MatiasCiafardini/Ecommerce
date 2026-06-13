@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { api } from "@/lib/api";
 import { resolveManualSaleUnitPrice, resolveStorePricingPolicy } from "@/lib/pricing-policy";
@@ -43,7 +43,7 @@ const initialFilters: Filters = {
   withoutStockOnly: false,
 };
 
-export default function AdminStockSection() {
+export default function AdminStockSection({ userRole }: { userRole?: string | null }) {
   const [rows, setRows] = useState<VariantRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [filters, setFilters] = useState<Filters>(initialFilters);
@@ -51,14 +51,19 @@ export default function AdminStockSection() {
   const [adjustStockValue, setAdjustStockValue] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("product");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [page, setPage] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
+  const didMountFiltersRef = useRef(false);
   const storeId = getClientStoreId();
   const pricingPolicy = useMemo(
     () => resolveStorePricingPolicy({ storeId }),
     [storeId],
   );
+  const canAdjustStock = userRole !== "STAFF";
 
   useEffect(() => {
     api("/categories")
@@ -67,8 +72,17 @@ export default function AdminStockSection() {
   }, []);
 
   useEffect(() => {
+    if (!didMountFiltersRef.current) {
+      didMountFiltersRef.current = true;
+      return;
+    }
+
     const timeout = window.setTimeout(() => {
-      void loadRows();
+      if (page === 1) {
+        void loadRows(1);
+      } else {
+        setPage(1);
+      }
     }, 250);
 
     return () => window.clearTimeout(timeout);
@@ -76,17 +90,16 @@ export default function AdminStockSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  const visibleRows = useMemo(
-    () =>
-      filters.withoutStockOnly
-        ? rows.filter((row) => Number(row.stock || 0) <= 0)
-        : rows,
-    [filters.withoutStockOnly, rows],
-  );
+  useEffect(() => {
+    void loadRows(page);
+    // loadRows intentionally closes over sorting state for the current page request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, sortKey, sortDirection]);
+
   const sortedRows = useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1;
 
-    return [...visibleRows].sort((a, b) => {
+    return [...rows].sort((a, b) => {
       const left = sortValue(a, sortKey, pricingPolicy);
       const right = sortValue(b, sortKey, pricingPolicy);
 
@@ -96,7 +109,7 @@ export default function AdminStockSection() {
 
       return String(left).localeCompare(String(right), "es", { numeric: true }) * direction;
     });
-  }, [pricingPolicy, sortDirection, sortKey, visibleRows]);
+  }, [pricingPolicy, rows, sortDirection, sortKey]);
 
   const stockTotal = rows.reduce((total, row) => total + Number(row.stock || 0), 0);
   const withoutStock = rows.filter((row) => Number(row.stock || 0) <= 0).length;
@@ -111,28 +124,28 @@ export default function AdminStockSection() {
     if (filters.sku.trim()) params.set("sku", filters.sku.trim());
     if (filters.name.trim()) params.set("name", filters.name.trim());
     if (filters.categoryId) params.set("categoryId", filters.categoryId);
+    if (filters.withoutStockOnly) params.set("withoutStockOnly", "true");
+    if (!["stock", "active"].includes(sortKey)) {
+      params.set("sortBy", sortKey);
+      params.set("sortDirection", sortDirection);
+    }
     return params;
   }
 
-  async function loadRows() {
+  async function loadRows(nextPage = page) {
     setLoading(true);
     setNotice("");
     try {
-      const firstPage = await api(`/admin/labels/products?${buildParams(1, 100)}`) as {
+      const payload = await api(`/admin/labels/products?${buildParams(nextPage, 40)}`) as {
         items: VariantRow[];
+        total: number;
+        page: number;
         totalPages: number;
       };
-      const pages = [firstPage];
-
-      for (let page = 2; page <= firstPage.totalPages; page += 1) {
-        pages.push(await api(`/admin/labels/products?${buildParams(page, 100)}`) as {
-          items: VariantRow[];
-          totalPages: number;
-        });
-      }
-
-      const nextRows = pages.flatMap((payload) => payload.items);
-      setRows(nextRows);
+      setRows(payload.items);
+      setPage(Number(payload.page ?? nextPage));
+      setTotalRows(Number(payload.total ?? payload.items.length));
+      setTotalPages(Math.max(1, Number(payload.totalPages ?? 1)));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No se pudo cargar stock.");
       setRows([]);
@@ -144,11 +157,13 @@ export default function AdminStockSection() {
   function changeSort(nextKey: SortKey) {
     if (sortKey === nextKey) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      setPage(1);
       return;
     }
 
     setSortKey(nextKey);
     setSortDirection(nextKey === "stock" ? "desc" : "asc");
+    setPage(1);
   }
 
   function openAdjustModal(row: VariantRow) {
@@ -191,9 +206,9 @@ export default function AdminStockSection() {
           <h2 style={titleStyle}>Stock</h2>
         </div>
         <div style={statsStyle}>
-          <Stat label="Variantes" value={String(rows.length)} />
-          <Stat label="Unidades" value={String(stockTotal)} />
-          <Stat label="Sin stock" value={String(withoutStock)} />
+          <Stat label="Variantes" value={String(totalRows)} />
+          <Stat label="Unidades pagina" value={String(stockTotal)} />
+          <Stat label="Sin stock pagina" value={String(withoutStock)} />
         </div>
       </header>
 
@@ -239,12 +254,12 @@ export default function AdminStockSection() {
                 <SortableTh sortKey="stock" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Stock</SortableTh>
                 <SortableTh sortKey="price" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Precio</SortableTh>
                 <SortableTh sortKey="active" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Estado</SortableTh>
-                <th style={thStyle}>Accion</th>
+                {canAdjustStock ? <th style={thStyle}>Accion</th> : null}
               </tr>
             </thead>
             <tbody>
-              {loading ? <StateRow colSpan={7} label="Cargando variantes..." /> : null}
-              {!loading && sortedRows.length === 0 ? <StateRow colSpan={7} label="No hay variantes para estos filtros." /> : null}
+              {loading ? <StateRow colSpan={canAdjustStock ? 7 : 6} label="Cargando variantes..." /> : null}
+              {!loading && sortedRows.length === 0 ? <StateRow colSpan={canAdjustStock ? 7 : 6} label="No hay variantes para estos filtros." /> : null}
               {!loading && sortedRows.map((row) => (
                 <tr key={row.id}>
                   <td style={tdStyle}>
@@ -258,20 +273,45 @@ export default function AdminStockSection() {
                   <td style={tdStyle}><strong>{row.stock}</strong></td>
                   <td style={tdStyle}>{money(resolveManualSaleUnitPrice(row.price, pricingPolicy))}</td>
                   <td style={tdStyle}>{row.active ? "Activa" : "Oculta"}</td>
-                  <td style={tdStyle}>
-                    <button
-                      type="button"
-                      style={primaryButtonStyle}
-                      disabled={savingId === row.id}
-                      onClick={() => openAdjustModal(row)}
-                    >
-                      Ajustar
-                    </button>
-                  </td>
+                  {canAdjustStock ? (
+                    <td style={tdStyle}>
+                      <button
+                        type="button"
+                        style={primaryButtonStyle}
+                        disabled={savingId === row.id}
+                        onClick={() => openAdjustModal(row)}
+                      >
+                        Ajustar
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
           </table>
+          <div style={paginationStyle}>
+            <span style={mutedStyle}>
+              Pagina {page} de {totalPages}
+            </span>
+            <div style={paginationActionsStyle}>
+              <button
+                type="button"
+                style={ghostButtonStyle}
+                disabled={loading || page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                style={ghostButtonStyle}
+                disabled={loading || page >= totalPages}
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -436,6 +476,8 @@ const inputStyle: React.CSSProperties = { width: "100%", minHeight: 40, border: 
 const checkStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, color: "var(--account-text-strong)", fontWeight: 700 };
 const tableWrapStyle: React.CSSProperties = { minWidth: 0, overflow: "auto", border: "1px solid var(--account-item-border)", borderRadius: 18, background: "var(--account-item-bg)" };
 const tableStyle: React.CSSProperties = { width: "100%", minWidth: 860, borderCollapse: "collapse" };
+const paginationStyle: React.CSSProperties = { minWidth: 860, borderTop: "1px solid var(--account-item-border)", padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" };
+const paginationActionsStyle: React.CSSProperties = { display: "flex", gap: 8, alignItems: "center" };
 const thStyle: React.CSSProperties = { padding: "12px 14px", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-muted)", textAlign: "left", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" };
 const tdStyle: React.CSSProperties = { padding: "12px 14px", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-strong)", verticalAlign: "middle" };
 const sortButtonStyle: React.CSSProperties = { border: 0, background: "transparent", color: "inherit", padding: 0, font: "inherit", textTransform: "inherit", letterSpacing: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 };

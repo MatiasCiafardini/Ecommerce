@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { api, apiBlob } from "@/lib/api";
+import { api, apiBlob, getErrorMessage } from "@/lib/api";
 import { downloadBlobFile } from "@/lib/download";
 import { money } from "./order-utils";
 
@@ -53,14 +53,28 @@ type CurrentAccount = {
   movements?: Movement[];
 };
 
+export type CurrentAccountCreateForm = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  document: string;
+  address1: string;
+  city: string;
+  zip: string;
+  notes: string;
+};
+
 type FilterStatus = "debt" | "credit" | "paid" | "all";
 type MovementVariant = NonNullable<NonNullable<Movement["order"]>["items"]>[number]["variant"];
 
 const paymentMethods = ["Efectivo", "Tarjeta", "Transferencia", "Mercado Pago"];
 
 export default function AdminCurrentAccountsSection({
+  storeLocationId,
   onRegisterSale,
 }: {
+  storeLocationId?: number | null;
   onRegisterSale?: (customer: Customer) => void;
 }) {
   const [accounts, setAccounts] = useState<CurrentAccount[]>([]);
@@ -68,6 +82,7 @@ export default function AdminCurrentAccountsSection({
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<FilterStatus>("all");
   const [paymentCustomer, setPaymentCustomer] = useState<CurrentAccount | null>(null);
@@ -88,7 +103,7 @@ export default function AdminCurrentAccountsSection({
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [downloadingReceiptId, setDownloadingReceiptId] = useState<number | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({
+  const [createForm, setCreateForm] = useState<CurrentAccountCreateForm>({
     firstName: "",
     lastName: "",
     email: "",
@@ -108,6 +123,7 @@ export default function AdminCurrentAccountsSection({
       const params = new URLSearchParams();
       params.set("status", status);
       if (query.trim()) params.set("search", query.trim());
+      appendStoreLocationParam(params, storeLocationId);
       const data = await api(`/current-accounts?${params.toString()}`);
       setAccounts(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -120,7 +136,7 @@ export default function AdminCurrentAccountsSection({
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void loadAccounts(), 220);
     return () => window.clearTimeout(timeoutId);
-  }, [query, status]);
+  }, [query, status, storeLocationId]);
 
   useEffect(() => {
     if (!selected) return;
@@ -156,7 +172,7 @@ export default function AdminCurrentAccountsSection({
     setSelected(account);
     setDetailLoading(true);
     try {
-      const detail = await api(`/current-accounts/customers/${account.customerId}`);
+      const detail = await api(currentAccountCustomerPath(account.customerId, storeLocationId));
       setSelected(detail as CurrentAccount);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar el detalle.");
@@ -171,10 +187,12 @@ export default function AdminCurrentAccountsSection({
     setPaymentAmount(String(Number(account.balance)));
     setPaymentMethod("Efectivo");
     setPaymentDescription("");
+    setModalError("");
   };
 
   const openEdit = (account: CurrentAccount) => {
     setEditAccount(account);
+    setModalError("");
     setEditForm({
       firstName: account.customer.firstName ?? "",
       lastName: account.customer.lastName ?? "",
@@ -189,20 +207,20 @@ export default function AdminCurrentAccountsSection({
     if (!editAccount) return;
 
     setSavingEdit(true);
-    setError("");
+    setModalError("");
     try {
       await api(`/current-accounts/customers/${editAccount.customerId}`, {
         method: "PATCH",
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({ ...editForm, storeLocationId: storeLocationId ?? undefined }),
       });
       setEditAccount(null);
       await loadAccounts();
       if (selected?.customerId === editAccount.customerId) {
-        const detail = await api(`/current-accounts/customers/${editAccount.customerId}`);
+        const detail = await api(currentAccountCustomerPath(editAccount.customerId, storeLocationId));
         setSelected(detail as CurrentAccount);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar la cuenta corriente.");
+      setModalError(getErrorMessage(err, "No se pudo actualizar la cuenta corriente."));
     } finally {
       setSavingEdit(false);
     }
@@ -212,6 +230,7 @@ export default function AdminCurrentAccountsSection({
     setBalanceAccount(account);
     setBalanceValue(String(Number(account.balance)));
     setBalanceDescription("");
+    setModalError("");
   };
 
   const saveBalance = async () => {
@@ -219,28 +238,29 @@ export default function AdminCurrentAccountsSection({
     const balance = Number(balanceValue);
 
     if (!Number.isFinite(balance)) {
-      setError("El saldo debe ser un numero valido. Usa negativo para saldo a favor.");
+      setModalError("El saldo debe ser un numero valido. Usa negativo para saldo a favor.");
       return;
     }
 
     setSavingBalance(true);
-    setError("");
+    setModalError("");
     try {
       await api(`/current-accounts/customers/${balanceAccount.customerId}/balance`, {
         method: "PATCH",
         body: JSON.stringify({
           balance,
           description: balanceDescription.trim() || undefined,
+          storeLocationId: storeLocationId ?? undefined,
         }),
       });
       setBalanceAccount(null);
       await loadAccounts();
       if (selected?.customerId === balanceAccount.customerId) {
-        const detail = await api(`/current-accounts/customers/${balanceAccount.customerId}`);
+        const detail = await api(currentAccountCustomerPath(balanceAccount.customerId, storeLocationId));
         setSelected(detail as CurrentAccount);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo ajustar el saldo.");
+      setModalError(getErrorMessage(err, "No se pudo ajustar el saldo."));
     } finally {
       setSavingBalance(false);
     }
@@ -253,7 +273,9 @@ export default function AdminCurrentAccountsSection({
     setDeactivatingId(account.id);
     setError("");
     try {
-      await api(`/current-accounts/customers/${account.customerId}`, { method: "DELETE" });
+      const params = new URLSearchParams();
+      appendStoreLocationParam(params, storeLocationId);
+      await api(`/current-accounts/customers/${account.customerId}${params.toString() ? `?${params.toString()}` : ""}`, { method: "DELETE" });
       if (selected?.customerId === account.customerId) setSelected(null);
       await loadAccounts();
     } catch (err) {
@@ -270,13 +292,17 @@ export default function AdminCurrentAccountsSection({
     setPaymentMethod("Efectivo");
     setPaymentDescription("");
     setPaymentSearch("");
+    setModalError("");
     setError("");
 
     try {
-      const data = await api("/current-accounts?status=debt");
+      const params = new URLSearchParams();
+      params.set("status", "debt");
+      appendStoreLocationParam(params, storeLocationId);
+      const data = await api(`/current-accounts?${params.toString()}`);
       setPaymentAccounts(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron cargar clientes con deuda.");
+      setModalError(getErrorMessage(err, "No se pudieron cargar clientes con deuda."));
       setPaymentAccounts([]);
     }
   };
@@ -293,17 +319,17 @@ export default function AdminCurrentAccountsSection({
     const balance = roundCurrency(Number(paymentCustomer.balance));
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      setError("El monto debe ser mayor a 0.");
+      setModalError("El monto debe ser mayor a 0.");
       return;
     }
 
     if (amount > balance) {
-      setError("El pago no puede superar el saldo actual.");
+      setModalError("El pago no puede superar el saldo actual.");
       return;
     }
 
     setSavingPayment(true);
-    setError("");
+    setModalError("");
     try {
       const result = (await api(`/current-accounts/customers/${paymentCustomer.customerId}/payments`, {
         method: "POST",
@@ -311,6 +337,7 @@ export default function AdminCurrentAccountsSection({
           amount,
           paymentMethod,
           description: paymentDescription.trim() || undefined,
+          storeLocationId: storeLocationId ?? undefined,
         }),
       })) as { movement?: Movement };
       setPaymentModalOpen(false);
@@ -323,7 +350,7 @@ export default function AdminCurrentAccountsSection({
         await downloadPaymentReceipt(result.movement.id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo registrar el pago.");
+      setModalError(getErrorMessage(err, "No se pudo registrar el pago."));
     } finally {
       setSavingPayment(false);
     }
@@ -345,12 +372,13 @@ export default function AdminCurrentAccountsSection({
   const openCreateAccount = () => {
     setCreateForm({ firstName: "", lastName: "", email: "", phone: "", document: "", address1: "", city: "", zip: "", notes: "" });
     setCreateModalOpen(true);
+    setModalError("");
     setError("");
   };
 
   const createAccount = async () => {
     if (!createForm.firstName.trim() && !createForm.lastName.trim()) {
-      setError("Carga el nombre o apellido del cliente.");
+      setModalError("Carga el nombre o apellido del cliente.");
       return;
     }
 
@@ -360,9 +388,10 @@ export default function AdminCurrentAccountsSection({
       lastName: createForm.lastName.trim() || undefined,
       email: createForm.email.trim() || undefined,
       phone: createForm.phone.trim() || undefined,
-      document: createForm.document.trim() || undefined,
-      notes: createForm.notes.trim() || undefined,
-      address: hasAddress
+          document: createForm.document.trim() || undefined,
+          notes: createForm.notes.trim() || undefined,
+          storeLocationId: storeLocationId ?? undefined,
+          address: hasAddress
         ? {
             address1: createForm.address1.trim() || undefined,
             city: createForm.city.trim() || undefined,
@@ -372,7 +401,7 @@ export default function AdminCurrentAccountsSection({
     };
 
     setSavingCreate(true);
-    setError("");
+    setModalError("");
     try {
       const created = (await api("/current-accounts", {
         method: "POST",
@@ -382,7 +411,7 @@ export default function AdminCurrentAccountsSection({
       await loadAccounts();
       setSelected(created);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear la cuenta corriente.");
+      setModalError(getErrorMessage(err, "No se pudo crear la cuenta corriente."));
     } finally {
       setSavingCreate(false);
     }
@@ -586,52 +615,18 @@ export default function AdminCurrentAccountsSection({
       ) : null}
 
       {createModalOpen ? (
-        <div style={modalOverlayStyle} onClick={() => setCreateModalOpen(false)}>
-          <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
-            <header style={modalHeaderStyle}>
-              <div>
-                <p style={eyebrowStyle}>Nueva cuenta</p>
-                <h3 style={modalTitleStyle}>Agregar cuenta corriente</h3>
-              </div>
-            </header>
-            <div style={twoColumnFormStyle}>
-              <Field label="Nombre" value={createForm.firstName} onChange={(value) => setCreateForm((current) => ({ ...current, firstName: value }))} />
-              <Field label="Apellido" value={createForm.lastName} onChange={(value) => setCreateForm((current) => ({ ...current, lastName: value }))} />
-              <Field label="Email" placeholder="Email opcional" value={createForm.email} onChange={(value) => setCreateForm((current) => ({ ...current, email: value }))} />
-              <Field label="Telefono" placeholder="Telefono opcional" value={createForm.phone} onChange={(value) => setCreateForm((current) => ({ ...current, phone: value }))} />
-              <Field label="Documento" placeholder="Documento opcional" value={createForm.document} onChange={(value) => setCreateForm((current) => ({ ...current, document: value }))} />
-              <div style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
-                <span>Direccion</span>
-                <Field label="Calle, numero, piso/depto" placeholder="Direccion opcional" value={createForm.address1} onChange={(value) => setCreateForm((current) => ({ ...current, address1: value }))} />
-                <div style={twoColumnFormStyle}>
-                  <Field label="Localidad" placeholder="Localidad opcional" value={createForm.city} onChange={(value) => setCreateForm((current) => ({ ...current, city: value }))} />
-                  <Field label="Codigo postal" placeholder="Codigo postal opcional" value={createForm.zip} onChange={(value) => setCreateForm((current) => ({ ...current, zip: value }))} />
-                </div>
-              </div>
-              <label style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
-                <span>Notas</span>
-                <textarea
-                  value={createForm.notes}
-                  onChange={(event) => setCreateForm((current) => ({ ...current, notes: event.target.value }))}
-                  placeholder="Notas opcionales"
-                  style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
-                />
-              </label>
-            </div>
-            <div style={rowActionsStyle}>
-              <button type="button" onClick={() => void createAccount()} disabled={savingCreate} style={primaryButtonStyle}>
-                {savingCreate ? "Creando..." : "Crear cuenta"}
-              </button>
-              <button type="button" onClick={() => setCreateModalOpen(false)} style={softButtonStyle}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
+        <CurrentAccountCreateModal
+          form={createForm}
+          error={modalError}
+          saving={savingCreate}
+          onFormChange={setCreateForm}
+          onSubmit={() => void createAccount()}
+          onClose={() => { setCreateModalOpen(false); setModalError(""); }}
+        />
       ) : null}
 
       {paymentModalOpen ? (
-        <div style={modalOverlayStyle} onClick={() => { setPaymentModalOpen(false); setPaymentCustomer(null); }}>
+        <div style={modalOverlayStyle} onClick={() => { setPaymentModalOpen(false); setPaymentCustomer(null); setModalError(""); }}>
           <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
             <header style={modalHeaderStyle}>
               <div>
@@ -646,6 +641,7 @@ export default function AdminCurrentAccountsSection({
                 </div>
               ) : null}
             </header>
+            {modalError ? <p style={errorStyle}>{modalError}</p> : null}
             {!paymentCustomer ? (
               <>
                 <input
@@ -738,7 +734,7 @@ export default function AdminCurrentAccountsSection({
                   <button type="button" onClick={() => void registerPayment()} disabled={savingPayment} style={primaryButtonStyle}>
                     {savingPayment ? "Registrando..." : "Confirmar pago"}
                   </button>
-                  <button type="button" onClick={() => { setPaymentModalOpen(false); setPaymentCustomer(null); }} style={softButtonStyle}>
+                  <button type="button" onClick={() => { setPaymentModalOpen(false); setPaymentCustomer(null); setModalError(""); }} style={softButtonStyle}>
                     Cancelar
                   </button>
                 </div>
@@ -749,7 +745,7 @@ export default function AdminCurrentAccountsSection({
       ) : null}
 
       {editAccount ? (
-        <div style={modalOverlayStyle} onClick={() => setEditAccount(null)}>
+        <div style={modalOverlayStyle} onClick={() => { setEditAccount(null); setModalError(""); }}>
           <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
             <header style={modalHeaderStyle}>
               <div>
@@ -757,6 +753,7 @@ export default function AdminCurrentAccountsSection({
                 <h3 style={modalTitleStyle}>{customerName(editAccount.customer)}</h3>
               </div>
             </header>
+            {modalError ? <p style={errorStyle}>{modalError}</p> : null}
             <div style={twoColumnFormStyle}>
               <Field label="Nombre" value={editForm.firstName} onChange={(value) => setEditForm((current) => ({ ...current, firstName: value }))} />
               <Field label="Apellido" value={editForm.lastName} onChange={(value) => setEditForm((current) => ({ ...current, lastName: value }))} />
@@ -776,7 +773,7 @@ export default function AdminCurrentAccountsSection({
               <button type="button" onClick={() => void saveEdit()} disabled={savingEdit} style={primaryButtonStyle}>
                 {savingEdit ? "Guardando..." : "Guardar cambios"}
               </button>
-              <button type="button" onClick={() => setEditAccount(null)} style={softButtonStyle}>
+              <button type="button" onClick={() => { setEditAccount(null); setModalError(""); }} style={softButtonStyle}>
                 Cancelar
               </button>
             </div>
@@ -785,7 +782,7 @@ export default function AdminCurrentAccountsSection({
       ) : null}
 
       {balanceAccount ? (
-        <div style={modalOverlayStyle} onClick={() => setBalanceAccount(null)}>
+        <div style={modalOverlayStyle} onClick={() => { setBalanceAccount(null); setModalError(""); }}>
           <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
             <header style={modalHeaderStyle}>
               <div>
@@ -796,6 +793,7 @@ export default function AdminCurrentAccountsSection({
                 <BalanceAmount value={Number(balanceAccount.balance)} />
               </div>
             </header>
+            {modalError ? <p style={errorStyle}>{modalError}</p> : null}
             <label style={fieldGroupStyle}>
               <span>Nuevo saldo</span>
               <div style={moneyInputWrapStyle}>
@@ -821,7 +819,7 @@ export default function AdminCurrentAccountsSection({
               <button type="button" onClick={() => void saveBalance()} disabled={savingBalance} style={primaryButtonStyle}>
                 {savingBalance ? "Guardando..." : "Guardar ajuste"}
               </button>
-              <button type="button" onClick={() => setBalanceAccount(null)} style={softButtonStyle}>
+              <button type="button" onClick={() => { setBalanceAccount(null); setModalError(""); }} style={softButtonStyle}>
                 Cancelar
               </button>
             </div>
@@ -848,6 +846,68 @@ function Field({
       <span>{label}</span>
       <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} style={inputStyle} />
     </label>
+  );
+}
+
+export function CurrentAccountCreateModal({
+  form,
+  error,
+  saving,
+  onFormChange,
+  onSubmit,
+  onClose,
+}: {
+  form: CurrentAccountCreateForm;
+  error?: string;
+  saving: boolean;
+  onFormChange: React.Dispatch<React.SetStateAction<CurrentAccountCreateForm>>;
+  onSubmit: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div style={modalOverlayStyle} onClick={onClose}>
+      <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+        <header style={modalHeaderStyle}>
+          <div>
+            <p style={eyebrowStyle}>Nueva cuenta</p>
+            <h3 style={modalTitleStyle}>Agregar cuenta corriente</h3>
+          </div>
+        </header>
+        {error ? <p style={errorStyle}>{error}</p> : null}
+        <div style={twoColumnFormStyle}>
+          <Field label="Nombre" value={form.firstName} onChange={(value) => onFormChange((current) => ({ ...current, firstName: value }))} />
+          <Field label="Apellido" value={form.lastName} onChange={(value) => onFormChange((current) => ({ ...current, lastName: value }))} />
+          <Field label="Email" placeholder="Email opcional" value={form.email} onChange={(value) => onFormChange((current) => ({ ...current, email: value }))} />
+          <Field label="Telefono" placeholder="Telefono opcional" value={form.phone} onChange={(value) => onFormChange((current) => ({ ...current, phone: value }))} />
+          <Field label="Documento" placeholder="Documento opcional" value={form.document} onChange={(value) => onFormChange((current) => ({ ...current, document: value }))} />
+          <div style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
+            <span>Direccion</span>
+            <Field label="Calle, numero, piso/depto" placeholder="Direccion opcional" value={form.address1} onChange={(value) => onFormChange((current) => ({ ...current, address1: value }))} />
+            <div style={twoColumnFormStyle}>
+              <Field label="Localidad" placeholder="Localidad opcional" value={form.city} onChange={(value) => onFormChange((current) => ({ ...current, city: value }))} />
+              <Field label="Codigo postal" placeholder="Codigo postal opcional" value={form.zip} onChange={(value) => onFormChange((current) => ({ ...current, zip: value }))} />
+            </div>
+          </div>
+          <label style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
+            <span>Notas</span>
+            <textarea
+              value={form.notes}
+              onChange={(event) => onFormChange((current) => ({ ...current, notes: event.target.value }))}
+              placeholder="Notas opcionales"
+              style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
+            />
+          </label>
+        </div>
+        <div style={rowActionsStyle}>
+          <button type="button" onClick={onSubmit} disabled={saving} style={primaryButtonStyle}>
+            {saving ? "Creando..." : "Crear cuenta"}
+          </button>
+          <button type="button" onClick={onClose} style={softButtonStyle}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -903,6 +963,19 @@ function parsePaymentAmount(value: string) {
 
 function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function appendStoreLocationParam(params: URLSearchParams, storeLocationId?: number | null) {
+  if (storeLocationId) {
+    params.set("storeLocationId", String(storeLocationId));
+  }
+}
+
+function currentAccountCustomerPath(customerId: number, storeLocationId?: number | null) {
+  const params = new URLSearchParams();
+  appendStoreLocationParam(params, storeLocationId);
+  const query = params.toString();
+  return `/current-accounts/customers/${customerId}${query ? `?${query}` : ""}`;
 }
 
 function emptyAccountsLabel(status: FilterStatus) {

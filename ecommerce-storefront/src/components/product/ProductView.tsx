@@ -353,7 +353,7 @@ export default function ProductView({
     ? (cart.find((item) => item.variantId === String(selectedVariant.id))
         ?.quantity ?? 0)
     : 0;
-  const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
+  const canManageCatalog = ["SUPER_ADMIN", "OWNER", "ADMIN"].includes(user?.role ?? "");
   const canAddSelectedVariant = Boolean(
     selectedVariant &&
     selectedVariantStock > 0 &&
@@ -927,7 +927,7 @@ export default function ProductView({
                 >
                   {product.title}
                 </h1>
-                {isAdmin ? (
+                {canManageCatalog ? (
                   <Link
                     href={`/account?section=admin-products&productId=${product.id}`}
                     style={adminEditButtonStyle}

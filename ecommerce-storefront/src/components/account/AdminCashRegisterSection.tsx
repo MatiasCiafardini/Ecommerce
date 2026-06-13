@@ -6,6 +6,7 @@ import { useAuth } from "@/context/auth-context";
 import { api, apiBlob } from "@/lib/api";
 import { downloadBlobFile } from "@/lib/download";
 import { money } from "./order-utils";
+import type { ManualReturnDraft } from "@/components/manual-sales/ManualReturnsPanel";
 
 type CashRegisterMode = "automatic" | "manual";
 
@@ -56,11 +57,55 @@ type CashPayload = {
   summary: CashSummary | null;
 };
 
-export default function AdminCashRegisterSection() {
+export type ManualSaleHistoryOrder = {
+  id: number;
+  status: string;
+  createdAt: string;
+  subtotal?: string | number;
+  discountAmount?: string | number | null;
+  total: string | number;
+  customerFirstNameSnapshot?: string | null;
+  customerLastNameSnapshot?: string | null;
+  customerEmailSnapshot?: string | null;
+  customerPhoneSnapshot?: string | null;
+  customer?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
+  payments?: Array<{
+    method?: string | null;
+    provider?: string | null;
+    status: string;
+    amount?: string | number;
+  }>;
+  items?: Array<{
+    id: number;
+    quantity: number;
+    price: string | number;
+    variant?: {
+      id: number;
+      sku?: string | null;
+      Size?: string | null;
+      Color?: string | null;
+      product?: { title: string } | null;
+    } | null;
+  }>;
+};
+
+export default function AdminCashRegisterSection({
+  storeLocationId,
+  onGenerateReturn,
+}: {
+  storeLocationId?: number | null;
+  onGenerateReturn?: (draft: ManualReturnDraft) => void;
+}) {
   const { user } = useAuth();
   const [payload, setPayload] = useState<CashPayload | null>(null);
   const [history, setHistory] = useState<CashPayload[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [salesHistoryOpen, setSalesHistoryOpen] = useState(false);
   const [historyTab, setHistoryTab] = useState<"daily" | "range">("daily");
   const [rangeSummary, setRangeSummary] = useState<CashSummary | null>(null);
   const [rangeStart, setRangeStart] = useState(() => firstDayOfCurrentMonth());
@@ -71,6 +116,9 @@ export default function AdminCashRegisterSection() {
   const [saving, setSaving] = useState(false);
   const [openingAmount, setOpeningAmount] = useState("");
   const [closingAmount, setClosingAmount] = useState("");
+  const [salesHistory, setSalesHistory] = useState<ManualSaleHistoryOrder[]>([]);
+  const [salesSearch, setSalesSearch] = useState("");
+  const [salesLoading, setSalesLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -93,13 +141,14 @@ export default function AdminCashRegisterSection() {
 
   useEffect(() => {
     void loadCurrent();
-  }, []);
+    void loadSalesHistory();
+  }, [storeLocationId]);
 
   async function loadCurrent() {
     setLoading(true);
     setError("");
     try {
-      const data = (await api("/cash-register/current")) as CashPayload;
+      const data = (await api(withStoreLocationQuery("/cash-register/current", storeLocationId))) as CashPayload;
       setPayload(data);
       if (data.summary) {
         setClosingAmount(String(data.summary.expectedAmount));
@@ -108,6 +157,19 @@ export default function AdminCashRegisterSection() {
       setError(err instanceof Error ? err.message : "No se pudo cargar la caja.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSalesHistory() {
+    setSalesLoading(true);
+    setError("");
+    try {
+      const data = await api(withStoreLocationQuery("/orders/manual/list", storeLocationId));
+      setSalesHistory(Array.isArray(data) ? (data as ManualSaleHistoryOrder[]) : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo cargar el historial de ventas.");
+    } finally {
+      setSalesLoading(false);
     }
   }
 
@@ -122,6 +184,7 @@ export default function AdminCashRegisterSection() {
         body: JSON.stringify({
           openingAmount: Number(openingAmount || 0),
           notes: notes.trim() || undefined,
+          storeLocationId: storeLocationId ?? undefined,
         }),
       })) as CashPayload;
       setPayload(data);
@@ -148,6 +211,7 @@ export default function AdminCashRegisterSection() {
         body: JSON.stringify({
           closingAmount: Number(closingAmount || 0),
           notes: notes.trim() || undefined,
+          storeLocationId: storeLocationId ?? undefined,
         }),
       })) as CashPayload;
       setPayload(data);
@@ -166,7 +230,7 @@ export default function AdminCashRegisterSection() {
     setError("");
     try {
       const [historyData] = await Promise.all([
-        api("/cash-register/history"),
+        api(withStoreLocationQuery("/cash-register/history", storeLocationId)),
         loadRangeSummary(),
       ]);
       setHistory(Array.isArray(historyData) ? (historyData as CashPayload[]) : []);
@@ -174,6 +238,11 @@ export default function AdminCashRegisterSection() {
       setError(err instanceof Error ? err.message : "No se pudo cargar el historial.");
       setHistory([]);
     }
+  }
+
+  async function openSalesHistory() {
+    setSalesHistoryOpen(true);
+    await loadSalesHistory();
   }
 
   async function loadRangeSummary(event?: React.FormEvent<HTMLFormElement>) {
@@ -184,6 +253,7 @@ export default function AdminCashRegisterSection() {
       const params = new URLSearchParams();
       if (rangeStart) params.set("start", rangeStart);
       if (rangeEnd) params.set("end", rangeEnd);
+      appendStoreLocationParam(params, storeLocationId);
       const data = (await api(`/cash-register/range-summary?${params.toString()}`)) as CashSummary;
       setRangeSummary(data);
     } catch (err) {
@@ -253,7 +323,10 @@ export default function AdminCashRegisterSection() {
     setError("");
     try {
       const sessionId = targetPayload.session.id;
-      const blob = await apiBlob(`/cash-register/closure.pdf?sessionId=${sessionId}`);
+      const params = new URLSearchParams();
+      params.set("sessionId", String(sessionId));
+      appendStoreLocationParam(params, storeLocationId);
+      const blob = await apiBlob(`/cash-register/closure.pdf?${params.toString()}`);
       downloadBlobFile(blob, `cierre-caja-${sessionId}.pdf`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo descargar el cierre de caja.");
@@ -334,6 +407,9 @@ export default function AdminCashRegisterSection() {
           ) : null}
           <button type="button" onClick={() => void openHistory()} style={softButtonStyle}>
             Historial
+          </button>
+          <button type="button" onClick={() => void openSalesHistory()} style={softButtonStyle}>
+            Historial de ventas
           </button>
           <button type="button" onClick={() => void downloadClosure()} style={primaryButtonStyle} disabled={!canPrint || !summary || saving}>
             Descargar cierre
@@ -501,6 +577,7 @@ export default function AdminCashRegisterSection() {
               {!(summary.accountAssignedMovements ?? []).length ? <State label="No hay importes asignados a cuenta corriente en esta caja." /> : null}
             </div>
           </section>
+
         </>
       ) : null}
 
@@ -576,6 +653,19 @@ export default function AdminCashRegisterSection() {
             )}
           </div>
         </div>
+      ) : null}
+
+      {salesHistoryOpen ? (
+        <SalesHistoryModal
+          salesHistory={salesHistory}
+          salesSearch={salesSearch}
+          salesLoading={salesLoading}
+          onSearchChange={setSalesSearch}
+          onRefresh={loadSalesHistory}
+          onClose={() => setSalesHistoryOpen(false)}
+          onGenerateReturn={onGenerateReturn}
+          onError={setError}
+        />
       ) : null}
 
       {openingModalOpen ? (
@@ -730,6 +820,166 @@ function RangeSummaryPanel({
   );
 }
 
+export function SalesHistoryModal({
+  salesHistory,
+  salesSearch,
+  salesLoading,
+  onSearchChange,
+  onRefresh,
+  onClose,
+  onGenerateReturn,
+  onError,
+}: {
+  salesHistory: ManualSaleHistoryOrder[];
+  salesSearch: string;
+  salesLoading: boolean;
+  onSearchChange: (value: string) => void;
+  onRefresh: () => Promise<void> | void;
+  onClose: () => void;
+  onGenerateReturn?: (draft: ManualReturnDraft) => void;
+  onError?: (message: string) => void;
+}) {
+  const filteredSalesHistory = useMemo(() => {
+    const normalized = salesSearch.trim().toLowerCase();
+    const activeSales = salesHistory.filter((sale) => sale.status !== "cancelled");
+
+    if (!normalized) return activeSales.slice(0, 80);
+
+    return activeSales.filter((sale) =>
+      [
+        String(sale.id),
+        saleCustomerName(sale),
+        salePaymentMethod(sale),
+        ...(sale.items ?? []).flatMap((item) => [
+          item.variant?.product?.title,
+          item.variant?.sku,
+          item.variant?.Size,
+          item.variant?.Color,
+        ]),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized),
+    ).slice(0, 80);
+  }, [salesHistory, salesSearch]);
+
+  function generateReturnFromSale(sale: ManualSaleHistoryOrder) {
+    const returnedLines = (sale.items ?? [])
+      .filter((item) => item.variant?.id && Number(item.quantity) > 0)
+      .map((item) => {
+        const unitPrice = effectiveUnitPrice(sale, item);
+        const variant = item.variant!;
+
+        return {
+          variantId: variant.id,
+          title: variant.product?.title || "Producto",
+          variantLabel: formatVariantMeta(getVariantLabel(variant), variant.sku),
+          sku: variant.sku || "",
+          quantity: Number(item.quantity || 1),
+          price: String(unitPrice),
+          unitPrice,
+          available: 0,
+          paidPriceLocked: true,
+        };
+      });
+
+    if (!returnedLines.length) {
+      onError?.("La venta no tiene productos disponibles para cargar una devolucion.");
+      return;
+    }
+
+    onGenerateReturn?.({
+      sourceOrderId: sale.id,
+      customerName: saleCustomerName(sale),
+      returnedPaymentMethod: normalizeReturnPaymentMethod(salePaymentMethod(sale)),
+      returnedLines,
+    });
+  }
+
+  return (
+    <div style={modalOverlayStyle} onClick={onClose}>
+      <div style={wideModalStyle} onClick={(event) => event.stopPropagation()}>
+        <header style={modalHeaderStyle}>
+          <div>
+            <p style={eyebrowStyle}>Historial</p>
+            <h3 style={modalTitleStyle}>Ventas para devoluciones</h3>
+            <p style={copyStyle}>Busca una venta para ver productos, precios pagados y generar la devolucion con esos valores.</p>
+          </div>
+          <div style={actionsStyle}>
+            <button type="button" onClick={() => void onRefresh()} style={softButtonStyle} disabled={salesLoading}>
+              {salesLoading ? "Actualizando..." : "Actualizar"}
+            </button>
+            <button type="button" onClick={onClose} style={softButtonStyle}>
+              Cerrar
+            </button>
+          </div>
+        </header>
+        <input
+          value={salesSearch}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Buscar por cliente, producto, SKU, metodo o numero de venta"
+          style={inputStyle}
+          autoFocus
+        />
+        {salesLoading ? <State label="Cargando ventas..." /> : null}
+        {!salesLoading && filteredSalesHistory.length === 0 ? (
+          <State label="No hay ventas para la busqueda." />
+        ) : null}
+        {!salesLoading && filteredSalesHistory.length > 0 ? (
+          <div style={salesTableWrapStyle}>
+            <table style={salesTableStyle}>
+              <thead>
+                <tr>
+                  <th style={salesThStyle}>Fecha</th>
+                  <th style={salesThStyle}>Cliente</th>
+                  <th style={salesThStyle}>Productos</th>
+                  <th style={salesThStyle}>Precio vendido</th>
+                  <th style={salesThStyle}>Metodo</th>
+                  <th style={salesThStyle}>Accion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSalesHistory.map((sale) => (
+                  <tr key={sale.id}>
+                    <td style={salesTdStyle}>
+                      <strong>#{sale.id}</strong>
+                      <span style={mutedStyle}>{formatDate(sale.createdAt)}</span>
+                    </td>
+                    <td style={salesTdStyle}>{saleCustomerName(sale)}</td>
+                    <td style={salesTdStyle}>
+                      <div style={saleItemsStyle}>
+                        {(sale.items ?? []).map((item) => (
+                          <span key={item.id}>
+                            {item.variant?.product?.title || "Producto"} {formatVariantMeta(getVariantLabel(item.variant), item.variant?.sku)} x{item.quantity}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={salesTdStyle}>
+                      <div style={saleItemsStyle}>
+                        {(sale.items ?? []).map((item) => (
+                          <span key={item.id}>{money(effectiveUnitPrice(sale, item))} c/u</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={salesTdStyle}>{salePaymentMethod(sale)}</td>
+                    <td style={salesTdStyle}>
+                      <button type="button" onClick={() => generateReturnFromSale(sale)} style={primaryButtonStyle}>
+                        Generar devolucion
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
@@ -758,6 +1008,73 @@ function formatInputDate(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function appendStoreLocationParam(params: URLSearchParams, storeLocationId?: number | null) {
+  if (storeLocationId) {
+    params.set("storeLocationId", String(storeLocationId));
+  }
+}
+
+function withStoreLocationQuery(path: string, storeLocationId?: number | null) {
+  const params = new URLSearchParams();
+  appendStoreLocationParam(params, storeLocationId);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
+function saleCustomerName(sale: ManualSaleHistoryOrder) {
+  return (
+    [sale.customerFirstNameSnapshot, sale.customerLastNameSnapshot].filter(Boolean).join(" ").trim() ||
+    [sale.customer?.firstName, sale.customer?.lastName].filter(Boolean).join(" ").trim() ||
+    sale.customerEmailSnapshot ||
+    sale.customerPhoneSnapshot ||
+    sale.customer?.email ||
+    sale.customer?.phone ||
+    "Sin cliente"
+  );
+}
+
+function salePaymentMethod(sale: ManualSaleHistoryOrder) {
+  const payment = sale.payments?.find((entry) => entry.status === "approved" || entry.status === "paid") ?? sale.payments?.[0];
+  return payment?.method?.trim() || payment?.provider || "Sin metodo";
+}
+
+function normalizeReturnPaymentMethod(method: string) {
+  if (method === "Cuenta corriente") return "Cuenta corriente";
+  if (method === "Tarjeta") return "Tarjeta";
+  if (method === "Transferencia") return "Transferencia";
+  return "Efectivo";
+}
+
+function effectiveUnitPrice(
+  sale: ManualSaleHistoryOrder,
+  item: NonNullable<ManualSaleHistoryOrder["items"]>[number],
+) {
+  const quantity = Math.max(Number(item.quantity || 1), 1);
+  const lineSubtotal = Number(item.price ?? 0) * quantity;
+  const orderSubtotal = Number(sale.subtotal ?? 0);
+  const discountAmount = Math.max(Number(sale.discountAmount ?? 0), 0);
+  const proportionalDiscount = orderSubtotal > 0
+    ? Math.min(discountAmount * (lineSubtotal / orderSubtotal), lineSubtotal)
+    : 0;
+
+  return roundMoney(Math.max((lineSubtotal - proportionalDiscount) / quantity, 0));
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function getVariantLabel(variant?: { Size?: string | null; Color?: string | null } | null) {
+  return [variant?.Size, variant?.Color]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join(" - ");
+}
+
+function formatVariantMeta(label?: string | null, sku?: string | null) {
+  return [label?.trim(), sku?.trim()].filter(Boolean).join(" - ") || "Sin variante";
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -802,9 +1119,15 @@ const successStyle: React.CSSProperties = { margin: 0, padding: 14, borderRadius
 const stateStyle: React.CSSProperties = { padding: 22, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-muted)" };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 120, background: "var(--admin-overlay-bg, rgba(0,0,0,.42))", display: "grid", placeItems: "center", padding: 16 };
 const modalStyle: React.CSSProperties = { width: "min(760px, 100%)", maxHeight: "min(760px, calc(100vh - 32px))", overflow: "auto", borderRadius: 20, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", padding: 20, display: "grid", gap: 16, boxShadow: "var(--admin-modal-shadow)" };
+const wideModalStyle: React.CSSProperties = { ...modalStyle, width: "min(1180px, 100%)" };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" };
 const tabsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, padding: 4, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
 const tabButtonStyle = (active: boolean): React.CSSProperties => ({ border: 0, borderRadius: 10, background: active ? "var(--account-item-bg-active)" : "transparent", color: "var(--account-text-strong)", padding: "10px 12px", cursor: "pointer", fontWeight: 800 });
 const historyListStyle: React.CSSProperties = { display: "grid", gap: 10 };
 const historyItemStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 12, alignItems: "center", padding: 14, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
 const historyAmountsStyle: React.CSSProperties = { display: "grid", gap: 4, textAlign: "right", color: "var(--account-text-muted)" };
+const salesTableWrapStyle: React.CSSProperties = { width: "100%", overflowX: "auto", border: "1px solid var(--account-item-border)", borderRadius: 16 };
+const salesTableStyle: React.CSSProperties = { width: "100%", minWidth: 980, borderCollapse: "collapse", background: "var(--account-surface-bg)" };
+const salesThStyle: React.CSSProperties = { padding: "12px 14px", textAlign: "left", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" };
+const salesTdStyle: React.CSSProperties = { padding: 14, borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-strong)", verticalAlign: "top" };
+const saleItemsStyle: React.CSSProperties = { display: "grid", gap: 6, color: "var(--account-text-muted)", minWidth: 0 };

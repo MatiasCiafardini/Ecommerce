@@ -29,12 +29,14 @@ export class CurrentAccountsController {
     @Req() req,
     @Query('status') status?: 'debt' | 'credit' | 'paid' | 'all',
     @Query('search') search?: string,
+    @Query('storeLocationId') storeLocationId?: string,
   ) {
     return this.currentAccountsService.findAll(
       req.storeId,
       req.user?.sub,
       status === 'paid' || status === 'all' || status === 'credit' ? status : 'debt',
       search ?? '',
+      parseOptionalId(storeLocationId),
     );
   }
 
@@ -67,11 +69,16 @@ export class CurrentAccountsController {
   }
 
   @Get('customers/:customerId')
-  findByCustomer(@Req() req, @Param('customerId') customerId: string) {
+  findByCustomer(
+    @Req() req,
+    @Param('customerId') customerId: string,
+    @Query('storeLocationId') storeLocationId?: string,
+  ) {
     return this.currentAccountsService.findByCustomer(
       req.storeId,
       req.user?.sub,
       Number(customerId),
+      parseOptionalId(storeLocationId),
     );
   }
 
@@ -132,10 +139,22 @@ export class CurrentAccountsController {
   }
 
   @Delete('customers/:customerId')
-  deactivate(@Req() req, @Param('customerId') customerId: string) {
+  deactivate(
+    @Req() req,
+    @Param('customerId') customerId: string,
+    @Query('storeLocationId') storeLocationId?: string,
+  ) {
     return this.currentAccountsService.deactivate(
       req.storeId,
       Number(customerId),
+      req.user?.sub,
+      parseOptionalId(storeLocationId),
     );
   }
+}
+
+function parseOptionalId(value?: string) {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
