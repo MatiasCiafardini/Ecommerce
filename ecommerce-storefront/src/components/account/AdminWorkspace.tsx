@@ -213,7 +213,12 @@ function AdminManualSalesWorkspace({
     if (canSelectLocation) {
       void loadLocations();
     } else {
-      setSelectedLocationId(user?.storeLocationId ?? null);
+      const nextLocationId = user?.storeLocationId ?? null;
+      queueMicrotask(() => {
+        if (mounted) {
+          setSelectedLocationId(nextLocationId);
+        }
+      });
     }
 
     return () => {

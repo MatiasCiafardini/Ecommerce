@@ -979,10 +979,6 @@ export class ReturnsService {
       },
     });
 
-    if (!needsCurrentAccount) {
-      return { customer, account: null };
-    }
-
     const existingAccount = await tx.currentAccount.findFirst({
       where: {
         storeId,
@@ -990,6 +986,10 @@ export class ReturnsService {
         storeLocationId,
       },
     });
+
+    if (!needsCurrentAccount) {
+      return { customer, account: existingAccount ?? null };
+    }
 
     const account = existingAccount
       ? await tx.currentAccount.update({

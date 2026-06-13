@@ -442,6 +442,12 @@ describe('ReturnsService', () => {
     (prisma as any).store = {
       findUnique: jest.fn().mockResolvedValue({ cashRegisterMode: 'automatic' }),
     };
+    (prisma as any).user = {
+      findFirst: jest.fn().mockResolvedValue({
+        role: 'STAFF',
+        storeLocation: null,
+      }),
+    };
 
     const tx = {
       productVariant: {
@@ -469,7 +475,7 @@ describe('ReturnsService', () => {
         update: jest.fn().mockResolvedValue({}),
       },
       currentAccount: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           id: 88,
           balance: 20,
           storeLocationId: null,
@@ -567,7 +573,7 @@ describe('ReturnsService', () => {
         update: jest.fn().mockResolvedValue({}),
       },
       currentAccount: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           id: 89,
           balance: 10,
           storeLocationId: 5,
