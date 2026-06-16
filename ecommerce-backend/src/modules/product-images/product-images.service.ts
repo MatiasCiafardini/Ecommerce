@@ -5,10 +5,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductImageDto } from './dto/create-product-image.dto';
 import { UpdateProductImageDto } from './dto/update-product-image.dto';
 import { uploadsDir, uploadsPublicPath } from '../../common/uploads';
+import {
+  CatalogAuditService,
+  type CatalogAuditActor,
+} from '../catalog-audit/catalog-audit.service';
 
 @Injectable()
 export class ProductImagesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private catalogAudit: CatalogAuditService,
+  ) {}
 
   private async tryDeleteUploadFile(url: string): Promise<void> {
     if (!url.startsWith(uploadsPublicPath + '/')) {
@@ -34,7 +41,12 @@ export class ProductImagesService {
     });
   }
 
-  async create(productId: number, dto: CreateProductImageDto, storeId: number) {
+  async create(
+    productId: number,
+    dto: CreateProductImageDto,
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
     const product = await this.prisma.product.findFirst({
       where: {
         id: productId,
@@ -48,15 +60,29 @@ export class ProductImagesService {
       throw new NotFoundException('Product not found in this store');
     }
 
-    return this.prisma.productImage.create({
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const image = await tx.productImage.create({
+        data: {
+          productId,
+          url: dto.url,
+          position: dto.position ?? 0,
+          offsetX: dto.offsetX ?? 0,
+          offsetY: dto.offsetY ?? 0,
+          zoom: dto.zoom ?? 1,
+        },
+      });
+
+      await this.catalogAudit.create({
+        storeId,
         productId,
-        url: dto.url,
-        position: dto.position ?? 0,
-        offsetX: dto.offsetX ?? 0,
-        offsetY: dto.offsetY ?? 0,
-        zoom: dto.zoom ?? 1,
-      },
+        action: 'product_image.created',
+        entity: 'productImage',
+        entityId: image.id,
+        actor,
+        after: image,
+      }, tx);
+
+      return image;
     });
   }
 
@@ -80,7 +106,13 @@ export class ProductImagesService {
     });
   }
 
-  async update(id: number, productId: number, dto: UpdateProductImageDto, storeId: number) {
+  async update(
+    id: number,
+    productId: number,
+    dto: UpdateProductImageDto,
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
     const image = await this.prisma.productImage.findFirst({
       where: {
         id,
@@ -90,27 +122,56 @@ export class ProductImagesService {
           deletedAt: null,
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        productId: true,
+        url: true,
+        position: true,
+        offsetX: true,
+        offsetY: true,
+        zoom: true,
+      },
     });
 
     if (!image) {
       throw new NotFoundException('Image not found in this store');
     }
 
-    return this.prisma.productImage.update({
-      where: {
-        id,
-      },
-      data: {
-        position: dto.position,
-        offsetX: dto.offsetX,
-        offsetY: dto.offsetY,
-        zoom: dto.zoom,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.productImage.update({
+        where: {
+          id,
+        },
+        data: {
+          position: dto.position,
+          offsetX: dto.offsetX,
+          offsetY: dto.offsetY,
+          zoom: dto.zoom,
+        },
+      });
+
+      await this.catalogAudit.create({
+        storeId,
+        productId,
+        action: 'product_image.updated',
+        entity: 'productImage',
+        entityId: id,
+        actor,
+        before: image,
+        after: updated,
+        metadata: { fields: Object.keys(dto) },
+      }, tx);
+
+      return updated;
     });
   }
 
-  async delete(id: number, productId: number, storeId: number) {
+  async delete(
+    id: number,
+    productId: number,
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
     const image = await this.prisma.productImage.findFirst({
       where: {
         id,
@@ -120,14 +181,33 @@ export class ProductImagesService {
           deletedAt: null,
         },
       },
-      select: { id: true, url: true },
+      select: {
+        id: true,
+        productId: true,
+        url: true,
+        position: true,
+        offsetX: true,
+        offsetY: true,
+        zoom: true,
+      },
     });
 
     if (!image) {
       throw new NotFoundException('Image not found in this store');
     }
 
-    await this.prisma.productImage.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.productImage.delete({ where: { id } });
+      await this.catalogAudit.create({
+        storeId,
+        productId,
+        action: 'product_image.deleted',
+        entity: 'productImage',
+        entityId: id,
+        actor,
+        before: image,
+      }, tx);
+    });
     await this.tryDeleteUploadFile(image.url);
   }
 }

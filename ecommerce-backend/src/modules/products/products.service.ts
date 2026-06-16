@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Product } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  CatalogAuditService,
+  type CatalogAuditActor,
+} from '../catalog-audit/catalog-audit.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
@@ -17,11 +21,27 @@ const normalizeNullableDisplayText = (value?: string | null) => {
   return normalized || null;
 };
 
+type ProductCatalogMetrics = {
+  total: number;
+  published: number;
+  draft: number;
+  withoutStock: number;
+};
+
+const CATALOG_METRICS_CACHE_MS = 30_000;
+const catalogMetricsCache = new Map<
+  number,
+  { expiresAt: number; metrics: ProductCatalogMetrics }
+>();
+
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private catalogAudit: CatalogAuditService,
+  ) {}
 
-  async create(data: CreateProductDto, storeId: number) {
+  async create(data: CreateProductDto, storeId: number, actor?: CatalogAuditActor) {
     const title = normalizeDisplayText(data.title);
     if (!title) {
       throw new BadRequestException('Product title is required');
@@ -29,20 +49,37 @@ export class ProductsService {
 
     const slug = await this.resolveAvailableSlug(generateSlug(title), storeId);
 
-    return this.prisma.product.create({
-      data: {
-        title,
-        description: data.description,
-        slug,
-        published: data.published ?? false,
-        weightGrams: data.weightGrams,
-        packageHeightCm: data.packageHeightCm,
-        packageWidthCm: data.packageWidthCm,
-        packageLengthCm: data.packageLengthCm,
-        packagingTemplateId: data.packagingTemplateId?.trim() || null,
+    const product = await this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          title,
+          description: data.description,
+          slug,
+          published: data.published ?? false,
+          weightGrams: data.weightGrams,
+          packageHeightCm: data.packageHeightCm,
+          packageWidthCm: data.packageWidthCm,
+          packageLengthCm: data.packageLengthCm,
+          packagingTemplateId: data.packagingTemplateId?.trim() || null,
+          storeId,
+        },
+      });
+
+      await this.catalogAudit.create({
         storeId,
-      },
+        productId: product.id,
+        action: 'product.created',
+        entity: 'product',
+        entityId: product.id,
+        actor,
+        after: product,
+      }, tx);
+
+      return product;
     });
+
+    this.invalidateCatalogMetrics(storeId);
+    return product;
   }
 
   findAll(storeId: number, search?: string, rawLimit?: string | number) {
@@ -97,37 +134,8 @@ export class ProductsService {
     const pageSize = this.normalizePositiveInt(query.pageSize, 80, 20, 120);
     const includeMetrics = query.includeMetrics !== 'false';
     const where = this.buildAdminCatalogWhere(storeId, query);
-    const metricsWhere = {
-      storeId,
-      deletedAt: null,
-    } satisfies Prisma.ProductWhereInput;
-    const hasStockWhere = this.buildHasStockWhere(storeId);
-    const withoutStockWhere = this.buildWithoutStockWhere(storeId);
-
     const metricsPromise = includeMetrics
-      ? Promise.all([
-          this.prisma.product.count({ where: metricsWhere }),
-          this.prisma.product.count({
-            where: {
-              ...metricsWhere,
-              published: true,
-              ...hasStockWhere,
-            },
-          }),
-          this.prisma.product.count({
-            where: {
-              ...metricsWhere,
-              published: false,
-              ...hasStockWhere,
-            },
-          }),
-          this.prisma.product.count({
-            where: {
-              ...metricsWhere,
-              ...withoutStockWhere,
-            },
-          }),
-        ])
+      ? this.getCatalogMetrics(storeId)
       : Promise.resolve(null);
 
     const [items, total, metrics] =
@@ -200,8 +208,6 @@ export class ProductsService {
         this.prisma.product.count({ where }),
         metricsPromise,
       ]);
-    const [totalProducts, published, draft, withoutStock] = metrics ?? [undefined, undefined, undefined, undefined];
-
     return {
       items,
       total,
@@ -210,12 +216,7 @@ export class ProductsService {
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
       ...(metrics
         ? {
-            metrics: {
-              total: totalProducts,
-              published,
-              draft,
-              withoutStock,
-            },
+            metrics,
           }
         : {}),
     };
@@ -385,7 +386,12 @@ export class ProductsService {
     return Math.max(min, Math.min(max, Math.trunc(parsed)));
   }
 
-  async update(productId: number, data: UpdateProductDto, storeId: number) {
+  async update(
+    productId: number,
+    data: UpdateProductDto,
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
     const payload: {
       title?: string;
       description?: string | null;
@@ -438,19 +444,26 @@ export class ProductsService {
       payload.packagingTemplateId = data.packagingTemplateId?.trim() || null;
     }
 
-    return this.prisma.product.updateMany({
-      where: {
-        id: productId,
-        storeId,
-        deletedAt: null,
-      },
-      data: payload,
-    }).then(async (result) => {
-      if (result.count === 0) {
-        throw new Error('Product not found');
+    const product = await this.prisma.$transaction(async (tx) => {
+      const before = await this.findById(tx, productId, storeId);
+      if (!before) {
+        throw new NotFoundException('Product not found');
       }
 
-      return this.prisma.product.findFirst({
+      const result = await tx.product.updateMany({
+        where: {
+          id: productId,
+          storeId,
+          deletedAt: null,
+        },
+        data: payload,
+      });
+
+      if (result.count === 0) {
+        throw new NotFoundException('Product not found');
+      }
+
+      const after = await tx.product.findFirst({
         where: {
           id: productId,
           storeId,
@@ -478,13 +491,31 @@ export class ProductsService {
           },
         },
       });
+
+      await this.catalogAudit.create({
+        storeId,
+        productId,
+        action: 'product.updated',
+        entity: 'product',
+        entityId: productId,
+        actor,
+        before,
+        after,
+        metadata: { fields: Object.keys(payload) },
+      }, tx);
+
+      return after;
     });
+
+    this.invalidateCatalogMetrics(storeId);
+    return product;
   }
 
   async saveComplete(
     productId: number | undefined,
     data: SaveProductCompleteDto,
     storeId: number,
+    actor?: CatalogAuditActor,
   ) {
     const normalizedTitle = normalizeDisplayText(data.title);
 
@@ -502,7 +533,8 @@ export class ProductsService {
 
     this.ensureNoDuplicateVariantSkus(normalizedVariants);
 
-    return this.prisma.$transaction(async (tx) => {
+    const product = await this.prisma.$transaction(async (tx) => {
+      const before = productId ? await this.findById(tx, productId, storeId) : null;
       const product = productId
         ? await this.updateProductRecord(tx, productId, storeId, {
             title: normalizedTitle,
@@ -532,21 +564,34 @@ export class ProductsService {
       await this.syncOptionValues(tx, product.id, normalizedOptionValues);
       await this.syncVariants(tx, product.id, storeId, normalizedVariants);
 
-      return this.findById(tx, product.id, storeId);
+      const after = await this.findById(tx, product.id, storeId);
+
+      await this.catalogAudit.create({
+        storeId,
+        productId: product.id,
+        action: productId ? 'product.updated' : 'product.created',
+        entity: 'product',
+        entityId: product.id,
+        actor,
+        before,
+        after,
+        metadata: {
+          mode: 'save-complete',
+          categoryIds: normalizedCategoryIds,
+          optionValueCount: normalizedOptionValues.length,
+          variantCount: normalizedVariants.length,
+        },
+      }, tx);
+
+      return after;
     });
+
+    this.invalidateCatalogMetrics(storeId);
+    return product;
   }
 
-  async remove(productId: number, storeId: number) {
-    const product = await this.prisma.product.findFirst({
-      where: {
-        id: productId,
-        storeId,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-      },
-    });
+  async remove(productId: number, storeId: number, actor?: CatalogAuditActor) {
+    const product = await this.findById(this.prisma, productId, storeId);
 
     if (!product) {
       throw new NotFoundException('Product not found');
@@ -554,26 +599,26 @@ export class ProductsService {
 
     const deletedAt = new Date();
 
-    await this.prisma.$transaction([
-      this.prisma.productCategory.deleteMany({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.productCategory.deleteMany({
         where: {
           productId,
         },
-      }),
-      this.prisma.productOptionValue.deleteMany({
+      });
+      await tx.productOptionValue.deleteMany({
         where: {
           productId,
         },
-      }),
-      this.prisma.product.update({
+      });
+      await tx.product.update({
         where: {
           id: productId,
         },
         data: {
           deletedAt,
         },
-      }),
-      this.prisma.productVariant.updateMany({
+      });
+      await tx.productVariant.updateMany({
         where: {
           productId,
           deletedAt: null,
@@ -581,40 +626,93 @@ export class ProductsService {
         data: {
           deletedAt,
         },
-      }),
-    ]);
+      });
+      await this.catalogAudit.create({
+        storeId,
+        productId,
+        action: 'product.deleted',
+        entity: 'product',
+        entityId: productId,
+        actor,
+        before: product,
+        after: { ...product, deletedAt },
+      }, tx);
+    });
 
+    this.invalidateCatalogMetrics(storeId);
     return { success: true };
   }
 
-  async addCategory(productId: number, categoryId: number, storeId: number) {
+  async addCategory(
+    productId: number,
+    categoryId: number,
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
     await this.ensureProductAndCategoryBelongToStore(productId, categoryId, storeId);
 
-    return this.prisma.productCategory.upsert({
-      where: {
-        productId_categoryId: {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.findById(tx, productId, storeId);
+      const result = await tx.productCategory.upsert({
+        where: {
+          productId_categoryId: {
+            productId,
+            categoryId,
+          },
+        },
+        update: {},
+        create: {
           productId,
           categoryId,
         },
-      },
-      update: {},
-      create: {
+      });
+      const after = await this.findById(tx, productId, storeId);
+      await this.catalogAudit.create({
+        storeId,
         productId,
-        categoryId,
-      },
+        action: 'product.category_added',
+        entity: 'productCategory',
+        entityId: categoryId,
+        actor,
+        before,
+        after,
+        metadata: { categoryId },
+      }, tx);
+      return result;
     });
   }
 
-  async removeCategory(productId: number, categoryId: number, storeId: number) {
+  async removeCategory(
+    productId: number,
+    categoryId: number,
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
     await this.ensureProductAndCategoryBelongToStore(productId, categoryId, storeId);
 
-    return this.prisma.productCategory.delete({
-      where: {
-        productId_categoryId: {
-          productId,
-          categoryId,
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.findById(tx, productId, storeId);
+      const result = await tx.productCategory.delete({
+        where: {
+          productId_categoryId: {
+            productId,
+            categoryId,
+          },
         },
-      },
+      });
+      const after = await this.findById(tx, productId, storeId);
+      await this.catalogAudit.create({
+        storeId,
+        productId,
+        action: 'product.category_removed',
+        entity: 'productCategory',
+        entityId: categoryId,
+        actor,
+        before,
+        after,
+        metadata: { categoryId },
+      }, tx);
+      return result;
     });
   }
 
@@ -641,6 +739,108 @@ export class ProductsService {
       },
       include: {
         category: true,
+      },
+    });
+  }
+
+  private async getCatalogMetrics(storeId: number): Promise<ProductCatalogMetrics> {
+    const cached = catalogMetricsCache.get(storeId);
+    const now = Date.now();
+
+    if (cached && cached.expiresAt > now) {
+      return cached.metrics;
+    }
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        total: number | bigint;
+        published: number | bigint;
+        draft: number | bigint;
+        withoutStock: number | bigint;
+      }>
+    >(Prisma.sql`
+      WITH product_stock AS (
+        SELECT
+          p.id,
+          p.published,
+          COALESCE(SUM(COALESCE(i.quantity, 0)), 0) AS stock
+        FROM "Product" p
+        LEFT JOIN "ProductVariant" v
+          ON v."productId" = p.id
+          AND v."deletedAt" IS NULL
+        LEFT JOIN "Inventory" i
+          ON i."variantId" = v.id
+          AND i."storeId" = p."storeId"
+        WHERE
+          p."storeId" = ${storeId}
+          AND p."deletedAt" IS NULL
+        GROUP BY p.id, p.published
+      )
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE published = true AND stock > 0)::int AS published,
+        COUNT(*) FILTER (WHERE published = false AND stock > 0)::int AS draft,
+        COUNT(*) FILTER (WHERE stock <= 0)::int AS "withoutStock"
+      FROM product_stock
+    `);
+
+    const row = rows[0];
+    const metrics = {
+      total: Number(row?.total ?? 0),
+      published: Number(row?.published ?? 0),
+      draft: Number(row?.draft ?? 0),
+      withoutStock: Number(row?.withoutStock ?? 0),
+    };
+
+    catalogMetricsCache.set(storeId, {
+      metrics,
+      expiresAt: now + CATALOG_METRICS_CACHE_MS,
+    });
+
+    return metrics;
+  }
+
+  private invalidateCatalogMetrics(storeId: number) {
+    catalogMetricsCache.delete(storeId);
+  }
+
+  async getAuditLogs(productId: number, storeId: number, rawLimit?: string | number) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id: productId,
+        storeId,
+      },
+      select: { id: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const requestedLimit = Number(rawLimit ?? 100);
+    const limit =
+      Number.isFinite(requestedLimit) && requestedLimit > 0
+        ? Math.min(Math.trunc(requestedLimit), 500)
+        : 100;
+
+    return this.prisma.catalogAuditLog.findMany({
+      where: {
+        storeId,
+        productId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit,
+      include: {
+        actorUser: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+          },
+        },
       },
     });
   }

@@ -42,6 +42,23 @@ const COMOVOSYYO_LABEL_TEMPLATE_KEYS: LabelTemplateKey[] = [
   'BROTHER_QL570_54X17_ACCESSORY',
 ];
 
+const TROJANI_LABEL_TEMPLATE_KEYS: LabelTemplateKey[] = ['TROJANI_100X150_6UP'];
+
+const TROJANI_LABEL_CONFIG: DefaultLabelConfig = {
+  template: 'TROJANI_100X150_6UP',
+  options: {
+    showPrice: true,
+    priceMode: 'both',
+    showStoreName: false,
+    showProductName: true,
+    showVariantName: true,
+    showSku: true,
+    showLogo: false,
+  },
+  templateOptions: {},
+  quantityMode: 'stock',
+};
+
 @Injectable()
 export class LabelsService {
   constructor(
@@ -158,8 +175,7 @@ export class LabelsService {
   }
 
   async preview(storeId: number, dto: GenerateLabelsDto) {
-    const template = getLabelTemplate(dto.template);
-    if (!template) throw new BadRequestException('Invalid label template');
+    const template = await this.loadAllowedTemplate(storeId, dto.template);
 
     const labels = await this.buildLabels(storeId, dto, 120);
 
@@ -177,8 +193,7 @@ export class LabelsService {
   }
 
   async pdf(storeId: number, dto: GenerateLabelsDto) {
-    const template = getLabelTemplate(dto.template);
-    if (!template) throw new BadRequestException('Invalid label template');
+    const template = await this.loadAllowedTemplate(storeId, dto.template);
 
     const totalLabels = await this.countRequestedLabels(dto);
     const maxPdfLabels = runtimeConfig.labelsMaxPdfLabels;
@@ -466,7 +481,9 @@ export class LabelsService {
     });
     const storefrontConfig = this.asPlainObject(store?.storefrontConfig);
     const allowedTemplates = this.getAllowedTemplates(store);
-    return this.normalizeDefaultConfig(storefrontConfig.defaultLabel, undefined, allowedTemplates);
+    const fallback = this.isTrojaniStore(store) ? TROJANI_LABEL_CONFIG : undefined;
+
+    return this.normalizeDefaultConfig(storefrontConfig.defaultLabel, fallback, allowedTemplates);
   }
 
   private normalizeDefaultConfig(
@@ -485,7 +502,10 @@ export class LabelsService {
     const template = getLabelTemplate(rawTemplate) && allowedKeys.has(rawTemplate as LabelTemplateKey)
       ? (source.template as LabelTemplateKey)
       : fallbackTemplate;
-    const previousTemplateOptions = previous?.templateOptions ?? {};
+    const previousTemplateOptions = {
+      ...(previous?.template ? { [previous.template]: previous.options } : {}),
+      ...(previous?.templateOptions ?? {}),
+    };
     const sourceTemplateOptions = this.normalizeTemplateOptions(source.templateOptions, allowedKeys);
     const optionsInput = this.asPlainObject(source.options);
     const normalizedOptions = this.normalizeOptions(
@@ -535,11 +555,47 @@ export class LabelsService {
     domain?: string | null;
     storefrontConfig?: Prisma.JsonValue | null;
   } | null | undefined) {
-    if (!store || !isComoVosYYoStore(store)) {
-      return Object.values(LABEL_TEMPLATES);
+    if (this.isTrojaniStore(store)) {
+      return TROJANI_LABEL_TEMPLATE_KEYS.map((key) => LABEL_TEMPLATES[key]);
     }
 
-    return COMOVOSYYO_LABEL_TEMPLATE_KEYS.map((key) => LABEL_TEMPLATES[key]);
+    if (store && isComoVosYYoStore(store)) {
+      return COMOVOSYYO_LABEL_TEMPLATE_KEYS.map((key) => LABEL_TEMPLATES[key]);
+    }
+
+    return Object.values(LABEL_TEMPLATES);
+  }
+
+  private isTrojaniStore(store: {
+    id?: number | null;
+    name?: string | null;
+    domain?: string | null;
+    storefrontConfig?: Prisma.JsonValue | null;
+  } | null | undefined) {
+    if (!store) return false;
+
+    const config = this.asPlainObject(store.storefrontConfig);
+    const theme = String(config.theme ?? '').trim().toLowerCase();
+    const name = store.name?.trim().toLowerCase() ?? '';
+    const domain = store.domain?.trim().toLowerCase() ?? '';
+
+    return store.id === 3 || theme === 'trojani' || name.includes('trojani') || domain.includes('trojani');
+  }
+
+  private async loadAllowedTemplate(storeId: number, templateKey: LabelTemplateKey) {
+    const template = getLabelTemplate(templateKey);
+    if (!template) throw new BadRequestException('Invalid label template');
+
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true, name: true, domain: true, storefrontConfig: true },
+    });
+    const allowedTemplates = this.getAllowedTemplates(store);
+    if (!allowedTemplates.some((allowedTemplate) => allowedTemplate.key === template.key)) {
+      throw new BadRequestException('Invalid label template for this store');
+    }
+
+    return template;
   }
 
   private async buildProductStockItems(

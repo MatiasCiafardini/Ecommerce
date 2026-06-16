@@ -113,7 +113,7 @@ export class ProductImagesController {
         offsetX: dto.offsetX,
         offsetY: dto.offsetY,
         zoom: dto.zoom,
-      }, req.storeId);
+      }, req.storeId, req.user);
     } catch (error) {
       await unlink(join(uploadsDir, file.filename)).catch(() => null);
       throw error;
@@ -127,7 +127,7 @@ export class ProductImagesController {
     @Body() dto: CreateProductImageDto,
     @Req() req,
   ) {
-    return this.service.create(Number(productId), dto, req.storeId);
+    return this.service.create(Number(productId), dto, req.storeId, req.user);
   }
 
   @Get()
@@ -143,12 +143,12 @@ export class ProductImagesController {
     @Body() dto: UpdateProductImageDto,
     @Req() req,
   ) {
-    return this.service.update(Number(id), Number(productId), dto, req.storeId);
+    return this.service.update(Number(id), Number(productId), dto, req.storeId, req.user);
   }
 
   @Delete(':id')
   @UseGuards(CatalogManagerGuard)
   remove(@Param('productId') productId: string, @Param('id') id: string, @Req() req) {
-    return this.service.delete(Number(id), Number(productId), req.storeId);
+    return this.service.delete(Number(id), Number(productId), req.storeId, req.user);
   }
 }

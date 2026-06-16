@@ -32,7 +32,7 @@ export class ProductVariantsController {
   @Post()
   @UseGuards(CatalogManagerGuard)
   create(@Body() createVariantDto: CreateVariantDto, @Req() req) {
-    return this.variantsService.create(createVariantDto, req.storeId);
+    return this.variantsService.create(createVariantDto, req.storeId, req.user);
   }
 
   @Patch(':id')
@@ -46,13 +46,14 @@ export class ProductVariantsController {
       Number(id),
       updateVariantDto,
       req.storeId,
+      req.user,
     );
   }
 
   @Delete(':id')
   @UseGuards(CatalogManagerGuard)
   remove(@Param('id') id: string, @Req() req) {
-    return this.variantsService.remove(Number(id), req.storeId);
+    return this.variantsService.remove(Number(id), req.storeId, req.user);
   }
 
   @Get(':productId')

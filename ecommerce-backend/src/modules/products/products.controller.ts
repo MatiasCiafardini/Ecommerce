@@ -29,13 +29,13 @@ export class ProductsController {
   @Post()
   @UseGuards(CatalogManagerGuard)
   create(@Body() dto: CreateProductDto, @Req() req) {
-    return this.productsService.create(dto, req.storeId);
+    return this.productsService.create(dto, req.storeId, req.user);
   }
 
   @Post('save-complete')
   @UseGuards(CatalogManagerGuard)
   createComplete(@Body() dto: SaveProductCompleteDto, @Req() req) {
-    return this.productsService.saveComplete(undefined, dto, req.storeId);
+    return this.productsService.saveComplete(undefined, dto, req.storeId, req.user);
   }
 
   @Get()
@@ -76,7 +76,7 @@ export class ProductsController {
   @Patch(':id')
   @UseGuards(CatalogManagerGuard)
   update(@Param('id') id: string, @Body() dto: UpdateProductDto, @Req() req) {
-    return this.productsService.update(Number(id), dto, req.storeId);
+    return this.productsService.update(Number(id), dto, req.storeId, req.user);
   }
 
   @Patch(':id/save-complete')
@@ -86,13 +86,23 @@ export class ProductsController {
     @Body() dto: SaveProductCompleteDto,
     @Req() req,
   ) {
-    return this.productsService.saveComplete(Number(id), dto, req.storeId);
+    return this.productsService.saveComplete(Number(id), dto, req.storeId, req.user);
   }
 
   @Delete(':id')
   @UseGuards(CatalogManagerGuard)
   remove(@Param('id') id: string, @Req() req) {
-    return this.productsService.remove(Number(id), req.storeId);
+    return this.productsService.remove(Number(id), req.storeId, req.user);
+  }
+
+  @Get(':id/audit')
+  @UseGuards(CatalogManagerGuard)
+  getAuditLogs(
+    @Param('id') id: string,
+    @Req() req,
+    @Query('limit') limit?: string,
+  ) {
+    return this.productsService.getAuditLogs(Number(id), req.storeId, limit);
   }
 
   @Post(':id/categories/:categoryId')
@@ -102,7 +112,7 @@ export class ProductsController {
     @Param('categoryId') categoryId: string,
     @Req() req,
   ) {
-    return this.productsService.addCategory(Number(id), Number(categoryId), req.storeId);
+    return this.productsService.addCategory(Number(id), Number(categoryId), req.storeId, req.user);
   }
 
   @Delete(':id/categories/:categoryId')
@@ -112,7 +122,7 @@ export class ProductsController {
     @Param('categoryId') categoryId: string,
     @Req() req,
   ) {
-    return this.productsService.removeCategory(Number(id), Number(categoryId), req.storeId);
+    return this.productsService.removeCategory(Number(id), Number(categoryId), req.storeId, req.user);
   }
 
   @Get(':id/categories')

@@ -535,7 +535,7 @@ function getProductPriceFrom(
 
 function getProductCatalogStatus(product: Product) {
   if (getProductTotalStock(product) <= 0) return "Sin stock";
-  return product.published ? "Publicado" : "Borrador";
+  return product.published ? "Publicado" : "Inventario";
 }
 
 function getProductCategoryNames(product: Product) {
@@ -2231,7 +2231,7 @@ export default function AdminProductsSection({
       } else if (editingVariantIndex !== null && editingVariantIndex > removedIndex) {
         setEditingVariantIndex(editingVariantIndex - 1);
       }
-      setSuccess("Variante eliminada del borrador actual.");
+      setSuccess("Variante eliminada del inventario actual.");
     } else if (pendingRemoval.kind === "product") {
       await removeProduct(
         pendingRemoval.productId,
@@ -2441,7 +2441,7 @@ export default function AdminProductsSection({
         clearVariantDraft();
         setActiveTab("create");
         setWizardStep("info");
-        setSuccess("Copia preparada como borrador. Revisa los SKU antes de guardar.");
+        setSuccess("Copia preparada como inventario. Revisa los SKU antes de guardar.");
 
         formTopRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -2936,7 +2936,7 @@ export default function AdminProductsSection({
       }
 
       setEditingProductId(nextProductId);
-      setSuccess("Producto borrador creado. Las imagenes se suben en segundo plano.");
+      setSuccess("Producto inventario creado. Las imagenes se suben en segundo plano.");
       return nextProductId;
     } catch (error) {
       setError(
@@ -3802,7 +3802,7 @@ export default function AdminProductsSection({
         >
           <option value="all">Todos los estados</option>
           <option value="published">Publicado</option>
-          <option value="draft">Borrador</option>
+          <option value="draft">Inventario</option>
           <option value="without-stock">Sin stock</option>
         </select>
         {canManageCatalog ? (
@@ -3812,7 +3812,7 @@ export default function AdminProductsSection({
       <div style={statsGridStyle}>
         <Stat label="Productos totales" value={String(productMetrics.total)} />
         <Stat label="Publicados" value={String(productMetrics.published)} />
-        <Stat label="Borradores" value={String(productMetrics.draft)} />
+        <Stat label="Inventario" value={String(productMetrics.draft)} />
         <Stat label="Sin stock" value={String(productMetrics.withoutStock)} />
       </div>
       <div style={tableWrapStyle}>
@@ -4651,7 +4651,7 @@ export default function AdminProductsSection({
                         <span style={metaStyle}>/{product.slug}</span>
                       </div>
                       <span style={statusStyle(product.published)}>
-                        {product.published ? "Publicado" : "Borrador"}
+                        {product.published ? "Publicado" : "Inventario"}
                       </span>
                     </div>
                     <div style={{ display: "grid", gap: 6 }}>
@@ -4736,7 +4736,7 @@ export default function AdminProductsSection({
                         </td>
                         <td style={tdStyle}>
                           <span style={statusStyle(product.published)}>
-                            {product.published ? "Publicado" : "Borrador"}
+                            {product.published ? "Publicado" : "Inventario"}
                           </span>
                         </td>
                         <td style={tdStyle}>
@@ -4997,7 +4997,7 @@ export default function AdminProductsSection({
                       ? `Este valor esta usado por ${pendingRemoval.productsCount} producto(s) en el atributo "${pendingRemoval.optionName}". Si confirmas, se quitara de todos esos productos.`
                       : "No hay productos afectados. La eliminacion es segura."
                     : pendingRemoval.kind === "variant"
-                      ? "La variante se quitara del borrador actual del producto."
+                      ? "La variante se quitara del inventario actual del producto."
                       : pendingRemoval.kind === "product"
                         ? "El producto se ocultara del catalogo y dejara de aparecer en el admin."
                         : pendingRemoval.productsCount > 0

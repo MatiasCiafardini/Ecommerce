@@ -16,7 +16,7 @@ export class InventoryController {
   @Post()
   @UseGuards(CatalogManagerGuard)
   create(@Body() dto: CreateInventoryDto, @Req() req) {
-    return this.inventoryService.create(dto, req.storeId);
+    return this.inventoryService.create(dto, req.storeId, req.user);
   }
 
   @Get(':variantId')
@@ -35,6 +35,7 @@ export class InventoryController {
       Number(variantId),
       quantity,
       req.storeId,
+      req.user,
     );
   }
 }

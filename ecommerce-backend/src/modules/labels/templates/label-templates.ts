@@ -3,6 +3,7 @@ export type LabelTemplateKey =
   | 'BROTHER_QL570_54X17_ACCESSORY'
   | 'BROTHER_DK2205_SHIPPING'
   | 'BROTHER_QL570_29X90'
+  | 'TROJANI_100X150_6UP'
   | 'A4_50x25'
   | 'A4_40x30'
   | 'THERMAL_58'
@@ -102,6 +103,20 @@ export const LABEL_TEMPLATES: Record<LabelTemplateKey, LabelTemplate> = {
     label: { widthMm: 89.83, heightMm: 28.96, paddingMm: 2 },
     margins: { topMm: 0, rightMm: 0, bottomMm: 0, leftMm: 0 },
     grid: { columns: 1, rows: 1, columnSpacingMm: 0, rowSpacingMm: 0 },
+  },
+  TROJANI_100X150_6UP: {
+    key: 'TROJANI_100X150_6UP',
+    id: 'TROJANI_100X150_6UP',
+    name: 'Trojani 100x150 mm - 6 etiquetas',
+    type: 'clothing',
+    useCase: 'clothing',
+    layout: 'product_cut_price',
+    fields: ['storeName', 'productName', 'variantName', 'sku', 'barcode', 'price'],
+    priceOptions: ['normal', 'transfer', 'both', 'none'],
+    page: { widthMm: 150, heightMm: 100 },
+    label: { widthMm: 75, heightMm: 33.33, paddingMm: 2.4 },
+    margins: { topMm: 0, rightMm: 0, bottomMm: 0, leftMm: 0 },
+    grid: { columns: 2, rows: 3, columnSpacingMm: 0, rowSpacingMm: 0 },
   },
   A4_50x25: {
     key: 'A4_50x25',

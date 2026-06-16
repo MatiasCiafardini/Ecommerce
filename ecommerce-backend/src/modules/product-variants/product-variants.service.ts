@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  CatalogAuditService,
+  type CatalogAuditActor,
+} from '../catalog-audit/catalog-audit.service';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateVariantDto } from './dto/update-variant.dto';
 import {
@@ -16,7 +20,10 @@ const normalizeNullableDisplayText = (value?: string | null) => {
 
 @Injectable()
 export class ProductVariantsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private catalogAudit: CatalogAuditService,
+  ) {}
 
   private normalizeWeightGrams(data: {
     weightGrams?: number | null;
@@ -78,7 +85,7 @@ export class ProductVariantsService {
     });
   }
 
-  async create(data: CreateVariantDto, storeId: number) {
+  async create(data: CreateVariantDto, storeId: number, actor?: CatalogAuditActor) {
     const product = await this.prisma.product.findFirst({
       where: {
         id: data.productId,
@@ -113,39 +120,54 @@ export class ProductVariantsService {
       );
       const priceInputSettings = await this.resolvePriceInputSettings(storeId);
 
-      return await this.prisma.productVariant.create({
-        data: {
-          productId: data.productId,
-          sku,
-          price: convertCashInputToBasePrice(data.price, priceInputSettings),
-          Size: normalizeNullableDisplayText(data.Size),
-          Color: normalizeNullableDisplayText(data.Color),
-          waistSize: normalizeNullableDisplayText(data.waistSize),
-          weight: weightGrams !== null ? Number((weightGrams / 1000).toFixed(3)) : data.weight,
-          weightGrams,
-          width: packageWidthCm ?? data.width,
-          packageWidthCm,
-          height: packageHeightCm ?? data.height,
-          packageHeightCm,
-          length: packageLengthCm ?? data.length,
-          packageLengthCm,
-          inventories:
-            data.inventoryQuantity !== undefined
-              ? {
-                  create: {
-                    storeId,
-                    quantity: data.inventoryQuantity,
-                  },
-                }
-              : undefined,
-        },
-        include: {
-          inventories: {
-            where: {
-              storeId,
+      return await this.prisma.$transaction(async (tx) => {
+        const variant = await tx.productVariant.create({
+          data: {
+            productId: data.productId,
+            sku,
+            price: convertCashInputToBasePrice(data.price, priceInputSettings),
+            Size: normalizeNullableDisplayText(data.Size),
+            Color: normalizeNullableDisplayText(data.Color),
+            waistSize: normalizeNullableDisplayText(data.waistSize),
+            weight: weightGrams !== null ? Number((weightGrams / 1000).toFixed(3)) : data.weight,
+            weightGrams,
+            width: packageWidthCm ?? data.width,
+            packageWidthCm,
+            height: packageHeightCm ?? data.height,
+            packageHeightCm,
+            length: packageLengthCm ?? data.length,
+            packageLengthCm,
+            inventories:
+              data.inventoryQuantity !== undefined
+                ? {
+                    create: {
+                      storeId,
+                      quantity: data.inventoryQuantity,
+                    },
+                  }
+                : undefined,
+          },
+          include: {
+            inventories: {
+              where: {
+                storeId,
+              },
             },
           },
-        },
+        });
+
+        await this.catalogAudit.create({
+          storeId,
+          productId: variant.productId,
+          variantId: variant.id,
+          action: 'variant.created',
+          entity: 'variant',
+          entityId: variant.id,
+          actor,
+          after: variant,
+        }, tx);
+
+        return variant;
       });
     } catch (error) {
       this.handleDuplicateSkuError(error);
@@ -153,7 +175,12 @@ export class ProductVariantsService {
     }
   }
 
-  async update(variantId: number, data: UpdateVariantDto, storeId: number) {
+  async update(
+    variantId: number,
+    data: UpdateVariantDto,
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
     const variant = await this.prisma.productVariant.findFirst({
       where: {
         id: variantId,
@@ -166,6 +193,13 @@ export class ProductVariantsService {
         inventories: {
           where: {
             storeId,
+          },
+        },
+        product: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
           },
         },
       },
@@ -244,55 +278,82 @@ export class ProductVariantsService {
     }
 
     try {
-      await this.prisma.productVariant.update({
-        where: {
-          id: variantId,
-        },
-        data: payload,
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.productVariant.update({
+          where: {
+            id: variantId,
+          },
+          data: payload,
+        });
+
+        if (data.inventoryQuantity !== undefined) {
+          await tx.inventory.upsert({
+            where: {
+              storeId_variantId: {
+                storeId,
+                variantId,
+              },
+            },
+            update: {
+              quantity: data.inventoryQuantity,
+            },
+            create: {
+              storeId,
+              variantId,
+              quantity: data.inventoryQuantity,
+            },
+          });
+        }
+
+        const after = await tx.productVariant.findFirst({
+          where: {
+            id: variantId,
+            deletedAt: null,
+            product: {
+              storeId,
+            },
+          },
+          include: {
+            inventories: {
+              where: {
+                storeId,
+              },
+            },
+            product: {
+              select: {
+                id: true,
+                title: true,
+                slug: true,
+              },
+            },
+          },
+        });
+
+        await this.catalogAudit.create({
+          storeId,
+          productId: variant.productId,
+          variantId,
+          action: 'variant.updated',
+          entity: 'variant',
+          entityId: variantId,
+          actor,
+          before: variant,
+          after,
+          metadata: {
+            fields: Object.keys(payload),
+            inventoryChanged: data.inventoryQuantity !== undefined,
+          },
+        }, tx);
+
+        return after;
       });
     } catch (error) {
       this.handleDuplicateSkuError(error);
       throw error;
     }
-
-    if (data.inventoryQuantity !== undefined) {
-      await this.prisma.inventory.upsert({
-        where: {
-          storeId_variantId: {
-            storeId,
-            variantId,
-          },
-        },
-        update: {
-          quantity: data.inventoryQuantity,
-        },
-        create: {
-          storeId,
-          variantId,
-          quantity: data.inventoryQuantity,
-        },
-      });
-    }
-
-    return this.prisma.productVariant.findFirst({
-      where: {
-        id: variantId,
-        deletedAt: null,
-        product: {
-          storeId,
-        },
-      },
-      include: {
-        inventories: {
-          where: {
-            storeId,
-          },
-        },
-      },
-    });
   }
 
-  async remove(variantId: number, storeId: number) {
+  async remove(variantId: number, storeId: number, actor?: CatalogAuditActor) {
     const variant = await this.prisma.productVariant.findFirst({
       where: {
         id: variantId,
@@ -303,6 +364,13 @@ export class ProductVariantsService {
       },
       select: {
         id: true,
+        productId: true,
+        sku: true,
+        price: true,
+        Size: true,
+        Color: true,
+        waistSize: true,
+        deletedAt: true,
       },
     });
 
@@ -310,13 +378,30 @@ export class ProductVariantsService {
       throw new NotFoundException('Variant not found in this store');
     }
 
-    return this.prisma.productVariant.update({
-      where: {
-        id: variantId,
-      },
-      data: {
-        deletedAt: new Date(),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const deletedAt = new Date();
+      const removed = await tx.productVariant.update({
+        where: {
+          id: variantId,
+        },
+        data: {
+          deletedAt,
+        },
+      });
+
+      await this.catalogAudit.create({
+        storeId,
+        productId: variant.productId,
+        variantId,
+        action: 'variant.deleted',
+        entity: 'variant',
+        entityId: variantId,
+        actor,
+        before: variant,
+        after: removed,
+      }, tx);
+
+      return removed;
     });
   }
 

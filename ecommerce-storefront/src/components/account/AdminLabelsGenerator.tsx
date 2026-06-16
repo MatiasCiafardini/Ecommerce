@@ -410,19 +410,35 @@ export default function AdminLabelsGenerator() {
       api("/categories") as Promise<Category[]>,
     ])
       .then(([nextTemplates, defaultLabelPayload, nextCategories]) => {
+        const savedWizard = window.sessionStorage.getItem(storageKey);
+        const savedTemplateKey = (() => {
+          if (!savedWizard) return null;
+          try {
+            const parsed = JSON.parse(savedWizard) as { templateKey?: string };
+            return parsed.templateKey ?? null;
+          } catch {
+            return null;
+          }
+        })();
         const templatePayload = Array.isArray(nextTemplates)
           ? { templates: nextTemplates, priceSettings: { hasTransferPrice: false, bankTransferDiscountPercentage: 0 } }
           : nextTemplates;
         const nextTemplateOptions = normalizeTemplateOptions(defaultLabelPayload.defaultLabel.templateOptions);
+        const defaultTemplate = defaultLabelPayload.defaultLabel.template;
+        const preferredTemplateKey =
+          !savedWizard && templatePayload.templates.some((template) => template.key === defaultTemplate)
+            ? defaultTemplate
+            : savedTemplateKey ?? defaultTemplateKey;
         setTemplates(templatePayload.templates);
         setPriceSettings(templatePayload.priceSettings);
         setTemplateOptions(nextTemplateOptions);
-        if (!templatePayload.templates.some((template) => template.key === templateKey)) {
+        if (!templatePayload.templates.some((template) => template.key === preferredTemplateKey)) {
           const nextTemplateKey = templatePayload.templates[0]?.key ?? "BROTHER_QL570_62X29_CLOTHING";
           setTemplateKey(nextTemplateKey);
           setOptions(resolveSavedTemplateOptions(nextTemplateKey, nextTemplateOptions));
         } else {
-          setOptions((current) => resolveSavedTemplateOptions(templateKey, nextTemplateOptions, current));
+          setTemplateKey(preferredTemplateKey);
+          setOptions((current) => resolveSavedTemplateOptions(preferredTemplateKey, nextTemplateOptions, current));
         }
         setCategories(nextCategories);
       })
