@@ -92,7 +92,15 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
 
     return window.localStorage.getItem("account-sidebar-collapsed") === "true";
   });
+  const [accountPanelCollapsed, setAccountPanelCollapsed] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.localStorage.getItem("account-sidebar-account-collapsed") === "true";
+  });
   const [sidebarHover, setSidebarHover] = useState(false);
+  const [accountPanelHover, setAccountPanelHover] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -122,6 +130,12 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
     if (isNarrowViewport) return;
     window.localStorage.setItem("account-sidebar-collapsed", String(sidebarCollapsed));
   }, [isNarrowViewport, sidebarCollapsed]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isNarrowViewport) return;
+    window.localStorage.setItem("account-sidebar-account-collapsed", String(accountPanelCollapsed));
+  }, [accountPanelCollapsed, isNarrowViewport]);
 
   const handleLogout = () => {
     logout();
@@ -350,8 +364,9 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                   : "color-mix(in srgb, var(--account-sidebar-bg) 92%, var(--account-item-bg-active) 8%)"
                 : "var(--account-sidebar-bg)",
               display: "grid",
-              alignContent: "start",
-              alignItems: "start",
+              gridTemplateRows: useAdminSidebar ? "minmax(0, 1fr) auto auto" : undefined,
+              alignContent: useAdminSidebar ? "stretch" : "start",
+              alignItems: useAdminSidebar ? "stretch" : "start",
               gap: useAdminSidebar ? 0 : shouldCollapseSidebar ? 14 : isCompactViewport ? 16 : 22,
               position: useAdminSidebar ? "fixed" : "relative",
               alignSelf: "stretch",
@@ -447,35 +462,55 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
                   />
                 ) : null}
                 {useAdminSidebar ? (
-                  <div style={adminAccountPanelStyle(shouldCollapseSidebar)}>
+                  <div style={adminAccountPanelStyle(shouldCollapseSidebar, accountPanelCollapsed)}>
                     {!shouldCollapseSidebar ? (
                       <>
-                        <span style={adminAccountEyebrowStyle}>Cuenta</span>
-                        <strong style={adminAccountNameStyle}>
-                          {displayName || user.email}
-                        </strong>
-                        <span style={adminAccountEmailStyle}>{user.email}</span>
                         <button
                           type="button"
-                          onClick={() => onSectionChange("profile")}
-                          style={adminAccountActionStyle}
+                          onClick={() => setAccountPanelCollapsed((current) => !current)}
+                          onMouseEnter={() => setAccountPanelHover(true)}
+                          onMouseLeave={() => setAccountPanelHover(false)}
+                          onFocus={() => setAccountPanelHover(true)}
+                          onBlur={() => setAccountPanelHover(false)}
+                          aria-expanded={!accountPanelCollapsed}
+                          style={adminAccountToggleStyle(accountPanelCollapsed, accountPanelHover)}
                         >
-                          Mi cuenta
+                          <span style={adminAccountToggleCopyStyle}>
+                            <span style={adminAccountEyebrowStyle}>Cuenta</span>
+                            <strong style={adminAccountNameStyle}>
+                              {displayName || user.email}
+                            </strong>
+                          </span>
+                          <span style={adminAccountToggleIconStyle(accountPanelCollapsed, accountPanelHover)}>
+                            <ChevronIcon collapsed={accountPanelCollapsed} />
+                          </span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={openStorefront}
-                          style={adminAccountActionStyle}
-                        >
-                          Ver tienda
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          style={adminLogoutActionStyle}
-                        >
-                          Cerrar sesion
-                        </button>
+                        {!accountPanelCollapsed ? (
+                          <div style={adminAccountBodyStyle}>
+                            <span style={adminAccountEmailStyle}>{user.email}</span>
+                            <button
+                              type="button"
+                              onClick={() => onSectionChange("profile")}
+                              style={adminAccountActionStyle}
+                            >
+                              Mi cuenta
+                            </button>
+                            <button
+                              type="button"
+                              onClick={openStorefront}
+                              style={adminAccountActionStyle}
+                            >
+                              Ver tienda
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleLogout}
+                              style={adminLogoutActionStyle}
+                            >
+                              Cerrar sesion
+                            </button>
+                          </div>
+                        ) : null}
                       </>
                     ) : (
                       <>
@@ -646,6 +681,10 @@ function NavigationGroup({
         display: "grid",
         alignContent: "start",
         gap: isWordPressMode ? 0 : 10,
+        height: isWordPressMode ? "100%" : undefined,
+        minHeight: isWordPressMode ? 0 : undefined,
+        overflowX: isWordPressMode ? "hidden" : undefined,
+        overflowY: isWordPressMode ? "auto" : undefined,
       }}
     >
       {!collapsed && !isWordPressMode ? (
@@ -892,9 +931,6 @@ function adminBrandStyle(collapsed: boolean): React.CSSProperties {
 
 function adminCollapseButtonStyle(collapsed: boolean): React.CSSProperties {
   return {
-    position: "absolute",
-    left: 0,
-    bottom: 0,
     width: "100%",
     minHeight: 44,
     border: 0,
@@ -911,20 +947,77 @@ function adminCollapseButtonStyle(collapsed: boolean): React.CSSProperties {
   };
 }
 
-function adminAccountPanelStyle(collapsed: boolean): React.CSSProperties {
+function adminAccountPanelStyle(collapsed: boolean, accountCollapsed = false): React.CSSProperties {
   return {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 44,
+    width: "100%",
     display: "grid",
-    gap: collapsed ? 8 : 8,
+    gap: collapsed || accountCollapsed ? 8 : 10,
     padding: collapsed ? "10px 8px" : "12px",
     borderTop: "1px solid color-mix(in srgb, var(--account-text-muted) 18%, transparent)",
     background:
       "color-mix(in srgb, var(--account-sidebar-bg) 92%, var(--account-item-bg-active) 8%)",
   };
 }
+
+function adminAccountToggleStyle(collapsed: boolean, hovered: boolean): React.CSSProperties {
+  const active = hovered || !collapsed;
+
+  return {
+    width: "100%",
+    minWidth: 0,
+    border: active
+      ? "1px solid color-mix(in srgb, var(--account-item-border-active) 52%, transparent)"
+      : "1px solid transparent",
+    borderRadius: 10,
+    background: active
+      ? "color-mix(in srgb, var(--account-item-bg-active) 28%, transparent)"
+      : "transparent",
+    color: "var(--account-text-strong)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: "8px 8px",
+    textAlign: "left",
+    cursor: "pointer",
+    outline: "none",
+    transition: "background 160ms ease, border-color 160ms ease",
+  };
+}
+
+const adminAccountToggleCopyStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: "grid",
+  gap: 4,
+};
+
+function adminAccountToggleIconStyle(collapsed: boolean, hovered: boolean): React.CSSProperties {
+  const active = hovered || !collapsed;
+
+  return {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    border: active
+      ? "1px solid color-mix(in srgb, var(--account-item-border-active) 58%, transparent)"
+      : "1px solid color-mix(in srgb, var(--account-text-muted) 18%, transparent)",
+    background: active
+      ? "color-mix(in srgb, var(--account-item-bg-active) 38%, transparent)"
+      : "transparent",
+    color: active ? "var(--account-text-strong)" : "var(--account-text-muted)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flex: "0 0 auto",
+    transform: collapsed ? "rotate(0deg)" : "rotate(90deg)",
+    transition: "background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease",
+  };
+}
+
+const adminAccountBodyStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+};
 
 const adminAccountEyebrowStyle: React.CSSProperties = {
   color: "var(--account-text-soft)",
