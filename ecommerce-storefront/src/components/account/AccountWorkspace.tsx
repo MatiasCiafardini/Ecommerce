@@ -94,10 +94,11 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
   });
   const [accountPanelCollapsed, setAccountPanelCollapsed] = useState(() => {
     if (typeof window === "undefined") {
-      return false;
+      return true;
     }
 
-    return window.localStorage.getItem("account-sidebar-account-collapsed") === "true";
+    const storedPreference = window.localStorage.getItem("account-sidebar-account-collapsed");
+    return storedPreference === null ? true : storedPreference === "true";
   });
   const [sidebarHover, setSidebarHover] = useState(false);
   const [accountPanelHover, setAccountPanelHover] = useState(false);
