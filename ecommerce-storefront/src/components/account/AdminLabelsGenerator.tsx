@@ -254,6 +254,8 @@ export default function AdminLabelsGenerator() {
   const [notice, setNotice] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const didMountFilterEffect = useRef(false);
+  const initialSavedWizardRef = useRef<string | null>(null);
+  const [wizardStateReady, setWizardStateReady] = useState(false);
 
   const selectedRows = useMemo(() => Object.values(selected), [selected]);
   const sortedSelectedRows = useMemo(() => {
@@ -350,7 +352,11 @@ export default function AdminLabelsGenerator() {
 
   useEffect(() => {
     const saved = window.sessionStorage.getItem(storageKey);
-    if (!saved) return;
+    initialSavedWizardRef.current = saved;
+    if (!saved) {
+      setWizardStateReady(true);
+      return;
+    }
 
     try {
       const parsed = JSON.parse(saved) as {
@@ -367,12 +373,16 @@ export default function AdminLabelsGenerator() {
       setOptions(normalizeSavedOptions(parsed.options));
     } catch {
       window.sessionStorage.removeItem(storageKey);
+      initialSavedWizardRef.current = null;
+    } finally {
+      setWizardStateReady(true);
     }
   }, []);
 
   useEffect(() => {
+    if (!wizardStateReady) return;
     window.sessionStorage.setItem(storageKey, JSON.stringify({ selected, quantities, templateKey, options, templateOptions }));
-  }, [selected, quantities, templateKey, options, templateOptions]);
+  }, [options, quantities, selected, templateKey, templateOptions, wizardStateReady]);
 
   useEffect(() => {
     window.addEventListener(ADMIN_LABELS_RESET_EVENT, resetLabelsWizard);
@@ -410,7 +420,7 @@ export default function AdminLabelsGenerator() {
       api("/categories") as Promise<Category[]>,
     ])
       .then(([nextTemplates, defaultLabelPayload, nextCategories]) => {
-        const savedWizard = window.sessionStorage.getItem(storageKey);
+        const savedWizard = initialSavedWizardRef.current;
         const savedTemplateKey = (() => {
           if (!savedWizard) return null;
           try {
