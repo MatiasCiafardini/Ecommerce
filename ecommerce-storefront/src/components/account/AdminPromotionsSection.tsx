@@ -19,6 +19,10 @@ function useViewportFlags() {
 }
 import { api } from "@/lib/api";
 import { getClientStoreId } from "@/lib/tenant/store-context";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+} from "@/lib/pricing-policy";
 import { money } from "./order-utils";
 import type { AdminPromotion } from "./admin-types";
 
@@ -113,6 +117,13 @@ function scopeCategoriesToActiveStore(items: Category[]) {
 
 export default function AdminPromotionsSection() {
   const { isTabletOrSmaller, isPhone } = useViewportFlags();
+  const pricingPolicy = useMemo(() => {
+    try {
+      return resolveStorePricingPolicy({ storeId: getClientStoreId() });
+    } catch {
+      return resolveStorePricingPolicy({});
+    }
+  }, []);
   const [promotions, setPromotions] = useState<AdminPromotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -743,7 +754,9 @@ export default function AdminPromotionsSection() {
                       <span style={selectionMetaStyle}>
                         {[variant.Size, variant.Color].filter(Boolean).join(" / ") || "Base"}
                       </span>
-                      <span style={selectionMetaStyle}>{money(Number(variant.price ?? 0))}</span>
+                      <span style={selectionMetaStyle}>
+                        {money(resolveLabelNormalPrice(variant.price, pricingPolicy))}
+                      </span>
                     </button>
                   ))}
                 </div>

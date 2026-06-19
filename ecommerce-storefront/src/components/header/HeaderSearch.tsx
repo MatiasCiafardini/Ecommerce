@@ -14,7 +14,12 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
-import { formatCurrency, roundCurrency } from "@/lib/currency";
+import { formatCurrency } from "@/lib/currency";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+} from "@/lib/pricing-policy";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 import type { StoreCategory, StoreProduct } from "@/types/store";
 
 type HeaderSearchProps = {
@@ -33,6 +38,7 @@ export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
   const [closing, setClosing] = useState(false);
   const [activeTab, setActiveTab] = useState<SearchTab>("products");
   const [products, setProducts] = useState<StoreProduct[]>([]);
+  const [storeId, setStoreId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadedOnce, setLoadedOnce] = useState(false);
   const drawerRef = useRef<HTMLElement | null>(null);
@@ -73,6 +79,14 @@ export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
   useEffect(() => {
     setValue(currentSearch);
   }, [currentSearch]);
+
+  useEffect(() => {
+    try {
+      setStoreId(getClientStoreId());
+    } catch {
+      setStoreId(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!shouldRenderDrawer) {
@@ -299,6 +313,7 @@ export default function HeaderSearch({ compact = false }: HeaderSearchProps) {
                   products={products}
                   loading={loading}
                   loadedOnce={loadedOnce}
+                  storeId={storeId}
                   onClose={closeSearch}
                 />
               ) : (
@@ -460,11 +475,13 @@ function ProductResults({
   products,
   loading,
   loadedOnce,
+  storeId,
   onClose,
 }: {
   products: StoreProduct[];
   loading: boolean;
   loadedOnce: boolean;
+  storeId?: number | null;
   onClose: () => void;
 }) {
   if (loading && !loadedOnce) {
@@ -487,7 +504,7 @@ function ProductResults({
           <ProductThumb product={product} />
           <div style={{ display: "grid", gap: 9, minWidth: 0 }}>
             <p style={productTitleStyle}>{product.title}</p>
-            <ProductPrice product={product} />
+            <ProductPrice product={product} storeId={storeId} />
           </div>
         </Link>
       ))}
@@ -552,15 +569,16 @@ function ProductThumb({ product }: { product: StoreProduct }) {
   );
 }
 
-function ProductPrice({ product }: { product: StoreProduct }) {
+function ProductPrice({ product, storeId }: { product: StoreProduct; storeId?: number | null }) {
   const fallbackPrice = Number(product.variants?.[0]?.price ?? product.price ?? 0);
   const hasPromotion = Boolean(product.pricing?.hasActivePromotion);
+  const pricingPolicy = resolveStorePricingPolicy({ storeId });
   const displayPrice = hasPromotion
-    ? roundCurrency(product.pricing?.finalPrice ?? fallbackPrice)
-    : roundCurrency(fallbackPrice);
+    ? resolveLabelNormalPrice(product.pricing?.finalPrice ?? fallbackPrice, pricingPolicy)
+    : resolveLabelNormalPrice(fallbackPrice, pricingPolicy);
   const basePrice = hasPromotion
-    ? roundCurrency(product.pricing?.basePrice ?? fallbackPrice)
-    : roundCurrency(fallbackPrice);
+    ? resolveLabelNormalPrice(product.pricing?.basePrice ?? fallbackPrice, pricingPolicy)
+    : resolveLabelNormalPrice(fallbackPrice, pricingPolicy);
 
   if (!displayPrice) {
     return <span style={mutedPriceStyle}>Consultar precio</span>;

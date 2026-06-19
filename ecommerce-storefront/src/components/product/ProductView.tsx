@@ -356,7 +356,9 @@ export default function ProductView({
   const showInstallments = storeId !== 3;
   const installmentPrice =
     showInstallments && currentFinalPrice > 0
-      ? roundCurrency(currentFinalPrice / 3)
+      ? pricingPolicy.labelPriceRounding
+        ? roundToNearestHundred(currentFinalPrice / 3)
+        : roundCurrency(currentFinalPrice / 3)
       : null;
 
   const hasStock = inStockVariants.length > 0;

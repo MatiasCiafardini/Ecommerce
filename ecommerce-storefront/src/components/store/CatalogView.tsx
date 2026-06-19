@@ -8,7 +8,12 @@ import {
   StoreProductOption,
   StoreVariant,
 } from "@/types/store";
-import { formatCurrency, roundCurrency } from "@/lib/currency";
+import { formatCurrency } from "@/lib/currency";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+  type StorePricingPolicy,
+} from "@/lib/pricing-policy";
 
 type CatalogViewProps = {
   products: StoreProduct[];
@@ -18,16 +23,19 @@ type CatalogViewProps = {
   bankTransferDiscountPercentage?: number;
 };
 
-const getPrice = (product: StoreProduct) => {
+const getPrice = (
+  product: StoreProduct,
+  pricingPolicy: Pick<StorePricingPolicy, "labelPriceRounding">,
+) => {
   const prices = (product.variants ?? [])
     .map((variant) => Number(variant.price ?? 0))
     .filter((price: number) => Number.isFinite(price) && price > 0);
 
   if (prices.length > 0) {
-    return roundCurrency(Math.min(...prices));
+    return resolveLabelNormalPrice(Math.min(...prices), pricingPolicy);
   }
 
-  return roundCurrency(product.price ?? 0);
+  return resolveLabelNormalPrice(product.price, pricingPolicy);
 };
 
 const getAvailableStock = (variant: StoreVariant) => {
@@ -94,9 +102,16 @@ export default function CatalogView({
   bankTransferDiscountPercentage = 0,
 }: CatalogViewProps) {
   const isMiMaria = storeId === 5;
+  const pricingPolicy = useMemo(
+    () => resolveStorePricingPolicy({ storeId }),
+    [storeId],
+  );
   const priceValues = useMemo(
-    () => products.map(getPrice).filter((price) => price > 0),
-    [products],
+    () =>
+      products
+        .map((product) => getPrice(product, pricingPolicy))
+        .filter((price) => price > 0),
+    [pricingPolicy, products],
   );
   const minCatalogPrice = priceValues.length > 0 ? Math.min(...priceValues) : 0;
   const maxCatalogPrice = priceValues.length > 0 ? Math.max(...priceValues) : 0;
@@ -206,7 +221,7 @@ export default function CatalogView({
 
   const filteredProducts = useMemo(() => {
     const visibleProducts = products.filter((product) => {
-      const price = getPrice(product);
+      const price = getPrice(product, pricingPolicy);
       const productCategories = getProductCategories(product).map(
         (category) => category.slug,
       );
@@ -264,11 +279,15 @@ export default function CatalogView({
     });
 
     if (sortBy === "price-asc") {
-      return [...visibleProducts].sort((a, b) => getPrice(a) - getPrice(b));
+      return [...visibleProducts].sort(
+        (a, b) => getPrice(a, pricingPolicy) - getPrice(b, pricingPolicy),
+      );
     }
 
     if (sortBy === "price-desc") {
-      return [...visibleProducts].sort((a, b) => getPrice(b) - getPrice(a));
+      return [...visibleProducts].sort(
+        (a, b) => getPrice(b, pricingPolicy) - getPrice(a, pricingPolicy),
+      );
     }
 
     return visibleProducts;
@@ -279,6 +298,7 @@ export default function CatalogView({
     onlyStock,
     priceMax,
     priceMin,
+    pricingPolicy,
     products,
     selectedCategories,
     selectedOptionValues,

@@ -315,10 +315,10 @@ export class ShippingService {
         }
 
         if (deliveryMode === 'shipping') {
-          return method.type !== 'pickup';
+          return method.type !== 'pickup' && method.type !== 'integration';
         }
 
-        return true;
+        return method.type !== 'integration';
       })
       .filter((method) => {
         if (method.type !== 'free') {

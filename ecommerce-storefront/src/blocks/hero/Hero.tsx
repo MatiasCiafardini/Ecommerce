@@ -1,5 +1,6 @@
 import { getProducts } from "@/services/products.service";
 import { resolveAssetUrl } from "@/lib/asset-url";
+import { getServerStoreContext } from "@/lib/tenant/server-store-context";
 import HeroProductSpotlight from "@/blocks/hero/HeroProductSpotlight";
 import { concreteTexture, editorialLines, urbanSkyline } from "@/themes/minimal/visuals";
 
@@ -22,7 +23,10 @@ export default async function Hero({
   textColor = "white",
   image,
 }: Props) {
-  const products = await getProducts({ limit: 4 });
+  const [{ storeId }, products] = await Promise.all([
+    getServerStoreContext(),
+    getProducts({ limit: 4 }),
+  ]);
   const normalizedTextColor = textColor.toLowerCase();
   const isLightText = normalizedTextColor !== "white" && normalizedTextColor !== "#fff";
   const titleColor = textColor;
@@ -159,7 +163,7 @@ export default async function Hero({
             <span>Drop limitado</span>
           </div>
 
-          <HeroProductSpotlight products={products ?? []} />
+          <HeroProductSpotlight products={products ?? []} storeId={storeId} />
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {["Heavy cotton", "Wide leg", "Rotacion diaria"].map((tag) => (

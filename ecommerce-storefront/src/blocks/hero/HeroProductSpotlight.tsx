@@ -5,14 +5,19 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { StoreProduct } from "@/types/store";
 import { resolveAssetUrl } from "@/lib/asset-url";
-import { formatCurrency, roundCurrency } from "@/lib/currency";
+import { formatCurrency } from "@/lib/currency";
 import { getCatalogImageTransform } from "@/lib/product-image-layout";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+} from "@/lib/pricing-policy";
 
 type Props = {
   products: StoreProduct[];
+  storeId?: number;
 };
 
-function getProductPrice(product: StoreProduct) {
+function getProductPrice(product: StoreProduct, storeId?: number) {
   const variantPrice = product.variants?.find((variant) => variant.price != null)?.price;
   const rawPrice = variantPrice ?? product.price;
 
@@ -26,10 +31,13 @@ function getProductPrice(product: StoreProduct) {
     return null;
   }
 
-  return roundCurrency(numericPrice);
+  return resolveLabelNormalPrice(
+    numericPrice,
+    resolveStorePricingPolicy({ storeId }),
+  );
 }
 
-export default function HeroProductSpotlight({ products }: Props) {
+export default function HeroProductSpotlight({ products, storeId }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -70,13 +78,16 @@ export default function HeroProductSpotlight({ products }: Props) {
     ? resolveAssetUrl(product.images[0].url) ?? product.images[0].url
     : null;
   const category = product.categories?.[0]?.category?.name ?? "Selección curada";
-  const basePrice = roundCurrency(
-    product.pricing?.basePrice ?? getProductPrice(product) ?? 0,
+  const pricingPolicy = resolveStorePricingPolicy({ storeId });
+  const basePrice = resolveLabelNormalPrice(
+    product.pricing?.basePrice ?? getProductPrice(product, storeId) ?? 0,
+    pricingPolicy,
   );
-  const displayPrice = roundCurrency(
+  const displayPrice = resolveLabelNormalPrice(
     product.pricing?.hasActivePromotion
       ? (product.pricing.finalPrice ?? basePrice)
       : basePrice,
+    pricingPolicy,
   );
   const hasPromotion = Boolean(
     product.pricing?.hasActivePromotion && basePrice > displayPrice,

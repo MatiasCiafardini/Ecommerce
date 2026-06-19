@@ -6,6 +6,11 @@ import {
   setScopedStorageItem,
 } from "@/lib/store-browser-storage";
 import { roundCurrency } from "@/lib/currency";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+} from "@/lib/pricing-policy";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 
 type CartItem = {
   productId: string;
@@ -39,6 +44,21 @@ type CartContextType = {
 
 const CartContext = createContext<CartContextType | null>(null);
 
+function normalizeCartPrice(price: number) {
+  let storeId: number | null = null;
+
+  try {
+    storeId = getClientStoreId();
+  } catch {
+    storeId = null;
+  }
+
+  const pricingPolicy = resolveStorePricingPolicy({ storeId });
+  return pricingPolicy.labelPriceRounding
+    ? resolveLabelNormalPrice(price, pricingPolicy)
+    : roundCurrency(price);
+}
+
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -50,7 +70,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         stored
           ? (JSON.parse(stored) as CartItem[]).map((item) => ({
               ...item,
-              price: roundCurrency(item.price),
+              price: normalizeCartPrice(item.price),
             }))
           : [],
       );
@@ -103,7 +123,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
             ? {
                 ...i,
                 ...item,
-                price: roundCurrency(item.price),
+                price: normalizeCartPrice(item.price),
                 maxAvailable: safeMax,
                 quantity: i.quantity + amount,
               }
@@ -111,7 +131,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         );
       }
 
-      return [...prev, { ...item, price: roundCurrency(item.price) }];
+      return [...prev, { ...item, price: normalizeCartPrice(item.price) }];
     });
 
     return {
@@ -182,7 +202,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
 
   const clearCart = () => setCart([]);
   const replaceCart = (items: CartItem[]) =>
-    setCart(items.map((item) => ({ ...item, price: roundCurrency(item.price) })));
+    setCart(items.map((item) => ({ ...item, price: normalizeCartPrice(item.price) })));
 
   return (
     <CartContext.Provider

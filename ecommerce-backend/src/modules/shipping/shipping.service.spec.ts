@@ -14,10 +14,14 @@ describe('ShippingService', () => {
     persistQuotes: jest.Mock;
   };
   let providerConfigService: {
-    resolveProviderForStore: jest.Mock;
+    resolveProviderForCapability: jest.Mock;
   };
   let packageCalculator: {
     calculateFromItems: jest.Mock;
+  };
+  let storeShippingMethodsService: {
+    findActive: jest.Mock;
+    defaultMethods: jest.Mock;
   };
 
   beforeEach(() => {
@@ -36,10 +40,14 @@ describe('ShippingService', () => {
     };
 
     providerConfigService = {
-      resolveProviderForStore: jest.fn(),
+      resolveProviderForCapability: jest.fn(),
     };
     packageCalculator = {
       calculateFromItems: jest.fn(),
+    };
+    storeShippingMethodsService = {
+      findActive: jest.fn().mockResolvedValue([]),
+      defaultMethods: jest.fn().mockReturnValue([]),
     };
 
     service = new ShippingService(
@@ -48,6 +56,7 @@ describe('ShippingService', () => {
       quotesService as never,
       providerConfigService as never,
       packageCalculator as never,
+      storeShippingMethodsService as never,
     );
   });
 
@@ -114,7 +123,7 @@ describe('ShippingService', () => {
       ]),
     };
 
-    providerConfigService.resolveProviderForStore.mockResolvedValue({
+    providerConfigService.resolveProviderForCapability.mockResolvedValue({
       provider: externalProvider,
       config: {
         id: 'cfg-correo',
@@ -198,7 +207,7 @@ describe('ShippingService', () => {
       ],
     });
 
-    providerConfigService.resolveProviderForStore.mockResolvedValue({
+    providerConfigService.resolveProviderForCapability.mockResolvedValue({
       provider: {
         providerCode: 'correo-argentino',
         getRates: jest
@@ -245,5 +254,109 @@ describe('ShippingService', () => {
         country: 'AR',
       }),
     ).rejects.toThrow('Correo Argentino unavailable');
+  });
+
+  it('uses integration store methods only to enable external quotes', async () => {
+    prisma.cart.findFirst.mockResolvedValue({
+      id: 9,
+      storeId: 3,
+      customerId: 18,
+      items: [
+        {
+          quantity: 1,
+          variant: {
+            weight: 1,
+            price: 10000,
+          },
+        },
+      ],
+    });
+    storeShippingMethodsService.findActive.mockResolvedValue([
+      {
+        id: 15,
+        type: 'integration',
+        name: 'Envio a domicilio',
+        price: 0,
+        estimatedDays: null,
+        freeShippingMinimumAmount: null,
+        pickupAddress: null,
+        pickupHours: null,
+        pickupInstructions: null,
+      },
+    ]);
+
+    const externalProvider = {
+      providerCode: 'correo-argentino',
+      getRates: jest.fn().mockResolvedValue([
+        {
+          provider: 'correo-argentino',
+          method: 'Correo Argentino - Domicilio',
+          price: 5200,
+          estimatedDays: 3,
+          carrierId: 'correo-argentino',
+          carrierName: 'Correo Argentino',
+          serviceCode: 'CP',
+          modalityCode: 'D',
+          dispatchType: 'D',
+        },
+      ]),
+    };
+
+    providerConfigService.resolveProviderForCapability.mockResolvedValue({
+      provider: externalProvider,
+      config: {
+        id: 'cfg-correo',
+      },
+      context: {
+        storeId: 3,
+        config: {
+          id: 'cfg-correo',
+          provider: 'correo-argentino',
+          source: 'store',
+        },
+      },
+    });
+    packageCalculator.calculateFromItems.mockReturnValue({
+      weightGrams: 1000,
+      weightKg: 1,
+      package: {
+        height: 6,
+        width: 22,
+        length: 30,
+      },
+      summary: {
+        weightGrams: 1000,
+        weightKg: 1,
+        heightCm: 6,
+        widthCm: 22,
+        lengthCm: 30,
+      },
+    });
+    providersRegistry.getProvider.mockReturnValue({
+      providerCode: 'manual',
+      getRates: jest.fn().mockResolvedValue([]),
+    });
+    quotesService.persistQuotes.mockImplementation((params) => params.rates);
+
+    const result = await service.getOptions(3, 9, 18, '1704', {
+      state: 'Buenos Aires',
+      city: 'Ramos Mejia',
+      country: 'AR',
+      deliveryMode: 'shipping',
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        provider: 'correo-argentino',
+        method: 'Correo Argentino - Domicilio',
+      }),
+    ]);
+    expect(result).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          serviceCode: 'integration',
+        }),
+      ]),
+    );
   });
 });

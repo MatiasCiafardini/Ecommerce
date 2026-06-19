@@ -58,7 +58,11 @@ export default function ProductCard({
       : null;
   const showInstallments = storeId !== 3;
   const installmentPrice =
-    showInstallments && displayPrice > 0 ? roundCurrency(displayPrice / 3) : null;
+    showInstallments && displayPrice > 0
+      ? pricingPolicy.labelPriceRounding
+        ? roundToNearestHundred(displayPrice / 3)
+        : roundCurrency(displayPrice / 3)
+      : null;
 
   return (
     <Link
