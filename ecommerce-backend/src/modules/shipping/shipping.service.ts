@@ -156,7 +156,15 @@ export class ShippingService {
         ...rate,
         providerConfigId: null,
       }));
-    const manualRates = manualStoreRates.length ? manualStoreRates : pickupRates;
+    const usesExternalShippingQuote =
+      destination?.deliveryMode === 'shipping' &&
+      integrationShippingEnabled &&
+      resolvedProvider?.provider.providerCode !== 'manual';
+    const manualRates = usesExternalShippingQuote
+      ? []
+      : manualStoreRates.length
+        ? manualStoreRates
+        : pickupRates;
     const eligibleFreeShippingRates = pickupRates.filter((rate) =>
       this.isFreeShippingRate(rate),
     );

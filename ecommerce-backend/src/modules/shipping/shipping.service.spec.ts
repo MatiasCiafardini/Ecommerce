@@ -283,6 +283,17 @@ describe('ShippingService', () => {
         pickupHours: null,
         pickupInstructions: null,
       },
+      {
+        id: 16,
+        type: 'coordinar',
+        name: 'Envio a coordinar',
+        price: 0,
+        estimatedDays: null,
+        freeShippingMinimumAmount: null,
+        pickupAddress: null,
+        pickupHours: null,
+        pickupInstructions: null,
+      },
     ]);
 
     const externalProvider = {
@@ -334,7 +345,19 @@ describe('ShippingService', () => {
     });
     providersRegistry.getProvider.mockReturnValue({
       providerCode: 'manual',
-      getRates: jest.fn().mockResolvedValue([]),
+      getRates: jest.fn().mockResolvedValue([
+        {
+          provider: 'manual',
+          method: 'Envio a coordinar',
+          price: 0,
+          estimatedDays: 0,
+          carrierId: 'manual',
+          carrierName: 'Envio a coordinar',
+          serviceCode: 'coordinar',
+          modalityCode: 'manual',
+          dispatchType: 'coordinar',
+        },
+      ]),
     });
     quotesService.persistQuotes.mockImplementation((params) => params.rates);
 
@@ -355,6 +378,13 @@ describe('ShippingService', () => {
       expect.arrayContaining([
         expect.objectContaining({
           serviceCode: 'integration',
+        }),
+      ]),
+    );
+    expect(result).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          serviceCode: 'coordinar',
         }),
       ]),
     );
