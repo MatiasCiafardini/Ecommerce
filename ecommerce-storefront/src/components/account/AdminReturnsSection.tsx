@@ -221,7 +221,29 @@ export default function AdminReturnsSection() {
       {loading ? (
         <StateCard label="Cargando devoluciones..." />
       ) : (
-        <div style={{ display: "grid", gap: 20 }}>
+        <div style={{ display: "grid", gap: 18 }}>
+          <div style={summaryPanelGridStyle}>
+            <MetricPanel
+              eyebrow="Cancelaciones"
+              label="Tickets para revisar"
+              value={requestedCancellations.length}
+              detail={`${processedCancellations.length} procesadas`}
+            />
+            <MetricPanel
+              eyebrow="Devoluciones"
+              label="Solicitudes abiertas"
+              value={requestedReturns.length}
+              detail={`${approvedReturns.length} esperando producto`}
+            />
+            <MetricPanel
+              eyebrow="Recepcion"
+              label="Pendientes de cierre"
+              value={receivedReturns.length}
+              detail={`${processedReturns.length} casos resueltos`}
+            />
+          </div>
+
+          <div style={operationsPanelGridStyle}>
           <section style={blockStyle}>
             <div style={betweenStyle}>
               <div>
@@ -660,7 +682,9 @@ export default function AdminReturnsSection() {
               </div>
             )}
           </section>
+          </div>
 
+          <div style={historyPanelGridStyle}>
           <section style={blockStyle}>
             <div style={betweenStyle}>
               <div>
@@ -757,6 +781,7 @@ export default function AdminReturnsSection() {
               </div>
             )}
           </section>
+          </div>
         </div>
       )}
     </section>
@@ -788,8 +813,52 @@ function InfoCell({ label, value }: { label: string; value: string }) {
   );
 }
 
+function MetricPanel({
+  eyebrow,
+  label,
+  value,
+  detail,
+}: {
+  eyebrow: string;
+  label: string;
+  value: number;
+  detail: string;
+}) {
+  const active = value > 0;
+
+  return (
+    <div style={metricPanelStyle(active)}>
+      <div>
+        <p style={eyebrowStyle}>{eyebrow}</p>
+        <strong style={{ color: "var(--account-text-strong)", fontSize: 17 }}>{label}</strong>
+      </div>
+      <div style={{ display: "grid", gap: 4, justifyItems: "end" }}>
+        <strong style={{ color: "var(--account-text-strong)", fontSize: 30, lineHeight: 1 }}>{value}</strong>
+        <span style={metaStyle}>{detail}</span>
+      </div>
+    </div>
+  );
+}
+
 const panelStyle: React.CSSProperties = { display: "grid", gap: 24, width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" };
-const blockStyle: React.CSSProperties = { borderRadius: 24, border: "1px solid var(--checkout-border)", background: "var(--page-panel-bg)", padding: 22, display: "grid", gap: 16, minWidth: 0, maxWidth: "100%", boxSizing: "border-box" };
+const summaryPanelGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))", gap: 12 };
+const operationsPanelGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(520px, 100%), 1fr))", gap: 16, alignItems: "start" };
+const historyPanelGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 16, alignItems: "start" };
+const metricPanelStyle = (active: boolean): React.CSSProperties => ({
+  borderRadius: 20,
+  border: `1px solid ${active ? "var(--checkout-border-strong)" : "var(--checkout-border)"}`,
+  background: active
+    ? "color-mix(in srgb, var(--accent-strong) 14%, var(--page-panel-bg))"
+    : "var(--page-panel-bg)",
+  padding: 18,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 16,
+  minWidth: 0,
+  boxSizing: "border-box",
+});
+const blockStyle: React.CSSProperties = { borderRadius: 22, border: "1px solid var(--checkout-border)", background: "var(--page-panel-bg)", padding: 18, display: "grid", gap: 14, minWidth: 0, maxWidth: "100%", boxSizing: "border-box", boxShadow: "0 14px 34px rgba(0,0,0,0.04)" };
 const requestGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))", gap: 16 };
 const requestCardStyle: React.CSSProperties = { borderRadius: 20, border: "1px solid var(--checkout-border)", background: "var(--page-panel-strong-bg)", padding: 18, display: "grid", gap: 14, minWidth: 0, boxSizing: "border-box" };
 const historyGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 14 };
@@ -804,7 +873,7 @@ const checkboxRowStyle: React.CSSProperties = { display: "flex", gap: 10, alignI
 const fieldStyle: React.CSSProperties = { width: "100%", maxWidth: "100%", padding: "14px 16px", background: "var(--muted-field-bg)", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border)", borderRadius: 16, outline: "none", boxSizing: "border-box" };
 const primaryButtonStyle: React.CSSProperties = { padding: "12px 16px", background: "var(--accent-strong)", color: "var(--accent-contrast)", border: "none", borderRadius: 999, cursor: "pointer", fontWeight: 700 };
 const secondaryButtonStyle: React.CSSProperties = { padding: "12px 16px", background: "transparent", color: "var(--account-text-strong)", border: "1px solid var(--checkout-border-strong)", borderRadius: 999, cursor: "pointer" };
-const stateStyle: React.CSSProperties = { borderRadius: 20, border: "1px solid var(--checkout-border-strong)", background: "var(--page-panel-strong-bg)", padding: 18, color: "var(--account-text-muted)" };
+const stateStyle: React.CSSProperties = { borderRadius: 16, border: "1px dashed var(--checkout-border)", background: "color-mix(in srgb, var(--page-panel-bg) 78%, transparent)", padding: "14px 16px", color: "var(--account-text-muted)" };
 const hintCardStyle: React.CSSProperties = { borderRadius: 16, border: "1px solid var(--checkout-border)", background: "var(--page-panel-strong-bg)", padding: 14, color: "var(--account-text-muted)", lineHeight: 1.6 };
 const statusChipStyle = (status: string): React.CSSProperties => ({
   display: "inline-flex",
