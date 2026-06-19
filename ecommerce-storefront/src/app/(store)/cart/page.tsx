@@ -7,6 +7,11 @@ import { useSearchParams } from "next/navigation";
 import { useCart } from "@/context/cart-context";
 import { api } from "@/lib/api";
 import { formatCurrency, roundCurrency } from "@/lib/currency";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+} from "@/lib/pricing-policy";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 
 type Inventory = {
   quantity?: number;
@@ -21,6 +26,14 @@ type ProductVariant = {
 type StoreProduct = {
   variants?: ProductVariant[];
 };
+
+function readClientStoreId() {
+  try {
+    return getClientStoreId();
+  } catch {
+    return null;
+  }
+}
 
 export default function CartPage() {
   return (
@@ -38,8 +51,15 @@ function CartPageInner() {
   const [syncingStock, setSyncingStock] = useState(false);
 
   const stockIssueFlag = searchParams.get("stockIssue");
+  const pricingPolicy = resolveStorePricingPolicy({ storeId: readClientStoreId() });
+  const displayCart = cart.map((item) => ({
+    ...item,
+    price: pricingPolicy.labelPriceRounding
+      ? resolveLabelNormalPrice(item.price, pricingPolicy)
+      : roundCurrency(item.price),
+  }));
   const subtotal = roundCurrency(
-    cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
+    displayCart.reduce((acc, item) => acc + item.price * item.quantity, 0),
   );
   const cartSignature = useMemo(
     () => cart.map((item) => `${item.variantId}:${item.quantity}:${item.maxAvailable}`).join("|"),
@@ -488,7 +508,7 @@ function CartPageInner() {
           ) : null}
 
           <div style={{ display: "grid", gap: 16 }}>
-            {cart.map((item, index) => {
+            {displayCart.map((item, index) => {
               const cartStockMessage = getCartStockMessage(item);
 
               return (

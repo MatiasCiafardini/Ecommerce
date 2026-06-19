@@ -126,6 +126,9 @@ export class CheckoutService {
     const discountByVariantId = new Map(
       itemBreakdown.map((b) => [b.variantId, b.itemScopedDiscountPerUnit]),
     );
+    const unitPriceByVariantId = new Map(
+      itemBreakdown.map((b) => [b.variantId, b.unitPrice]),
+    );
 
     for (const item of cart.items) {
       const inventory = item.variant.inventories[0];
@@ -294,7 +297,7 @@ export class CheckoutService {
             orderId: order.id,
             variantId: item.variantId,
             quantity: item.quantity,
-            price: Number(item.variant.price),
+            price: unitPriceByVariantId.get(item.variantId) ?? Number(item.variant.price),
             discountAmount: discountByVariantId.get(item.variantId) ?? 0,
           },
         });

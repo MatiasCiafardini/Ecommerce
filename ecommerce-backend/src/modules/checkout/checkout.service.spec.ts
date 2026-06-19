@@ -88,8 +88,15 @@ describe('CheckoutService payment rules', () => {
       orderItem: {
         create: jest.fn(),
       },
-      payment: {
+      orderEvent: {
         create: jest.fn(),
+      },
+      payment: {
+        create: jest.fn().mockResolvedValue({
+          id: 22,
+          provider: 'cash',
+          status: 'pending',
+        }),
       },
       customer: {
         update: jest.fn(),
@@ -151,7 +158,7 @@ describe('CheckoutService payment rules', () => {
         shippingAddress: {
           firstName: 'Cliente',
           lastName: 'Demo',
-          phone: '123',
+          phone: '1123456789',
           address1: 'Local',
           city: 'CABA',
           zip: '1000',
@@ -176,7 +183,7 @@ describe('CheckoutService payment rules', () => {
     expect(tx.customer.update).toHaveBeenCalledWith({
       where: { id: 8 },
       data: {
-        phone: '123',
+        phone: '1123456789',
       },
     });
   });

@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { DiscountScope, DiscountType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { roundCurrency } from '../../common/currency';
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+} from '../../common/price-input-mode';
 
 type ProductWithPricingInputs = {
   id: number;
@@ -116,7 +120,19 @@ export class ProductPricingService {
       };
     }
 
-    const products = items.map((item) => ({
+    const pricingPolicy = resolveStorePricingPolicy({ id: storeId });
+    const pricedItems = items.map((item) => ({
+      ...item,
+      variant: {
+        ...item.variant,
+        price: resolveLabelNormalPrice(
+          roundCurrency(Number(item.variant.price ?? 0)),
+          pricingPolicy,
+        ),
+      },
+    }));
+
+    const products = pricedItems.map((item) => ({
       id: item.variant.product.id,
       categories: item.variant.product.categories ?? [],
       optionValues: item.variant.product.optionValues ?? [],
@@ -135,7 +151,7 @@ export class ProductPricingService {
 
     // Calcular descuentos regulares por item (percentage/fixed_amount)
     const regularDiscountByVariant = new Map<number, number>();
-    for (const item of items) {
+    for (const item of pricedItems) {
       const pricing = this.resolvePricingForVariant(
         {
           id: item.variant.product.id,
@@ -150,7 +166,7 @@ export class ProductPricingService {
 
     // Calcular descuentos buy_x_get_y agrupados por categoría
     const buyXGetYDiscountByVariant = this.calculateBuyXGetYDiscounts(
-      items,
+      pricedItems,
       buyXGetYDiscounts,
     );
 
@@ -158,7 +174,7 @@ export class ProductPricingService {
     let itemScopedDiscountAmount = 0;
     const itemBreakdown: CartItemDiscountBreakdown[] = [];
 
-    for (const item of items) {
+    for (const item of pricedItems) {
       const unitPrice = roundCurrency(Number(item.variant.price ?? 0));
       const regularDiscountPerUnit = regularDiscountByVariant.get(item.variant.id) ?? 0;
       const buyXGetYDiscountForItem = buyXGetYDiscountByVariant.get(item.variant.id) ?? 0;

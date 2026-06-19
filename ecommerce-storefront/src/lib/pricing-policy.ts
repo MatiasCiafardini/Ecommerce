@@ -47,6 +47,22 @@ export function resolveManualSaleUnitPrice(
   return resolveLabelNormalPrice(price, policy);
 }
 
+export function resolveTransferPrice(
+  price: string | number | null | undefined,
+  discountPercentage: number,
+  policy: Pick<StorePricingPolicy, "transferPriceRounding">,
+) {
+  const parsed = Number(price ?? 0);
+  const safePercentage = Number.isFinite(discountPercentage)
+    ? Math.min(Math.max(discountPercentage, 0), 100)
+    : 0;
+
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+
+  const discountedPrice = parsed * (1 - safePercentage / 100);
+  return policy.transferPriceRounding ? roundToNearestHundred(discountedPrice) : discountedPrice;
+}
+
 export function calculateManualSaleDiscountAmount(
   lines: Array<{ price: string | number; quantity: number }>,
   subtotal: number,

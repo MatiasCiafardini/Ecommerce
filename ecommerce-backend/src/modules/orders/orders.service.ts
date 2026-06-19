@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   calculateManualSaleDiscountAmount,
+  resolveLabelNormalPrice,
   resolveStorePricingPolicy,
   type StorePricingPolicy,
 } from '../../common/price-input-mode';
@@ -2563,6 +2564,27 @@ export class OrdersService {
     const paymentLabel = payment
       ? 'Pago: ' + this.paymentStatusReceiptLabel(payment.status)
       : 'Pago pendiente';
+    const receiptPricingPolicy = resolveStorePricingPolicy(order.store);
+    const receiptItems = order.items.map((item) => {
+      const unitPrice = receiptPricingPolicy.labelPriceRounding
+        ? resolveLabelNormalPrice(Number(item.price), receiptPricingPolicy)
+        : Number(item.price);
+
+      return {
+        ...item,
+        receiptUnitPrice: unitPrice,
+        receiptLineSubtotal: unitPrice * item.quantity,
+      };
+    });
+    const receiptSubtotal = receiptPricingPolicy.labelPriceRounding
+      ? receiptItems.reduce((sum, item) => sum + item.receiptLineSubtotal, 0)
+      : Number(order.subtotal ?? 0);
+    const receiptShippingCost = Number(order.shippingCost ?? 0);
+    const receiptTotal = Number(order.total ?? 0);
+    const receiptDiscountAmount = Math.max(
+      receiptSubtotal + receiptShippingCost - receiptTotal,
+      0,
+    );
 
     const textWidth = (value: string, size: number) =>
       value
@@ -2737,7 +2759,7 @@ export class OrdersService {
     pdf.drawText({ x: columns.subtotal + 6, y: tableTop - 16, text: 'Subtotal', size: 8, font: 'Helvetica-Bold' });
     cursorY -= 24;
 
-    order.items.forEach((item, index) => {
+    receiptItems.forEach((item, index) => {
       ensureSpace(42);
       const rowHeight = 36;
       const rowY = cursorY;
@@ -2745,9 +2767,9 @@ export class OrdersService {
       pdf.drawText({ x: columns.item + 6, y: rowY - 15, text: String(index + 1), size: 8 });
       pdf.drawWrappedText({ x: columns.product + 6, y: rowY - 12, text: item.variant.product.title, maxWidth: 230, size: 8.5, lineHeight: 11 });
       drawRightText(String(item.quantity), columns.qty + 38, rowY - 15, 8.5);
-      drawRightText(this.formatMoney(item.price), columns.unit + 62, rowY - 15, 8.5);
+      drawRightText(this.formatMoney(item.receiptUnitPrice), columns.unit + 62, rowY - 15, 8.5);
       drawRightText('0,00', columns.discount + 40, rowY - 15, 8.5);
-      drawRightText(this.formatMoney(Number(item.price) * item.quantity), rightEdge - 8, rowY - 15, 8.5, 'Helvetica-Bold');
+      drawRightText(this.formatMoney(item.receiptLineSubtotal), rightEdge - 8, rowY - 15, 8.5, 'Helvetica-Bold');
       cursorY -= rowHeight;
     });
 
@@ -2775,10 +2797,10 @@ export class OrdersService {
     const totalX = margin + leftFooterWidth + 14;
     pdf.drawRect({ x: totalX, y: footerTop - 112, width: totalBoxWidth, height: 112, lineWidth: 1 });
     const totalRows = [
-      ['Subtotal', this.formatMoney(order.subtotal)],
-      ['Descuento', this.formatMoney(order.discountAmount)],
-      ['Envio', this.formatMoney(order.shippingCost)],
-      ['Importe total', this.formatMoney(order.total)],
+      ['Subtotal', this.formatMoney(receiptSubtotal)],
+      ['Descuento', this.formatMoney(receiptDiscountAmount)],
+      ['Envio', this.formatMoney(receiptShippingCost)],
+      ['Importe total', this.formatMoney(receiptTotal)],
     ];
     let totalY = footerTop - 20;
     totalRows.forEach(([label, value], index) => {
