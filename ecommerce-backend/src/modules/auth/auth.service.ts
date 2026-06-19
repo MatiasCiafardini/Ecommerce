@@ -20,6 +20,7 @@ type AuthEntity = {
   firstName?: string | null;
   lastName?: string | null;
   phone?: string | null;
+  document?: string | null;
   name?: string | null;
   storeLocationId?: number | null;
   storeLocation?: {
@@ -412,12 +413,14 @@ export class AuthService {
         firstName?: string;
         lastName?: string;
         phone?: string;
+        document?: string;
         password?: string;
       } = {};
 
       if (data.firstName !== undefined) customerData.firstName = data.firstName;
       if (data.lastName !== undefined) customerData.lastName = data.lastName;
       if (data.phone !== undefined) customerData.phone = data.phone;
+      if (data.document !== undefined) customerData.document = data.document;
       if (data.password) {
         customerData.password = await bcrypt.hash(data.password, 10);
       }
@@ -481,6 +484,7 @@ export class AuthService {
       firstName: user.firstName ?? null,
       lastName: user.lastName ?? null,
       phone: user.phone ?? null,
+      document: user.document ?? null,
       name: user.name ?? null,
       storeLocationId: user.storeLocationId ?? null,
       storeLocation: user.storeLocation ?? null,

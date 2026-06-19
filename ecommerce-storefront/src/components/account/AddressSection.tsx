@@ -20,7 +20,10 @@ type Address = {
 type AddressForm = {
   firstName: string;
   lastName: string;
-  address1: string;
+  document: string;
+  streetName: string;
+  streetNumber: string;
+  address2: string;
   city: string;
   state: string;
   zip: string;
@@ -37,6 +40,24 @@ const fieldStyle = {
   outline: "none",
 } as const;
 
+const normalizeDocumentDigits = (value: string) => value.replace(/\D/g, "");
+const isValidDocument = (value: string) => normalizeDocumentDigits(value).length >= 7;
+const buildStreetAddress = (streetName: string, streetNumber: string) =>
+  [streetName.trim(), streetNumber.trim()].filter(Boolean).join(" ");
+const splitStreetAddress = (address1: string) => {
+  const value = address1.trim();
+  const match = value.match(/^(.*?)(\d{1,6})(?:\s+(.*))?$/);
+
+  if (!match) {
+    return { streetName: value, streetNumber: "" };
+  }
+
+  return {
+    streetName: match[1]?.trim() ?? "",
+    streetNumber: match[2]?.trim() ?? "",
+  };
+};
+
 export default function AddressSection({ user }: { user: User }) {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,12 +67,25 @@ export default function AddressSection({ user }: { user: User }) {
   const [form, setForm] = useState<AddressForm>({
     firstName: user.firstName ?? "",
     lastName: user.lastName ?? "",
-    address1: "",
+    document: user.document ?? "",
+    streetName: "",
+    streetNumber: "",
+    address2: "",
     city: "Buenos Aires",
     state: "Buenos Aires",
     zip: "",
     country: "Argentina",
   });
+  const effectiveDocument = user.document?.trim() || form.document.trim();
+  const canSaveAddress =
+    form.firstName.trim() &&
+    form.lastName.trim() &&
+    form.streetName.trim() &&
+    form.streetNumber.trim() &&
+    form.city.trim() &&
+    form.state.trim() &&
+    form.zip.trim() &&
+    isValidDocument(effectiveDocument);
 
   useEffect(() => {
     const loadAddresses = async () => {
@@ -74,7 +108,10 @@ export default function AddressSection({ user }: { user: User }) {
     setForm({
       firstName: user.firstName ?? "",
       lastName: user.lastName ?? "",
-      address1: "",
+      document: user.document ?? "",
+      streetName: "",
+      streetNumber: "",
+      address2: "",
       city: "Buenos Aires",
       state: "Buenos Aires",
       zip: "",
@@ -87,9 +124,23 @@ export default function AddressSection({ user }: { user: User }) {
       setSaving(true);
 
       const payload = {
-        ...form,
+        firstName: form.firstName,
+        lastName: form.lastName,
         phone: user.phone ?? undefined,
+        address1: buildStreetAddress(form.streetName, form.streetNumber),
+        address2: form.address2.trim() || undefined,
+        city: form.city,
+        state: form.state,
+        zip: form.zip,
+        country: "Argentina",
       };
+
+      if (!user.document?.trim() && form.document.trim()) {
+        await api("/auth/me", {
+          method: "PATCH",
+          body: JSON.stringify({ document: form.document.trim() }),
+        });
+      }
 
       if (editingId) {
         const updated = await api(`/customer-addresses/me/${editingId}`, {
@@ -116,12 +167,16 @@ export default function AddressSection({ user }: { user: User }) {
   };
 
   const startEdit = (address: Address) => {
+    const street = splitStreetAddress(address.address1);
     setEditingId(address.id);
     setIsCreating(false);
       setForm({
         firstName: address.firstName,
         lastName: address.lastName,
-        address1: address.address1,
+        document: user.document ?? "",
+        streetName: street.streetName,
+        streetNumber: street.streetNumber,
+        address2: address.address2 ?? "",
         city: address.city,
         state: address.state ?? "",
         zip: address.zip,
@@ -135,7 +190,10 @@ export default function AddressSection({ user }: { user: User }) {
     setForm({
       firstName: user.firstName ?? "",
       lastName: user.lastName ?? "",
-      address1: "",
+      document: user.document ?? "",
+      streetName: "",
+      streetNumber: "",
+      address2: "",
       city: "Buenos Aires",
       state: "Buenos Aires",
       zip: "",
@@ -331,8 +389,14 @@ export default function AddressSection({ user }: { user: User }) {
                       }}
                     >
                       {address.address1}
+                      {address.address2 ? (
+                        <>
+                          <br />
+                          {address.address2}
+                        </>
+                      ) : null}
                       <br />
-                      {[address.city, address.state, address.country].filter(Boolean).join(", ")}
+                      {[address.city, address.state].filter(Boolean).join(", ")}
                       <br />
                       CP {address.zip}
                     </p>
@@ -426,9 +490,34 @@ export default function AddressSection({ user }: { user: User }) {
             </div>
 
             <input
-              placeholder="Direccion"
-              value={form.address1}
-              onChange={(e) => setForm({ ...form, address1: e.target.value })}
+              placeholder="DNI"
+              value={user.document?.trim() || form.document}
+              onChange={(e) => setForm({ ...form, document: e.target.value })}
+              disabled={Boolean(user.document?.trim())}
+              inputMode="numeric"
+              style={fieldStyle}
+            />
+
+            <div className="layout-form-two">
+              <input
+                placeholder="Calle"
+                value={form.streetName}
+                onChange={(e) => setForm({ ...form, streetName: e.target.value })}
+                style={fieldStyle}
+              />
+              <input
+                placeholder="Numero"
+                value={form.streetNumber}
+                onChange={(e) => setForm({ ...form, streetNumber: e.target.value })}
+                inputMode="numeric"
+                style={fieldStyle}
+              />
+            </div>
+
+            <input
+              placeholder="Piso / depto / unidad (opcional)"
+              value={form.address2}
+              onChange={(e) => setForm({ ...form, address2: e.target.value })}
               style={fieldStyle}
             />
 
@@ -456,17 +545,10 @@ export default function AddressSection({ user }: { user: User }) {
               />
             </div>
 
-            <input
-              placeholder="Pais"
-              value={form.country}
-              onChange={(e) => setForm({ ...form, country: e.target.value })}
-              style={fieldStyle}
-            />
-
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button
                 onClick={saveAddress}
-                disabled={saving || !form.state.trim()}
+                disabled={saving || !canSaveAddress}
                 style={{
                   flex: 1,
                   minWidth: 180,

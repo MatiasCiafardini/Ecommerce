@@ -37,6 +37,7 @@ export type CustomerOrder = {
     firstName?: string | null;
     lastName?: string | null;
     phone?: string | null;
+    document?: string | null;
   } | null;
   items: Array<{
     id: number;
@@ -350,6 +351,27 @@ export const orderShippingAddressLines = (order: CustomerOrder) => {
 
 export const hasOrderShippingSnapshot = (order: CustomerOrder) =>
   orderShippingAddressLines(order).length > 0;
+
+export const orderShippingAddressLinesDetailed = (order: CustomerOrder) => {
+  const lines = [
+    order.shippingAddress1Snapshot,
+    order.shippingAddress2Snapshot,
+    [order.shippingCitySnapshot, order.shippingStateSnapshot].filter(Boolean).join(", "),
+    order.shippingPostalCodeSnapshot ? `CP ${order.shippingPostalCodeSnapshot}` : null,
+  ].filter(Boolean) as string[];
+
+  if (lines.length > 0) {
+    return lines;
+  }
+
+  if (order.shipment?.shippingAddress) {
+    return [
+      `${order.shipment.shippingAddress}${order.shipment.postalCode ? ` · CP ${order.shipment.postalCode}` : ""}`,
+    ];
+  }
+
+  return [];
+};
 
 export const orderStatusLabel = (status: string) => {
   const labels: Record<string, string> = {

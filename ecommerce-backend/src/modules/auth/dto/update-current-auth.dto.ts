@@ -19,6 +19,10 @@ export class UpdateCurrentAuthDto {
 
   @IsOptional()
   @IsString()
+  document?: string;
+
+  @IsOptional()
+  @IsString()
   @MinLength(6)
   password?: string;
 }

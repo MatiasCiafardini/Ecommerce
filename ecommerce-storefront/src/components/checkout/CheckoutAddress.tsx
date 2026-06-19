@@ -39,6 +39,10 @@ const hintStyle: React.CSSProperties = {
 const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
 
 const isValidCheckoutPhone = (value: string) => normalizePhoneDigits(value).length >= 8;
+const normalizeDocumentDigits = (value: string) => value.replace(/\D/g, "");
+const isValidDocument = (value: string) => normalizeDocumentDigits(value).length >= 7;
+const buildStreetAddress = (streetName: string, streetNumber: string) =>
+  [streetName.trim(), streetNumber.trim()].filter(Boolean).join(" ");
 
 export default function CheckoutAddress({
   initialContact,
@@ -62,24 +66,31 @@ export default function CheckoutAddress({
     firstName: initialContact?.firstName ?? user?.firstName ?? "",
     lastName: initialContact?.lastName ?? user?.lastName ?? "",
     phone: initialContact?.phone ?? user?.phone ?? "",
-    address1: "",
+    document: user?.document ?? "",
+    streetName: "",
+    streetNumber: "",
+    address2: "",
     city: "Buenos Aires",
     state: "Buenos Aires",
     zip: "",
     country: "Argentina",
   });
   const accountPhone = user?.phone?.trim() ?? "";
+  const accountDocument = user?.document?.trim() ?? "";
   const checkoutPhone = accountPhone || form.phone.trim();
+  const checkoutDocument = accountDocument || form.document.trim();
   const phoneIsValid = isValidCheckoutPhone(checkoutPhone);
+  const documentIsValid = isValidDocument(checkoutDocument);
   const canSaveAddress =
     form.firstName.trim() &&
     form.lastName.trim() &&
-    form.address1.trim() &&
+    form.streetName.trim() &&
+    form.streetNumber.trim() &&
     form.city.trim() &&
     form.state.trim() &&
     form.zip.trim() &&
-    form.country.trim() &&
-    phoneIsValid;
+    phoneIsValid &&
+    documentIsValid;
 
   useEffect(() => {
     const loadAddresses = async () => {
@@ -103,44 +114,63 @@ export default function CheckoutAddress({
       firstName: current.firstName || initialContact?.firstName || user?.firstName || "",
       lastName: current.lastName || initialContact?.lastName || user?.lastName || "",
       phone: user?.phone ?? initialContact?.phone ?? current.phone,
+      document: user?.document ?? current.document,
     }));
-  }, [initialContact?.firstName, initialContact?.lastName, initialContact?.phone, user?.firstName, user?.lastName, user?.phone]);
+  }, [initialContact?.firstName, initialContact?.lastName, initialContact?.phone, user?.document, user?.firstName, user?.lastName, user?.phone]);
 
-  const ensureAccountPhone = async () => {
+  const ensureAccountContact = async () => {
     const phone = checkoutPhone.trim();
+    const document = checkoutDocument.trim();
 
     if (!isValidCheckoutPhone(phone)) {
       throw new Error("Carga un telefono valido para continuar con la compra.");
     }
 
-    if (accountPhone) {
-      return accountPhone;
+    if (!isValidDocument(document)) {
+      throw new Error("Carga un DNI valido para continuar con la compra.");
+    }
+
+    if (accountPhone && accountDocument) {
+      return { phone: accountPhone, document: accountDocument };
     }
 
     const updatedUser = await api("/auth/me", {
       method: "PATCH",
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({
+        ...(accountPhone ? {} : { phone }),
+        ...(accountDocument ? {} : { document }),
+      }),
     });
     setUser(updatedUser);
-    return phone;
+    return {
+      phone: updatedUser?.phone?.trim() || phone,
+      document: updatedUser?.document?.trim() || document,
+    };
   };
 
   const saveAddress = async () => {
     try {
       setSaving(true);
       setError("");
-      const phone = await ensureAccountPhone();
+      const { phone } = await ensureAccountContact();
       const address = await api("/customer-addresses/me", {
         method: "POST",
         body: JSON.stringify({
-          ...form,
+          firstName: form.firstName,
+          lastName: form.lastName,
           phone,
+          address1: buildStreetAddress(form.streetName, form.streetNumber),
+          address2: form.address2.trim() || undefined,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
+          country: "Argentina",
         }),
       });
 
       setAddresses((prev) => [address, ...prev]);
       setSelected(address);
-      setForm((prev) => ({ ...prev, phone, address1: "", zip: "" }));
+      setForm((prev) => ({ ...prev, phone, streetName: "", streetNumber: "", address2: "", zip: "" }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la direccion.");
     } finally {
@@ -154,7 +184,7 @@ export default function CheckoutAddress({
     try {
       setContinuing(true);
       setError("");
-      const phone = await ensureAccountPhone();
+      const { phone } = await ensureAccountContact();
       onNext({ ...selected, phone: selected.phone?.trim() || phone });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo continuar con la compra.");
@@ -272,8 +302,14 @@ export default function CheckoutAddress({
                     }}
                   >
                     {addr.address1}
+                    {addr.address2 ? (
+                      <>
+                        <br />
+                        {addr.address2}
+                      </>
+                    ) : null}
                     <br />
-                    {[addr.city, addr.state, addr.country].filter(Boolean).join(", ")}
+                    {[addr.city, addr.state].filter(Boolean).join(", ")}
                     <br />
                     CP {addr.zip}
                   </p>
@@ -348,9 +384,34 @@ export default function CheckoutAddress({
         )}
 
         <input
-          placeholder="Calle y numero"
-          value={form.address1}
-          onChange={(e) => setForm({ ...form, address1: e.target.value })}
+          placeholder="DNI"
+          value={accountDocument || form.document}
+          onChange={(e) => setForm({ ...form, document: e.target.value })}
+          disabled={Boolean(accountDocument)}
+          inputMode="numeric"
+          style={fieldStyle}
+        />
+
+        <div className="layout-form-two">
+          <input
+            placeholder="Calle"
+            value={form.streetName}
+            onChange={(e) => setForm({ ...form, streetName: e.target.value })}
+            style={fieldStyle}
+          />
+          <input
+            placeholder="Numero"
+            value={form.streetNumber}
+            onChange={(e) => setForm({ ...form, streetNumber: e.target.value })}
+            inputMode="numeric"
+            style={fieldStyle}
+          />
+        </div>
+
+        <input
+          placeholder="Piso / depto / unidad (opcional)"
+          value={form.address2}
+          onChange={(e) => setForm({ ...form, address2: e.target.value })}
           style={fieldStyle}
         />
 
@@ -378,13 +439,6 @@ export default function CheckoutAddress({
           />
         </div>
 
-        <input
-          placeholder="Pais"
-          value={form.country}
-          onChange={(e) => setForm({ ...form, country: e.target.value })}
-          style={fieldStyle}
-        />
-
         <button
           onClick={saveAddress}
           disabled={saving || !canSaveAddress}
@@ -408,7 +462,7 @@ export default function CheckoutAddress({
 
         <button
           className="checkout-primary-action"
-          disabled={!selected || !selected.state?.trim() || !phoneIsValid || continuing}
+          disabled={!selected || !selected.state?.trim() || !phoneIsValid || !documentIsValid || continuing}
           onClick={() => void continueWithSelectedAddress()}
           style={{
             border: "none",

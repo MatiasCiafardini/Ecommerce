@@ -8,7 +8,7 @@ import {
   hasOrderShippingSnapshot,
   money,
   openReceipt,
-  orderShippingAddressLines,
+  orderShippingAddressLinesDetailed as orderShippingAddressLines,
   orderShippingRecipient,
   orderStatusLabel,
   paymentDisplayLabel,

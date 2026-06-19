@@ -2479,14 +2479,12 @@ export class OrdersService {
     shippingAddress2Snapshot?: string | null;
     shippingCitySnapshot?: string | null;
     shippingStateSnapshot?: string | null;
-    shippingCountrySnapshot?: string | null;
   }) {
     const address = [
       order.shippingAddress1Snapshot,
       order.shippingAddress2Snapshot,
       order.shippingCitySnapshot,
       order.shippingStateSnapshot,
-      order.shippingCountrySnapshot,
     ]
       .filter(Boolean)
       .join(', ')
@@ -2552,6 +2550,7 @@ export class OrdersService {
             firstName: true,
             lastName: true,
             phone: true,
+            document: true,
           },
         },
         items: {
@@ -2593,15 +2592,14 @@ export class OrdersService {
     const customerEmail = order.customerEmailSnapshot || order.customer?.email || 'No informado';
     const customerPhone =
       order.shippingPhoneSnapshot || order.customerPhoneSnapshot || order.customer?.phone || 'No informado';
+    const customerDocument = order.customer?.document || 'No informado';
     const customerName = this.orderCustomerLabel(order);
     const shippingAddress =
       [
         order.shippingAddress1Snapshot,
         order.shippingAddress2Snapshot,
-        order.shippingCitySnapshot,
-        order.shippingStateSnapshot,
-        order.shippingPostalCodeSnapshot,
-        order.shippingCountrySnapshot,
+        [order.shippingCitySnapshot, order.shippingStateSnapshot].filter(Boolean).join(', '),
+        order.shippingPostalCodeSnapshot ? `CP ${order.shippingPostalCodeSnapshot}` : null,
       ]
         .filter(Boolean)
         .join(', ') || 'No informada';
@@ -2774,7 +2772,8 @@ export class OrdersService {
     let leftY = cursorY - 36;
     leftY = drawLabelValue('Cliente', customerName, margin + 12, leftY, 235);
     leftY = drawLabelValue('Email', customerEmail, margin + 12, leftY, 235);
-    drawLabelValue('Telefono', customerPhone, margin + 12, leftY, 235);
+    leftY = drawLabelValue('Telefono', customerPhone, margin + 12, leftY, 235);
+    drawLabelValue('DNI', customerDocument, margin + 12, leftY, 235);
     let rightY = cursorY - 36;
     rightY = drawLabelValue('Entrega', order.shippingMethod || 'A confirmar', margin + 275, rightY, 230);
     rightY = drawLabelValue('Direccion', shippingAddress, margin + 275, rightY, 230);
@@ -2875,6 +2874,7 @@ export class OrdersService {
           firstName: true,
           lastName: true,
           phone: true,
+          document: true,
         },
       },
       items: {

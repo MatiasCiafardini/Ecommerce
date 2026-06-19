@@ -19,7 +19,7 @@ import {
   orderCustomerEmail,
   orderCustomerName,
   orderCustomerPhone,
-  orderShippingAddressLines,
+  orderShippingAddressLinesDetailed as orderShippingAddressLines,
   orderShippingRecipient,
   orderStatusLabel,
   orderStatusLabelForDelivery,
@@ -559,6 +559,7 @@ export default function AdminOrderDetailPanel({
                 <InfoCell label="Nombre" value={customerName} />
                 <InfoCell label="Email" value={orderCustomerEmail(order)} />
                 <InfoCell label="Telefono" value={orderCustomerPhone(order)} />
+                <InfoCell label="DNI" value={order.customer?.document?.trim() || "No informado"} />
                 <InfoCell label="Pedido" value={`#${order.id}`} />
                 <InfoCell label="Notas del cliente" value={order.customerNotesSnapshot?.trim() || "Sin notas"} />
               </div>
@@ -700,7 +701,7 @@ export default function AdminOrderDetailPanel({
                 <InfoCell label="Piso / depto" value={order.shippingAddress2Snapshot?.trim() || "Sin complemento"} />
                 <InfoCell label="Localidad" value={order.shippingCitySnapshot?.trim() || "No informada"} />
                 <InfoCell label="Provincia" value={order.shippingStateSnapshot?.trim() || "No informada"} />
-                <InfoCell label="Pais" value={order.shippingCountrySnapshot?.trim() || "Argentina"} />
+                <InfoCell label="DNI" value={order.customer?.document?.trim() || "No informado"} />
                 <InfoCell label="Peso total" value={packageSummary.weight} />
                 <InfoCell label="Tamano paquete" value={packageSummary.size} />
                 <InfoCell label="Metodo vendido" value={order.shippingMethod ?? "A confirmar"} />

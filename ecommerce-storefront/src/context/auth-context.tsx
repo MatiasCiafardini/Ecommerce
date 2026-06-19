@@ -20,6 +20,7 @@ type User = {
   firstName?: string | null;
   lastName?: string | null;
   phone?: string | null;
+  document?: string | null;
   name?: string | null;
   storeLocationId?: number | null;
   storeLocation?: {

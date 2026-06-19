@@ -1287,7 +1287,7 @@ export default function CheckoutReview({
                   ) : null}
                   <br />
                   {address.city}
-                  {address.state ? `, ${address.state}` : ""}, {address.country}
+                  {address.state ? `, ${address.state}` : ""}
                   <br />
                   CP {address.zip}
                 </>

@@ -14,7 +14,7 @@ import {
   hasOrderShippingSnapshot,
   money,
   openReceipt,
-  orderShippingAddressLines,
+  orderShippingAddressLinesDetailed as orderShippingAddressLines,
   orderShippingRecipient,
   orderStatusLabelForDelivery,
   paymentDisplayLabel,
