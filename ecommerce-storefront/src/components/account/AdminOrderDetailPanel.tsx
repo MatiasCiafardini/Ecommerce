@@ -5,6 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { api, apiBlob } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import { openBlobFile } from "@/lib/download";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+} from "@/lib/pricing-policy";
 import AdminOrderShipmentPanel from "./AdminOrderShipmentPanel";
 import {
   hasOrderShippingSnapshot,
@@ -194,6 +198,24 @@ export default function AdminOrderDetailPanel({
         shippingAddressLines.length > 0,
     );
   const units = order.items.reduce((total, item) => total + item.quantity, 0);
+  const orderPricingPolicy = resolveStorePricingPolicy({ storeId: order.storeId });
+  const displayItems = order.items.map((item) => {
+    const unitPrice = orderPricingPolicy.labelPriceRounding
+      ? resolveLabelNormalPrice(item.price, orderPricingPolicy)
+      : Number(item.price ?? 0);
+
+    return {
+      ...item,
+      displayUnitPrice: unitPrice,
+      displaySubtotal: unitPrice * item.quantity,
+    };
+  });
+  const displaySubtotal = orderPricingPolicy.labelPriceRounding
+    ? displayItems.reduce((sum, item) => sum + item.displaySubtotal, 0)
+    : Number(order.subtotal ?? 0);
+  const displayShippingCost = Number(order.shippingCost ?? 0);
+  const displayTotal = Number(order.total ?? 0);
+  const displayDiscountAmount = Math.max(displaySubtotal + displayShippingCost - displayTotal, 0);
   const paymentCount = order.payments?.length ?? 0;
   const paymentSummary = cashOnPickupOrder
     ? "Cobro al retirar"
@@ -283,18 +305,18 @@ export default function AdminOrderDetailPanel({
         : []),
       "",
       "PRODUCTOS",
-      ...order.items.flatMap((item, index) => [
+      ...displayItems.flatMap((item, index) => [
         `${index + 1}. ${item.variant.product.title}`,
         `   SKU: ${item.variant.sku ?? "Sin SKU"}`,
         `   Variante: ${[item.variant.Size, item.variant.Color].filter(Boolean).join(" / ") || "Base"}`,
-        `   Cantidad: ${item.quantity} | Unitario: ${money(item.price)} | Subtotal: ${money(Number(item.price) * item.quantity)}`,
+        `   Cantidad: ${item.quantity} | Unitario: ${money(item.displayUnitPrice)} | Subtotal: ${money(item.displaySubtotal)}`,
       ]),
       "",
       "TOTALES",
-      `Subtotal: ${money(order.subtotal)}`,
-      `Descuento: ${money(order.discountAmount)}`,
-      `Envio: ${money(order.shippingCost)}`,
-      `Total: ${money(order.total)}`,
+      `Subtotal: ${money(displaySubtotal)}`,
+      `Descuento: ${money(displayDiscountAmount)}`,
+      `Envio: ${money(displayShippingCost)}`,
+      `Total: ${money(displayTotal)}`,
       "",
       "PAGOS",
       ...(order.payments?.length
@@ -442,15 +464,15 @@ export default function AdminOrderDetailPanel({
           </div>
           <div style={summaryRowStyle}>
             <span style={metaStyle}>Subtotal</span>
-            <strong>{money(order.subtotal)}</strong>
+            <strong>{money(displaySubtotal)}</strong>
           </div>
           <div style={summaryRowStyle}>
             <span style={metaStyle}>Descuento</span>
-            <strong>{money(order.discountAmount)}</strong>
+            <strong>{money(displayDiscountAmount)}</strong>
           </div>
           <div style={summaryRowStyle}>
             <span style={metaStyle}>Envio</span>
-            <strong>{money(order.shippingCost)}</strong>
+            <strong>{money(displayShippingCost)}</strong>
           </div>
           <div style={summaryMetaGridStyle}>
             <div style={summaryMetaCardStyle}>
@@ -473,7 +495,7 @@ export default function AdminOrderDetailPanel({
           <div style={{ height: 1, background: "var(--account-item-border)" }} />
           <div style={summaryRowStyle}>
             <span>Total</span>
-            <strong style={{ fontSize: 28 }}>{money(order.total)}</strong>
+            <strong style={{ fontSize: 28 }}>{money(displayTotal)}</strong>
           </div>
         </section>
       </div>
@@ -531,7 +553,7 @@ export default function AdminOrderDetailPanel({
                 <h3 style={title3Style}>Contenido del pedido</h3>
               </div>
               <div style={{ display: "grid", gap: 14 }}>
-                {order.items.map((item) => (
+                {displayItems.map((item) => (
                   <article key={item.id} style={orderItemCardStyle}>
                     <div style={orderItemImageStyle}>
                       {item.variant.product.images?.[0]?.url ? (
@@ -560,8 +582,8 @@ export default function AdminOrderDetailPanel({
                     </div>
                     <div style={priceColumnStyle}>
                       <span style={metaStyle}>Unitario</span>
-                      <strong>{money(item.price)}</strong>
-                      <span style={metaStyle}>Subtotal {money(Number(item.price) * item.quantity)}</span>
+                      <strong>{money(item.displayUnitPrice)}</strong>
+                      <span style={metaStyle}>Subtotal {money(item.displaySubtotal)}</span>
                     </div>
                   </article>
                 ))}

@@ -1300,6 +1300,51 @@ export class OrdersService {
       return;
     }
 
+    const pendingOfflinePayment = payments.find((payment) => {
+      const provider = payment.provider.trim().toLowerCase();
+      const method = payment.method?.trim().toLowerCase() ?? '';
+
+      return (
+        payment.status.trim().toLowerCase() === 'pending' &&
+        (provider === 'bank_transfer' ||
+          provider === 'transfer' ||
+          provider === 'transferencia' ||
+          method === 'bank_transfer' ||
+          method === 'transfer' ||
+          method === 'transferencia')
+      );
+    });
+
+    if (pendingOfflinePayment) {
+      await tx.payment.update({
+        where: { id: pendingOfflinePayment.id },
+        data: {
+          status: 'approved',
+          reviewedAt: new Date(),
+        },
+      });
+
+      await tx.orderEvent.create({
+        data: {
+          storeId: order.storeId,
+          orderId: order.id,
+          type: 'payment.approved',
+          title: 'Pago aprobado',
+          message: 'El pago fue aprobado al confirmar el pedido como pagado.',
+          actorType: 'admin',
+          metadata: {
+            paymentId: pendingOfflinePayment.id,
+            provider: pendingOfflinePayment.provider,
+            previousStatus: pendingOfflinePayment.status,
+            status: 'approved',
+            source: 'admin_status_transition',
+          },
+        },
+      });
+
+      return;
+    }
+
     if (payments.length === 0 && isPickupOrder) {
       await tx.payment.create({
         data: {

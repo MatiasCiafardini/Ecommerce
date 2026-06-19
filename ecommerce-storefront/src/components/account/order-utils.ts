@@ -4,6 +4,7 @@ import { formatCurrency } from "@/lib/currency";
 
 export type CustomerOrder = {
   id: number;
+  storeId?: number;
   customerId?: number;
   status: string;
   createdAt: string;
