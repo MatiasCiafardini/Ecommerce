@@ -165,6 +165,16 @@ export default function AdminOrderDetailPanel({
     }
   };
 
+  const goToDispatchTab = () => {
+    setActiveTab("dispatch");
+    window.requestAnimationFrame(() => {
+      document.getElementById("admin-order-dispatch-tabs")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
+
   if (loading) {
     return <section style={panelStyle}><StateCard label="Cargando detalle operativo..." /></section>;
   }
@@ -406,8 +416,17 @@ export default function AdminOrderDetailPanel({
                     {updatingStatus ? "Actualizando..." : nextAction.label}
                   </button>
                 ) : order.status === "packed" && showManualDispatchPanel ? (
-                  <div style={disabledActionStyle}>
-                    Completa carrier y tracking en la tab de despacho para poder marcar este pedido como enviado.
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div style={disabledActionStyle}>
+                      Completa carrier y tracking en la tab de despacho para poder marcar este pedido como enviado.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={goToDispatchTab}
+                      style={primaryButtonStyle}
+                    >
+                      Ir a despacho
+                    </button>
                   </div>
                 ) : (
                   <div style={disabledActionStyle}>
@@ -500,7 +519,7 @@ export default function AdminOrderDetailPanel({
         </section>
       </div>
 
-      <section style={tabShellStyle}>
+      <section id="admin-order-dispatch-tabs" style={tabShellStyle}>
         <div style={tabHeaderWrapStyle}>
           <div style={tabHeaderCopyStyle}>
             <p style={eyebrowStyle}>Detalle operativo</p>
@@ -665,14 +684,37 @@ export default function AdminOrderDetailPanel({
           ) : null}
 
           {safeActiveTab === "dispatch" && showManualDispatchPanel ? (
-            <AdminOrderShipmentPanel
-              order={order}
-              onOrderUpdated={(updatedOrder) => {
-                setOrder(updatedOrder);
-                onOrderUpdated?.(updatedOrder);
-              }}
-              onError={setError}
-            />
+            <section style={contentBlockStyle}>
+              <div>
+                <p style={eyebrowStyle}>Datos para cargar en Andreani</p>
+                <h3 style={title3Style}>Informacion de envio</h3>
+                <p style={tabHintStyle}>
+                  Usa estos datos para completar el alta manual en Andreani, OCA, Via Cargo o el carrier elegido.
+                </p>
+              </div>
+              <div style={dispatchInfoGridStyle}>
+                <InfoCell label="Destinatario" value={orderShippingRecipient(order)} />
+                <InfoCell label="Telefono" value={order.shippingPhoneSnapshot ?? orderCustomerPhone(order)} />
+                <InfoCell label="Codigo postal" value={order.shippingPostalCodeSnapshot?.trim() || "No informado"} />
+                <InfoCell label="Direccion" value={order.shippingAddress1Snapshot?.trim() || "No informada"} />
+                <InfoCell label="Piso / depto" value={order.shippingAddress2Snapshot?.trim() || "Sin complemento"} />
+                <InfoCell label="Localidad" value={order.shippingCitySnapshot?.trim() || "No informada"} />
+                <InfoCell label="Provincia" value={order.shippingStateSnapshot?.trim() || "No informada"} />
+                <InfoCell label="Pais" value={order.shippingCountrySnapshot?.trim() || "Argentina"} />
+                <InfoCell label="Peso total" value={packageSummary.weight} />
+                <InfoCell label="Tamano paquete" value={packageSummary.size} />
+                <InfoCell label="Metodo vendido" value={order.shippingMethod ?? "A confirmar"} />
+                <InfoCell label="Pedido" value={`#${order.id}`} />
+              </div>
+              <AdminOrderShipmentPanel
+                order={order}
+                onOrderUpdated={(updatedOrder) => {
+                  setOrder(updatedOrder);
+                  onOrderUpdated?.(updatedOrder);
+                }}
+                onError={setError}
+              />
+            </section>
           ) : null}
 
           {safeActiveTab === "pickup" && pickupOrder ? (
@@ -1376,6 +1418,11 @@ const infoGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 12,
+};
+const dispatchInfoGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  gap: 10,
 };
 const infoCellStyle: React.CSSProperties = {
   borderRadius: 18,
