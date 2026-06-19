@@ -5,6 +5,11 @@ import { resolveAssetUrl } from "@/lib/asset-url";
 import { formatCurrency, roundCurrency } from "@/lib/currency";
 import { getCatalogImageTransform } from "@/lib/product-image-layout";
 import { isGiftCardProduct } from "@/lib/product-kind";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+  roundToNearestHundred,
+} from "@/lib/pricing-policy";
 
 type Props = {
   product: StoreProduct;
@@ -28,20 +33,28 @@ export default function ProductCard({
   const hasPromotion = Boolean(product.pricing?.hasActivePromotion);
   const hasBuyXGetY = Boolean(product.pricing?.hasBuyXGetYPromotion);
   const isGiftCard = isGiftCardProduct(product);
+  const pricingPolicy = resolveStorePricingPolicy({ storeId });
   const displayPrice = hasPromotion
-    ? roundCurrency(product.pricing?.finalPrice ?? fallbackPrice)
-    : roundCurrency(fallbackPrice);
+    ? resolveLabelNormalPrice(product.pricing?.finalPrice ?? fallbackPrice, pricingPolicy)
+    : resolveLabelNormalPrice(fallbackPrice, pricingPolicy);
   const basePrice = hasPromotion
-    ? roundCurrency(product.pricing?.basePrice ?? fallbackPrice)
-    : roundCurrency(fallbackPrice);
+    ? resolveLabelNormalPrice(product.pricing?.basePrice ?? fallbackPrice, pricingPolicy)
+    : resolveLabelNormalPrice(fallbackPrice, pricingPolicy);
   const transferPrice =
     !isGiftCard && displayPrice > 0 && bankTransferDiscountPercentage > 0
-      ? roundCurrency(
-          Math.max(
-            displayPrice * (1 - bankTransferDiscountPercentage / 100),
-            0,
-          ),
-        )
+      ? pricingPolicy.transferPriceRounding
+        ? roundToNearestHundred(
+            Math.max(
+              displayPrice * (1 - bankTransferDiscountPercentage / 100),
+              0,
+            ),
+          )
+        : roundCurrency(
+            Math.max(
+              displayPrice * (1 - bankTransferDiscountPercentage / 100),
+              0,
+            ),
+          )
       : null;
   const showInstallments = storeId !== 3;
   const installmentPrice =

@@ -11,6 +11,11 @@ import { resolveAssetUrl } from "@/lib/asset-url";
 import { formatCurrency, roundCurrency } from "@/lib/currency";
 import { getProductImageTransform } from "@/lib/product-image-layout";
 import { isGiftCardProduct } from "@/lib/product-kind";
+import {
+  resolveLabelNormalPrice,
+  resolveStorePricingPolicy,
+  roundToNearestHundred,
+} from "@/lib/pricing-policy";
 import ProductCard from "./ProductCard";
 
 type Props = {
@@ -317,27 +322,36 @@ export default function ProductView({
     productImages[selectedImageIndex]?.url ?? productImages[0]?.url ?? null,
   );
 
-  const currentPrice = roundCurrency(
+  const pricingPolicy = resolveStorePricingPolicy({ storeId });
+  const currentPrice = resolveLabelNormalPrice(
     selectedVariant?.price ??
       inStockVariants[0]?.price ??
       product.variants?.[0]?.price ??
       product.price ??
       0,
+    pricingPolicy,
   );
   const activePricing = selectedVariant?.pricing ?? product.pricing;
-  const currentFinalPrice = resolvePromotionalPrice(
-    currentPrice,
-    activePricing,
+  const currentFinalPrice = resolveLabelNormalPrice(
+    resolvePromotionalPrice(currentPrice, activePricing),
+    pricingPolicy,
   );
   const isGiftCard = isGiftCardProduct(product);
   const transferPrice =
     !isGiftCard && currentFinalPrice > 0 && bankTransferDiscountPercentage > 0
-      ? roundCurrency(
-          Math.max(
-            currentFinalPrice * (1 - bankTransferDiscountPercentage / 100),
-            0,
-          ),
-        )
+      ? pricingPolicy.transferPriceRounding
+        ? roundToNearestHundred(
+            Math.max(
+              currentFinalPrice * (1 - bankTransferDiscountPercentage / 100),
+              0,
+            ),
+          )
+        : roundCurrency(
+            Math.max(
+              currentFinalPrice * (1 - bankTransferDiscountPercentage / 100),
+              0,
+            ),
+          )
       : null;
   const showInstallments = storeId !== 3;
   const installmentPrice =
