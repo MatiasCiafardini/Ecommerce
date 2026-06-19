@@ -760,6 +760,7 @@ export default function AdminProductsSection({
   } | null>(null);
   const [confirmContinueWithoutVariants, setConfirmContinueWithoutVariants] = useState(false);
   const [printingLabelProductId, setPrintingLabelProductId] = useState<number | null>(null);
+  const [publishingProductId, setPublishingProductId] = useState<number | null>(null);
   const [regenerateSkusOnNextSave, setRegenerateSkusOnNextSave] = useState(false);
   const [editingVariantIndex, setEditingVariantIndex] = useState<number | null>(
     null,
@@ -2176,6 +2177,75 @@ export default function AdminProductsSection({
       );
     } finally {
       setSavingOptionKey(null);
+    }
+  };
+
+  const toggleProductPublication = async (product: Product) => {
+    const nextPublished = !product.published;
+    const hasStock = getProductTotalStock(product) > 0;
+    const removeFromCurrentList =
+      (productStatusFilter === "published" && !nextPublished && hasStock) ||
+      (productStatusFilter === "draft" && nextPublished && hasStock);
+    const metricDelta = hasStock ? (nextPublished ? 1 : -1) : 0;
+
+    const applyMetricDelta = (direction: 1 | -1) => {
+      if (!metricDelta) return;
+
+      setProductMetrics((current) => ({
+        ...current,
+        published: Math.max(0, current.published + metricDelta * direction),
+        draft: Math.max(0, current.draft - metricDelta * direction),
+      }));
+    };
+
+    try {
+      setPublishingProductId(product.id);
+      setError("");
+      setProducts((current) =>
+        removeFromCurrentList
+          ? current.filter((item) => item.id !== product.id)
+          : current.map((item) =>
+              item.id === product.id ? { ...item, published: nextPublished } : item,
+            ),
+      );
+      if (removeFromCurrentList) {
+        setProductTotal((current) => Math.max(0, current - 1));
+      }
+      applyMetricDelta(1);
+      if (editingProductId === product.id) {
+        setForm((current) => ({ ...current, published: nextPublished }));
+      }
+
+      await api(`/products/${product.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ published: nextPublished }),
+      });
+      showToast(nextPublished ? "Producto publicado." : "Producto despublicado.");
+    } catch (err) {
+      setProducts((current) => {
+        const hasCurrentProduct = current.some((item) => item.id === product.id);
+        if (!hasCurrentProduct && removeFromCurrentList) {
+          return [product, ...current];
+        }
+
+        return current.map((item) =>
+          item.id === product.id ? { ...item, published: product.published } : item,
+        );
+      });
+      if (removeFromCurrentList) {
+        setProductTotal((current) => current + 1);
+      }
+      applyMetricDelta(-1);
+      if (editingProductId === product.id) {
+        setForm((current) => ({ ...current, published: product.published }));
+      }
+      showToast(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cambiar la publicacion del producto.",
+      );
+    } finally {
+      setPublishingProductId(null);
     }
   };
 
@@ -3872,6 +3942,20 @@ export default function AdminProductsSection({
                 {canManageCatalog ? (
                   <td style={tdStyle}>
                     <div style={iconActionsStyle}>
+                      <button
+                        type="button"
+                        title={product.published ? "Despublicar producto" : "Publicar producto"}
+                        aria-label={product.published ? "Despublicar producto" : "Publicar producto"}
+                        onClick={() => void toggleProductPublication(product)}
+                        disabled={publishingProductId === product.id}
+                        style={publicationActionButtonStyle(product.published, publishingProductId === product.id)}
+                      >
+                        {publishingProductId === product.id
+                          ? "..."
+                          : product.published
+                            ? "Despublicar"
+                            : "Publicar"}
+                      </button>
                       <button type="button" title="Editar" aria-label="Editar producto" onClick={() => void hydrateFormFromProduct(product)} style={iconButtonStyle}>&#9998;</button>
                       <button type="button" title="Duplicar" aria-label="Duplicar producto" onClick={() => void duplicateProductDraft(product)} style={iconButtonStyle}>&#10697;</button>
                       <button type="button" title="Eliminar" aria-label="Eliminar producto" onClick={() => setPendingRemoval({ kind: "product", productId: product.id, productTitle: product.title, productsCount: 0 })} style={iconButtonStyle}>&times;</button>
@@ -6890,6 +6974,29 @@ const iconButtonStyle: React.CSSProperties = {
   cursor: "pointer",
   fontWeight: 800,
 };
+const publicationActionButtonStyle = (published: boolean, disabled: boolean): React.CSSProperties => ({
+  minWidth: 94,
+  height: 36,
+  padding: "0 12px",
+  borderRadius: 10,
+  border: published
+    ? "1px solid var(--admin-status-idle-border)"
+    : "1px solid var(--admin-tone-success-border)",
+  background: published
+    ? "var(--page-panel-strong-bg)"
+    : "var(--admin-tone-success-bg)",
+  color: published
+    ? "var(--account-text-strong)"
+    : "var(--admin-tone-success-color)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: disabled ? "wait" : "pointer",
+  fontSize: 12,
+  fontWeight: 800,
+  opacity: disabled ? 0.68 : 1,
+  whiteSpace: "nowrap",
+});
 const productThumbStyle: React.CSSProperties = {
   width: 48,
   height: 48,
