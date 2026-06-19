@@ -107,9 +107,11 @@ type AdminCorreoArgentinoConfig = {
     length: string;
   };
   packagingMarginPercent: string;
+  extraEstimatedDays: string;
   pricing: {
     markupType: string;
     markupValue: string;
+    roundToNearestHundred: boolean;
   };
   rules: {
     allowHomeDelivery: boolean;
@@ -910,9 +912,11 @@ export default function DeveloperModePanel({
       length: "10",
     },
     packagingMarginPercent: "8",
+    extraEstimatedDays: "5",
     pricing: {
       markupType: "percentage",
       markupValue: "0",
+      roundToNearestHundred: true,
     },
     rules: {
       allowHomeDelivery: true,
@@ -1017,9 +1021,11 @@ export default function DeveloperModePanel({
             length: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
           },
           packagingMarginPercent: String(Number(integrationsResponse?.correoArgentino?.packagingMarginPercent ?? 8)),
+          extraEstimatedDays: String(Number(integrationsResponse?.correoArgentino?.extraEstimatedDays ?? 5)),
           pricing: {
             markupType: String(integrationsResponse?.correoArgentino?.pricing?.markupType ?? "percentage"),
             markupValue: String(Number(integrationsResponse?.correoArgentino?.pricing?.markupValue ?? 0)),
+            roundToNearestHundred: integrationsResponse?.correoArgentino?.pricing?.roundToNearestHundred !== false,
           },
           rules: {
             allowHomeDelivery: integrationsResponse?.correoArgentino?.rules?.allowHomeDelivery !== false,
@@ -1084,9 +1090,11 @@ export default function DeveloperModePanel({
               length: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
             },
             packagingMarginPercent: String(Number(integrationsResponse?.correoArgentino?.packagingMarginPercent ?? 8)),
+            extraEstimatedDays: String(Number(integrationsResponse?.correoArgentino?.extraEstimatedDays ?? 5)),
             pricing: {
               markupType: String(integrationsResponse?.correoArgentino?.pricing?.markupType ?? "percentage"),
               markupValue: String(Number(integrationsResponse?.correoArgentino?.pricing?.markupValue ?? 0)),
+              roundToNearestHundred: integrationsResponse?.correoArgentino?.pricing?.roundToNearestHundred !== false,
             },
             rules: {
               allowHomeDelivery: integrationsResponse?.correoArgentino?.rules?.allowHomeDelivery !== false,
@@ -2024,9 +2032,11 @@ export default function DeveloperModePanel({
                 length: Number(correoArgentinoConfig.defaultPackageDimensions.length || 0),
               },
               packagingMarginPercent: Number(correoArgentinoConfig.packagingMarginPercent || 0),
+              extraEstimatedDays: Number(correoArgentinoConfig.extraEstimatedDays || 0),
               pricing: {
                 markupType: correoArgentinoConfig.pricing.markupType,
                 markupValue: Number(correoArgentinoConfig.pricing.markupValue || 0),
+                roundToNearestHundred: correoArgentinoConfig.pricing.roundToNearestHundred,
               },
               rules: {
                 allowHomeDelivery: correoArgentinoConfig.rules.allowHomeDelivery,
@@ -2084,9 +2094,11 @@ export default function DeveloperModePanel({
             length: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
           },
           packagingMarginPercent: String(Number(correoResponse?.correoArgentino?.packagingMarginPercent ?? 8)),
+          extraEstimatedDays: String(Number(correoResponse?.correoArgentino?.extraEstimatedDays ?? 5)),
           pricing: {
             markupType: String(correoResponse?.correoArgentino?.pricing?.markupType ?? "percentage"),
             markupValue: String(Number(correoResponse?.correoArgentino?.pricing?.markupValue ?? 0)),
+            roundToNearestHundred: correoResponse?.correoArgentino?.pricing?.roundToNearestHundred !== false,
           },
           rules: {
             allowHomeDelivery: correoResponse?.correoArgentino?.rules?.allowHomeDelivery !== false,
@@ -2151,9 +2163,11 @@ export default function DeveloperModePanel({
               length: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
             },
             packagingMarginPercent: String(Number(correoResponse?.correoArgentino?.packagingMarginPercent ?? 8)),
+            extraEstimatedDays: String(Number(correoResponse?.correoArgentino?.extraEstimatedDays ?? 5)),
             pricing: {
               markupType: String(correoResponse?.correoArgentino?.pricing?.markupType ?? "percentage"),
               markupValue: String(Number(correoResponse?.correoArgentino?.pricing?.markupValue ?? 0)),
+              roundToNearestHundred: correoResponse?.correoArgentino?.pricing?.roundToNearestHundred !== false,
             },
             rules: {
               allowHomeDelivery: correoResponse?.correoArgentino?.rules?.allowHomeDelivery !== false,
@@ -2807,9 +2821,17 @@ export default function DeveloperModePanel({
                                 <input type="number" min={0} step="0.01" value={correoArgentinoConfig.pricing.markupValue} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, pricing: { ...current.pricing, markupValue: event.target.value } }))} placeholder="0" style={inputStyle} />
                               </div>
                             </div>
+                            <label style={{ ...checkboxRowStyle, alignSelf: "end" }}>
+                              <input type="checkbox" checked={correoArgentinoConfig.pricing.roundToNearestHundred} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, pricing: { ...current.pricing, roundToNearestHundred: event.target.checked } }))} />
+                              Redondear envio a centenas
+                            </label>
                             <div style={{ display: "grid", gap: 8 }}>
                               <label style={labelStyle}>Margen de empaque (%)</label>
                               <input type="number" min={0} max={100} step="0.1" value={correoArgentinoConfig.packagingMarginPercent} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, packagingMarginPercent: event.target.value }))} placeholder="8" style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Dias extra de entrega</label>
+                              <input type="number" min={0} step="1" value={correoArgentinoConfig.extraEstimatedDays} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, extraEstimatedDays: event.target.value }))} placeholder="5" style={inputStyle} />
                             </div>
                             <div style={{ display: "grid", gap: 8 }}>
                               <label style={labelStyle}>Peso por defecto (g)</label>

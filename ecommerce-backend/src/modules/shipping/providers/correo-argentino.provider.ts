@@ -12,6 +12,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
+import { roundToNearestHundred } from '../../../common/price-input-mode';
 import {
   ProviderShipment,
   ProviderTrackingEvent,
@@ -119,9 +120,14 @@ export class CorreoArgentinoProvider implements ShippingProvider {
         : {};
     const markupType = this.text(pricing.markupType) || 'percentage';
     const markupValue = Number(pricing.markupValue ?? 0);
+    const roundToHundred = pricing.roundToNearestHundred !== false;
     const freeShippingThreshold = Number(pricing.freeShippingThreshold ?? 0);
     const isFreeShipping =
       freeShippingThreshold > 0 && data.value >= freeShippingThreshold;
+    const excludedServiceKeywords = this.getExcludedServiceKeywords(config);
+    const extraEstimatedDays = this.normalizeNonNegativeInteger(
+      config.metadata.extraEstimatedDays,
+    );
 
     const seen = new Set<string>();
     return responses.flatMap((response, index) =>
@@ -130,17 +136,31 @@ export class CorreoArgentinoProvider implements ShippingProvider {
           const deliveryType = this.deliveryType(
             rate.deliveredType || rate.deliveryType || types[index],
           );
+          const productName = this.text(rate.productName) || 'Correo Argentino';
+          if (this.matchesExcludedService(productName, excludedServiceKeywords)) {
+            return [];
+          }
+
           const rawPrice = Number(rate.price ?? 0);
+          const markedUpPrice = this.applyMarkup(
+            rawPrice,
+            markupType,
+            markupValue,
+          );
           const price = isFreeShipping
             ? 0
-            : this.applyMarkup(rawPrice, markupType, markupValue);
+            : roundToHundred
+              ? roundToNearestHundred(markedUpPrice)
+              : markedUpPrice;
           const mapped: ShippingRate = {
             provider: this.providerCode,
-            method: `${
-              this.text(rate.productName) || 'Correo Argentino'
-            } - ${deliveryType === 'S' ? 'Sucursal' : 'Domicilio'}`,
+            method: `${productName} - ${
+              deliveryType === 'S' ? 'Sucursal' : 'Domicilio'
+            }`,
             price,
-            estimatedDays: this.days(rate.deliveryTimeMin, rate.deliveryTimeMax),
+            estimatedDays:
+              this.days(rate.deliveryTimeMin, rate.deliveryTimeMax) +
+              extraEstimatedDays,
             carrierId: this.providerCode,
             carrierName: 'Correo Argentino',
             serviceCode: this.text(rate.productType) || config.productType,
@@ -155,6 +175,9 @@ export class CorreoArgentinoProvider implements ShippingProvider {
               requiresBranchSelection:
                 deliveryType === 'S' && !this.text(config.defaultAgency),
               rawPrice,
+              productName,
+              extraEstimatedDays,
+              roundedToNearestHundred: roundToHundred,
               markup:
                 markupValue > 0
                   ? { type: markupType, value: markupValue }
@@ -1536,6 +1559,21 @@ export class CorreoArgentinoProvider implements ShippingProvider {
       : (['D'] as Array<'D' | 'S'>);
   }
 
+  private getExcludedServiceKeywords(config: RuntimeConfig) {
+    const raw = Array.isArray(config.metadata.excludedServiceKeywords)
+      ? config.metadata.excludedServiceKeywords
+      : ['expreso', 'express', 'expresso'];
+
+    return raw
+      .map((value) => this.normalizeText(String(value)))
+      .filter(Boolean);
+  }
+
+  private matchesExcludedService(value: string, keywords: string[]) {
+    const normalized = this.normalizeText(value);
+    return keywords.some((keyword) => normalized.includes(keyword));
+  }
+
   private deliveryType(value?: string | null) {
     return value?.trim().toUpperCase() === 'S' ? 'S' : 'D';
   }
@@ -1647,6 +1685,23 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     if (Number.isFinite(maxDays) && maxDays > 0) return maxDays;
     if (Number.isFinite(minDays) && minDays > 0) return minDays;
     return 3;
+  }
+
+  private normalizeNonNegativeInteger(value: unknown) {
+    const safe = Number(value ?? 0);
+    if (!Number.isFinite(safe) || safe < 0) {
+      return 0;
+    }
+
+    return Math.trunc(safe);
+  }
+
+  private normalizeText(value: string) {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
   }
 
   private trackStatus(event?: string | null, status?: string | null) {

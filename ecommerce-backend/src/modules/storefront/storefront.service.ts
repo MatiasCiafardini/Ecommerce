@@ -503,9 +503,14 @@ export class StorefrontService {
         length: this.pickNumber(defaultPackageDimensions.length),
       },
       packagingMarginPercent: this.pickNumber(metadata.packagingMarginPercent),
+      extraEstimatedDays: this.pickNumber(metadata.extraEstimatedDays),
       pricing: {
         markupType: this.pickString(pricing.markupType) || 'percentage',
         markupValue: this.pickNumber(pricing.markupValue),
+        roundToNearestHundred: this.pickBoolean(
+          pricing.roundToNearestHundred,
+          true,
+        ),
       },
       rules: {
         allowHomeDelivery: this.pickBoolean(rules.allowHomeDelivery, true),
