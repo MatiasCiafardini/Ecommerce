@@ -333,10 +333,8 @@ export class ProductsService {
 
     if (status === 'published') {
       where.published = true;
-      andConditions.push(this.buildHasStockWhere(storeId));
     } else if (status === 'draft') {
       where.published = false;
-      andConditions.push(this.buildHasStockWhere(storeId));
     } else if (status === 'without-stock') {
       andConditions.push(this.buildWithoutStockWhere(storeId));
     }
@@ -778,8 +776,8 @@ export class ProductsService {
       )
       SELECT
         COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE published = true AND stock > 0)::int AS published,
-        COUNT(*) FILTER (WHERE published = false AND stock > 0)::int AS draft,
+        COUNT(*) FILTER (WHERE published = true)::int AS published,
+        COUNT(*) FILTER (WHERE published = false)::int AS draft,
         COUNT(*) FILTER (WHERE stock <= 0)::int AS "withoutStock"
       FROM product_stock
     `);

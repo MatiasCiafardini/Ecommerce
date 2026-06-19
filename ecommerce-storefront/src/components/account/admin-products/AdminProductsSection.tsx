@@ -2182,15 +2182,12 @@ export default function AdminProductsSection({
 
   const toggleProductPublication = async (product: Product) => {
     const nextPublished = !product.published;
-    const hasStock = getProductTotalStock(product) > 0;
     const removeFromCurrentList =
-      (productStatusFilter === "published" && !nextPublished && hasStock) ||
-      (productStatusFilter === "draft" && nextPublished && hasStock);
-    const metricDelta = hasStock ? (nextPublished ? 1 : -1) : 0;
+      (productStatusFilter === "published" && !nextPublished) ||
+      (productStatusFilter === "draft" && nextPublished);
+    const metricDelta = nextPublished ? 1 : -1;
 
     const applyMetricDelta = (direction: 1 | -1) => {
-      if (!metricDelta) return;
-
       setProductMetrics((current) => ({
         ...current,
         published: Math.max(0, current.published + metricDelta * direction),
