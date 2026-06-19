@@ -9,6 +9,10 @@ import { CreateDiscountDto } from './dto/create-discount.dto';
 import { DiscountEngineService } from './engine/discount-engine.service';
 import { PreviewDiscountDto } from './dto/preview-discount.dto';
 import { roundCurrency } from '../../common/currency';
+import {
+  resolveStorePricingPolicy,
+  resolveTransferPrice,
+} from '../../common/price-input-mode';
 
 @Injectable()
 export class DiscountsService {
@@ -436,6 +440,10 @@ export class DiscountsService {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
       select: {
+        id: true,
+        name: true,
+        domain: true,
+        storefrontConfig: true,
         bankTransferDiscountPercentage: true,
       },
     });
@@ -449,9 +457,20 @@ export class DiscountsService {
       return null;
     }
 
+    const pricingPolicy = resolveStorePricingPolicy(store);
+    const roundedTransferTotal = resolveTransferPrice(
+      subtotal,
+      percentage,
+      pricingPolicy,
+    );
+    const amount =
+      roundedTransferTotal !== null
+        ? roundCurrency(Math.min(Math.max(subtotal - roundedTransferTotal, 0), subtotal))
+        : roundCurrency(subtotal * (percentage / 100));
+
     return {
       percentage,
-      amount: roundCurrency(subtotal * (percentage / 100)),
+      amount,
     };
   }
 

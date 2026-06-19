@@ -1,18 +1,49 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { DiscountsService } from './discounts.service';
 
 describe('DiscountsService', () => {
   let service: DiscountsService;
+  let prisma: {
+    store: {
+      findUnique: jest.Mock;
+    };
+  };
+  let discountEngine: {
+    calculateAutomaticDiscount: jest.Mock;
+  };
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [DiscountsService],
-    }).compile();
+  beforeEach(() => {
+    prisma = {
+      store: {
+        findUnique: jest.fn(),
+      },
+    };
+    discountEngine = {
+      calculateAutomaticDiscount: jest.fn().mockResolvedValue(null),
+    };
 
-    service = module.get<DiscountsService>(DiscountsService);
+    service = new DiscountsService(prisma as never, discountEngine as never);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('rounds Comovosyyo bank transfer total before deriving the discount amount', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 7,
+      name: 'Comovosyyo',
+      domain: 'comovosyyo.com',
+      storefrontConfig: {
+        theme: 'comovosyyo',
+      },
+      bankTransferDiscountPercentage: 15,
+    });
+
+    const result = await service.previewDiscount(7, {
+      subtotal: 17600,
+      paymentMethod: 'bank_transfer',
+    });
+
+    expect(result).toMatchObject({
+      paymentMethodDiscountAmount: 2600,
+      amount: 2600,
+      paymentMethodDiscountPercentage: 15,
+    });
   });
 });
