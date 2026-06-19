@@ -18,61 +18,116 @@ export default function CheckoutLayout({
   onStepSelect?: (step: number) => void;
   canNavigateToStep?: (step: number) => boolean;
 }) {
+  const currentStep = steps.find((item) => item.number === step) ?? steps[0];
+  const progressPercent = Math.max(0, Math.min(100, ((step - 1) / (steps.length - 1)) * 100));
+
   return (
     <main
+      className="checkout-shell"
       style={{
         minHeight: "calc(100vh - 180px)",
-        padding: "72px 24px 96px",
+        padding: "44px 24px 72px",
         background: "var(--page-shell-bg)",
       }}
     >
       <div
+        className="checkout-page-grid"
         style={{
           maxWidth: 1220,
           margin: "0 auto",
           display: "grid",
-          gap: 28,
+          gap: 20,
         }}
       >
         <section
+          className="checkout-progress-panel"
           style={{
-            borderRadius: 36,
+            borderRadius: 28,
             border: "1px solid var(--checkout-border)",
             background: "var(--checkout-panel-strong-bg)",
-            padding: "30px 32px",
+            padding: "22px 24px",
             display: "grid",
-            gap: 24,
-            boxShadow: "0 24px 50px rgba(0,0,0,0.18)",
+            gap: 18,
+            boxShadow: "0 18px 42px rgba(0,0,0,0.12)",
           }}
         >
-          <div>
-            <p
+          <div
+            className="checkout-progress-heading"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 18,
+              alignItems: "end",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  margin: 0,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.24em",
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                }}
+              >
+                Checkout
+              </p>
+              <h1
+                style={{
+                  margin: "8px 0 0",
+                  fontSize: "clamp(2rem, 4vw, 3.6rem)",
+                  letterSpacing: "-0.05em",
+                  lineHeight: 0.96,
+                }}
+              >
+                Cerra tu compra
+              </h1>
+            </div>
+            <div
               style={{
-                margin: 0,
-                textTransform: "uppercase",
-                letterSpacing: "0.28em",
-                fontSize: 12,
-                color: "var(--text-muted)",
+                display: "grid",
+                gap: 6,
+                minWidth: 180,
+                color: "var(--checkout-text-muted)",
+                textAlign: "right",
               }}
             >
-              Checkout
-            </p>
-            <h1
-              style={{
-                margin: "12px 0 0",
-                fontSize: "clamp(2.6rem, 5vw, 4.8rem)",
-                letterSpacing: "-0.07em",
-              }}
-            >
-              Cerra la compra sin perder el ritmo
-            </h1>
+              <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.16em" }}>
+                Paso {currentStep.number} de {steps.length}
+              </span>
+              <strong style={{ color: "var(--checkout-text-strong)", fontSize: 18 }}>
+                {currentStep.label}
+              </strong>
+            </div>
           </div>
 
           <div
+            aria-hidden="true"
+            style={{
+              height: 6,
+              borderRadius: 999,
+              background: "color-mix(in srgb, var(--checkout-border) 48%, transparent)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${progressPercent}%`,
+                height: "100%",
+                borderRadius: 999,
+                background: "var(--checkout-primary-bg)",
+                transition: "width 220ms var(--ease-theme)",
+              }}
+            />
+          </div>
+
+          <div
+            className="checkout-steps-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 12,
+              gap: 10,
             }}
           >
             {steps.map((item) => {
@@ -94,25 +149,26 @@ export default function CheckoutLayout({
                   }}
                   disabled={!isClickable}
                   style={{
-                    borderRadius: 22,
+                    borderRadius: 18,
                     border:
                       state === "active"
-                        ? "1px solid color-mix(in srgb, var(--accent-strong) 34%, var(--checkout-border-strong))"
+                        ? "1px solid color-mix(in srgb, var(--checkout-primary-bg) 42%, var(--checkout-border-strong))"
                         : "1px solid var(--checkout-border)",
                     background:
                       state === "active"
-                        ? "color-mix(in srgb, var(--accent) 14%, var(--checkout-panel-bg))"
+                        ? "color-mix(in srgb, var(--checkout-primary-bg) 14%, var(--checkout-panel-bg))"
                         : state === "done"
                           ? "var(--ghost-chip-bg)"
                           : "transparent",
-                    padding: "16px 18px",
+                    padding: "12px 14px",
                     display: "flex",
                     alignItems: "center",
-                    gap: 14,
+                    gap: 12,
                     textAlign: "left",
                     color: "var(--checkout-text-strong)",
                     cursor: isClickable ? "pointer" : "default",
                     opacity: isClickable ? 1 : 0.86,
+                    minHeight: 66,
                   }}
                 >
                   <div
@@ -125,13 +181,13 @@ export default function CheckoutLayout({
                       placeItems: "center",
                       background:
                         state === "active"
-                          ? "var(--accent-strong)"
+                          ? "var(--checkout-primary-bg)"
                           : state === "done"
                             ? "color-mix(in srgb, var(--accent) 12%, var(--paper))"
                             : "var(--ghost-chip-bg)",
                       color:
                         state === "active"
-                          ? "var(--accent-contrast)"
+                          ? "var(--checkout-primary-color)"
                           : "var(--checkout-text-strong)",
                       fontWeight: 700,
                     }}

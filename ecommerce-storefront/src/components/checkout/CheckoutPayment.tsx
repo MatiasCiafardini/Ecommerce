@@ -193,12 +193,12 @@ export default function CheckoutPayment({
     >
       <div
         style={{
-          borderRadius: 32,
+          borderRadius: 28,
           border: "1px solid var(--checkout-border)",
           background: "var(--checkout-panel-bg)",
-          padding: 28,
+          padding: 22,
           display: "grid",
-          gap: 18,
+          gap: 14,
         }}
       >
         <div>
@@ -216,7 +216,8 @@ export default function CheckoutPayment({
           <h2
             style={{
               margin: "12px 0 0",
-              fontSize: "clamp(2rem, 3vw, 3rem)",
+              fontSize: "clamp(1.75rem, 2.8vw, 2.6rem)",
+              lineHeight: 1.05,
               color: "var(--checkout-text-strong)",
             }}
           >
@@ -239,7 +240,7 @@ export default function CheckoutPayment({
                 style={{
                   width: "100%",
                   textAlign: "left",
-                  borderRadius: 24,
+                  borderRadius: 20,
                   border: active
                     ? "1px solid var(--checkout-border-strong)"
                     : "1px solid var(--checkout-border)",
@@ -247,7 +248,7 @@ export default function CheckoutPayment({
                     ? "var(--checkout-card-alt-bg)"
                     : "var(--checkout-card-bg)",
                   color: "var(--checkout-text-strong)",
-                  padding: 22,
+                  padding: 18,
                   cursor: "pointer",
                 }}
               >
@@ -268,13 +269,13 @@ export default function CheckoutPayment({
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    gap: 16,
+                    gap: 14,
                     alignItems: "end",
                     marginTop: 10,
                   }}
                 >
                   <div>
-                    <h3 style={{ margin: 0, fontSize: 22 }}>{option.method}</h3>
+                    <h3 style={{ margin: 0, fontSize: 21, lineHeight: 1.18 }}>{option.method}</h3>
                     <p
                       style={{
                         margin: "8px 0 0",
@@ -284,7 +285,7 @@ export default function CheckoutPayment({
                       {getShippingTimingCopy(option)}
                     </p>
                   </div>
-                  <strong style={{ fontSize: 24 }}>
+                  <strong style={{ fontSize: 23, whiteSpace: "nowrap" }}>
                     {getShippingPriceLabel(option)}
                   </strong>
                 </div>
@@ -296,12 +297,12 @@ export default function CheckoutPayment({
 
       <aside
         style={{
-          borderRadius: 32,
+          borderRadius: 28,
           border: "1px solid var(--checkout-border)",
           background: "var(--checkout-panel-bg)",
-          padding: 28,
+          padding: 22,
           display: "grid",
-          gap: 18,
+          gap: 14,
           alignSelf: "start",
         }}
       >
@@ -317,7 +318,7 @@ export default function CheckoutPayment({
           >
             Pago
           </p>
-          <h3 style={{ margin: "12px 0 0", fontSize: 28, color: "var(--checkout-text-strong)" }}>
+          <h3 style={{ margin: "8px 0 0", fontSize: 24, color: "var(--checkout-text-strong)" }}>
             Defini como queres cerrar
           </h3>
         </div>
@@ -337,7 +338,7 @@ export default function CheckoutPayment({
                 style={{
                   width: "100%",
                   textAlign: "left",
-                  borderRadius: 22,
+                  borderRadius: 20,
                   border: active
                     ? "1px solid var(--checkout-border-strong)"
                     : "1px solid var(--checkout-border)",
@@ -345,7 +346,7 @@ export default function CheckoutPayment({
                     ? "var(--checkout-card-alt-bg)"
                     : "var(--checkout-card-bg)",
                   color: "var(--checkout-text-strong)",
-                  padding: 20,
+                  padding: 16,
                   cursor: "pointer",
                   display: "grid",
                   gap: 8,
@@ -383,10 +384,10 @@ export default function CheckoutPayment({
 
         <div
           style={{
-            borderRadius: 22,
+            borderRadius: 18,
             border: "1px solid var(--checkout-border)",
             background: "var(--checkout-card-bg)",
-            padding: 18,
+            padding: 14,
             display: "grid",
             gap: 8,
           }}
@@ -410,6 +411,7 @@ export default function CheckoutPayment({
         </div>
 
         <button
+          className="checkout-primary-action"
           disabled={!effectiveSelectedMethod || !selectedShipping}
           onClick={() =>
             effectiveSelectedMethod &&

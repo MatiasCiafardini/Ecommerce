@@ -2821,7 +2821,7 @@ export default function DeveloperModePanel({
                                 <input type="number" min={0} step="0.01" value={correoArgentinoConfig.pricing.markupValue} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, pricing: { ...current.pricing, markupValue: event.target.value } }))} placeholder="0" style={inputStyle} />
                               </div>
                             </div>
-                            <label style={{ ...checkboxRowStyle, alignSelf: "end" }}>
+                            <label style={{ ...productChipStyle(correoArgentinoConfig.pricing.roundToNearestHundred), alignSelf: "end" }}>
                               <input type="checkbox" checked={correoArgentinoConfig.pricing.roundToNearestHundred} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, pricing: { ...current.pricing, roundToNearestHundred: event.target.checked } }))} />
                               Redondear envio a centenas
                             </label>

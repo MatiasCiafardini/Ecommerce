@@ -847,9 +847,9 @@ export default function CheckoutReview({
           className="checkout-review-primary"
           style={{
             ...checkoutPanelStyle,
-            padding: 28,
+            padding: 22,
             display: "grid",
-            gap: 18,
+            gap: 14,
             alignContent: "start",
             minHeight: rightColumnHeight ?? undefined,
           }}
@@ -869,7 +869,8 @@ export default function CheckoutReview({
             <h2
               style={{
                 margin: "12px 0 0",
-                fontSize: "clamp(2rem, 3vw, 3rem)",
+                fontSize: "clamp(1.75rem, 2.8vw, 2.6rem)",
+                lineHeight: 1.05,
                 color: "var(--checkout-text-strong)",
               }}
             >
@@ -880,10 +881,10 @@ export default function CheckoutReview({
           {checkoutError ? (
             <div
               style={{
-                borderRadius: 24,
+                borderRadius: 20,
                 border: "1px solid rgba(180, 64, 64, 0.24)",
                 background: "rgba(120,18,18,0.18)",
-                padding: 20,
+                padding: 16,
                 display: "grid",
                 gap: 12,
               }}
@@ -897,6 +898,7 @@ export default function CheckoutReview({
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <button
                   type="button"
+                  className="checkout-primary-action"
                   onClick={goToCart}
                   style={primaryActionStyle}
                 >
@@ -913,23 +915,23 @@ export default function CheckoutReview({
             </div>
           ) : null}
 
-          <div style={{ display: "grid", gap: 14 }}>
+          <div style={{ display: "grid", gap: 10 }}>
             {cart.map((item, index) => (
               <article
                 key={item.variantId}
                 className="layout-review-item"
                 style={{
-                  borderRadius: 24,
+                  borderRadius: 18,
                   border: "1px solid var(--checkout-border)",
                   background: "var(--checkout-card-bg)",
-                  padding: 20,
+                  padding: 14,
                 }}
               >
                 <div
                   style={{
                     width: 88,
                     aspectRatio: "4 / 5",
-                    borderRadius: 18,
+                    borderRadius: 14,
                     overflow: "hidden",
                     background: "#ffffff",
                     border: "1px solid color-mix(in srgb, var(--accent-strong) 10%, transparent)",
@@ -962,7 +964,7 @@ export default function CheckoutReview({
                   )}
                 </div>
                 <div>
-                    <strong style={{ display: "block", fontSize: 22 }}>{item.name}</strong>
+                    <strong style={{ display: "block", fontSize: 19, lineHeight: 1.2 }}>{item.name}</strong>
                     
                   <span
                     style={{
@@ -974,7 +976,7 @@ export default function CheckoutReview({
                     {item.quantity} unidad{item.quantity === 1 ? "" : "es"}
                   </span>
                 </div>
-                <strong style={{ fontSize: 22 }}>{money(item.price * item.quantity)}</strong>
+                <strong style={{ fontSize: 20 }}>{money(item.price * item.quantity)}</strong>
               </article>
             ))}
           </div>
@@ -984,16 +986,16 @@ export default function CheckoutReview({
           className="checkout-review-sidebar"
           style={{
             ...checkoutPanelStyle,
-            padding: 28,
+            padding: 22,
             display: "flex",
             flexDirection: "column",
-            gap: 18,
+            gap: 14,
             minHeight: 0,
             maxHeight: rightColumnHeight ?? undefined,
             height: rightColumnHeight ?? undefined,
           }}
         >
-          <div className="checkout-review-sidebar-scroll" style={{ display: "grid", gap: 18, minHeight: 0 }}>
+          <div className="checkout-review-sidebar-scroll" style={{ display: "grid", gap: 12, minHeight: 0 }}>
             <div style={summaryCardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
                 <span style={{ color: "var(--checkout-text-muted)" }}>Subtotal</span>
@@ -1033,7 +1035,7 @@ export default function CheckoutReview({
               <div style={{ height: 1, background: "var(--checkout-border)" }} />
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
                 <span>Total</span>
-                <strong style={{ fontSize: 28 }}>{money(total)}</strong>
+                <strong style={{ fontSize: 26 }}>{money(total)}</strong>
               </div>
             </div>
 
@@ -1106,6 +1108,7 @@ export default function CheckoutReview({
                   />
                   <button
                     type="button"
+                    className="checkout-primary-action"
                     onClick={() => void previewDiscount(couponCode)}
                     disabled={discountLoading || !couponCode.trim()}
                     style={primaryActionStyle}
@@ -1167,6 +1170,7 @@ export default function CheckoutReview({
           {paymentMethod === "mercadopago" ? null : (
             <div style={{ paddingTop: 4 }}>
               <button
+                className="checkout-primary-action"
                 onClick={handleConfirm}
                 disabled={loading}
                 style={{ ...primaryActionStyle, width: "100%" }}
@@ -1451,18 +1455,18 @@ export default function CheckoutReview({
 }
 
 const summaryCardStyle: React.CSSProperties = {
-  borderRadius: 22,
+  borderRadius: 18,
   border: "1px solid var(--checkout-border)",
   background: "var(--checkout-card-bg)",
-  padding: 20,
+  padding: 16,
   display: "grid",
-  gap: 12,
+  gap: 10,
 };
 
 const transferFieldStyle: React.CSSProperties = {
   width: "100%",
   padding: "14px 16px",
-  borderRadius: 16,
+  borderRadius: 14,
   border: "1px solid var(--checkout-border)",
   background: "var(--checkout-field-bg)",
   color: "var(--checkout-field-color)",
@@ -1470,7 +1474,7 @@ const transferFieldStyle: React.CSSProperties = {
 };
 
 const uploadFieldStyle: React.CSSProperties = {
-  borderRadius: 18,
+  borderRadius: 16,
   border: "1px dashed var(--checkout-border-strong)",
   background: "var(--checkout-card-alt-bg)",
   padding: 16,
@@ -1499,7 +1503,7 @@ const secondaryActionStyle: React.CSSProperties = {
 };
 
 const checkoutPanelStyle: React.CSSProperties = {
-  borderRadius: 32,
+  borderRadius: 28,
   border: "1px solid var(--checkout-border)",
   background: "var(--checkout-panel-bg)",
   color: "var(--checkout-text-strong)",

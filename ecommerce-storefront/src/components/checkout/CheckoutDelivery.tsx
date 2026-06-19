@@ -188,12 +188,12 @@ export default function CheckoutDelivery({
     >
       <div
         style={{
-          borderRadius: 32,
+          borderRadius: 28,
           border: "1px solid var(--checkout-border)",
           background: "var(--checkout-panel-bg)",
-          padding: 28,
+          padding: 22,
           display: "grid",
-          gap: 18,
+          gap: 14,
         }}
       >
         <div>
@@ -211,7 +211,8 @@ export default function CheckoutDelivery({
           <h2
             style={{
               margin: "12px 0 0",
-              fontSize: "clamp(2rem, 3vw, 3rem)",
+              fontSize: "clamp(1.75rem, 2.8vw, 2.6rem)",
+              lineHeight: 1.05,
               color: "var(--checkout-text-strong)",
             }}
           >
@@ -282,8 +283,8 @@ export default function CheckoutDelivery({
                 })}
               </div>
             ) : null}
-            <div style={hintStyle}>
-              {selectedPickup.description || "Cuando tu pedido este listo, te vamos a contactar para coordinar el retiro."}
+          <div style={hintStyle}>
+              {selectedPickup.description || "Te avisamos cuando el pedido este listo para retirar."}
               {" "}
               {Number(selectedPickup.price ?? 0) <= 0
                 ? "No se cobra envio."
@@ -300,12 +301,12 @@ export default function CheckoutDelivery({
       <aside
         className="layout-sidebar"
         style={{
-          borderRadius: 32,
+          borderRadius: 28,
           border: "1px solid var(--checkout-border)",
           background: "var(--checkout-panel-bg)",
-          padding: 28,
+          padding: 22,
           display: "grid",
-          gap: 18,
+          gap: 14,
           alignSelf: "start",
         }}
       >
@@ -321,7 +322,7 @@ export default function CheckoutDelivery({
           >
             Contacto
           </p>
-          <h3 style={{ margin: "12px 0 0", fontSize: 28, color: "var(--checkout-text-strong)" }}>
+          <h3 style={{ margin: "8px 0 0", fontSize: 24, color: "var(--checkout-text-strong)" }}>
             Datos obligatorios
           </h3>
         </div>
@@ -354,7 +355,7 @@ export default function CheckoutDelivery({
           />
         </label>
 
-        <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.6 }}>
+        <p style={hintStyle}>
           Usamos este numero para coordinar el retiro, entrega o cualquier aviso importante del pedido.
           {!user?.phone?.trim() ? " Al continuar queda guardado en tu cuenta." : ""}
           {phone && !phoneIsValid ? " Revisa el numero: faltan digitos." : ""}
@@ -381,6 +382,7 @@ export default function CheckoutDelivery({
 
         <button
           type="button"
+          className="checkout-primary-action"
           disabled={!canContinue || savingPhone}
           onClick={() => void continueCheckout()}
           style={{
@@ -409,23 +411,6 @@ export default function CheckoutDelivery({
 const deliveryCardStyle = (active: boolean): React.CSSProperties => ({
   width: "100%",
   textAlign: "left",
-  borderRadius: 24,
-  border: active
-    ? "1px solid var(--checkout-border-strong)"
-    : "1px solid var(--checkout-border)",
-  background: active
-    ? "color-mix(in srgb, var(--checkout-primary-bg) 18%, var(--checkout-card-bg))"
-    : "var(--checkout-card-bg)",
-  color: "var(--checkout-text-strong)",
-  padding: 22,
-  cursor: "pointer",
-  display: "grid",
-  gap: 8,
-});
-
-const pickupMethodStyle = (active: boolean): React.CSSProperties => ({
-  width: "100%",
-  textAlign: "left",
   borderRadius: 20,
   border: active
     ? "1px solid var(--checkout-border-strong)"
@@ -435,6 +420,23 @@ const pickupMethodStyle = (active: boolean): React.CSSProperties => ({
     : "var(--checkout-card-bg)",
   color: "var(--checkout-text-strong)",
   padding: 18,
+  cursor: "pointer",
+  display: "grid",
+  gap: 8,
+});
+
+const pickupMethodStyle = (active: boolean): React.CSSProperties => ({
+  width: "100%",
+  textAlign: "left",
+  borderRadius: 18,
+  border: active
+    ? "1px solid var(--checkout-border-strong)"
+    : "1px solid var(--checkout-border)",
+  background: active
+    ? "color-mix(in srgb, var(--checkout-primary-bg) 18%, var(--checkout-card-bg))"
+    : "var(--checkout-card-bg)",
+  color: "var(--checkout-text-strong)",
+  padding: 16,
   cursor: "pointer",
   display: "grid",
   gap: 8,
@@ -453,10 +455,10 @@ const descriptionStyle: React.CSSProperties = {
 };
 
 const hintStyle: React.CSSProperties = {
-  borderRadius: 20,
+  borderRadius: 18,
   border: "1px solid var(--checkout-border)",
-  background: "var(--checkout-card-bg)",
+  background: "color-mix(in srgb, var(--checkout-card-bg) 72%, transparent)",
   color: "var(--checkout-text-muted)",
-  lineHeight: 1.7,
-  padding: 18,
+  lineHeight: 1.55,
+  padding: "12px 14px",
 };

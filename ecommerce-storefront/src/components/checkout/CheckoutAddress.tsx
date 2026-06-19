@@ -20,11 +20,21 @@ type Address = {
 const fieldStyle = {
   width: "100%",
   padding: "14px 16px",
-  borderRadius: 16,
+  borderRadius: 14,
   border: "1px solid var(--checkout-border)",
   background: "var(--checkout-field-bg)",
   color: "var(--checkout-field-color)",
 } as const;
+
+const hintStyle: React.CSSProperties = {
+  margin: 0,
+  borderRadius: 16,
+  border: "1px solid var(--checkout-border)",
+  background: "color-mix(in srgb, var(--checkout-card-bg) 72%, transparent)",
+  color: "var(--checkout-text-muted)",
+  lineHeight: 1.55,
+  padding: "12px 14px",
+};
 
 const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -162,12 +172,12 @@ export default function CheckoutAddress({
     >
       <div
         style={{
-          borderRadius: 32,
+          borderRadius: 28,
           border: "1px solid var(--checkout-border)",
           background: "var(--checkout-panel-bg)",
-          padding: 28,
+          padding: 22,
           display: "grid",
-          gap: 18,
+          gap: 14,
         }}
       >
         <div>
@@ -185,7 +195,8 @@ export default function CheckoutAddress({
           <h2
             style={{
               margin: "12px 0 0",
-              fontSize: "clamp(2rem, 3vw, 3rem)",
+              fontSize: "clamp(1.75rem, 2.8vw, 2.6rem)",
+              lineHeight: 1.05,
               color: "var(--checkout-text-strong)",
             }}
           >
@@ -197,10 +208,10 @@ export default function CheckoutAddress({
           {addresses.length === 0 ? (
             <div
               style={{
-                borderRadius: 22,
+                borderRadius: 18,
                 border: "1px dashed var(--checkout-border-strong)",
                 background: "var(--checkout-card-alt-bg)",
-                padding: 22,
+                padding: 16,
                 color: "var(--checkout-text-muted)",
                 lineHeight: 1.8,
               }}
@@ -221,14 +232,14 @@ export default function CheckoutAddress({
                   style={{
                     width: "100%",
                     textAlign: "left",
-                    borderRadius: 24,
+                    borderRadius: 20,
                     border: active
                       ? "1px solid var(--checkout-border-strong)"
                       : "1px solid var(--checkout-border)",
                     background: active
                       ? "color-mix(in srgb, var(--checkout-primary-bg) 18%, var(--checkout-card-bg))"
                       : "var(--checkout-card-bg)",
-                    padding: 22,
+                    padding: 18,
                     cursor: "pointer",
                     color: "var(--checkout-text-strong)",
                   }}
@@ -276,12 +287,12 @@ export default function CheckoutAddress({
       <aside
         className="layout-sidebar"
         style={{
-          borderRadius: 32,
+          borderRadius: 28,
           border: "1px solid var(--checkout-border)",
           background: "var(--checkout-panel-bg)",
-          padding: 28,
+          padding: 22,
           display: "grid",
-          gap: 18,
+          gap: 14,
           alignSelf: "start",
         }}
       >
@@ -297,7 +308,7 @@ export default function CheckoutAddress({
           >
             Nueva direccion
           </p>
-          <h3 style={{ margin: "12px 0 0", fontSize: 28, color: "var(--checkout-text-strong)" }}>
+          <h3 style={{ margin: "8px 0 0", fontSize: 24, color: "var(--checkout-text-strong)" }}>
             Suma una alternativa
           </h3>
         </div>
@@ -326,18 +337,18 @@ export default function CheckoutAddress({
         />
 
         {accountPhone ? (
-          <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.6 }}>
+          <p style={hintStyle}>
             Usaremos el telefono guardado en tu cuenta.
           </p>
         ) : (
-          <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.6 }}>
+          <p style={hintStyle}>
             Usamos este telefono para coordinar la entrega. Al continuar, queda guardado en tu cuenta.
             {checkoutPhone && !phoneIsValid ? " Revisa el numero: faltan digitos." : ""}
           </p>
         )}
 
         <input
-          placeholder="Direccion"
+          placeholder="Calle y numero"
           value={form.address1}
           onChange={(e) => setForm({ ...form, address1: e.target.value })}
           style={fieldStyle}
@@ -396,6 +407,7 @@ export default function CheckoutAddress({
         ) : null}
 
         <button
+          className="checkout-primary-action"
           disabled={!selected || !selected.state?.trim() || !phoneIsValid || continuing}
           onClick={() => void continueWithSelectedAddress()}
           style={{

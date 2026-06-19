@@ -396,29 +396,30 @@ export default function CheckoutPage() {
             <div
               style={{
                 marginBottom: 16,
-                padding: "18px 20px",
-                borderRadius: 20,
-                border: "1px solid rgba(255,159,159,0.24)",
-                background: "rgba(120,18,18,0.18)",
+                padding: "16px 18px",
+                borderRadius: 18,
+                border: "1px solid color-mix(in srgb, var(--checkout-border-strong) 78%, transparent)",
+                background: "color-mix(in srgb, var(--checkout-card-bg) 82%, transparent)",
                 display: "grid",
-                gap: 12,
+                gap: 10,
               }}
             >
               <div style={{ display: "grid", gap: 6 }}>
-                <strong style={{ color: "#fff", fontSize: 18 }}>{setupError.title}</strong>
-                <p style={{ margin: 0, color: "rgba(247,241,232,0.74)", lineHeight: 1.7 }}>
+                <strong style={{ color: "var(--checkout-text-strong)", fontSize: 18 }}>{setupError.title}</strong>
+                <p style={{ margin: 0, color: "var(--checkout-text-muted)", lineHeight: 1.6 }}>
                   {setupError.message}
                 </p>
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <button
                   type="button"
+                  className="checkout-primary-action"
                   onClick={() => router.push("/cart?stockIssue=1")}
                   style={{
                     border: "none",
                     borderRadius: 999,
-                    background: "#f7f1e8",
-                    color: "#0b0b0b",
+                    background: "var(--checkout-primary-bg)",
+                    color: "var(--checkout-primary-color)",
                     padding: "13px 18px",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -431,9 +432,9 @@ export default function CheckoutPage() {
                   onClick={() => setSetupError(null)}
                   style={{
                     borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "transparent",
-                    color: "#f7f1e8",
+                    border: "1px solid var(--checkout-border)",
+                    background: "var(--checkout-secondary-bg)",
+                    color: "var(--checkout-secondary-color)",
                     padding: "13px 18px",
                     cursor: "pointer",
                   }}
@@ -447,11 +448,11 @@ export default function CheckoutPage() {
             <div
               style={{
                 marginBottom: 16,
-                padding: "16px 20px",
-                borderRadius: 20,
-                border: "1px solid var(--border-soft)",
-                background: "var(--page-panel-bg)",
-                color: "var(--text-muted)",
+                padding: "12px 16px",
+                borderRadius: 16,
+                border: "1px solid var(--checkout-border)",
+                background: "var(--checkout-card-bg)",
+                color: "var(--checkout-text-muted)",
               }}
             >
               Preparando checkout...
