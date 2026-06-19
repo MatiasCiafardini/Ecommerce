@@ -101,6 +101,7 @@ type AdminCorreoArgentinoConfig = {
   defaultAgency: string;
   deliveryTypes: string[];
   defaultPackageDimensions: {
+    weightGrams: string;
     height: string;
     width: string;
     length: string;
@@ -903,6 +904,7 @@ export default function DeveloperModePanel({
     defaultAgency: "",
     deliveryTypes: ["D"],
     defaultPackageDimensions: {
+      weightGrams: "300",
       height: "10",
       width: "10",
       length: "10",
@@ -1009,6 +1011,7 @@ export default function DeveloperModePanel({
             ? integrationsResponse.correoArgentino.deliveryTypes.map((value: unknown) => String(value))
             : ["D"],
           defaultPackageDimensions: {
+            weightGrams: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.weightGrams ?? 300)),
             height: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.height ?? 10)),
             width: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.width ?? 10)),
             length: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
@@ -1075,6 +1078,7 @@ export default function DeveloperModePanel({
               ? integrationsResponse.correoArgentino.deliveryTypes.map((value: unknown) => String(value))
               : ["D"],
             defaultPackageDimensions: {
+              weightGrams: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.weightGrams ?? 300)),
               height: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.height ?? 10)),
               width: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.width ?? 10)),
               length: String(Number(integrationsResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
@@ -2014,6 +2018,7 @@ export default function DeveloperModePanel({
               defaultAgency: correoArgentinoConfig.defaultAgency.trim(),
               deliveryTypes: correoArgentinoConfig.deliveryTypes,
               defaultPackageDimensions: {
+                weightGrams: Number(correoArgentinoConfig.defaultPackageDimensions.weightGrams || 0),
                 height: Number(correoArgentinoConfig.defaultPackageDimensions.height || 0),
                 width: Number(correoArgentinoConfig.defaultPackageDimensions.width || 0),
                 length: Number(correoArgentinoConfig.defaultPackageDimensions.length || 0),
@@ -2073,6 +2078,7 @@ export default function DeveloperModePanel({
             ? correoResponse.correoArgentino.deliveryTypes.map((value: unknown) => String(value))
             : ["D"],
           defaultPackageDimensions: {
+            weightGrams: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.weightGrams ?? 300)),
             height: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.height ?? 10)),
             width: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.width ?? 10)),
             length: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
@@ -2139,6 +2145,7 @@ export default function DeveloperModePanel({
               ? correoResponse.correoArgentino.deliveryTypes.map((value: unknown) => String(value))
               : ["D"],
             defaultPackageDimensions: {
+              weightGrams: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.weightGrams ?? 300)),
               height: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.height ?? 10)),
               width: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.width ?? 10)),
               length: String(Number(correoResponse?.correoArgentino?.defaultPackageDimensions?.length ?? 10)),
@@ -2803,6 +2810,10 @@ export default function DeveloperModePanel({
                             <div style={{ display: "grid", gap: 8 }}>
                               <label style={labelStyle}>Margen de empaque (%)</label>
                               <input type="number" min={0} max={100} step="0.1" value={correoArgentinoConfig.packagingMarginPercent} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, packagingMarginPercent: event.target.value }))} placeholder="8" style={inputStyle} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              <label style={labelStyle}>Peso por defecto (g)</label>
+                              <input type="number" min={0} step="1" value={correoArgentinoConfig.defaultPackageDimensions.weightGrams} onChange={(event) => setCorreoArgentinoConfig((current) => ({ ...current, defaultPackageDimensions: { ...current.defaultPackageDimensions, weightGrams: event.target.value } }))} style={inputStyle} />
                             </div>
                             <div style={{ display: "grid", gap: 8 }}>
                               <label style={labelStyle}>Alto por defecto (cm)</label>

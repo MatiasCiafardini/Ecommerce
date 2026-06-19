@@ -389,4 +389,114 @@ describe('ShippingService', () => {
       ]),
     );
   });
+
+  it('uses the active external provider even when only manual shipping methods are configured', async () => {
+    prisma.cart.findFirst.mockResolvedValue({
+      id: 9,
+      storeId: 3,
+      customerId: 18,
+      items: [
+        {
+          quantity: 1,
+          variant: {
+            weight: 1,
+            price: 10000,
+          },
+        },
+      ],
+    });
+    storeShippingMethodsService.findActive.mockResolvedValue([
+      {
+        id: 16,
+        type: 'coordinar',
+        name: 'Envio a coordinar',
+        price: 0,
+        estimatedDays: null,
+        freeShippingMinimumAmount: null,
+        pickupAddress: null,
+        pickupHours: null,
+        pickupInstructions: null,
+      },
+    ]);
+
+    const externalProvider = {
+      providerCode: 'correo-argentino',
+      getRates: jest.fn().mockResolvedValue([
+        {
+          provider: 'correo-argentino',
+          method: 'Correo Argentino - Domicilio',
+          price: 5200,
+          estimatedDays: 3,
+          carrierId: 'correo-argentino',
+          carrierName: 'Correo Argentino',
+          serviceCode: 'CP',
+          modalityCode: 'D',
+          dispatchType: 'D',
+        },
+      ]),
+    };
+
+    providerConfigService.resolveProviderForCapability.mockResolvedValue({
+      provider: externalProvider,
+      config: {
+        id: 'cfg-correo',
+      },
+      context: {
+        storeId: 3,
+        config: {
+          id: 'cfg-correo',
+          provider: 'correo-argentino',
+          source: 'store',
+        },
+      },
+    });
+    packageCalculator.calculateFromItems.mockReturnValue({
+      weightGrams: 1000,
+      weightKg: 1,
+      package: {
+        height: 6,
+        width: 22,
+        length: 30,
+      },
+      summary: {
+        weightGrams: 1000,
+        weightKg: 1,
+        heightCm: 6,
+        widthCm: 22,
+        lengthCm: 30,
+      },
+    });
+    providersRegistry.getProvider.mockReturnValue({
+      providerCode: 'manual',
+      getRates: jest.fn().mockResolvedValue([
+        {
+          provider: 'manual',
+          method: 'Envio a coordinar',
+          price: 0,
+          estimatedDays: 0,
+          carrierId: 'manual',
+          carrierName: 'Envio a coordinar',
+          serviceCode: 'coordinar',
+          modalityCode: 'manual',
+          dispatchType: 'coordinar',
+        },
+      ]),
+    });
+    quotesService.persistQuotes.mockImplementation((params) => params.rates);
+
+    const result = await service.getOptions(3, 9, 18, '1704', {
+      state: 'Buenos Aires',
+      city: 'Ramos Mejia',
+      country: 'AR',
+      deliveryMode: 'shipping',
+    });
+
+    expect(externalProvider.getRates).toHaveBeenCalled();
+    expect(result).toEqual([
+      expect.objectContaining({
+        provider: 'correo-argentino',
+        method: 'Correo Argentino - Domicilio',
+      }),
+    ]);
+  });
 });

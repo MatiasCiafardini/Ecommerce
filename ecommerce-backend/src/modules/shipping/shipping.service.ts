@@ -78,17 +78,11 @@ export class ShippingService {
     }
     const activeStoreMethods =
       await this.storeShippingMethodsService.findActive(storeId);
-    const storeControlsCheckoutMethods = activeStoreMethods.length > 0;
-    const integrationShippingEnabled = activeStoreMethods.some(
-      (method) => method.type === 'integration',
-    );
     const resolvedProvider =
-      !storeControlsCheckoutMethods || integrationShippingEnabled
-        ? await this.providerConfigService.resolveProviderForCapability(
-            storeId,
-            'quote',
-          )
-        : null;
+      await this.providerConfigService.resolveProviderForCapability(
+        storeId,
+        'quote',
+      );
     const fallbackWeightKg = cart.items.reduce((sum, item) => {
       const variantWeightGrams = Number(item.variant.weightGrams ?? 0);
       const productWeightGrams = Number(item.variant.product?.weightGrams ?? 0);
@@ -158,7 +152,6 @@ export class ShippingService {
       }));
     const usesExternalShippingQuote =
       destination?.deliveryMode === 'shipping' &&
-      integrationShippingEnabled &&
       resolvedProvider?.provider.providerCode !== 'manual';
     const manualRates = usesExternalShippingQuote
       ? []

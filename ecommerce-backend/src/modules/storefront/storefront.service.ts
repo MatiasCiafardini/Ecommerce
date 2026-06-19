@@ -497,6 +497,7 @@ export class StorefrontService {
             .filter(Boolean)
         : [],
       defaultPackageDimensions: {
+        weightGrams: this.pickNumber(defaultPackageDimensions.weightGrams),
         height: this.pickNumber(defaultPackageDimensions.height),
         width: this.pickNumber(defaultPackageDimensions.width),
         length: this.pickNumber(defaultPackageDimensions.length),

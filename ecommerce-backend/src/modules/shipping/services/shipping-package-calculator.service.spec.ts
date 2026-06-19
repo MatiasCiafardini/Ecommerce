@@ -119,6 +119,35 @@ describe('ShippingPackageCalculatorService', () => {
     });
   });
 
+  it('falls back to store weight when a product has no weight', () => {
+    const result = service.calculateFromItems(
+      [
+        {
+          quantity: 2,
+          variant: {
+            sku: 'ACC-002',
+            packageHeightCm: 4,
+            packageWidthCm: 16,
+            packageLengthCm: 22,
+          },
+        },
+      ],
+      {
+        provider: 'correo-argentino',
+        source: 'store',
+        metadata: {
+          defaultPackageDimensions: {
+            weightGrams: 300,
+          },
+        },
+      },
+    );
+
+    expect(result.summary).toMatchObject({
+      weightGrams: 600,
+    });
+  });
+
   it('fails clearly when shipping weight is missing', () => {
     expect(() =>
       service.calculateFromItems([
@@ -132,6 +161,6 @@ describe('ShippingPackageCalculatorService', () => {
           },
         },
       ]),
-    ).toThrow('requires weight');
+    ).toThrow('defaultPackageDimensions.weightGrams');
   });
 });

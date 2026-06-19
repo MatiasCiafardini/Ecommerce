@@ -3,6 +3,7 @@ import { ResolvedShippingProviderConfig } from '../providers/shipping-provider.i
 
 type LogisticsCarrierConfig = {
   defaultPackageDimensions?: {
+    weightGrams?: number | null;
     height?: number | null;
     width?: number | null;
     length?: number | null;
@@ -136,7 +137,11 @@ export class ShippingPackageCalculatorService {
     for (const item of items) {
       const quantity = Math.max(1, Math.round(Number(item.quantity || 0)));
       const label = this.describeItem(item);
-      const resolvedWeight = this.resolveWeightGrams(item, label);
+      const resolvedWeight = this.resolveWeightGrams(
+        item,
+        carrierConfig.defaultPackageDimensions?.weightGrams ?? null,
+        label,
+      );
       const resolvedHeight = this.resolveDimension(
         item,
         'height',
@@ -237,6 +242,7 @@ export class ShippingPackageCalculatorService {
 
   private resolveWeightGrams(
     item: PackageCalculationItem,
+    storeFallbackValue: number | null,
     label: string,
   ): ResolvedMetric {
     const variantWeightGrams = this.normalizePositiveNumber(
@@ -261,8 +267,16 @@ export class ShippingPackageCalculatorService {
       return { value: Math.round(productWeightGrams), source: 'product' };
     }
 
+    const normalizedStoreFallback = this.normalizePositiveNumber(storeFallbackValue);
+    if (normalizedStoreFallback) {
+      return {
+        value: Math.round(normalizedStoreFallback),
+        source: 'store_fallback',
+      };
+    }
+
     throw new BadRequestException(
-      `Shipping quote requires weight for ${label}. Add weightGrams to the variant or product.`,
+      `Shipping quote requires weight for ${label}. Add weightGrams to the variant or product, or configure defaultPackageDimensions.weightGrams as fallback in the store shipping provider.`,
     );
   }
 
