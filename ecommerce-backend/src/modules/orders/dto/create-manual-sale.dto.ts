@@ -25,6 +25,15 @@ export class CreateManualSaleItemDto {
   price: number;
 }
 
+export class CreateManualSalePaymentDto {
+  @IsString()
+  method: string;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  amount: number;
+}
+
 export class CreateManualSaleDto {
   @IsOptional()
   @IsInt()
@@ -76,6 +85,13 @@ export class CreateManualSaleDto {
   @IsOptional()
   @IsString()
   paymentMethod?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateManualSalePaymentDto)
+  payments?: CreateManualSalePaymentDto[];
 
   @IsOptional()
   @IsIn(['approved', 'pending'])

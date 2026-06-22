@@ -32,6 +32,11 @@ export class DefaultLabelConfigDto {
   @Type(() => LabelOptionsDto)
   options?: LabelOptionsDto;
 
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsObject()
+  templateOptions?: Partial<Record<LabelTemplateKey, LabelOptionsDto>>;
+
   @ApiPropertyOptional({ enum: quantityModes })
   @IsOptional()
   @IsIn(quantityModes)

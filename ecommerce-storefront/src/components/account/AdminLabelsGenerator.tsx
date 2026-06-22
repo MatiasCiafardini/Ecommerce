@@ -228,6 +228,7 @@ export default function AdminLabelsGenerator() {
   const [selected, setSelected] = useState<Record<number, VariantRow>>({});
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [templateKey, setTemplateKey] = useState(defaultTemplateKey);
+  const [defaultLabelTemplateKey, setDefaultLabelTemplateKey] = useState(defaultTemplateKey);
   const [options, setOptions] = useState<LabelOptions>(defaultOptions);
   const [templateOptions, setTemplateOptions] = useState<Record<string, LabelOptions>>({});
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -333,8 +334,8 @@ export default function AdminLabelsGenerator() {
     setStep(1);
     setSelected({});
     setQuantities({});
-    setTemplateKey(defaultTemplateKey);
-    setOptions(resolveSavedTemplateOptions(defaultTemplateKey, templateOptions));
+    setTemplateKey(defaultLabelTemplateKey);
+    setOptions(resolveSavedTemplateOptions(defaultLabelTemplateKey, templateOptions));
     setPreview(null);
     setPage(1);
     setFilteredSelectionIds(null);
@@ -348,7 +349,7 @@ export default function AdminLabelsGenerator() {
     });
     setNotice(null);
     window.sessionStorage.removeItem(storageKey);
-  }, [templateOptions]);
+  }, [defaultLabelTemplateKey, templateOptions]);
 
   useEffect(() => {
     const saved = window.sessionStorage.getItem(storageKey);
@@ -420,35 +421,26 @@ export default function AdminLabelsGenerator() {
       api("/categories") as Promise<Category[]>,
     ])
       .then(([nextTemplates, defaultLabelPayload, nextCategories]) => {
-        const savedWizard = initialSavedWizardRef.current;
-        const savedTemplateKey = (() => {
-          if (!savedWizard) return null;
-          try {
-            const parsed = JSON.parse(savedWizard) as { templateKey?: string };
-            return parsed.templateKey ?? null;
-          } catch {
-            return null;
-          }
-        })();
         const templatePayload = Array.isArray(nextTemplates)
           ? { templates: nextTemplates, priceSettings: { hasTransferPrice: false, bankTransferDiscountPercentage: 0 } }
           : nextTemplates;
         const nextTemplateOptions = normalizeTemplateOptions(defaultLabelPayload.defaultLabel.templateOptions);
         const defaultTemplate = defaultLabelPayload.defaultLabel.template;
-        const preferredTemplateKey =
-          !savedWizard && templatePayload.templates.some((template) => template.key === defaultTemplate)
-            ? defaultTemplate
-            : savedTemplateKey ?? defaultTemplateKey;
+        const preferredTemplateKey = templatePayload.templates.some((template) => template.key === defaultTemplate)
+          ? defaultTemplate
+          : templatePayload.templates[0]?.key ?? defaultTemplateKey;
         setTemplates(templatePayload.templates);
         setPriceSettings(templatePayload.priceSettings);
         setTemplateOptions(nextTemplateOptions);
+        setDefaultLabelTemplateKey(preferredTemplateKey);
         if (!templatePayload.templates.some((template) => template.key === preferredTemplateKey)) {
           const nextTemplateKey = templatePayload.templates[0]?.key ?? "BROTHER_QL570_62X29_CLOTHING";
           setTemplateKey(nextTemplateKey);
-          setOptions(resolveSavedTemplateOptions(nextTemplateKey, nextTemplateOptions));
+          setDefaultLabelTemplateKey(nextTemplateKey);
+          setOptions(resolveSavedTemplateOptions(nextTemplateKey, nextTemplateOptions, defaultLabelPayload.defaultLabel.options));
         } else {
           setTemplateKey(preferredTemplateKey);
-          setOptions((current) => resolveSavedTemplateOptions(preferredTemplateKey, nextTemplateOptions, current));
+          setOptions(resolveSavedTemplateOptions(preferredTemplateKey, nextTemplateOptions, defaultLabelPayload.defaultLabel.options));
         }
         setCategories(nextCategories);
       })

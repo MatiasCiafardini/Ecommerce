@@ -969,6 +969,8 @@ const defaultLabelOptions: LabelOptions = {
   showSku: true,
   showLogo: false,
 };
+const labelsWizardStorageKey = "labels-wizard-state-v5";
+const adminLabelsResetEvent = "admin-labels:reset";
 const labelOptionLabels: Record<Exclude<keyof LabelOptions, "priceMode" | "showPrice">, string> = {
   showStoreName: "Mostrar tienda",
   showProductName: "Mostrar producto",
@@ -1128,6 +1130,10 @@ function AdminSettingsSection() {
         body: JSON.stringify({
           template: labelTemplate,
           options: labelOptions,
+          templateOptions: {
+            ...labelTemplateOptions,
+            [labelTemplate]: labelOptions,
+          },
           quantityMode: labelQuantityMode,
         }),
       }) as DefaultLabelPayload;
@@ -1136,6 +1142,8 @@ function AdminSettingsSection() {
       setLabelTemplateOptions(nextTemplateOptions);
       setLabelOptions(resolveTemplateOptions(response.defaultLabel.template, nextTemplateOptions, response.defaultLabel.options));
       setLabelQuantityMode(response.defaultLabel.quantityMode === "one" ? "one" : "stock");
+      window.sessionStorage.removeItem(labelsWizardStorageKey);
+      window.dispatchEvent(new Event(adminLabelsResetEvent));
       setMessage("Etiqueta predeterminada guardada.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la etiqueta predeterminada.");

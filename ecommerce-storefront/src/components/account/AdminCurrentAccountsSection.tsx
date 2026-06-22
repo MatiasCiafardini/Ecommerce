@@ -4,6 +4,7 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { api, apiBlob, getErrorMessage } from "@/lib/api";
 import { downloadBlobFile } from "@/lib/download";
+import AdminManualSalesSection from "./AdminManualSalesSection";
 import { money } from "./order-utils";
 
 type Customer = {
@@ -66,26 +67,31 @@ export type CurrentAccountCreateForm = {
 };
 
 type FilterStatus = "debt" | "credit" | "paid" | "all";
-type MovementVariant = NonNullable<NonNullable<Movement["order"]>["items"]>[number]["variant"];
+type DetailMode = "history" | "sale" | "payment";
+type MovementVariant = NonNullable<
+  NonNullable<Movement["order"]>["items"]
+>[number]["variant"];
 
 const paymentMethods = ["Efectivo", "Tarjeta", "Transferencia", "Mercado Pago"];
 
 export default function AdminCurrentAccountsSection({
   storeLocationId,
-  onRegisterSale,
 }: {
   storeLocationId?: number | null;
   onRegisterSale?: (customer: Customer) => void;
 }) {
   const [accounts, setAccounts] = useState<CurrentAccount[]>([]);
   const [selected, setSelected] = useState<CurrentAccount | null>(null);
+  const [detailMode, setDetailMode] = useState<DetailMode>("history");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<FilterStatus>("all");
-  const [paymentCustomer, setPaymentCustomer] = useState<CurrentAccount | null>(null);
+  const [paymentCustomer, setPaymentCustomer] = useState<CurrentAccount | null>(
+    null,
+  );
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentAccounts, setPaymentAccounts] = useState<CurrentAccount[]>([]);
   const [paymentSearch, setPaymentSearch] = useState("");
@@ -94,14 +100,25 @@ export default function AdminCurrentAccountsSection({
   const [paymentDescription, setPaymentDescription] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
   const [editAccount, setEditAccount] = useState<CurrentAccount | null>(null);
-  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", phone: "", document: "", notes: "" });
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    document: "",
+    notes: "",
+  });
   const [savingEdit, setSavingEdit] = useState(false);
-  const [balanceAccount, setBalanceAccount] = useState<CurrentAccount | null>(null);
+  const [balanceAccount, setBalanceAccount] = useState<CurrentAccount | null>(
+    null,
+  );
   const [balanceValue, setBalanceValue] = useState("");
   const [balanceDescription, setBalanceDescription] = useState("");
   const [savingBalance, setSavingBalance] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
-  const [downloadingReceiptId, setDownloadingReceiptId] = useState<number | null>(null);
+  const [downloadingReceiptId, setDownloadingReceiptId] = useState<
+    number | null
+  >(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CurrentAccountCreateForm>({
     firstName: "",
@@ -127,7 +144,11 @@ export default function AdminCurrentAccountsSection({
       const data = await api(`/current-accounts?${params.toString()}`);
       setAccounts(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron cargar las cuentas corrientes.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudieron cargar las cuentas corrientes.",
+      );
     } finally {
       setLoading(false);
     }
@@ -152,13 +173,23 @@ export default function AdminCurrentAccountsSection({
   }, [selected]);
 
   const totals = useMemo(() => {
-    const debtAccounts = accounts.filter((account) => Number(account.balance) > 0);
-    const creditAccounts = accounts.filter((account) => Number(account.balance) < 0);
+    const debtAccounts = accounts.filter(
+      (account) => Number(account.balance) > 0,
+    );
+    const creditAccounts = accounts.filter(
+      (account) => Number(account.balance) < 0,
+    );
     return {
       debtAccounts: debtAccounts.length,
-      totalDebt: debtAccounts.reduce((sum, account) => sum + Number(account.balance), 0),
+      totalDebt: debtAccounts.reduce(
+        (sum, account) => sum + Number(account.balance),
+        0,
+      ),
       creditAccounts: creditAccounts.length,
-      totalCredit: creditAccounts.reduce((sum, account) => sum + Math.abs(Number(account.balance)), 0),
+      totalCredit: creditAccounts.reduce(
+        (sum, account) => sum + Math.abs(Number(account.balance)),
+        0,
+      ),
     };
   }, [accounts]);
   const paymentBalance = Number(paymentCustomer?.balance ?? 0);
@@ -168,26 +199,25 @@ export default function AdminCurrentAccountsSection({
       ? roundCurrency(Math.max(paymentBalance - paymentAmountNumber, 0))
       : paymentBalance;
 
-  const openDetail = async (account: CurrentAccount) => {
+  const openDetail = async (
+    account: CurrentAccount,
+    mode: DetailMode = "history",
+  ) => {
     setSelected(account);
+    setDetailMode(mode);
     setDetailLoading(true);
     try {
-      const detail = await api(currentAccountCustomerPath(account.customerId, storeLocationId));
+      const detail = await api(
+        currentAccountCustomerPath(account.customerId, storeLocationId),
+      );
       setSelected(detail as CurrentAccount);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar el detalle.");
+      setError(
+        err instanceof Error ? err.message : "No se pudo cargar el detalle.",
+      );
     } finally {
       setDetailLoading(false);
     }
-  };
-
-  const openPayment = (account: CurrentAccount) => {
-    setPaymentModalOpen(true);
-    setPaymentCustomer(account);
-    setPaymentAmount(String(Number(account.balance)));
-    setPaymentMethod("Efectivo");
-    setPaymentDescription("");
-    setModalError("");
   };
 
   const openEdit = (account: CurrentAccount) => {
@@ -211,16 +241,23 @@ export default function AdminCurrentAccountsSection({
     try {
       await api(`/current-accounts/customers/${editAccount.customerId}`, {
         method: "PATCH",
-        body: JSON.stringify({ ...editForm, storeLocationId: storeLocationId ?? undefined }),
+        body: JSON.stringify({
+          ...editForm,
+          storeLocationId: storeLocationId ?? undefined,
+        }),
       });
       setEditAccount(null);
       await loadAccounts();
       if (selected?.customerId === editAccount.customerId) {
-        const detail = await api(currentAccountCustomerPath(editAccount.customerId, storeLocationId));
+        const detail = await api(
+          currentAccountCustomerPath(editAccount.customerId, storeLocationId),
+        );
         setSelected(detail as CurrentAccount);
       }
     } catch (err) {
-      setModalError(getErrorMessage(err, "No se pudo actualizar la cuenta corriente."));
+      setModalError(
+        getErrorMessage(err, "No se pudo actualizar la cuenta corriente."),
+      );
     } finally {
       setSavingEdit(false);
     }
@@ -238,25 +275,35 @@ export default function AdminCurrentAccountsSection({
     const balance = Number(balanceValue);
 
     if (!Number.isFinite(balance)) {
-      setModalError("El saldo debe ser un numero valido. Usa negativo para saldo a favor.");
+      setModalError(
+        "El saldo debe ser un numero valido. Usa negativo para saldo a favor.",
+      );
       return;
     }
 
     setSavingBalance(true);
     setModalError("");
     try {
-      await api(`/current-accounts/customers/${balanceAccount.customerId}/balance`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          balance,
-          description: balanceDescription.trim() || undefined,
-          storeLocationId: storeLocationId ?? undefined,
-        }),
-      });
+      await api(
+        `/current-accounts/customers/${balanceAccount.customerId}/balance`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            balance,
+            description: balanceDescription.trim() || undefined,
+            storeLocationId: storeLocationId ?? undefined,
+          }),
+        },
+      );
       setBalanceAccount(null);
       await loadAccounts();
       if (selected?.customerId === balanceAccount.customerId) {
-        const detail = await api(currentAccountCustomerPath(balanceAccount.customerId, storeLocationId));
+        const detail = await api(
+          currentAccountCustomerPath(
+            balanceAccount.customerId,
+            storeLocationId,
+          ),
+        );
         setSelected(detail as CurrentAccount);
       }
     } catch (err) {
@@ -267,7 +314,9 @@ export default function AdminCurrentAccountsSection({
   };
 
   const deactivateAccount = async (account: CurrentAccount) => {
-    const confirmed = window.confirm(`Dar de baja la cuenta corriente de ${customerName(account.customer)}? El historial de movimientos se conserva.`);
+    const confirmed = window.confirm(
+      `Dar de baja la cuenta corriente de ${customerName(account.customer)}? El historial de movimientos se conserva.`,
+    );
     if (!confirmed) return;
 
     setDeactivatingId(account.id);
@@ -275,11 +324,18 @@ export default function AdminCurrentAccountsSection({
     try {
       const params = new URLSearchParams();
       appendStoreLocationParam(params, storeLocationId);
-      await api(`/current-accounts/customers/${account.customerId}${params.toString() ? `?${params.toString()}` : ""}`, { method: "DELETE" });
+      await api(
+        `/current-accounts/customers/${account.customerId}${params.toString() ? `?${params.toString()}` : ""}`,
+        { method: "DELETE" },
+      );
       if (selected?.customerId === account.customerId) setSelected(null);
       await loadAccounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo dar de baja la cuenta corriente.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo dar de baja la cuenta corriente.",
+      );
     } finally {
       setDeactivatingId(null);
     }
@@ -302,7 +358,9 @@ export default function AdminCurrentAccountsSection({
       const data = await api(`/current-accounts?${params.toString()}`);
       setPaymentAccounts(Array.isArray(data) ? data : []);
     } catch (err) {
-      setModalError(getErrorMessage(err, "No se pudieron cargar clientes con deuda."));
+      setModalError(
+        getErrorMessage(err, "No se pudieron cargar clientes con deuda."),
+      );
       setPaymentAccounts([]);
     }
   };
@@ -331,17 +389,21 @@ export default function AdminCurrentAccountsSection({
     setSavingPayment(true);
     setModalError("");
     try {
-      const result = (await api(`/current-accounts/customers/${paymentCustomer.customerId}/payments`, {
-        method: "POST",
-        body: JSON.stringify({
-          amount,
-          paymentMethod,
-          description: paymentDescription.trim() || undefined,
-          storeLocationId: storeLocationId ?? undefined,
-        }),
-      })) as { movement?: Movement };
+      const result = (await api(
+        `/current-accounts/customers/${paymentCustomer.customerId}/payments`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            amount,
+            paymentMethod,
+            description: paymentDescription.trim() || undefined,
+            storeLocationId: storeLocationId ?? undefined,
+          }),
+        },
+      )) as { movement?: Movement };
       setPaymentModalOpen(false);
       setPaymentCustomer(null);
+      setDetailMode("history");
       await loadAccounts();
       if (selected?.customerId === paymentCustomer.customerId) {
         await openDetail(paymentCustomer);
@@ -360,17 +422,33 @@ export default function AdminCurrentAccountsSection({
     setDownloadingReceiptId(movementId);
     setError("");
     try {
-      const blob = await apiBlob(`/current-accounts/payments/${movementId}/receipt.pdf`);
+      const blob = await apiBlob(
+        `/current-accounts/payments/${movementId}/receipt.pdf`,
+      );
       downloadBlobFile(blob, `recibo-pago-cuenta-${movementId}.pdf`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo descargar el recibo de pago.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo descargar el recibo de pago.",
+      );
     } finally {
       setDownloadingReceiptId(null);
     }
   };
 
   const openCreateAccount = () => {
-    setCreateForm({ firstName: "", lastName: "", email: "", phone: "", document: "", address1: "", city: "", zip: "", notes: "" });
+    setCreateForm({
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      document: "",
+      address1: "",
+      city: "",
+      zip: "",
+      notes: "",
+    });
     setCreateModalOpen(true);
     setModalError("");
     setError("");
@@ -382,16 +460,20 @@ export default function AdminCurrentAccountsSection({
       return;
     }
 
-    const hasAddress = [createForm.address1, createForm.city, createForm.zip].some((value) => value.trim());
+    const hasAddress = [
+      createForm.address1,
+      createForm.city,
+      createForm.zip,
+    ].some((value) => value.trim());
     const payload = {
       firstName: createForm.firstName.trim() || undefined,
       lastName: createForm.lastName.trim() || undefined,
       email: createForm.email.trim() || undefined,
       phone: createForm.phone.trim() || undefined,
-          document: createForm.document.trim() || undefined,
-          notes: createForm.notes.trim() || undefined,
-          storeLocationId: storeLocationId ?? undefined,
-          address: hasAddress
+      document: createForm.document.trim() || undefined,
+      notes: createForm.notes.trim() || undefined,
+      storeLocationId: storeLocationId ?? undefined,
+      address: hasAddress
         ? {
             address1: createForm.address1.trim() || undefined,
             city: createForm.city.trim() || undefined,
@@ -411,15 +493,34 @@ export default function AdminCurrentAccountsSection({
       await loadAccounts();
       setSelected(created);
     } catch (err) {
-      setModalError(getErrorMessage(err, "No se pudo crear la cuenta corriente."));
+      setModalError(
+        getErrorMessage(err, "No se pudo crear la cuenta corriente."),
+      );
     } finally {
       setSavingCreate(false);
     }
   };
 
-  const registerSaleForAccount = (account: CurrentAccount) => {
-    onRegisterSale?.({ ...account.customer, source: "current_account" } as Customer);
-    setSelected(null);
+  const openSaleInAccount = async (account: CurrentAccount) => {
+    await openDetail(account, "sale");
+  };
+
+  const openPaymentInAccount = async (account: CurrentAccount) => {
+    await openDetail(account, "payment");
+    setPaymentCustomer(account);
+    setPaymentAmount(String(Math.max(Number(account.balance), 0)));
+    setPaymentMethod("Efectivo");
+    setPaymentDescription("");
+    setModalError("");
+  };
+
+  const refreshSelectedAccount = async () => {
+    if (!selected) return;
+    const detail = (await api(
+      currentAccountCustomerPath(selected.customerId, storeLocationId),
+    )) as CurrentAccount;
+    setSelected(detail);
+    await loadAccounts();
   };
 
   return (
@@ -428,13 +529,24 @@ export default function AdminCurrentAccountsSection({
         <div>
           <p style={eyebrowStyle}>Administracion</p>
           <h2 style={titleStyle}>Cuentas corrientes</h2>
-          <p style={copyStyle}>Clientes con deuda, saldo a favor, movimientos y cobros parciales o totales.</p>
+          <p style={copyStyle}>
+            Clientes con deuda, saldo a favor, movimientos y cobros parciales o
+            totales.
+          </p>
         </div>
         <div style={statsStyle}>
-          <button type="button" onClick={openCreateAccount} style={softButtonStyle}>
+          <button
+            type="button"
+            onClick={openCreateAccount}
+            style={softButtonStyle}
+          >
             Agregar cuenta
           </button>
-          <button type="button" onClick={() => void openGlobalPayment()} style={primaryButtonStyle}>
+          <button
+            type="button"
+            onClick={() => void openGlobalPayment()}
+            style={primaryButtonStyle}
+          >
             Registrar pago
           </button>
           <Stat label="Con deuda" value={String(totals.debtAccounts)} />
@@ -493,25 +605,39 @@ export default function AdminCurrentAccountsSection({
                 <tr key={account.id}>
                   <Td>
                     <strong>{customerName(account.customer)}</strong>
-                    <span style={mutedBlockStyle}>Cliente #{account.customerId}</span>
+                    <span style={mutedBlockStyle}>
+                      Cliente #{account.customerId}
+                    </span>
                   </Td>
                   <Td>{account.customer.phone || "Sin telefono"}</Td>
-                  <Td>{account.customer.email || account.customer.document || "Sin email"}</Td>
+                  <Td>
+                    {account.customer.email ||
+                      account.customer.document ||
+                      "Sin email"}
+                  </Td>
                   <Td>
                     <BalanceAmount value={Number(account.balance)} />
                   </Td>
                   <Td>{formatDate(account.lastMovementAt)}</Td>
                   <Td>
                     <div style={rowActionsStyle}>
-                      <button type="button" onClick={() => void openDetail(account)} style={softButtonStyle}>
-                        Ver detalle
+                      <button
+                        type="button"
+                        onClick={() => void openDetail(account)}
+                        style={softButtonStyle}
+                      >
+                        Abrir ficha
                       </button>
-                      <button type="button" onClick={() => registerSaleForAccount(account)} style={primaryButtonStyle}>
+                      <button
+                        type="button"
+                        onClick={() => void openSaleInAccount(account)}
+                        style={primaryButtonStyle}
+                      >
                         Registrar venta
                       </button>
                       <button
                         type="button"
-                        onClick={() => openPayment(account)}
+                        onClick={() => void openPaymentInAccount(account)}
                         style={primaryButtonStyle}
                         disabled={Number(account.balance) <= 0}
                       >
@@ -528,7 +654,10 @@ export default function AdminCurrentAccountsSection({
 
       {selected ? (
         <div style={modalOverlayStyle} onClick={() => setSelected(null)}>
-          <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+          <div
+            style={detailModalStyle}
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setSelected(null)}
@@ -540,35 +669,175 @@ export default function AdminCurrentAccountsSection({
             <header style={modalHeaderStyle}>
               <div>
                 <p style={eyebrowStyle}>Cuenta corriente</p>
-                <h3 style={modalTitleStyle}>{customerName(selected.customer)}</h3>
+                <h3 style={modalTitleStyle}>
+                  {customerName(selected.customer)}
+                </h3>
                 <p style={copyStyle}>
                   {selected.customer.phone || "Sin telefono"}
-                  {selected.customer.email ? ` · ${selected.customer.email}` : ""}
-                  {selected.customer.document ? ` · Doc. ${selected.customer.document}` : ""}
+                  {selected.customer.email
+                    ? ` · ${selected.customer.email}`
+                    : ""}
+                  {selected.customer.document
+                    ? ` · Doc. ${selected.customer.document}`
+                    : ""}
                 </p>
               </div>
               <div style={balanceStyle}>
                 <BalanceAmount value={Number(selected.balance)} />
               </div>
             </header>
-            <div style={rowActionsStyle}>
-              <button type="button" onClick={() => registerSaleForAccount(selected)} style={primaryButtonStyle}>
+            <div style={detailModeRailStyle}>
+              <button
+                type="button"
+                onClick={() => setDetailMode("history")}
+                style={detailModeButtonStyle(detailMode === "history")}
+              >
+                Historial
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailMode("sale")}
+                style={detailModeButtonStyle(detailMode === "sale")}
+              >
                 Registrar venta
               </button>
-              <button type="button" onClick={() => openPayment(selected)} disabled={Number(selected.balance) <= 0} style={primaryButtonStyle}>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentCustomer(selected);
+                  setPaymentAmount(
+                    String(Math.max(Number(selected.balance), 0)),
+                  );
+                  setPaymentMethod("Efectivo");
+                  setPaymentDescription("");
+                  setModalError("");
+                  setDetailMode("payment");
+                }}
+                disabled={Number(selected.balance) <= 0}
+                style={detailModeButtonStyle(detailMode === "payment")}
+              >
                 Registrar pago
               </button>
-              <button type="button" onClick={() => openEdit(selected)} style={softButtonStyle}>
+              <button
+                type="button"
+                onClick={() => openEdit(selected)}
+                style={softButtonStyle}
+              >
                 Editar datos
               </button>
-              <button type="button" onClick={() => openBalance(selected)} style={softButtonStyle}>
+              <button
+                type="button"
+                onClick={() => openBalance(selected)}
+                style={softButtonStyle}
+              >
                 Ajustar saldo
               </button>
-              <button type="button" onClick={() => void deactivateAccount(selected)} style={dangerButtonStyle}>
+              <button
+                type="button"
+                onClick={() => void deactivateAccount(selected)}
+                style={dangerButtonStyle}
+              >
                 Dar de baja
               </button>
             </div>
-            {detailLoading ? (
+            {detailMode === "sale" ? (
+              <div style={embeddedSaleStyle}>
+                <AdminManualSalesSection
+                  storeLocationId={storeLocationId}
+                  initialCustomer={
+                    {
+                      ...selected.customer,
+                      source: "current_account",
+                    } as Customer
+                  }
+                  initialCurrentAccount={selected}
+                  initialPaymentMethod="Cuenta corriente"
+                  lockCustomer
+                  onSaleRegistered={async () => {
+                    await refreshSelectedAccount();
+                    setDetailMode("history");
+                  }}
+                />
+              </div>
+            ) : detailMode === "payment" ? (
+              <div style={inlinePaymentStyle}>
+                {modalError ? <p style={errorStyle}>{modalError}</p> : null}
+                <div style={paymentSummaryStyle}>
+                  <div>
+                    <span style={mutedBlockStyle}>Saldo actual</span>
+                    <strong>{money(Number(selected.balance))}</strong>
+                  </div>
+                  <div>
+                    <span style={mutedBlockStyle}>Pago</span>
+                    <strong>
+                      {Number.isFinite(paymentAmountNumber)
+                        ? money(Math.max(paymentAmountNumber, 0))
+                        : money(0)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={mutedBlockStyle}>Saldo luego del pago</span>
+                    <strong>{balanceLabel(paymentRemainingAmount)}</strong>
+                  </div>
+                </div>
+                <label style={fieldGroupStyle}>
+                  Monto entregado
+                  <div style={amountRowStyle}>
+                    <div style={moneyInputWrapStyle}>
+                      <span style={moneyPrefixStyle}>$</span>
+                      <input
+                        value={paymentAmount}
+                        onChange={(event) =>
+                          setPaymentAmount(event.target.value)
+                        }
+                        style={{ ...inputStyle, paddingLeft: 28 }}
+                        inputMode="decimal"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPaymentAmount(String(Number(selected.balance)))
+                      }
+                      style={softButtonStyle}
+                    >
+                      Total
+                    </button>
+                  </div>
+                </label>
+                <label style={fieldGroupStyle}>
+                  Medio de pago
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) => setPaymentMethod(event.target.value)}
+                    style={inputStyle}
+                  >
+                    {paymentMethods.map((method) => (
+                      <option key={method}>{method}</option>
+                    ))}
+                  </select>
+                </label>
+                <label style={fieldGroupStyle}>
+                  Nota del pago
+                  <textarea
+                    value={paymentDescription}
+                    onChange={(event) =>
+                      setPaymentDescription(event.target.value)
+                    }
+                    style={{ ...inputStyle, minHeight: 84 }}
+                    placeholder="Ej: Entrega parcial en mostrador"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void registerPayment()}
+                  disabled={savingPayment}
+                  style={primaryButtonStyle}
+                >
+                  {savingPayment ? "Registrando..." : "Registrar pago en ficha"}
+                </button>
+              </div>
+            ) : detailLoading ? (
               <State label="Cargando movimientos..." />
             ) : (
               <div style={movementListStyle}>
@@ -576,17 +845,23 @@ export default function AdminCurrentAccountsSection({
                   <article key={movement.id} style={movementStyle}>
                     <div>
                       <strong>{movementLabel(movement.type)}</strong>
-                      <p style={copyStyle}>{movement.description || "Sin descripcion"}</p>
+                      <p style={copyStyle}>
+                        {movement.description || "Sin descripcion"}
+                      </p>
                       <span style={mutedBlockStyle}>
                         {formatDate(movement.createdAt)}
                         {movement.order ? ` · Venta #${movement.order.id}` : ""}
-                        {movement.createdByUser ? ` · ${movement.createdByUser.name || movement.createdByUser.email}` : ""}
+                        {movement.createdByUser
+                          ? ` · ${movement.createdByUser.name || movement.createdByUser.email}`
+                          : ""}
                       </span>
                       {movement.order?.items?.length ? (
                         <div style={movementItemsStyle}>
                           {movement.order.items.map((item) => (
                             <span key={item.id}>
-                              {item.variant?.product?.title || "Producto"} {variantLabel(item.variant)} x{item.quantity} - {money(Number(item.price) * item.quantity)}
+                              {item.variant?.product?.title || "Producto"}{" "}
+                              {variantLabel(item.variant)} x{item.quantity} -{" "}
+                              {money(Number(item.price) * item.quantity)}
                             </span>
                           ))}
                         </div>
@@ -594,15 +869,21 @@ export default function AdminCurrentAccountsSection({
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <strong>{movementAmountLabel(movement)}</strong>
-                      <span style={mutedBlockStyle}>{balanceLabel(Number(movement.balanceAfter))}</span>
+                      <span style={mutedBlockStyle}>
+                        {balanceLabel(Number(movement.balanceAfter))}
+                      </span>
                       {movement.type === "PAYMENT" ? (
                         <button
                           type="button"
-                          onClick={() => void downloadPaymentReceipt(movement.id)}
+                          onClick={() =>
+                            void downloadPaymentReceipt(movement.id)
+                          }
                           disabled={downloadingReceiptId === movement.id}
                           style={{ ...softButtonStyle, marginTop: 8 }}
                         >
-                          {downloadingReceiptId === movement.id ? "Generando..." : "Recibo PDF"}
+                          {downloadingReceiptId === movement.id
+                            ? "Generando..."
+                            : "Recibo PDF"}
                         </button>
                       ) : null}
                     </div>
@@ -621,18 +902,30 @@ export default function AdminCurrentAccountsSection({
           saving={savingCreate}
           onFormChange={setCreateForm}
           onSubmit={() => void createAccount()}
-          onClose={() => { setCreateModalOpen(false); setModalError(""); }}
+          onClose={() => {
+            setCreateModalOpen(false);
+            setModalError("");
+          }}
         />
       ) : null}
 
       {paymentModalOpen ? (
-        <div style={modalOverlayStyle} onClick={() => { setPaymentModalOpen(false); setPaymentCustomer(null); setModalError(""); }}>
+        <div
+          style={modalOverlayStyle}
+          onClick={() => {
+            setPaymentModalOpen(false);
+            setPaymentCustomer(null);
+            setModalError("");
+          }}
+        >
           <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
             <header style={modalHeaderStyle}>
               <div>
                 <p style={eyebrowStyle}>Registrar pago</p>
                 <h3 style={modalTitleStyle}>
-                  {paymentCustomer ? customerName(paymentCustomer.customer) : "Seleccionar cliente"}
+                  {paymentCustomer
+                    ? customerName(paymentCustomer.customer)
+                    : "Seleccionar cliente"}
                 </h3>
               </div>
               {paymentCustomer ? (
@@ -661,7 +954,11 @@ export default function AdminCurrentAccountsSection({
                         account.customer.phone,
                         account.customer.email,
                         account.customer.document,
-                      ].filter(Boolean).join(" ").toLowerCase().includes(normalized);
+                      ]
+                        .filter(Boolean)
+                        .join(" ")
+                        .toLowerCase()
+                        .includes(normalized);
                     })
                     .map((account) => (
                       <button
@@ -672,12 +969,19 @@ export default function AdminCurrentAccountsSection({
                       >
                         <span>
                           <strong>{customerName(account.customer)}</strong>
-                          <small style={mutedBlockStyle}>{account.customer.phone || account.customer.email || account.customer.document || `Cliente #${account.customerId}`}</small>
+                          <small style={mutedBlockStyle}>
+                            {account.customer.phone ||
+                              account.customer.email ||
+                              account.customer.document ||
+                              `Cliente #${account.customerId}`}
+                          </small>
                         </span>
                         <BalanceAmount value={Number(account.balance)} />
                       </button>
                     ))}
-                  {paymentAccounts.length === 0 ? <State label="No hay clientes con deuda pendiente." /> : null}
+                  {paymentAccounts.length === 0 ? (
+                    <State label="No hay clientes con deuda pendiente." />
+                  ) : null}
                 </div>
               </>
             ) : (
@@ -689,14 +993,20 @@ export default function AdminCurrentAccountsSection({
                       <span style={moneyPrefixStyle}>$</span>
                       <input
                         value={paymentAmount}
-                        onChange={(event) => setPaymentAmount(event.target.value)}
+                        onChange={(event) =>
+                          setPaymentAmount(event.target.value)
+                        }
                         inputMode="decimal"
                         style={{ ...inputStyle, paddingLeft: 30 }}
                       />
                     </div>
                     <button
                       type="button"
-                      onClick={() => setPaymentAmount(String(Number(paymentCustomer.balance)))}
+                      onClick={() =>
+                        setPaymentAmount(
+                          String(Number(paymentCustomer.balance)),
+                        )
+                      }
                       style={softButtonStyle}
                     >
                       Saldar total
@@ -706,7 +1016,11 @@ export default function AdminCurrentAccountsSection({
                 <div style={paymentSummaryStyle}>
                   <div>
                     <span>Pago</span>
-                    <strong>{Number.isFinite(paymentAmountNumber) ? money(Math.max(paymentAmountNumber, 0)) : money(0)}</strong>
+                    <strong>
+                      {Number.isFinite(paymentAmountNumber)
+                        ? money(Math.max(paymentAmountNumber, 0))
+                        : money(0)}
+                    </strong>
                   </div>
                   <div>
                     <span>Saldo restante</span>
@@ -715,26 +1029,51 @@ export default function AdminCurrentAccountsSection({
                 </div>
                 <label style={fieldGroupStyle}>
                   <span>Metodo de pago</span>
-                  <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} style={inputStyle}>
-                    {paymentMethods.map((method) => <option key={method}>{method}</option>)}
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) => setPaymentMethod(event.target.value)}
+                    style={inputStyle}
+                  >
+                    {paymentMethods.map((method) => (
+                      <option key={method}>{method}</option>
+                    ))}
                   </select>
                 </label>
                 <label style={fieldGroupStyle}>
                   <span>Observaciones</span>
                   <textarea
                     value={paymentDescription}
-                    onChange={(event) => setPaymentDescription(event.target.value)}
+                    onChange={(event) =>
+                      setPaymentDescription(event.target.value)
+                    }
                     style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
                   />
                 </label>
                 <div style={rowActionsStyle}>
-                  <button type="button" onClick={() => setPaymentCustomer(null)} style={softButtonStyle}>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentCustomer(null)}
+                    style={softButtonStyle}
+                  >
                     Cambiar cliente
                   </button>
-                  <button type="button" onClick={() => void registerPayment()} disabled={savingPayment} style={primaryButtonStyle}>
+                  <button
+                    type="button"
+                    onClick={() => void registerPayment()}
+                    disabled={savingPayment}
+                    style={primaryButtonStyle}
+                  >
                     {savingPayment ? "Registrando..." : "Confirmar pago"}
                   </button>
-                  <button type="button" onClick={() => { setPaymentModalOpen(false); setPaymentCustomer(null); setModalError(""); }} style={softButtonStyle}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentModalOpen(false);
+                      setPaymentCustomer(null);
+                      setModalError("");
+                    }}
+                    style={softButtonStyle}
+                  >
                     Cancelar
                   </button>
                 </div>
@@ -745,35 +1084,90 @@ export default function AdminCurrentAccountsSection({
       ) : null}
 
       {editAccount ? (
-        <div style={modalOverlayStyle} onClick={() => { setEditAccount(null); setModalError(""); }}>
+        <div
+          style={modalOverlayStyle}
+          onClick={() => {
+            setEditAccount(null);
+            setModalError("");
+          }}
+        >
           <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
             <header style={modalHeaderStyle}>
               <div>
                 <p style={eyebrowStyle}>Editar cuenta</p>
-                <h3 style={modalTitleStyle}>{customerName(editAccount.customer)}</h3>
+                <h3 style={modalTitleStyle}>
+                  {customerName(editAccount.customer)}
+                </h3>
               </div>
             </header>
             {modalError ? <p style={errorStyle}>{modalError}</p> : null}
             <div style={twoColumnFormStyle}>
-              <Field label="Nombre" value={editForm.firstName} onChange={(value) => setEditForm((current) => ({ ...current, firstName: value }))} />
-              <Field label="Apellido" value={editForm.lastName} onChange={(value) => setEditForm((current) => ({ ...current, lastName: value }))} />
-              <Field label="Email" value={editForm.email} onChange={(value) => setEditForm((current) => ({ ...current, email: value }))} />
-              <Field label="Telefono" value={editForm.phone} onChange={(value) => setEditForm((current) => ({ ...current, phone: value }))} />
-              <Field label="Documento" value={editForm.document} onChange={(value) => setEditForm((current) => ({ ...current, document: value }))} />
+              <Field
+                label="Nombre"
+                value={editForm.firstName}
+                onChange={(value) =>
+                  setEditForm((current) => ({ ...current, firstName: value }))
+                }
+              />
+              <Field
+                label="Apellido"
+                value={editForm.lastName}
+                onChange={(value) =>
+                  setEditForm((current) => ({ ...current, lastName: value }))
+                }
+              />
+              <Field
+                label="Email"
+                value={editForm.email}
+                onChange={(value) =>
+                  setEditForm((current) => ({ ...current, email: value }))
+                }
+              />
+              <Field
+                label="Telefono"
+                value={editForm.phone}
+                onChange={(value) =>
+                  setEditForm((current) => ({ ...current, phone: value }))
+                }
+              />
+              <Field
+                label="Documento"
+                value={editForm.document}
+                onChange={(value) =>
+                  setEditForm((current) => ({ ...current, document: value }))
+                }
+              />
               <label style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
                 <span>Notas</span>
                 <textarea
                   value={editForm.notes}
-                  onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))}
+                  onChange={(event) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
                   style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
                 />
               </label>
             </div>
             <div style={rowActionsStyle}>
-              <button type="button" onClick={() => void saveEdit()} disabled={savingEdit} style={primaryButtonStyle}>
+              <button
+                type="button"
+                onClick={() => void saveEdit()}
+                disabled={savingEdit}
+                style={primaryButtonStyle}
+              >
                 {savingEdit ? "Guardando..." : "Guardar cambios"}
               </button>
-              <button type="button" onClick={() => { setEditAccount(null); setModalError(""); }} style={softButtonStyle}>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditAccount(null);
+                  setModalError("");
+                }}
+                style={softButtonStyle}
+              >
                 Cancelar
               </button>
             </div>
@@ -782,12 +1176,20 @@ export default function AdminCurrentAccountsSection({
       ) : null}
 
       {balanceAccount ? (
-        <div style={modalOverlayStyle} onClick={() => { setBalanceAccount(null); setModalError(""); }}>
+        <div
+          style={modalOverlayStyle}
+          onClick={() => {
+            setBalanceAccount(null);
+            setModalError("");
+          }}
+        >
           <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
             <header style={modalHeaderStyle}>
               <div>
                 <p style={eyebrowStyle}>Ajustar saldo</p>
-                <h3 style={modalTitleStyle}>{customerName(balanceAccount.customer)}</h3>
+                <h3 style={modalTitleStyle}>
+                  {customerName(balanceAccount.customer)}
+                </h3>
               </div>
               <div style={balanceStyle}>
                 <BalanceAmount value={Number(balanceAccount.balance)} />
@@ -816,10 +1218,22 @@ export default function AdminCurrentAccountsSection({
               />
             </label>
             <div style={rowActionsStyle}>
-              <button type="button" onClick={() => void saveBalance()} disabled={savingBalance} style={primaryButtonStyle}>
+              <button
+                type="button"
+                onClick={() => void saveBalance()}
+                disabled={savingBalance}
+                style={primaryButtonStyle}
+              >
                 {savingBalance ? "Guardando..." : "Guardar ajuste"}
               </button>
-              <button type="button" onClick={() => { setBalanceAccount(null); setModalError(""); }} style={softButtonStyle}>
+              <button
+                type="button"
+                onClick={() => {
+                  setBalanceAccount(null);
+                  setModalError("");
+                }}
+                style={softButtonStyle}
+              >
                 Cancelar
               </button>
             </div>
@@ -844,7 +1258,12 @@ function Field({
   return (
     <label style={fieldGroupStyle}>
       <span>{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} style={inputStyle} />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
     </label>
   );
 }
@@ -875,31 +1294,95 @@ export function CurrentAccountCreateModal({
         </header>
         {error ? <p style={errorStyle}>{error}</p> : null}
         <div style={twoColumnFormStyle}>
-          <Field label="Nombre" value={form.firstName} onChange={(value) => onFormChange((current) => ({ ...current, firstName: value }))} />
-          <Field label="Apellido" value={form.lastName} onChange={(value) => onFormChange((current) => ({ ...current, lastName: value }))} />
-          <Field label="Email" placeholder="Email opcional" value={form.email} onChange={(value) => onFormChange((current) => ({ ...current, email: value }))} />
-          <Field label="Telefono" placeholder="Telefono opcional" value={form.phone} onChange={(value) => onFormChange((current) => ({ ...current, phone: value }))} />
-          <Field label="Documento" placeholder="Documento opcional" value={form.document} onChange={(value) => onFormChange((current) => ({ ...current, document: value }))} />
+          <Field
+            label="Nombre"
+            value={form.firstName}
+            onChange={(value) =>
+              onFormChange((current) => ({ ...current, firstName: value }))
+            }
+          />
+          <Field
+            label="Apellido"
+            value={form.lastName}
+            onChange={(value) =>
+              onFormChange((current) => ({ ...current, lastName: value }))
+            }
+          />
+          <Field
+            label="Email"
+            placeholder="Email opcional"
+            value={form.email}
+            onChange={(value) =>
+              onFormChange((current) => ({ ...current, email: value }))
+            }
+          />
+          <Field
+            label="Telefono"
+            placeholder="Telefono opcional"
+            value={form.phone}
+            onChange={(value) =>
+              onFormChange((current) => ({ ...current, phone: value }))
+            }
+          />
+          <Field
+            label="Documento"
+            placeholder="Documento opcional"
+            value={form.document}
+            onChange={(value) =>
+              onFormChange((current) => ({ ...current, document: value }))
+            }
+          />
           <div style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
             <span>Direccion</span>
-            <Field label="Calle, numero, piso/depto" placeholder="Direccion opcional" value={form.address1} onChange={(value) => onFormChange((current) => ({ ...current, address1: value }))} />
+            <Field
+              label="Calle, numero, piso/depto"
+              placeholder="Direccion opcional"
+              value={form.address1}
+              onChange={(value) =>
+                onFormChange((current) => ({ ...current, address1: value }))
+              }
+            />
             <div style={twoColumnFormStyle}>
-              <Field label="Localidad" placeholder="Localidad opcional" value={form.city} onChange={(value) => onFormChange((current) => ({ ...current, city: value }))} />
-              <Field label="Codigo postal" placeholder="Codigo postal opcional" value={form.zip} onChange={(value) => onFormChange((current) => ({ ...current, zip: value }))} />
+              <Field
+                label="Localidad"
+                placeholder="Localidad opcional"
+                value={form.city}
+                onChange={(value) =>
+                  onFormChange((current) => ({ ...current, city: value }))
+                }
+              />
+              <Field
+                label="Codigo postal"
+                placeholder="Codigo postal opcional"
+                value={form.zip}
+                onChange={(value) =>
+                  onFormChange((current) => ({ ...current, zip: value }))
+                }
+              />
             </div>
           </div>
           <label style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
             <span>Notas</span>
             <textarea
               value={form.notes}
-              onChange={(event) => onFormChange((current) => ({ ...current, notes: event.target.value }))}
+              onChange={(event) =>
+                onFormChange((current) => ({
+                  ...current,
+                  notes: event.target.value,
+                }))
+              }
               placeholder="Notas opcionales"
               style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
             />
           </label>
         </div>
         <div style={rowActionsStyle}>
-          <button type="button" onClick={onSubmit} disabled={saving} style={primaryButtonStyle}>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={saving}
+            style={primaryButtonStyle}
+          >
             {saving ? "Creando..." : "Crear cuenta"}
           </button>
           <button type="button" onClick={onClose} style={softButtonStyle}>
@@ -912,12 +1395,19 @@ export function CurrentAccountCreateModal({
 }
 
 function customerName(customer: Customer) {
-  return [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || customer.email || customer.phone || `Cliente #${customer.id}`;
+  return (
+    [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() ||
+    customer.email ||
+    customer.phone ||
+    `Cliente #${customer.id}`
+  );
 }
 
 function variantLabel(variant?: MovementVariant) {
   if (!variant) return "";
-  const label = [variant.Size, variant.Color, variant.sku].filter(Boolean).join(" · ");
+  const label = [variant.Size, variant.Color, variant.sku]
+    .filter(Boolean)
+    .join(" · ");
   return label ? `(${label})` : "";
 }
 
@@ -934,7 +1424,10 @@ function movementLabel(type: string) {
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function balanceState(value: number): "debt" | "credit" | "paid" {
@@ -957,7 +1450,9 @@ function movementAmountLabel(movement: Movement) {
 
 function parsePaymentAmount(value: string) {
   const raw = value.trim().replace(/\s/g, "");
-  const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  const normalized = raw.includes(",")
+    ? raw.replace(/\./g, "").replace(",", ".")
+    : raw;
   return Number(normalized);
 }
 
@@ -965,13 +1460,19 @@ function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function appendStoreLocationParam(params: URLSearchParams, storeLocationId?: number | null) {
+function appendStoreLocationParam(
+  params: URLSearchParams,
+  storeLocationId?: number | null,
+) {
   if (storeLocationId) {
     params.set("storeLocationId", String(storeLocationId));
   }
 }
 
-function currentAccountCustomerPath(customerId: number, storeLocationId?: number | null) {
+function currentAccountCustomerPath(
+  customerId: number,
+  storeLocationId?: number | null,
+) {
   const params = new URLSearchParams();
   appendStoreLocationParam(params, storeLocationId);
   const query = params.toString();
@@ -987,11 +1488,7 @@ function emptyAccountsLabel(status: FilterStatus) {
 
 function BalanceAmount({ value }: { value: number }) {
   const state = balanceState(value);
-  return (
-    <span style={balanceAmountStyle(state)}>
-      {balanceLabel(value)}
-    </span>
-  );
+  return <span style={balanceAmountStyle(state)}>{balanceLabel(value)}</span>;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -1016,14 +1513,52 @@ function Td({ children }: { children: React.ReactNode }) {
 }
 
 const panelStyle: React.CSSProperties = { display: "grid", gap: 20 };
-const headerStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 18, flexWrap: "wrap", alignItems: "flex-start" };
-const eyebrowStyle: React.CSSProperties = { margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.16em", fontSize: 11, color: "var(--account-text-soft)" };
-const titleStyle: React.CSSProperties = { margin: 0, fontSize: 28, color: "var(--account-text-strong)" };
-const modalTitleStyle: React.CSSProperties = { margin: 0, fontSize: 22, color: "var(--account-text-strong)" };
-const copyStyle: React.CSSProperties = { margin: 0, color: "var(--account-text-muted)", lineHeight: 1.5 };
-const statsStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
-const statStyle: React.CSSProperties = { minWidth: 140, padding: 16, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", display: "grid", gap: 6 };
-const balanceAmountStyle = (state: "debt" | "credit" | "paid"): React.CSSProperties => ({
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 18,
+  flexWrap: "wrap",
+  alignItems: "flex-start",
+};
+const eyebrowStyle: React.CSSProperties = {
+  margin: "0 0 8px",
+  textTransform: "uppercase",
+  letterSpacing: "0.16em",
+  fontSize: 11,
+  color: "var(--account-text-soft)",
+};
+const titleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 28,
+  color: "var(--account-text-strong)",
+};
+const modalTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "var(--account-text-strong)",
+};
+const copyStyle: React.CSSProperties = {
+  margin: 0,
+  color: "var(--account-text-muted)",
+  lineHeight: 1.5,
+};
+const statsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+const statStyle: React.CSSProperties = {
+  minWidth: 140,
+  padding: 16,
+  borderRadius: 16,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  display: "grid",
+  gap: 6,
+};
+const balanceAmountStyle = (
+  state: "debt" | "credit" | "paid",
+): React.CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1031,40 +1566,317 @@ const balanceAmountStyle = (state: "debt" | "credit" | "paid"): React.CSSPropert
   maxWidth: "100%",
   padding: "7px 10px",
   borderRadius: 999,
-  border: state === "credit" ? "1px solid var(--admin-tone-success-border)" : "1px solid var(--account-item-border)",
-  background: state === "credit" ? "var(--admin-tone-success-bg)" : state === "debt" ? "var(--account-item-bg-active)" : "var(--account-sidebar-bg)",
-  color: state === "credit" ? "var(--admin-tone-success-color)" : "var(--account-text-strong)",
+  border:
+    state === "credit"
+      ? "1px solid var(--admin-tone-success-border)"
+      : "1px solid var(--account-item-border)",
+  background:
+    state === "credit"
+      ? "var(--admin-tone-success-bg)"
+      : state === "debt"
+        ? "var(--account-item-bg-active)"
+        : "var(--account-sidebar-bg)",
+  color:
+    state === "credit"
+      ? "var(--admin-tone-success-color)"
+      : "var(--account-text-strong)",
   fontWeight: 800,
   whiteSpace: "nowrap",
 });
-const errorStyle: React.CSSProperties = { margin: 0, padding: 14, borderRadius: 14, border: "1px solid var(--admin-danger-border)", background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)" };
-const toolbarStyle: React.CSSProperties = { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" };
-const inputStyle: React.CSSProperties = { width: "100%", minHeight: 42, borderRadius: 12, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-strong)", padding: "10px 12px" };
-const segmentedStyle: React.CSSProperties = { display: "flex", gap: 6, padding: 4, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
-const segmentButtonStyle = (active: boolean): React.CSSProperties => ({ border: 0, borderRadius: 10, padding: "10px 12px", background: active ? "var(--account-item-bg-active)" : "transparent", color: "var(--account-text-strong)", cursor: "pointer", fontWeight: 700 });
-const tableShellStyle: React.CSSProperties = { overflowX: "auto", borderRadius: 18, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
-const tableStyle: React.CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 860 };
-const thStyle: React.CSSProperties = { textAlign: "left", padding: "13px 14px", fontSize: 12, color: "var(--account-text-soft)", borderBottom: "1px solid var(--account-item-border)", textTransform: "uppercase", letterSpacing: "0.12em" };
-const tdStyle: React.CSSProperties = { padding: "14px", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-strong)", verticalAlign: "top" };
-const mutedBlockStyle: React.CSSProperties = { display: "block", marginTop: 4, color: "var(--account-text-muted)", fontSize: 12 };
-const rowActionsStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: 12, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
-const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 12, background: "var(--account-item-bg-active)", color: "var(--account-text-strong)", padding: "11px 14px", cursor: "pointer", fontWeight: 800, minHeight: 42 };
-const softButtonStyle: React.CSSProperties = { border: "1px solid var(--account-item-border)", borderRadius: 12, background: "var(--account-sidebar-bg)", color: "var(--account-text-strong)", padding: "10px 13px", cursor: "pointer", fontWeight: 700, minHeight: 42 };
-const dangerButtonStyle: React.CSSProperties = { border: "1px solid var(--admin-danger-border)", borderRadius: 12, background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)", padding: "10px 13px", cursor: "pointer", fontWeight: 800, minHeight: 42 };
-const stateStyle: React.CSSProperties = { padding: 24, borderRadius: 18, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-muted)" };
-const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 120, background: "var(--admin-overlay-bg, rgba(0,0,0,.42))", display: "grid", placeItems: "center", padding: 16 };
-const modalStyle: React.CSSProperties = { position: "relative", width: "min(780px, 100%)", maxHeight: "min(760px, calc(100vh - 32px))", overflow: "auto", borderRadius: 22, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", padding: "38px 24px 24px", display: "grid", gap: 16, boxShadow: "var(--admin-modal-shadow)" };
-const modalCloseButtonStyle: React.CSSProperties = { position: "absolute", top: 12, right: 12, width: 36, height: 36, borderRadius: 999, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-strong)", cursor: "pointer", fontSize: 22, lineHeight: "32px", display: "grid", placeItems: "center" };
-const modalHeaderStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 18, alignItems: "stretch", padding: 16, borderRadius: 18, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
-const balanceStyle: React.CSSProperties = { color: "var(--account-text-strong)", fontSize: 24, minWidth: 150, padding: "14px 16px", borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", display: "grid", placeItems: "center end", alignSelf: "stretch" };
+const errorStyle: React.CSSProperties = {
+  margin: 0,
+  padding: 14,
+  borderRadius: 14,
+  border: "1px solid var(--admin-danger-border)",
+  background: "var(--admin-danger-bg)",
+  color: "var(--admin-danger-color)",
+};
+const toolbarStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 42,
+  borderRadius: 12,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  padding: "10px 12px",
+};
+const segmentedStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 6,
+  padding: 4,
+  borderRadius: 14,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+const segmentButtonStyle = (active: boolean): React.CSSProperties => ({
+  border: 0,
+  borderRadius: 10,
+  padding: "10px 12px",
+  background: active ? "var(--account-item-bg-active)" : "transparent",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  fontWeight: 700,
+});
+const tableShellStyle: React.CSSProperties = {
+  overflowX: "auto",
+  borderRadius: 18,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+const tableStyle: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+  minWidth: 860,
+};
+const thStyle: React.CSSProperties = {
+  textAlign: "left",
+  padding: "13px 14px",
+  fontSize: 12,
+  color: "var(--account-text-soft)",
+  borderBottom: "1px solid var(--account-item-border)",
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+};
+const tdStyle: React.CSSProperties = {
+  padding: "14px",
+  borderBottom: "1px solid var(--account-item-border)",
+  color: "var(--account-text-strong)",
+  verticalAlign: "top",
+};
+const mutedBlockStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: 4,
+  color: "var(--account-text-muted)",
+  fontSize: 12,
+};
+const rowActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  alignItems: "center",
+  padding: 12,
+  borderRadius: 16,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+const detailModeRailStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  alignItems: "center",
+  padding: 8,
+  borderRadius: 16,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+const detailModeButtonStyle = (active: boolean): React.CSSProperties => ({
+  border: active
+    ? "1px solid var(--account-item-border)"
+    : "1px solid transparent",
+  borderRadius: 12,
+  background: active ? "var(--account-item-bg-active)" : "transparent",
+  color: "var(--account-text-strong)",
+  padding: "10px 13px",
+  cursor: "pointer",
+  fontWeight: 800,
+  minHeight: 40,
+});
+const primaryButtonStyle: React.CSSProperties = {
+  border: 0,
+  borderRadius: 12,
+  background: "var(--account-item-bg-active)",
+  color: "var(--account-text-strong)",
+  padding: "11px 14px",
+  cursor: "pointer",
+  fontWeight: 800,
+  minHeight: 42,
+};
+const softButtonStyle: React.CSSProperties = {
+  border: "1px solid var(--account-item-border)",
+  borderRadius: 12,
+  background: "var(--account-sidebar-bg)",
+  color: "var(--account-text-strong)",
+  padding: "10px 13px",
+  cursor: "pointer",
+  fontWeight: 700,
+  minHeight: 42,
+};
+const dangerButtonStyle: React.CSSProperties = {
+  border: "1px solid var(--admin-danger-border)",
+  borderRadius: 12,
+  background: "var(--admin-danger-bg)",
+  color: "var(--admin-danger-color)",
+  padding: "10px 13px",
+  cursor: "pointer",
+  fontWeight: 800,
+  minHeight: 42,
+};
+const stateStyle: React.CSSProperties = {
+  padding: 24,
+  borderRadius: 18,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-muted)",
+};
+const modalOverlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 120,
+  background: "var(--admin-overlay-bg, rgba(0,0,0,.42))",
+  display: "grid",
+  placeItems: "center",
+  padding: 16,
+};
+const modalStyle: React.CSSProperties = {
+  position: "relative",
+  width: "min(780px, 100%)",
+  maxHeight: "min(760px, calc(100vh - 32px))",
+  overflow: "auto",
+  borderRadius: 22,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-sidebar-bg)",
+  padding: "38px 24px 24px",
+  display: "grid",
+  gap: 16,
+  boxShadow: "var(--admin-modal-shadow)",
+};
+const detailModalStyle: React.CSSProperties = {
+  ...modalStyle,
+  width: "min(1180px, 100%)",
+  maxHeight: "min(880px, calc(100vh - 32px))",
+};
+const modalCloseButtonStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 12,
+  right: 12,
+  width: 36,
+  height: 36,
+  borderRadius: 999,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+  fontSize: 22,
+  lineHeight: "32px",
+  display: "grid",
+  placeItems: "center",
+};
+const modalHeaderStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  gap: 18,
+  alignItems: "stretch",
+  padding: 16,
+  borderRadius: 18,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+const balanceStyle: React.CSSProperties = {
+  color: "var(--account-text-strong)",
+  fontSize: 24,
+  minWidth: 150,
+  padding: "14px 16px",
+  borderRadius: 16,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-sidebar-bg)",
+  display: "grid",
+  placeItems: "center end",
+  alignSelf: "stretch",
+};
 const movementListStyle: React.CSSProperties = { display: "grid", gap: 10 };
-const movementStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, padding: 16, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
-const movementItemsStyle: React.CSSProperties = { display: "grid", gap: 4, marginTop: 8, color: "var(--account-text-muted)", fontSize: 12 };
-const fieldGroupStyle: React.CSSProperties = { display: "grid", gap: 8, color: "var(--account-text-muted)", fontWeight: 700 };
-const amountRowStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center" };
-const moneyInputWrapStyle: React.CSSProperties = { position: "relative", minWidth: 0 };
-const moneyPrefixStyle: React.CSSProperties = { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--account-text-muted)", fontWeight: 800, pointerEvents: "none" };
-const paymentSummaryStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, padding: 14, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-muted)" };
-const paymentCustomerListStyle: React.CSSProperties = { display: "grid", gap: 10, maxHeight: 320, overflow: "auto" };
-const paymentCustomerOptionStyle: React.CSSProperties = { width: "100%", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", border: "1px solid var(--account-item-border)", borderRadius: 14, background: "var(--account-item-bg)", color: "var(--account-text-strong)", padding: 14, cursor: "pointer", textAlign: "left" };
-const twoColumnFormStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 };
+const movementStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 16,
+  padding: 16,
+  borderRadius: 16,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+const movementItemsStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  marginTop: 8,
+  color: "var(--account-text-muted)",
+  fontSize: 12,
+};
+const fieldGroupStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  color: "var(--account-text-muted)",
+  fontWeight: 700,
+};
+const amountRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  gap: 8,
+  alignItems: "center",
+};
+const moneyInputWrapStyle: React.CSSProperties = {
+  position: "relative",
+  minWidth: 0,
+};
+const moneyPrefixStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 12,
+  top: "50%",
+  transform: "translateY(-50%)",
+  color: "var(--account-text-muted)",
+  fontWeight: 800,
+  pointerEvents: "none",
+};
+const paymentSummaryStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+  padding: 14,
+  borderRadius: 16,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-muted)",
+};
+const paymentCustomerListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  maxHeight: 320,
+  overflow: "auto",
+};
+const paymentCustomerOptionStyle: React.CSSProperties = {
+  width: "100%",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "center",
+  border: "1px solid var(--account-item-border)",
+  borderRadius: 14,
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-strong)",
+  padding: 14,
+  cursor: "pointer",
+  textAlign: "left",
+};
+const inlinePaymentStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  padding: 16,
+  borderRadius: 18,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+const embeddedSaleStyle: React.CSSProperties = {
+  borderRadius: 18,
+  overflow: "hidden",
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+};
+const twoColumnFormStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};

@@ -180,7 +180,12 @@ export class OrdersService {
   ) {
     await this.ensureManualSalesEnabled(storeId);
 
-    const currentAccountPayment = this.isCurrentAccountPaymentMethod(data.paymentMethod);
+    const requestedPaymentMethods = data.payments?.length
+      ? data.payments.map((payment) => payment.method)
+      : [data.paymentMethod];
+    const currentAccountPayment = requestedPaymentMethods.some((method) =>
+      this.isCurrentAccountPaymentMethod(method),
+    );
     const cashContext = await this.resolveManualSaleCashContext(
       storeId,
       createdByUserId,
@@ -312,6 +317,43 @@ export class OrdersService {
       }
 
       const amountToCollect = this.roundCurrency(Math.max(total - appliedCreditAmount, 0));
+      const paymentEntries = data.payments?.length
+        ? data.payments.map((payment) => ({
+            method: payment.method?.trim() || 'Efectivo',
+            amount: this.roundCurrency(Math.max(Number(payment.amount ?? 0), 0)),
+          }))
+        : [
+            {
+              method: data.paymentMethod?.trim() || 'Efectivo',
+              amount: amountToCollect,
+            },
+          ];
+      const paymentMethodKeys = paymentEntries.map((payment) =>
+        payment.method.trim().toLowerCase(),
+      );
+      const uniquePaymentMethodKeys = new Set(paymentMethodKeys);
+
+      if (uniquePaymentMethodKeys.size !== paymentMethodKeys.length) {
+        throw new BadRequestException(
+          'No se puede repetir el mismo metodo en pagos divididos.',
+        );
+      }
+
+      const paymentEntriesTotal = this.roundCurrency(
+        paymentEntries.reduce((sum, payment) => sum + payment.amount, 0),
+      );
+
+      if (Math.abs(paymentEntriesTotal - amountToCollect) > 0.01) {
+        throw new BadRequestException(
+          'La suma de los pagos debe coincidir con el total a cobrar.',
+        );
+      }
+
+      const currentAccountAmount = this.roundCurrency(
+        paymentEntries
+          .filter((payment) => this.isCurrentAccountPaymentMethod(payment.method))
+          .reduce((sum, payment) => sum + payment.amount, 0),
+      );
       const shippingMethod =
         data.shippingMethod?.trim() || 'Retiro en local';
       const customerFirstName =
@@ -326,12 +368,12 @@ export class OrdersService {
           : 'manual',
       });
       const paymentStatus =
-        currentAccountPayment && amountToCollect > 0
+        currentAccountAmount > 0
           ? 'pending'
           : data.paymentStatus ?? 'approved';
-      const stockStatus = currentAccountPayment ? 'approved' : paymentStatus;
+      const stockStatus = currentAccountAmount > 0 ? 'approved' : paymentStatus;
       const initialOrderStatus =
-        currentAccountPayment && amountToCollect > 0
+        currentAccountAmount > 0
           ? OrderStatus.pending
           : stockStatus === 'approved'
             ? OrderStatus.paid
@@ -362,25 +404,31 @@ export class OrdersService {
             create: orderItems,
           },
           payments: {
-            create: {
-              storeId,
-              storeLocationId: cashContext.storeLocationId,
-              cashRegisterId: cashContext.cashRegisterId,
-              provider: 'manual',
-              method: data.paymentMethod?.trim() || 'Efectivo',
-              status: paymentStatus,
-              amount: amountToCollect,
-              reference: data.reference?.trim() || null,
-              notes: data.notes?.trim() || null,
-              metadata: {
-                origin: 'manual_sale',
-                discountType: discount.type,
-                discountValue: discount.value,
-                currentAccount: currentAccountPayment,
-                appliedCurrentAccountCreditAmount: appliedCreditAmount,
-                collectedAmount: amountToCollect,
-              },
-            },
+            create: paymentEntries.map((payment, index) => {
+              const entryCurrentAccount = this.isCurrentAccountPaymentMethod(payment.method);
+
+              return {
+                storeId,
+                storeLocationId: cashContext.storeLocationId,
+                cashRegisterId: cashContext.cashRegisterId,
+                provider: 'manual',
+                method: payment.method,
+                status: entryCurrentAccount ? 'pending' : data.paymentStatus ?? 'approved',
+                amount: payment.amount,
+                reference: data.reference?.trim() || null,
+                notes: data.notes?.trim() || null,
+                metadata: {
+                  origin: 'manual_sale',
+                  discountType: discount.type,
+                  discountValue: discount.value,
+                  currentAccount: entryCurrentAccount,
+                  splitPayment: paymentEntries.length > 1,
+                  splitPaymentIndex: index + 1,
+                  appliedCurrentAccountCreditAmount: index === 0 ? appliedCreditAmount : 0,
+                  collectedAmount: payment.amount,
+                },
+              };
+            }),
           },
         },
         include: this.orderInclude(),
@@ -426,7 +474,7 @@ export class OrdersService {
         });
       }
 
-      if (currentAccountPayment && amountToCollect > 0) {
+      if (currentAccountAmount > 0) {
         await tx.customer.update({
           where: { id: customerId },
           data: { source: 'current_account' },
@@ -440,7 +488,7 @@ export class OrdersService {
           },
         });
         const previousBalance = Number(existingAccount?.balance ?? 0);
-        const nextBalance = this.roundCurrency(previousBalance + amountToCollect);
+        const nextBalance = this.roundCurrency(previousBalance + currentAccountAmount);
         const account = existingAccount
           ? await tx.currentAccount.update({
               where: { id: existingAccount.id },
@@ -472,7 +520,7 @@ export class OrdersService {
             orderId: order.id,
             cashRegisterId: cashContext.cashRegisterId,
             type: 'SALE',
-            amount: amountToCollect,
+            amount: currentAccountAmount,
             paymentMethod: 'Cuenta corriente',
             description: `Venta manual #${order.id}`,
             createdByUserId,
@@ -491,8 +539,9 @@ export class OrdersService {
           actorType: 'admin',
           metadata: {
             paymentStatus,
-            paymentMethod: data.paymentMethod?.trim() || 'Efectivo',
-            currentAccount: currentAccountPayment,
+            paymentMethod: paymentEntries.map((payment) => payment.method).join(' + '),
+            currentAccount: currentAccountAmount > 0,
+            splitPayment: paymentEntries.length > 1,
             hasNotes: Boolean(data.notes?.trim()),
           },
         },
@@ -535,12 +584,21 @@ export class OrdersService {
         );
       }
 
-      const manualPayment = order.payments.find(
+      const manualPayments = order.payments.filter(
         (payment) => payment.provider === 'manual',
       );
+      const manualPayment = manualPayments[0];
+
+      if (manualPayments.length > 1) {
+        throw new BadRequestException(
+          'Las ventas con pago dividido no se pueden editar desde este formulario.',
+        );
+      }
 
       const behavesAsPending =
-        !this.isCurrentAccountPaymentMetadata(manualPayment?.metadata) &&
+        !manualPayments.some((payment) =>
+          this.isCurrentAccountPaymentMetadata(payment.metadata),
+        ) &&
         (manualPayment?.status === 'pending' || order.status === OrderStatus.pending);
 
       const incomingItems = data.items ?? [];
@@ -807,9 +865,12 @@ export class OrdersService {
         (payment) => payment.provider === 'manual',
       );
       const currentAccountPayment =
-        manualPayment?.metadata &&
-        typeof manualPayment.metadata === 'object' &&
-        (manualPayment.metadata as Record<string, unknown>).currentAccount === true;
+        order.payments.some((payment) => this.isCurrentAccountPaymentMetadata(payment.metadata));
+      const currentAccountPaymentAmount = this.roundCurrency(
+        order.payments
+          .filter((payment) => this.isCurrentAccountPaymentMetadata(payment.metadata))
+          .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
+      );
       const behavesAsPending =
         !currentAccountPayment &&
         (manualPayment?.status === 'pending' ||
@@ -846,11 +907,11 @@ export class OrdersService {
         },
         data: {
           status: OrderStatus.cancelled,
-          payments: manualPayment
+          payments: order.payments.length
             ? {
-                update: {
+                updateMany: {
                   where: {
-                    id: manualPayment.id,
+                    provider: 'manual',
                   },
                   data: {
                     status: 'cancelled',
@@ -874,7 +935,7 @@ export class OrdersService {
 
         if (account) {
           const nextBalance = this.roundCurrency(
-            Number(account.balance) - Number(order.total),
+            Number(account.balance) - currentAccountPaymentAmount,
           );
 
           await tx.currentAccount.update({
@@ -893,7 +954,7 @@ export class OrdersService {
               customerId: order.customerId,
               orderId: order.id,
               type: 'ADJUSTMENT_NEGATIVE',
-              amount: -Number(order.total),
+              amount: -currentAccountPaymentAmount,
               paymentMethod: 'Cuenta corriente',
               description: `Anulacion de venta manual #${order.id}`,
               createdByUserId,
