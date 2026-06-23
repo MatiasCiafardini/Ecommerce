@@ -48,6 +48,7 @@ type ManualSaleOrder = {
 };
 
 type EditDraft = {
+  reason: string;
   paymentMethod: string;
   discountType: "percentage" | "fixed";
   discountValue: string;
@@ -74,6 +75,7 @@ const paymentOptions = [
   { value: "Efectivo", label: "Efectivo" },
   { value: "Tarjeta", label: "Tarjeta" },
   { value: "Transferencia", label: "Transferencia" },
+  { value: "Cuenta corriente", label: "Cuenta corriente" },
 ];
 
 const isManualSaleOrder = (order: ManualSaleOrder) =>
@@ -177,6 +179,7 @@ export default function ManualSalesWorkspace() {
     setSelectedOrder(order);
     setModalMode("edit");
     setEditDraft({
+      reason: "",
       paymentMethod: getManualPaymentMethod(order),
       discountType: getManualDiscountType(order),
       discountValue: String(getManualDiscountValue(order)),
@@ -239,6 +242,11 @@ export default function ManualSalesWorkspace() {
   const saveEdit = async () => {
     if (!selectedOrder || !editDraft) return;
 
+    if (!editDraft.reason.trim()) {
+      setEditError("Carga el motivo interno de la correccion.");
+      return;
+    }
+
     setSavingEdit(true);
     setEditError("");
 
@@ -247,6 +255,7 @@ export default function ManualSalesWorkspace() {
         method: "PATCH",
         body: JSON.stringify({
           paymentMethod: editDraft.paymentMethod.trim() || undefined,
+          reason: editDraft.reason.trim(),
           discountType: editDraft.discountType,
           discountValue: Number(editDraft.discountValue || 0),
           items: editDraft.items.map((item) => ({
@@ -597,6 +606,25 @@ export default function ManualSalesWorkspace() {
                     />
                   </div>
                 </div>
+
+                <label style={{ display: "grid", gap: 8 }}>
+                  <p style={eyebrowStyle}>Motivo interno</p>
+                  <textarea
+                    value={editDraft.reason}
+                    onChange={(event) =>
+                      setEditDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              reason: event.target.value,
+                            }
+                          : current,
+                      )
+                    }
+                    placeholder="Ej: se cargo mal el precio"
+                    style={{ ...priceFieldStyle, minHeight: 86, resize: "vertical" }}
+                  />
+                </label>
 
                 <div style={{ display: "grid", gap: 12 }}>
                   {editDraft.items.map((item) => (

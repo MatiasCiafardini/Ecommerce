@@ -558,7 +558,13 @@ export class OrdersService {
     createdByUserId?: number,
   ) {
     await this.ensureManualSalesEnabled(storeId);
+    await this.ensureManualCorrectionAllowed(storeId, createdByUserId);
     const pricingPolicy = await this.resolvePricingPolicy(storeId);
+    const correctionReason = data.reason?.trim();
+
+    if (!correctionReason) {
+      throw new BadRequestException('Correction reason is required');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
@@ -595,13 +601,23 @@ export class OrdersService {
         );
       }
 
+      const nextPaymentMethod = data.paymentMethod?.trim() || manualPayment?.method || 'Efectivo';
+      const nextCurrentAccountPayment = this.isCurrentAccountPaymentMethod(nextPaymentMethod);
+      const previousCurrentAccountAmount = this.roundCurrency(
+        manualPayments
+          .filter((payment) => this.isCurrentAccountPaymentMetadata(payment.metadata))
+          .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
+      );
       const behavesAsPending =
-        !manualPayments.some((payment) =>
-          this.isCurrentAccountPaymentMetadata(payment.metadata),
-        ) &&
+        previousCurrentAccountAmount <= 0 &&
         (manualPayment?.status === 'pending' || order.status === OrderStatus.pending);
 
-      const incomingItems = data.items ?? [];
+      const incomingItems = data.items ?? order.items.map((item) => ({
+        orderItemId: item.id,
+        quantity: item.quantity,
+        price: Number(item.price),
+      }));
+      const incomingNewItems = data.newItems ?? [];
       const incomingIds = new Set(incomingItems.map((item) => item.orderItemId));
 
       if (incomingIds.size !== incomingItems.length) {
@@ -618,6 +634,12 @@ export class OrdersService {
 
       let subtotal = 0;
       const discountItems: OrderItemData[] = [];
+      const previousItemsSnapshot = order.items.map((item) => ({
+        id: item.id,
+        variantId: item.variantId,
+        quantity: item.quantity,
+        price: Number(item.price),
+      }));
 
       for (const existingItem of order.items) {
         const nextItem = incomingItems.find(
@@ -739,6 +761,77 @@ export class OrdersService {
         });
       }
 
+      for (const newItem of incomingNewItems) {
+        const inventory = await tx.inventory.findUnique({
+          where: {
+            storeId_variantId: {
+              storeId,
+              variantId: newItem.variantId,
+            },
+          },
+        });
+
+        if (!inventory) {
+          throw new NotFoundException(
+            `Inventory missing for variant ${newItem.variantId}`,
+          );
+        }
+
+        const available = inventory.quantity - inventory.reserved;
+
+        if (available < newItem.quantity) {
+          throw new BadRequestException(
+            `Not enough stock for variant ${newItem.variantId}`,
+          );
+        }
+
+        if (behavesAsPending) {
+          await tx.inventory.update({
+            where: {
+              storeId_variantId: {
+                storeId,
+                variantId: newItem.variantId,
+              },
+            },
+            data: {
+              reserved: {
+                increment: newItem.quantity,
+              },
+            },
+          });
+        } else {
+          await tx.inventory.update({
+            where: {
+              storeId_variantId: {
+                storeId,
+                variantId: newItem.variantId,
+              },
+            },
+            data: {
+              quantity: {
+                decrement: newItem.quantity,
+              },
+            },
+          });
+        }
+
+        await tx.orderItem.create({
+          data: {
+            orderId: order.id,
+            variantId: newItem.variantId,
+            quantity: newItem.quantity,
+            price: newItem.price,
+          },
+        });
+
+        subtotal += newItem.quantity * Number(newItem.price);
+        discountItems.push({
+          variantId: newItem.variantId,
+          quantity: newItem.quantity,
+          price: Number(newItem.price),
+        });
+      }
+
       const discount = this.resolveManualSaleDiscount({
         discountType: data.discountType,
         discountValue: data.discountValue,
@@ -754,10 +847,13 @@ export class OrdersService {
         subtotal - discountAmount + Number(order.shippingCost ?? 0),
         0,
       );
-      const currentAccountPayment = this.isCurrentAccountPaymentMetadata(
-        manualPayment?.metadata,
-      );
+      const nextCurrentAccountAmount = nextCurrentAccountPayment ? total : 0;
       const previousTotal = Number(order.total);
+      const nextOrderStatus = nextCurrentAccountPayment
+        ? OrderStatus.pending
+        : total > 0
+          ? OrderStatus.paid
+          : OrderStatus.paid;
 
       const updated = await tx.order.update({
         where: {
@@ -775,22 +871,32 @@ export class OrdersService {
                   },
                   data: {
                     amount: total,
-                    method: data.paymentMethod?.trim() || manualPayment.method,
+                    method: nextPaymentMethod,
+                    status: nextCurrentAccountPayment ? 'pending' : 'approved',
                     metadata: {
                       ...(manualPayment.metadata as Record<string, unknown> | null),
                       discountType: discount.type,
                       discountValue: discount.value,
+                      currentAccount: nextCurrentAccountPayment,
+                      reclassifiedAt: new Date().toISOString(),
+                      reclassifiedByUserId: createdByUserId ?? null,
+                      correctionReason,
                     },
                   },
                 },
               }
             : undefined,
+          status: nextOrderStatus,
         },
         include: this.orderInclude(),
       });
 
-      if (currentAccountPayment && total !== previousTotal) {
-        const account = await tx.currentAccount.findFirst({
+      const currentAccountDelta = this.roundCurrency(
+        nextCurrentAccountAmount - previousCurrentAccountAmount,
+      );
+
+      if (currentAccountDelta !== 0) {
+        let account = await tx.currentAccount.findFirst({
           where: {
             storeId,
             customerId: order.customerId,
@@ -798,9 +904,22 @@ export class OrdersService {
           },
         });
 
+        if (!account && nextCurrentAccountAmount > 0) {
+          account = await tx.currentAccount.create({
+            data: {
+              storeId,
+              storeLocationId: order.storeLocationId,
+              customerId: order.customerId,
+              balance: 0,
+              lastMovementAt: new Date(),
+            },
+          });
+        }
+
         if (account) {
-          const delta = this.roundCurrency(total - previousTotal);
-          const nextBalance = this.roundCurrency(Number(account.balance) + delta);
+          const nextBalance = this.roundCurrency(
+            Number(account.balance) + currentAccountDelta,
+          );
 
           await tx.currentAccount.update({
             where: { id: account.id },
@@ -817,16 +936,51 @@ export class OrdersService {
               accountId: account.id,
               customerId: order.customerId,
               orderId: order.id,
-              type: delta >= 0 ? 'ADJUSTMENT_POSITIVE' : 'ADJUSTMENT_NEGATIVE',
-              amount: delta,
+              type: currentAccountDelta >= 0 ? 'ADJUSTMENT_POSITIVE' : 'ADJUSTMENT_NEGATIVE',
+              amount: currentAccountDelta,
               paymentMethod: 'Cuenta corriente',
-              description: `Ajuste por edicion de venta manual #${order.id}`,
+              description: `Correccion de venta manual #${order.id}: ${correctionReason}`,
               createdByUserId,
               balanceAfter: nextBalance,
             },
           });
         }
       }
+
+      await tx.orderEvent.create({
+        data: {
+          storeId,
+          orderId: order.id,
+          type: 'order.manual_sale_corrected',
+          title: 'Venta manual corregida',
+          message: correctionReason,
+          actorType: 'admin',
+          actorId: createdByUserId,
+          metadata: {
+            previousTotal,
+            nextTotal: total,
+            previousPaymentMethod: manualPayment?.method ?? null,
+            nextPaymentMethod,
+            previousCurrentAccountAmount,
+            nextCurrentAccountAmount,
+            currentAccountDelta,
+            previousItems: previousItemsSnapshot,
+            nextItems: [
+              ...incomingItems.map((item) => ({
+                orderItemId: item.orderItemId,
+                quantity: item.quantity,
+                price: item.price,
+              })),
+              ...incomingNewItems.map((item) => ({
+                variantId: item.variantId,
+                quantity: item.quantity,
+                price: item.price,
+                new: true,
+              })),
+            ],
+          },
+        },
+      });
 
       return this.withCancellationRequests(updated);
     });
@@ -838,6 +992,7 @@ export class OrdersService {
     createdByUserId?: number,
   ) {
     await this.ensureManualSalesEnabled(storeId);
+    await this.ensureManualCorrectionAllowed(storeId, createdByUserId);
 
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
@@ -999,6 +1154,21 @@ export class OrdersService {
       throw new ForbiddenException(
         'Manual sales module is disabled for this store',
       );
+    }
+  }
+
+  private async ensureManualCorrectionAllowed(storeId: number, userId?: number) {
+    if (!userId) {
+      throw new ForbiddenException('Only ADMIN and OWNER can correct manual sales');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, storeId },
+      select: { role: true },
+    });
+
+    if (!['ADMIN', 'OWNER', 'SUPER_ADMIN'].includes(String(user?.role))) {
+      throw new ForbiddenException('Only ADMIN and OWNER can correct manual sales');
     }
   }
 

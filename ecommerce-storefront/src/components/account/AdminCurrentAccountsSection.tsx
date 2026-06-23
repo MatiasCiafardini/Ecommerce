@@ -1,10 +1,13 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, apiBlob, getErrorMessage } from "@/lib/api";
 import { downloadBlobFile } from "@/lib/download";
-import AdminManualSalesSection from "./AdminManualSalesSection";
+import { useAuth } from "@/context/auth-context";
+import AdminManualSalesSection, {
+  type ManualSaleCustomer,
+} from "./AdminManualSalesSection";
 import { money } from "./order-utils";
 
 type Customer = {
@@ -25,6 +28,10 @@ type Movement = {
   description?: string | null;
   createdAt: string;
   balanceAfter: string | number;
+  cancelledAt?: string | null;
+  cancelledByUserId?: number | null;
+  cancellationReason?: string | null;
+  cancellationMovementId?: number | null;
   order?: {
     id: number;
     total: string | number;
@@ -68,11 +75,19 @@ export type CurrentAccountCreateForm = {
 
 type FilterStatus = "debt" | "credit" | "paid" | "all";
 type DetailMode = "history" | "sale" | "payment";
+type MovementFilter = "all" | "sales" | "payments" | "corrections" | "cancellations";
 type MovementVariant = NonNullable<
   NonNullable<Movement["order"]>["items"]
 >[number]["variant"];
 
 const paymentMethods = ["Efectivo", "Tarjeta", "Transferencia", "Mercado Pago"];
+const movementFilterOptions: Array<{ value: MovementFilter; label: string }> = [
+  { value: "all", label: "Todos" },
+  { value: "sales", label: "Ventas" },
+  { value: "payments", label: "Pagos" },
+  { value: "corrections", label: "Correcciones" },
+  { value: "cancellations", label: "Anulaciones" },
+];
 
 export default function AdminCurrentAccountsSection({
   storeLocationId,
@@ -80,6 +95,7 @@ export default function AdminCurrentAccountsSection({
   storeLocationId?: number | null;
   onRegisterSale?: (customer: Customer) => void;
 }) {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<CurrentAccount[]>([]);
   const [selected, setSelected] = useState<CurrentAccount | null>(null);
   const [detailMode, setDetailMode] = useState<DetailMode>("history");
@@ -89,6 +105,8 @@ export default function AdminCurrentAccountsSection({
   const [modalError, setModalError] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<FilterStatus>("all");
+  const [movementFilter, setMovementFilter] = useState<MovementFilter>("all");
+  const [movementSearch, setMovementSearch] = useState("");
   const [paymentCustomer, setPaymentCustomer] = useState<CurrentAccount | null>(
     null,
   );
@@ -115,6 +133,18 @@ export default function AdminCurrentAccountsSection({
   const [balanceValue, setBalanceValue] = useState("");
   const [balanceDescription, setBalanceDescription] = useState("");
   const [savingBalance, setSavingBalance] = useState(false);
+  const balanceInputRef = useRef<HTMLInputElement | null>(null);
+  const [editPaymentMovement, setEditPaymentMovement] =
+    useState<Movement | null>(null);
+  const [editPaymentAmount, setEditPaymentAmount] = useState("");
+  const [editPaymentMethod, setEditPaymentMethod] = useState("Efectivo");
+  const [editPaymentDescription, setEditPaymentDescription] = useState("");
+  const [editPaymentReason, setEditPaymentReason] = useState("");
+  const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
+  const [cancelPaymentMovement, setCancelPaymentMovement] =
+    useState<Movement | null>(null);
+  const [cancelPaymentReason, setCancelPaymentReason] = useState("");
+  const [savingPaymentCancel, setSavingPaymentCancel] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [downloadingReceiptId, setDownloadingReceiptId] = useState<
     number | null
@@ -198,6 +228,41 @@ export default function AdminCurrentAccountsSection({
     paymentCustomer && Number.isFinite(paymentAmountNumber)
       ? roundCurrency(Math.max(paymentBalance - paymentAmountNumber, 0))
       : paymentBalance;
+  const canCorrectPayments = ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(
+    user?.role ?? "",
+  );
+  const cancelledPaymentIds = useMemo(
+    () => getCancelledPaymentIds(selected?.movements ?? []),
+    [selected?.movements],
+  );
+  const visibleMovements = useMemo(
+    () =>
+      filterMovements(
+        selected?.movements ?? [],
+        movementFilter,
+        movementSearch,
+        selected?.customer,
+      ),
+    [movementFilter, movementSearch, selected?.customer, selected?.movements],
+  );
+  const selectedSaleCustomer = useMemo(
+    () =>
+      selected
+        ? ({
+            ...selected.customer,
+            source: "current_account",
+          } as ManualSaleCustomer)
+        : null,
+    [selected],
+  );
+
+  useEffect(() => {
+    if (!balanceAccount) return;
+    window.requestAnimationFrame(() => {
+      balanceInputRef.current?.focus();
+      balanceInputRef.current?.select();
+    });
+  }, [balanceAccount]);
 
   const openDetail = async (
     account: CurrentAccount,
@@ -434,6 +499,82 @@ export default function AdminCurrentAccountsSection({
       );
     } finally {
       setDownloadingReceiptId(null);
+    }
+  };
+
+  const openEditPayment = (movement: Movement) => {
+    setEditPaymentMovement(movement);
+    setEditPaymentAmount(String(Math.abs(Number(movement.amount))));
+    setEditPaymentMethod(movement.paymentMethod || "Efectivo");
+    setEditPaymentDescription(movement.description || "");
+    setEditPaymentReason("");
+    setModalError("");
+  };
+
+  const savePaymentEdit = async () => {
+    if (!editPaymentMovement || !selected) return;
+    const amount = roundCurrency(parsePaymentAmount(editPaymentAmount));
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setModalError("El monto debe ser mayor a 0.");
+      return;
+    }
+
+    if (!editPaymentReason.trim()) {
+      setModalError("Carga el motivo de la correccion.");
+      return;
+    }
+
+    setSavingPaymentEdit(true);
+    setModalError("");
+    try {
+      await api(`/current-accounts/payments/${editPaymentMovement.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          amount,
+          paymentMethod: editPaymentMethod,
+          description: editPaymentDescription.trim() || undefined,
+          reason: editPaymentReason.trim(),
+        }),
+      });
+      setEditPaymentMovement(null);
+      await refreshSelectedAccount();
+    } catch (err) {
+      setModalError(getErrorMessage(err, "No se pudo corregir el pago."));
+    } finally {
+      setSavingPaymentEdit(false);
+    }
+  };
+
+  const openCancelPayment = (movement: Movement) => {
+    setCancelPaymentMovement(movement);
+    setCancelPaymentReason("");
+    setModalError("");
+  };
+
+  const confirmCancelPayment = async () => {
+    if (!cancelPaymentMovement || !selected) return;
+
+    if (!cancelPaymentReason.trim()) {
+      setModalError("Carga el motivo de la anulacion.");
+      return;
+    }
+
+    setSavingPaymentCancel(true);
+    setModalError("");
+    try {
+      await api(`/current-accounts/payments/${cancelPaymentMovement.id}/cancel`, {
+        method: "POST",
+        body: JSON.stringify({
+          reason: cancelPaymentReason.trim(),
+        }),
+      });
+      setCancelPaymentMovement(null);
+      await refreshSelectedAccount();
+    } catch (err) {
+      setModalError(getErrorMessage(err, "No se pudo anular el pago."));
+    } finally {
+      setSavingPaymentCancel(false);
     }
   };
 
@@ -744,12 +885,7 @@ export default function AdminCurrentAccountsSection({
               <div style={embeddedSaleStyle}>
                 <AdminManualSalesSection
                   storeLocationId={storeLocationId}
-                  initialCustomer={
-                    {
-                      ...selected.customer,
-                      source: "current_account",
-                    } as Customer
-                  }
+                  initialCustomer={selectedSaleCustomer}
                   initialCurrentAccount={selected}
                   initialPaymentMethod="Cuenta corriente"
                   lockCustomer
@@ -840,57 +976,287 @@ export default function AdminCurrentAccountsSection({
             ) : detailLoading ? (
               <State label="Cargando movimientos..." />
             ) : (
-              <div style={movementListStyle}>
-                {(selected.movements ?? []).map((movement) => (
-                  <article key={movement.id} style={movementStyle}>
-                    <div>
-                      <strong>{movementLabel(movement.type)}</strong>
-                      <p style={copyStyle}>
-                        {movement.description || "Sin descripcion"}
-                      </p>
-                      <span style={mutedBlockStyle}>
-                        {formatDate(movement.createdAt)}
-                        {movement.order ? ` · Venta #${movement.order.id}` : ""}
-                        {movement.createdByUser
-                          ? ` · ${movement.createdByUser.name || movement.createdByUser.email}`
-                          : ""}
-                      </span>
-                      {movement.order?.items?.length ? (
-                        <div style={movementItemsStyle}>
-                          {movement.order.items.map((item) => (
-                            <span key={item.id}>
-                              {item.variant?.product?.title || "Producto"}{" "}
-                              {variantLabel(item.variant)} x{item.quantity} -{" "}
-                              {money(Number(item.price) * item.quantity)}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <strong>{movementAmountLabel(movement)}</strong>
-                      <span style={mutedBlockStyle}>
-                        {balanceLabel(Number(movement.balanceAfter))}
-                      </span>
-                      {movement.type === "PAYMENT" ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void downloadPaymentReceipt(movement.id)
-                          }
-                          disabled={downloadingReceiptId === movement.id}
-                          style={{ ...softButtonStyle, marginTop: 8 }}
-                        >
-                          {downloadingReceiptId === movement.id
-                            ? "Generando..."
-                            : "Recibo PDF"}
-                        </button>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
+              <div style={movementHistoryStyle}>
+                <div style={movementToolbarStyle}>
+                  <div style={movementFilterGroupStyle}>
+                    {movementFilterOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setMovementFilter(option.value)}
+                        style={filterChipStyle(movementFilter === option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    value={movementSearch}
+                    onChange={(event) => setMovementSearch(event.target.value)}
+                    placeholder="Buscar por venta, pago, producto o importe"
+                    style={movementSearchStyle}
+                  />
+                </div>
+                <div style={movementListStyle}>
+                  <table style={movementTableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={movementThStyle}>Fecha</th>
+                        <th style={movementThStyle}>Cliente</th>
+                        <th style={movementThStyle}>Movimiento</th>
+                        <th style={movementThStyle}>Pago</th>
+                        <th style={movementThStyle}>Detalle de venta</th>
+                        <th style={movementThRightStyle}>Importe</th>
+                        <th style={movementThRightStyle}>Saldo</th>
+                        <th style={movementThRightStyle}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    {visibleMovements.map((movement) => {
+                      const paymentCancelled = cancelledPaymentIds.has(movement.id);
+
+                      return (
+                        <tr key={movement.id} style={movementTrStyle}>
+                          <td style={movementTdStyle}>
+                            <span>{formatDate(movement.createdAt)}</span>
+                            <small style={mutedBlockStyle}>
+                              {movement.createdByUser?.name ||
+                                movement.createdByUser?.email ||
+                                "-"}
+                            </small>
+                          </td>
+                          <td style={movementTdStyle}>{customerName(selected.customer)}</td>
+                          <td style={movementTdStyle}>
+                            <strong>{movementLabel(movement, paymentCancelled)}</strong>
+                            <small style={mutedBlockStyle}>
+                              {movementShortDescription(movement)}
+                            </small>
+                          </td>
+                          <td style={movementTdStyle}>
+                            {movement.paymentMethod || "-"}
+                          </td>
+                          <td style={movementDetailTdStyle}>
+                            {movement.order ? <strong>Venta #{movement.order.id}</strong> : "-"}
+                            {movement.order?.items?.length ? (
+                              <div style={movementItemsStyle}>
+                                {movement.order.items.map((item) => (
+                                  <span key={item.id}>
+                                    {item.variant?.product?.title || "Producto"}{" "}
+                                    {variantLabel(item.variant)} x{item.quantity} -{" "}
+                                    {money(Number(item.price) * item.quantity)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td style={movementTdRightStyle}>
+                            <strong>{movementAmountLabel(movement)}</strong>
+                          </td>
+                          <td style={movementTdRightStyle}>
+                            {balanceLabel(Number(movement.balanceAfter))}
+                          </td>
+                          <td style={movementActionsTdStyle}>
+                            {movement.type === "PAYMENT" ? (
+                              paymentCancelled ? (
+                                <span style={cancelledBadgeStyle}>Anulado</span>
+                              ) : (
+                                <div style={movementActionsStyle}>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void downloadPaymentReceipt(movement.id)
+                                    }
+                                    disabled={downloadingReceiptId === movement.id}
+                                    title="Descargar recibo"
+                                    aria-label="Descargar recibo"
+                                    style={compactIconButtonStyle}
+                                  >
+                                    {downloadingReceiptId === movement.id
+                                      ? "..."
+                                      : <ReceiptIcon />}
+                                  </button>
+                                  {canCorrectPayments ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditPayment(movement)}
+                                        title="Editar pago"
+                                        aria-label="Editar pago"
+                                        style={compactIconButtonStyle}
+                                      >
+                                        <EditIcon />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => openCancelPayment(movement)}
+                                        title="Anular pago"
+                                        aria-label="Anular pago"
+                                        style={compactDangerIconButtonStyle}
+                                      >
+                                        <CancelIcon />
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </div>
+                              )
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    </tbody>
+                  </table>
+                  {visibleMovements.length === 0 ? (
+                    <div style={emptyMovementsStyle}>No hay movimientos para ese filtro.</div>
+                  ) : null}
+                </div>
               </div>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {editPaymentMovement ? (
+        <div
+          style={modalOverlayStyle}
+          onClick={() => {
+            setEditPaymentMovement(null);
+            setModalError("");
+          }}
+        >
+          <div
+            style={modalStyle}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDownCapture={(event) => event.stopPropagation()}
+          >
+            <header style={modalHeaderStyle}>
+              <div>
+                <p style={eyebrowStyle}>Corregir pago</p>
+                <h3 style={modalTitleStyle}>Pago #{editPaymentMovement.id}</h3>
+              </div>
+            </header>
+            {modalError ? <p style={errorStyle}>{modalError}</p> : null}
+            <label style={fieldGroupStyle}>
+              <span>Monto</span>
+              <div style={moneyInputWrapStyle}>
+                <span style={moneyPrefixStyle}>$</span>
+                <input
+                  value={editPaymentAmount}
+                  onChange={(event) => setEditPaymentAmount(event.target.value)}
+                  inputMode="decimal"
+                  style={{ ...inputStyle, paddingLeft: 30 }}
+                />
+              </div>
+            </label>
+            <label style={fieldGroupStyle}>
+              <span>Metodo de pago</span>
+              <select
+                value={editPaymentMethod}
+                onChange={(event) => setEditPaymentMethod(event.target.value)}
+                style={inputStyle}
+              >
+                {paymentMethods.map((method) => (
+                  <option key={method}>{method}</option>
+                ))}
+              </select>
+            </label>
+            <label style={fieldGroupStyle}>
+              <span>Nota visible</span>
+              <textarea
+                value={editPaymentDescription}
+                onChange={(event) =>
+                  setEditPaymentDescription(event.target.value)
+                }
+                style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
+              />
+            </label>
+            <label style={fieldGroupStyle}>
+              <span>Motivo interno</span>
+              <textarea
+                value={editPaymentReason}
+                onChange={(event) => setEditPaymentReason(event.target.value)}
+                placeholder="Ej: se cargo mal el importe"
+                style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
+              />
+            </label>
+            <div style={rowActionsStyle}>
+              <button
+                type="button"
+                onClick={() => void savePaymentEdit()}
+                disabled={savingPaymentEdit}
+                style={primaryButtonStyle}
+              >
+                {savingPaymentEdit ? "Guardando..." : "Guardar correccion"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditPaymentMovement(null);
+                  setModalError("");
+                }}
+                style={softButtonStyle}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {cancelPaymentMovement ? (
+        <div
+          style={modalOverlayStyle}
+          onClick={() => {
+            setCancelPaymentMovement(null);
+            setModalError("");
+          }}
+        >
+          <div style={modalStyle} onClick={(event) => event.stopPropagation()}>
+            <header style={modalHeaderStyle}>
+              <div>
+                <p style={eyebrowStyle}>Anular pago</p>
+                <h3 style={modalTitleStyle}>Pago #{cancelPaymentMovement.id}</h3>
+              </div>
+              <div style={balanceStyle}>
+                {money(Math.abs(Number(cancelPaymentMovement.amount)))}
+              </div>
+            </header>
+            {modalError ? <p style={errorStyle}>{modalError}</p> : null}
+            <p style={copyStyle}>
+              La anulacion restaura la deuda del cliente y agrega un movimiento
+              administrativo en el historial.
+            </p>
+            <label style={fieldGroupStyle}>
+              <span>Motivo interno</span>
+              <textarea
+                value={cancelPaymentReason}
+                onChange={(event) => setCancelPaymentReason(event.target.value)}
+                placeholder="Ej: el pago correspondia a otro cliente"
+                style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
+              />
+            </label>
+            <div style={rowActionsStyle}>
+              <button
+                type="button"
+                onClick={() => void confirmCancelPayment()}
+                disabled={savingPaymentCancel}
+                style={dangerButtonStyle}
+              >
+                {savingPaymentCancel ? "Anulando..." : "Confirmar anulacion"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelPaymentMovement(null);
+                  setModalError("");
+                }}
+                style={softButtonStyle}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -1201,6 +1567,7 @@ export default function AdminCurrentAccountsSection({
               <div style={moneyInputWrapStyle}>
                 <span style={moneyPrefixStyle}>$</span>
                 <input
+                  ref={balanceInputRef}
                   value={balanceValue}
                   onChange={(event) => setBalanceValue(event.target.value)}
                   inputMode="decimal"
@@ -1411,7 +1778,12 @@ function variantLabel(variant?: MovementVariant) {
   return label ? `(${label})` : "";
 }
 
-function movementLabel(type: string) {
+function movementLabel(movement: Movement, paymentCancelled = false) {
+  if (paymentCancelled) return "Pago anulado";
+  if (isPaymentCorrectionMovement(movement)) return "Correccion de pago";
+  if (isPaymentCancellationMovement(movement)) return "Anulacion de pago";
+  if (isManualSaleCorrectionMovement(movement)) return "Correccion de venta";
+  if (isManualSaleCancellationMovement(movement)) return "Anulacion de venta";
   const labels: Record<string, string> = {
     SALE: "Venta a cuenta corriente",
     PAYMENT: "Pago",
@@ -1419,7 +1791,32 @@ function movementLabel(type: string) {
     ADJUSTMENT_NEGATIVE: "Ajuste negativo",
     CREDIT_NOTE: "Nota de credito",
   };
-  return labels[type] ?? type;
+  return labels[movement.type] ?? movement.type;
+}
+
+function movementShortDescription(movement: Movement) {
+  const description = movement.description?.trim();
+  if (!description) return "Sin descripcion";
+
+  const paymentCorrection = description.match(/^Correccion de pago #(\d+):/);
+  if (paymentCorrection?.[1]) return `Pago #${paymentCorrection[1]}`;
+
+  const paymentCancellation = description.match(/^Anulacion de pago #(\d+):/);
+  if (paymentCancellation?.[1]) return `Pago #${paymentCancellation[1]}`;
+
+  const saleCorrection = description.match(/^Correccion de venta manual #(\d+):/);
+  if (saleCorrection?.[1]) return `Venta #${saleCorrection[1]}`;
+
+  const saleCancellation = description.match(/^Anulacion de venta manual #(\d+)/);
+  if (saleCancellation?.[1]) return `Venta #${saleCancellation[1]}`;
+
+  const manualSale = description.match(/^Venta manual #(\d+)/);
+  if (manualSale?.[1]) return `Venta #${manualSale[1]}`;
+
+  const creditNote = description.match(/^Devolucion\/cambio manual #(\d+)/);
+  if (creditNote?.[1]) return `Devolucion #${creditNote[1]}`;
+
+  return description.length > 42 ? `${description.slice(0, 39).trim()}...` : description;
 }
 
 function formatDate(value?: string | null) {
@@ -1444,8 +1841,113 @@ function balanceLabel(value: number) {
 }
 
 function movementAmountLabel(movement: Movement) {
+  if (isPaymentCorrectionMovement(movement)) return "Sin importe";
   const amount = Number(movement.amount);
   return money(movement.type === "PAYMENT" ? Math.abs(amount) : amount);
+}
+
+function filterMovements(
+  movements: Movement[],
+  filter: MovementFilter,
+  search: string,
+  customer?: Customer | null,
+) {
+  const normalizedSearch = normalizeSearch(search);
+
+  return movements.filter((movement) => {
+    if (filter !== "all" && movementCategory(movement) !== filter) {
+      return false;
+    }
+
+    if (!normalizedSearch) return true;
+
+    const haystack = normalizeSearch(
+      [
+        customer ? customerName(customer) : "",
+        movementLabel(movement),
+        movementShortDescription(movement),
+        movement.paymentMethod,
+        movement.description,
+        movement.order ? `venta ${movement.order.id}` : "",
+        movement.order?.items
+          ?.map((item) =>
+            [
+              item.variant?.product?.title,
+              item.variant?.sku,
+              item.variant?.Size,
+              item.variant?.Color,
+              item.quantity,
+              item.price,
+            ]
+              .filter(Boolean)
+              .join(" "),
+          )
+          .join(" "),
+        movementAmountLabel(movement),
+        balanceLabel(Number(movement.balanceAfter)),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+
+    return haystack.includes(normalizedSearch);
+  });
+}
+
+function movementCategory(movement: Movement): MovementFilter {
+  if (isPaymentCorrectionMovement(movement) || isManualSaleCorrectionMovement(movement)) {
+    return "corrections";
+  }
+  if (isPaymentCancellationMovement(movement) || isManualSaleCancellationMovement(movement)) {
+    return "cancellations";
+  }
+  if (movement.type === "PAYMENT") return "payments";
+  if (movement.type === "SALE" || movement.order) return "sales";
+  return "all";
+}
+
+function normalizeSearch(value: unknown) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function getCancelledPaymentIds(movements: Movement[]) {
+  const ids = new Set<number>();
+  for (const movement of movements) {
+    if (movement.cancelledAt || movement.cancellationMovementId) {
+      ids.add(movement.id);
+    }
+    if (movement.paymentMethod !== "Anulacion de pago") continue;
+    const match = movement.description?.match(/^Anulacion de pago #(\d+):/);
+    if (match?.[1]) ids.add(Number(match[1]));
+  }
+  return ids;
+}
+
+function isPaymentCorrectionMovement(movement: Movement) {
+  return (
+    movement.paymentMethod === "Auditoria" &&
+    movement.description?.startsWith("Correccion de pago #") &&
+    Number(movement.amount) === 0
+  );
+}
+
+function isPaymentCancellationMovement(movement: Movement) {
+  return (
+    movement.paymentMethod === "Anulacion de pago" &&
+    movement.description?.startsWith("Anulacion de pago #")
+  );
+}
+
+function isManualSaleCorrectionMovement(movement: Movement) {
+  return movement.description?.startsWith("Correccion de venta manual #") ?? false;
+}
+
+function isManualSaleCancellationMovement(movement: Movement) {
+  return movement.description?.startsWith("Anulacion de venta manual #") ?? false;
 }
 
 function parsePaymentAmount(value: string) {
@@ -1502,6 +2004,54 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function State({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
+}
+
+function SmallIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  );
+}
+
+function ReceiptIcon() {
+  return (
+    <SmallIcon>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
+      <path d="M9 8h6" />
+      <path d="M9 12h6" />
+      <path d="M9 16h4" />
+    </SmallIcon>
+  );
+}
+
+function EditIcon() {
+  return (
+    <SmallIcon>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z" />
+    </SmallIcon>
+  );
+}
+
+function CancelIcon() {
+  return (
+    <SmallIcon>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15 9-6 6" />
+      <path d="m9 9 6 6" />
+    </SmallIcon>
+  );
 }
 
 function Th({ children }: { children: React.ReactNode }) {
@@ -1717,6 +2267,17 @@ const dangerButtonStyle: React.CSSProperties = {
   fontWeight: 800,
   minHeight: 42,
 };
+const cancelledBadgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 36,
+  padding: "8px 12px",
+  borderRadius: 12,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-item-bg)",
+  color: "var(--account-text-muted)",
+  fontWeight: 800,
+};
 const stateStyle: React.CSSProperties = {
   padding: 24,
   borderRadius: 18,
@@ -1727,11 +2288,11 @@ const stateStyle: React.CSSProperties = {
 const modalOverlayStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  zIndex: 120,
+  zIndex: 220,
   background: "var(--admin-overlay-bg, rgba(0,0,0,.42))",
   display: "grid",
   placeItems: "center",
-  padding: 16,
+  padding: "28px 16px 16px",
 };
 const modalStyle: React.CSSProperties = {
   position: "relative",
@@ -1789,22 +2350,144 @@ const balanceStyle: React.CSSProperties = {
   placeItems: "center end",
   alignSelf: "stretch",
 };
-const movementListStyle: React.CSSProperties = { display: "grid", gap: 10 };
-const movementStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 16,
-  padding: 16,
-  borderRadius: 16,
+const movementListStyle: React.CSSProperties = {
+  overflowX: "auto",
   border: "1px solid var(--account-item-border)",
+  borderRadius: 14,
   background: "var(--account-item-bg)",
+};
+const movementHistoryStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+const movementToolbarStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) minmax(220px, 320px)",
+  gap: 10,
+  alignItems: "center",
+};
+const movementFilterGroupStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 6,
+  flexWrap: "wrap",
+};
+const filterChipStyle = (active: boolean): React.CSSProperties => ({
+  border: active
+    ? "1px solid var(--account-item-border)"
+    : "1px solid transparent",
+  borderRadius: 999,
+  background: active ? "var(--account-item-bg-active)" : "transparent",
+  color: "var(--account-text-strong)",
+  padding: "7px 10px",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 850,
+});
+const movementSearchStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 36,
+  borderRadius: 10,
+  border: "1px solid var(--account-item-border)",
+  background: "var(--account-sidebar-bg)",
+  color: "var(--account-text-strong)",
+  padding: "8px 10px",
+  fontSize: 12,
+  outline: "none",
+};
+const emptyMovementsStyle: React.CSSProperties = {
+  padding: 16,
+  color: "var(--account-text-muted)",
+  fontSize: 13,
+};
+const movementTableStyle: React.CSSProperties = {
+  width: "100%",
+  minWidth: 1040,
+  borderCollapse: "collapse",
+  tableLayout: "fixed",
+};
+const movementThStyle: React.CSSProperties = {
+  padding: "9px 10px",
+  borderBottom: "1px solid var(--account-item-border)",
+  background: "var(--account-sidebar-bg)",
+  color: "var(--account-text-muted)",
+  fontSize: 10,
+  fontWeight: 900,
+  letterSpacing: 0,
+  textAlign: "left",
+  textTransform: "uppercase",
+};
+const movementThRightStyle: React.CSSProperties = {
+  ...movementThStyle,
+  textAlign: "right",
+};
+const movementTrStyle: React.CSSProperties = {
+  borderBottom: "1px solid var(--account-item-border)",
+};
+const movementTdStyle: React.CSSProperties = {
+  padding: "8px 10px",
+  color: "var(--account-text-strong)",
+  fontSize: 12,
+  lineHeight: 1.28,
+  verticalAlign: "top",
+};
+const movementDetailTdStyle: React.CSSProperties = {
+  ...movementTdStyle,
+  color: "var(--account-text-muted)",
+};
+const movementTdRightStyle: React.CSSProperties = {
+  ...movementTdStyle,
+  textAlign: "right",
+  whiteSpace: "nowrap",
+};
+const movementActionsTdStyle: React.CSSProperties = {
+  ...movementTdStyle,
+  textAlign: "right",
+};
+const movementActionsStyle: React.CSSProperties = {
+  display: "inline-flex",
+  justifyContent: "flex-end",
+  gap: 6,
+  flexWrap: "wrap",
+};
+const compactIconButtonStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  display: "inline-grid",
+  placeItems: "center",
+  border: "1px solid var(--account-item-border)",
+  borderRadius: 9,
+  background: "var(--account-sidebar-bg)",
+  color: "var(--account-text-strong)",
+  cursor: "pointer",
+};
+const compactDangerIconButtonStyle: React.CSSProperties = {
+  ...compactIconButtonStyle,
+  border: "1px solid var(--admin-danger-border)",
+  background: "var(--admin-danger-bg)",
+  color: "var(--admin-danger-color)",
+};
+const compactButtonStyle: React.CSSProperties = {
+  border: "1px solid var(--account-item-border)",
+  borderRadius: 10,
+  background: "var(--account-sidebar-bg)",
+  color: "var(--account-text-strong)",
+  padding: "7px 9px",
+  cursor: "pointer",
+  fontSize: 11,
+  fontWeight: 800,
+};
+const compactDangerButtonStyle: React.CSSProperties = {
+  ...compactButtonStyle,
+  border: "1px solid var(--admin-danger-border)",
+  background: "var(--admin-danger-bg)",
+  color: "var(--admin-danger-color)",
 };
 const movementItemsStyle: React.CSSProperties = {
   display: "grid",
-  gap: 4,
-  marginTop: 8,
+  gap: 2,
+  marginTop: 4,
   color: "var(--account-text-muted)",
-  fontSize: 12,
+  fontSize: 11,
 };
 const fieldGroupStyle: React.CSSProperties = {
   display: "grid",

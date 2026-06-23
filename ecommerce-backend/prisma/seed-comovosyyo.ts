@@ -489,6 +489,28 @@ async function main() {
         storeLocationId: shoppingLocation.id,
       },
     }),
+    prisma.user.upsert({
+      where: {
+        storeId_email: {
+          storeId: STORE_ID,
+          email: normalizeEmail('staff.centro@comovosyyo.com'),
+        },
+      },
+      update: {
+        password: await bcrypt.hash('Staff123456!', 10),
+        role: Role.STAFF,
+        name: 'Staff Local Centro',
+        storeLocationId: centroLocation.id,
+      },
+      create: {
+        storeId: STORE_ID,
+        email: normalizeEmail('staff.centro@comovosyyo.com'),
+        password: await bcrypt.hash('Staff123456!', 10),
+        role: Role.STAFF,
+        name: 'Staff Local Centro',
+        storeLocationId: centroLocation.id,
+      },
+    }),
   ]);
 
   await prisma.customer.upsert({

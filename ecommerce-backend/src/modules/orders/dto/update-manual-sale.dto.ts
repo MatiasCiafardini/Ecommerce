@@ -26,6 +26,9 @@ export class UpdateManualSaleItemDto {
 }
 
 export class UpdateManualSaleDto {
+  @IsString()
+  reason: string;
+
   @IsOptional()
   @IsString()
   paymentMethod?: string;
@@ -40,9 +43,30 @@ export class UpdateManualSaleDto {
   @Min(0)
   discountValue?: number;
 
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => UpdateManualSaleItemDto)
-  items: UpdateManualSaleItemDto[];
+  items?: UpdateManualSaleItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateManualSaleNewItemDto)
+  newItems?: UpdateManualSaleNewItemDto[];
+}
+
+export class UpdateManualSaleNewItemDto {
+  @IsInt()
+  variantId: number;
+
+  @IsInt()
+  @Min(1)
+  quantity: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  price: number;
 }

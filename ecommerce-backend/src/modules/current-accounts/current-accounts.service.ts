@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,9 +9,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
 import { normalizeEmail } from '../../common/utils/email.util';
 import { AdjustCurrentAccountDto } from './dto/adjust-current-account.dto';
+import { CancelCurrentAccountPaymentDto } from './dto/cancel-current-account-payment.dto';
 import { CreateCurrentAccountDto } from './dto/create-current-account.dto';
 import { RegisterCurrentAccountPaymentDto } from './dto/register-current-account-payment.dto';
 import { UpdateCurrentAccountDto } from './dto/update-current-account.dto';
+import { UpdateCurrentAccountPaymentDto } from './dto/update-current-account-payment.dto';
 
 const accountInclude = {
   customer: {
@@ -380,6 +383,227 @@ export class CurrentAccountsService {
     });
   }
 
+  async updatePayment(
+    storeId: number,
+    movementId: number,
+    updatedByUserId: number | undefined,
+    dto: UpdateCurrentAccountPaymentDto,
+  ) {
+    await this.ensureCorrectionAllowed(storeId, updatedByUserId);
+    const reason = dto.reason?.trim();
+
+    if (!reason) {
+      throw new BadRequestException('Correction reason is required');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const movement = await tx.currentAccountMovement.findFirst({
+        where: {
+          id: movementId,
+          storeId,
+          type: 'PAYMENT',
+        },
+        include: {
+          account: true,
+        },
+      });
+
+      if (!movement) {
+        throw new NotFoundException('Payment movement not found');
+      }
+
+      await this.ensurePaymentNotCancelledTx(tx, storeId, movement.id);
+
+      const previousAmount = Math.abs(Number(movement.amount));
+      const nextAmount = roundCurrency(Number(dto.amount));
+
+      if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
+        throw new BadRequestException('Payment amount must be greater than 0');
+      }
+
+      const revertedBalance = roundCurrency(Number(movement.account.balance) + previousAmount);
+
+      if (nextAmount > revertedBalance) {
+        throw new BadRequestException('Payment cannot exceed current balance');
+      }
+
+      const nextBalance = roundCurrency(revertedBalance - nextAmount);
+
+      await tx.currentAccount.update({
+        where: { id: movement.accountId },
+        data: {
+          balance: nextBalance,
+          lastMovementAt: new Date(),
+        },
+      });
+
+      const updatedMovement = await tx.currentAccountMovement.update({
+        where: { id: movement.id },
+        data: {
+          amount: -nextAmount,
+          paymentMethod: dto.paymentMethod,
+          description: dto.description?.trim() || movement.description,
+        },
+      });
+
+      await this.recalculateMovementBalancesTx(
+        tx,
+        movement.accountId,
+        movement.storeLocationId ?? null,
+      );
+
+      const auditMovement = await tx.currentAccountMovement.create({
+        data: {
+          storeId,
+          storeLocationId: movement.storeLocationId,
+          accountId: movement.accountId,
+          customerId: movement.customerId,
+          orderId: movement.orderId,
+          cashRegisterId: movement.cashRegisterId,
+          type: 'ADJUSTMENT_POSITIVE',
+          amount: 0,
+          paymentMethod: 'Auditoria',
+          description: `Correccion de pago #${movement.id}: ${reason}. Antes ${formatCurrency(previousAmount)} por ${movement.paymentMethod || 'sin metodo'}, ahora ${formatCurrency(nextAmount)} por ${dto.paymentMethod}.`,
+          createdByUserId: updatedByUserId,
+          balanceAfter: nextBalance,
+        },
+      });
+
+      return {
+        movement: updatedMovement,
+        auditMovement,
+        account: {
+          ...movement.account,
+          balance: nextBalance,
+        },
+      };
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  }
+
+  async cancelPayment(
+    storeId: number,
+    movementId: number,
+    cancelledByUserId: number | undefined,
+    dto: CancelCurrentAccountPaymentDto,
+  ) {
+    await this.ensureCorrectionAllowed(storeId, cancelledByUserId);
+    const reason = dto.reason?.trim();
+
+    if (!reason) {
+      throw new BadRequestException('Cancellation reason is required');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const movement = await tx.currentAccountMovement.findFirst({
+        where: {
+          id: movementId,
+          storeId,
+          type: 'PAYMENT',
+        },
+        include: {
+          account: true,
+        },
+      });
+
+      if (!movement) {
+        throw new NotFoundException('Payment movement not found');
+      }
+
+      await this.ensurePaymentNotCancelledTx(tx, storeId, movement.id);
+
+      const amount = Math.abs(Number(movement.amount));
+      const nextBalance = roundCurrency(Number(movement.account.balance) + amount);
+
+      await tx.currentAccount.update({
+        where: { id: movement.accountId },
+        data: {
+          balance: nextBalance,
+          lastMovementAt: new Date(),
+        },
+      });
+
+      const reversal = await tx.currentAccountMovement.create({
+        data: {
+          storeId,
+          storeLocationId: movement.storeLocationId,
+          accountId: movement.accountId,
+          customerId: movement.customerId,
+          orderId: movement.orderId,
+          cashRegisterId: movement.cashRegisterId,
+          type: 'ADJUSTMENT_POSITIVE',
+          amount,
+          paymentMethod: 'Anulacion de pago',
+          description: `Anulacion de pago #${movement.id}: ${reason}`,
+          createdByUserId: cancelledByUserId,
+          balanceAfter: nextBalance,
+        },
+      });
+
+      const cancelledMovement = await tx.currentAccountMovement.update({
+        where: { id: movement.id },
+        data: {
+          cancelledAt: new Date(),
+          cancelledByUserId,
+          cancellationReason: reason,
+          cancellationMovementId: reversal.id,
+        },
+        include: {
+          account: true,
+        },
+      });
+
+      return {
+        movement: cancelledMovement,
+        reversal,
+        account: {
+          ...movement.account,
+          balance: nextBalance,
+        },
+      };
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  }
+
+  private async ensurePaymentNotCancelledTx(
+    tx: Prisma.TransactionClient,
+    storeId: number,
+    movementId: number,
+  ) {
+    const movement = await tx.currentAccountMovement.findFirst({
+      where: {
+        id: movementId,
+        storeId,
+        OR: [
+          { cancelledAt: { not: null } },
+          { cancellationMovementId: { not: null } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (movement) {
+      throw new BadRequestException('Payment movement is already cancelled');
+    }
+
+    const cancellation = await tx.currentAccountMovement.findFirst({
+      where: {
+        storeId,
+        paymentMethod: 'Anulacion de pago',
+        description: {
+          startsWith: `Anulacion de pago #${movementId}:`,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (cancellation) {
+      throw new BadRequestException('Payment movement is already cancelled');
+    }
+  }
+
   private async resolveCashContext(storeId: number, userId?: number, requestedStoreLocationId?: number) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
@@ -738,6 +962,51 @@ export class CurrentAccountsService {
     }
 
     return user?.storeLocation?.active ? user.storeLocation : null;
+  }
+
+  private async ensureCorrectionAllowed(storeId: number, userId?: number) {
+    if (!userId) {
+      throw new ForbiddenException('Only ADMIN and OWNER can correct current account payments');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, storeId },
+      select: { role: true },
+    });
+
+    if (!['ADMIN', 'OWNER', 'SUPER_ADMIN'].includes(String(user?.role))) {
+      throw new ForbiddenException('Only ADMIN and OWNER can correct current account payments');
+    }
+  }
+
+  private async recalculateMovementBalancesTx(
+    tx: any,
+    accountId: number,
+    storeLocationId: number | null,
+  ) {
+    const movements = await tx.currentAccountMovement.findMany({
+      where: {
+        accountId,
+        storeLocationId,
+      },
+      orderBy: [
+        { createdAt: 'asc' },
+        { id: 'asc' },
+      ],
+      select: {
+        id: true,
+        amount: true,
+      },
+    });
+    let runningBalance = 0;
+
+    for (const movement of movements) {
+      runningBalance = roundCurrency(runningBalance + Number(movement.amount));
+      await tx.currentAccountMovement.update({
+        where: { id: movement.id },
+        data: { balanceAfter: runningBalance },
+      });
+    }
   }
 
   private async withLocalBalance<T extends { id: number; balance: unknown }>(

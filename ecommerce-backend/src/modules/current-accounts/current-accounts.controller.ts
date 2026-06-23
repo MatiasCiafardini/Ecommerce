@@ -15,9 +15,11 @@ import type { Response } from 'express';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { CurrentAccountsService } from './current-accounts.service';
 import { AdjustCurrentAccountDto } from './dto/adjust-current-account.dto';
+import { CancelCurrentAccountPaymentDto } from './dto/cancel-current-account-payment.dto';
 import { CreateCurrentAccountDto } from './dto/create-current-account.dto';
 import { RegisterCurrentAccountPaymentDto } from './dto/register-current-account-payment.dto';
 import { UpdateCurrentAccountDto } from './dto/update-current-account.dto';
+import { UpdateCurrentAccountPaymentDto } from './dto/update-current-account-payment.dto';
 
 @UseGuards(AdminAuthGuard)
 @Controller('current-accounts')
@@ -66,6 +68,34 @@ export class CurrentAccountsController {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${document.filename}"`);
     return res.send(document.pdf);
+  }
+
+  @Patch('payments/:movementId')
+  updatePayment(
+    @Req() req,
+    @Param('movementId') movementId: string,
+    @Body() dto: UpdateCurrentAccountPaymentDto,
+  ) {
+    return this.currentAccountsService.updatePayment(
+      req.storeId,
+      Number(movementId),
+      req.user?.sub,
+      dto,
+    );
+  }
+
+  @Post('payments/:movementId/cancel')
+  cancelPayment(
+    @Req() req,
+    @Param('movementId') movementId: string,
+    @Body() dto: CancelCurrentAccountPaymentDto,
+  ) {
+    return this.currentAccountsService.cancelPayment(
+      req.storeId,
+      Number(movementId),
+      req.user?.sub,
+      dto,
+    );
   }
 
   @Get('customers/:customerId')
