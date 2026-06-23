@@ -373,6 +373,30 @@ export default function ManualReturnsPanel({
     }
   };
 
+  const addLineFromSearch = async (
+    query: string,
+    setRows: (rows: VariantRow[]) => void,
+    setLines: React.Dispatch<React.SetStateAction<Line[]>>,
+    allowNoStock: boolean,
+  ) => {
+    const rows = await getProductRows(query);
+    setRows(rows);
+
+    const rowToAdd = pickBestScannedRow(rows, query, allowNoStock);
+    if (!rowToAdd) {
+      setError(
+        allowNoStock
+          ? "No encontramos un producto para agregar con esa busqueda."
+          : "No encontramos una variante con stock para agregar con esa busqueda.",
+      );
+      return false;
+    }
+
+    addLine(rowToAdd, setLines, allowNoStock, pricingPolicy);
+    setError("");
+    return true;
+  };
+
   return (
     <section data-account-panel style={panelStyle}>
       <header style={headerStyle}>
@@ -410,6 +434,9 @@ export default function ManualReturnsPanel({
             setQuery={setReturnedQuery}
             rows={returnedRows}
             onAdd={(row) => addLine(row, setReturnedLines, true, pricingPolicy)}
+            onImmediateAdd={(query) =>
+              addLineFromSearch(query, setReturnedRows, setReturnedLines, true)
+            }
             placeholder="Buscar producto devuelto..."
             pricingPolicy={pricingPolicy}
           />
@@ -449,6 +476,9 @@ export default function ManualReturnsPanel({
             setQuery={setExchangeQuery}
             rows={exchangeRows}
             onAdd={(row) => addLine(row, setExchangeLines, false, pricingPolicy)}
+            onImmediateAdd={(query) =>
+              addLineFromSearch(query, setExchangeRows, setExchangeLines, false)
+            }
             placeholder="Buscar producto para cambio..."
             pricingPolicy={pricingPolicy}
           />
@@ -626,6 +656,7 @@ function ProductPicker({
   setQuery,
   rows,
   onAdd,
+  onImmediateAdd,
   placeholder,
   pricingPolicy,
 }: {
@@ -633,6 +664,7 @@ function ProductPicker({
   setQuery: (value: string) => void;
   rows: VariantRow[];
   onAdd: (row: VariantRow) => void;
+  onImmediateAdd?: (query: string) => Promise<boolean>;
   placeholder: string;
   pricingPolicy: Pick<StorePricingPolicy, "labelPriceRounding">;
 }) {
@@ -640,7 +672,20 @@ function ProductPicker({
     <div style={{ display: "grid", gap: 10 }}>
       <div style={searchFieldStyle}>
         <span>⌕</span>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} style={searchInputStyle} />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            const currentQuery = event.currentTarget.value;
+            void onImmediateAdd?.(currentQuery).then((added) => {
+              if (added) setQuery("");
+            });
+          }}
+          placeholder={placeholder}
+          style={searchInputStyle}
+        />
       </div>
       {rows.length > 0 ? (
       <div style={pickerListStyle}>
@@ -788,11 +833,10 @@ function TextField({
   );
 }
 
-async function searchProducts(query: string, setRows: (rows: VariantRow[]) => void) {
+async function getProductRows(query: string) {
   const normalized = normalizeSearch(query);
   if (!normalized) {
-    setRows([]);
-    return;
+    return [];
   }
 
   const data = await api(`/products?search=${encodeURIComponent(normalized)}&limit=40`);
@@ -804,7 +848,24 @@ async function searchProducts(query: string, setRows: (rows: VariantRow[]) => vo
   })));
   const exactSkuRows = rows.filter((row) => normalizeSku(row.variant.sku) === normalizeSku(query));
 
-  setRows(exactSkuRows.length > 0 ? exactSkuRows : rows);
+  return exactSkuRows.length > 0 ? exactSkuRows : rows;
+}
+
+async function searchProducts(query: string, setRows: (rows: VariantRow[]) => void) {
+  setRows(await getProductRows(query));
+}
+
+function pickBestScannedRow(rows: VariantRow[], query: string, allowNoStock: boolean) {
+  const exactSkuRow = rows.find(
+    (row) =>
+      normalizeSku(row.variant.sku) === normalizeSku(query) &&
+      (allowNoStock || row.available > 0),
+  );
+  if (exactSkuRow) return exactSkuRow;
+
+  if (allowNoStock) return rows[0] ?? null;
+
+  return rows.find((row) => row.available > 0) ?? null;
 }
 
 async function searchAccounts(

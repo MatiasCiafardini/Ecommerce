@@ -688,8 +688,9 @@ export default function AdminManualSalesSection({
     focusSearchInput();
   };
 
-  const addCurrentCatalogSelection = async () => {
-    const normalizedQuery = normalizeScannerSkuInput(productQuery).trim().toLowerCase();
+  const addCurrentCatalogSelection = async (queryOverride?: string) => {
+    const rawQuery = queryOverride ?? productQuery;
+    const normalizedQuery = normalizeScannerSkuInput(rawQuery).trim().toLowerCase();
     if (!normalizedQuery) {
       setError("Busca por nombre, slug o SKU para agregar una variante.");
       focusSearchInput();
@@ -725,6 +726,7 @@ export default function AdminManualSalesSection({
     const rowToAdd =
       exactSkuMatch ??
       selectedRow ??
+      candidateRows.find((row) => row.available > 0) ??
       (candidateRows.length === 1 ? candidateRows[0] : null);
 
     if (!rowToAdd) {
@@ -1215,7 +1217,7 @@ export default function AdminManualSalesSection({
 
                       if (event.key !== "Enter") return;
                       event.preventDefault();
-                      void addCurrentCatalogSelection();
+                      void addCurrentCatalogSelection(event.currentTarget.value);
                     }}
                     placeholder="Buscar por nombre, SKU o codigo de barras..."
                   />
