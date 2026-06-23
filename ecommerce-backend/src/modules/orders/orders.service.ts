@@ -939,7 +939,9 @@ export class OrdersService {
               type: currentAccountDelta >= 0 ? 'ADJUSTMENT_POSITIVE' : 'ADJUSTMENT_NEGATIVE',
               amount: currentAccountDelta,
               paymentMethod: 'Cuenta corriente',
-              description: `Correccion de venta manual #${order.id}: ${correctionReason}`,
+              description:
+                `Correccion de venta manual #${order.id}: ${correctionReason}. ` +
+                `Metodo: ${manualPayment?.method ?? 'sin metodo'} -> ${nextPaymentMethod}.`,
               createdByUserId,
               balanceAfter: nextBalance,
             },

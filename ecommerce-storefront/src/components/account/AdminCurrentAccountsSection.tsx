@@ -1033,7 +1033,7 @@ export default function AdminCurrentAccountsSection({
                             </small>
                           </td>
                           <td style={movementTdStyle}>
-                            {movement.paymentMethod || "-"}
+                            {movementPaymentLabel(movement)}
                           </td>
                           <td style={movementDetailTdStyle}>
                             {movement.order ? <strong>Venta #{movement.order.id}</strong> : "-"}
@@ -1846,6 +1846,17 @@ function movementAmountLabel(movement: Movement) {
   return money(movement.type === "PAYMENT" ? Math.abs(amount) : amount);
 }
 
+function movementPaymentLabel(movement: Movement) {
+  if (isManualSaleCorrectionMovement(movement)) {
+    const methodChange = movement.description?.match(/Metodo:\s*(.+?)\s*->\s*(.+?)\.?$/);
+    if (methodChange?.[1] && methodChange[2]) {
+      return `${methodChange[1].trim()} -> ${methodChange[2].trim().replace(/\.$/, "")}`;
+    }
+  }
+
+  return movement.paymentMethod || "-";
+}
+
 function filterMovements(
   movements: Movement[],
   filter: MovementFilter,
@@ -1866,6 +1877,7 @@ function filterMovements(
         customer ? customerName(customer) : "",
         movementLabel(movement),
         movementShortDescription(movement),
+        movementPaymentLabel(movement),
         movement.paymentMethod,
         movement.description,
         movement.order ? `venta ${movement.order.id}` : "",
