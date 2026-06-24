@@ -1,0 +1,76 @@
+{
+  "timestamp": "2026-06-24 11:24:08",
+  "context": {
+    "cash_sale_id": 92,
+    "account_sale_id": 93,
+    "edited_cash_sale_id": 92,
+    "edited_account_sale_id": 93,
+    "payment_update_status": 200,
+    "payment_cancel_status": 201,
+    "card_discount_after_edit": 0.0,
+    "cash_discount_after_reedit": 14800.0,
+    "notes": []
+  },
+  "results": [
+    {
+      "name": "Login admin store 7",
+      "status": "OK",
+      "detail": "admin autenticado"
+    },
+    {
+      "name": "Abrir workspace venta manual",
+      "status": "OK",
+      "detail": "workspace de venta manual abierto"
+    },
+    {
+      "name": "Crear venta manual efectivo",
+      "status": "OK",
+      "detail": "venta efectivo #92 creada con Jean relax chocolate"
+    },
+    {
+      "name": "Crear venta a cuenta corriente",
+      "status": "OK",
+      "detail": "venta cuenta corriente #93 creada con Jean relax uva"
+    },
+    {
+      "name": "Editar venta desde Caja > Historial de ventas",
+      "status": "OK",
+      "detail": "venta #92 editada a Tarjeta con precio 99000"
+    },
+    {
+      "name": "Verificar Tarjeta sin descuento",
+      "status": "OK",
+      "detail": "venta #92 Tarjeta sin descuento"
+    },
+    {
+      "name": "Editar venta Tarjeta > Efectivo con descuento",
+      "status": "OK",
+      "detail": "venta #92 editada a Efectivo con precio 99000; descuento aplicado 14800.0"
+    },
+    {
+      "name": "Editar venta Efectivo > Transferencia con descuento",
+      "status": "OK",
+      "detail": "venta #92 editada a Transferencia con precio 99000; descuento transferencia 14800.0"
+    },
+    {
+      "name": "Editar venta desde Inicio > Historial de ventas",
+      "status": "OK",
+      "detail": "venta #93 editada a Cuenta corriente con precio 88000"
+    },
+    {
+      "name": "Registrar y editar pago en historial de cuenta corriente",
+      "status": "OK",
+      "detail": "pago registrado y corregido desde historial"
+    },
+    {
+      "name": "Registrar y anular pago en historial de cuenta corriente",
+      "status": "OK",
+      "detail": "pago registrado y anulado desde historial"
+    },
+    {
+      "name": "Verificacion final de historiales",
+      "status": "OK",
+      "detail": "ventas visibles: #92, #93; descuento efectivo 14800.0; pagos PATCH 200, cancel 201"
+    }
+  ]
+}

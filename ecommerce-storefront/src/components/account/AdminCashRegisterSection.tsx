@@ -3,9 +3,10 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/auth-context";
-import { api, apiBlob } from "@/lib/api";
+import { api, apiBlob, getErrorMessage } from "@/lib/api";
 import { downloadBlobFile } from "@/lib/download";
 import {
+  calculateManualSaleDiscountAmount,
   resolveStorePricingPolicy,
   type StorePricingPolicy,
 } from "@/lib/pricing-policy";
@@ -98,6 +99,28 @@ export type ManualSaleHistoryOrder = {
     } | null;
   }>;
 };
+
+type SaleEditDraft = {
+  reason: string;
+  paymentMethod: string;
+  applyPaymentDiscount: boolean;
+  items: Array<{
+    orderItemId: number;
+    title: string;
+    variantLabel: string;
+    quantity: number;
+    price: string;
+  }>;
+};
+
+type StorePaymentConfig = {
+  bankTransfer?: {
+    discountPercentage?: number | null;
+    enabled?: boolean | null;
+  } | null;
+};
+
+const manualPaymentOptions = ["Efectivo", "Tarjeta", "Transferencia", "Cuenta corriente"];
 
 export default function AdminCashRegisterSection({
   storeLocationId,
@@ -826,12 +849,41 @@ export function SalesHistoryModal({
   onGenerateReturn?: (draft: ManualReturnDraft) => void;
   onError?: (message: string) => void;
 }) {
+  const [editingSale, setEditingSale] = useState<ManualSaleHistoryOrder | null>(null);
+  const [editDraft, setEditDraft] = useState<SaleEditDraft | null>(null);
+  const [editError, setEditError] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [paymentDiscountPercentage, setPaymentDiscountPercentage] = useState(0);
   const pricingPolicy = useMemo(() => {
     try {
       return resolveStorePricingPolicy({ storeId: getClientStoreId() });
     } catch {
       return resolveStorePricingPolicy({ storeId: null });
     }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    api("/store/payment-config")
+      .then((config) => {
+        if (!active) return;
+        const paymentConfig = config as StorePaymentConfig;
+        const enabled = paymentConfig?.bankTransfer?.enabled !== false;
+        const percentage = Number(paymentConfig?.bankTransfer?.discountPercentage ?? 0);
+        setPaymentDiscountPercentage(
+          enabled && Number.isFinite(percentage)
+            ? Math.max(0, Math.min(percentage, 100))
+            : 0,
+        );
+      })
+      .catch(() => {
+        if (active) setPaymentDiscountPercentage(0);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
   const filteredSalesHistory = useMemo(() => {
     const normalized = salesSearch.trim().toLowerCase();
@@ -857,6 +909,122 @@ export function SalesHistoryModal({
         .includes(normalized),
     ).slice(0, 80);
   }, [salesHistory, salesSearch]);
+
+  const editSubtotal = useMemo(() => {
+    if (!editDraft) return 0;
+    return editDraft.items.reduce(
+      (sum, item) => sum + Number(item.price || 0) * Math.max(Number(item.quantity || 0), 0),
+      0,
+    );
+  }, [editDraft]);
+  const editDiscountAmount =
+    editDraft?.applyPaymentDiscount && isDiscountedManualPaymentMethod(editDraft.paymentMethod)
+      ? calculateManualSaleDiscountAmount(
+          editDraft.items.map((item) => ({
+            price: Number(item.price || 0),
+            quantity: Math.max(Number(item.quantity || 0), 0),
+          })),
+          editSubtotal,
+          paymentDiscountPercentage,
+          pricingPolicy,
+        )
+      : 0;
+  const editGrandTotal = Math.max(editSubtotal - editDiscountAmount, 0);
+
+  function openSaleEdit(sale: ManualSaleHistoryOrder) {
+    if (sale.status === "cancelled") {
+      const message = "Las ventas canceladas no se pueden editar.";
+      setEditError(message);
+      onError?.(message);
+      return;
+    }
+
+    const items = (sale.items ?? [])
+      .filter((item) => item.id && item.variant)
+      .map((item) => ({
+        orderItemId: item.id,
+        title: item.variant?.product?.title || "Producto",
+        variantLabel: formatVariantMeta(getVariantLabel(item.variant), item.variant?.sku),
+        quantity: Math.max(Number(item.quantity || 1), 1),
+        price: String(Number(item.price ?? 0)),
+      }));
+
+    if (!items.length) {
+      const message = "La venta no tiene productos editables.";
+      setEditError(message);
+      onError?.(message);
+      return;
+    }
+
+    setEditingSale(sale);
+    setEditDraft({
+      reason: "",
+      paymentMethod: normalizeReturnPaymentMethod(salePaymentMethod(sale)),
+      applyPaymentDiscount: true,
+      items,
+    });
+    setEditError("");
+  }
+
+  function updateEditItem(
+    orderItemId: number,
+    updater: (item: SaleEditDraft["items"][number]) => SaleEditDraft["items"][number],
+  ) {
+    setEditDraft((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((item) =>
+              item.orderItemId === orderItemId ? updater(item) : item,
+            ),
+          }
+        : current,
+    );
+  }
+
+  function removeEditItem(orderItemId: number) {
+    setEditDraft((current) =>
+      current && current.items.length > 1
+        ? { ...current, items: current.items.filter((item) => item.orderItemId !== orderItemId) }
+        : current,
+    );
+  }
+
+  async function saveSaleEdit() {
+    if (!editingSale || !editDraft) return;
+
+    if (!editDraft.reason.trim()) {
+      setEditError("Carga el motivo interno de la correccion.");
+      return;
+    }
+
+    setSavingEdit(true);
+    setEditError("");
+
+    try {
+      await api(`/orders/manual/${editingSale.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          paymentMethod: editDraft.paymentMethod,
+          reason: editDraft.reason.trim(),
+          discountType: "fixed",
+          discountValue: editDiscountAmount,
+          items: editDraft.items.map((item) => ({
+            orderItemId: item.orderItemId,
+            quantity: Math.max(Number(item.quantity || 1), 1),
+            price: Number(item.price || 0),
+          })),
+        }),
+      });
+      await onRefresh();
+      setEditingSale(null);
+      setEditDraft(null);
+    } catch (err) {
+      setEditError(getErrorMessage(err, "No se pudo actualizar la venta manual."));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   function generateReturnFromSale(sale: ManualSaleHistoryOrder) {
     const unitPrices = effectiveUnitPrices(sale, pricingPolicy);
@@ -910,6 +1078,165 @@ export function SalesHistoryModal({
             </button>
           </div>
         </header>
+        {editingSale && editDraft ? (
+          <section style={editSalePanelStyle}>
+            <div style={modalHeaderStyle}>
+              <div>
+                <p style={eyebrowStyle}>Correccion</p>
+                <h3 style={modalTitleStyle}>Editar venta #{editingSale.id}</h3>
+                <p style={copyStyle}>Actualiza el metodo, cantidades o precios y deja un motivo interno.</p>
+              </div>
+              <strong style={editSaleTotalStyle}>{money(editGrandTotal)}</strong>
+            </div>
+
+            <label style={fieldStyle}>
+              <span>Metodo de pago</span>
+              <select
+                value={editDraft.paymentMethod}
+                onChange={(event) =>
+                  setEditDraft((current) =>
+                    current ? { ...current, paymentMethod: event.target.value } : current,
+                  )
+                }
+                style={inputStyle}
+              >
+                {manualPaymentOptions.map((method) => (
+                  <option key={method} value={method}>
+                    {method}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {paymentDiscountPercentage > 0 &&
+            isDiscountedManualPaymentMethod(editDraft.paymentMethod) ? (
+              <label style={editSaleDiscountToggleStyle}>
+                <input
+                  type="checkbox"
+                  checked={editDraft.applyPaymentDiscount}
+                  onChange={(event) =>
+                    setEditDraft((current) =>
+                      current
+                        ? { ...current, applyPaymentDiscount: event.target.checked }
+                        : current,
+                    )
+                  }
+                />
+                <span>
+                  Aplicar descuento efectivo/transferencia ({paymentDiscountPercentage}%)
+                </span>
+              </label>
+            ) : null}
+
+            <div style={editSaleSummaryStyle}>
+              <span>Subtotal {money(editSubtotal)}</span>
+              <span>
+                Descuento {editDiscountAmount > 0 ? `- ${money(editDiscountAmount)}` : money(0)}
+              </span>
+              <strong>Total {money(editGrandTotal)}</strong>
+            </div>
+
+            <label style={fieldStyle}>
+              <span>Motivo interno</span>
+              <textarea
+                value={editDraft.reason}
+                onChange={(event) =>
+                  setEditDraft((current) =>
+                    current ? { ...current, reason: event.target.value } : current,
+                  )
+                }
+                placeholder="Ej: se cargo mal el precio"
+                style={{ ...inputStyle, minHeight: 86, resize: "vertical" }}
+              />
+            </label>
+
+            <div style={editSaleItemsStyle}>
+              {editDraft.items.map((item) => (
+                <article key={item.orderItemId} style={editSaleItemStyle}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span style={mutedStyle}>{item.variantLabel}</span>
+                  </div>
+                  <div style={editSaleControlsStyle}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateEditItem(item.orderItemId, (current) => ({
+                          ...current,
+                          quantity: Math.max(1, current.quantity - 1),
+                        }))
+                      }
+                      style={smallActionButtonStyle}
+                    >
+                      -
+                    </button>
+                    <span style={editSaleQtyStyle}>{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateEditItem(item.orderItemId, (current) => ({
+                          ...current,
+                          quantity: current.quantity + 1,
+                        }))
+                      }
+                      style={smallActionButtonStyle}
+                    >
+                      +
+                    </button>
+                    <input
+                      value={item.price}
+                      onChange={(event) =>
+                        updateEditItem(item.orderItemId, (current) => ({
+                          ...current,
+                          price: event.target.value,
+                        }))
+                      }
+                      inputMode="decimal"
+                      style={editSalePriceInputStyle}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeEditItem(item.orderItemId)}
+                      disabled={editDraft.items.length <= 1}
+                      style={{
+                        ...softButtonStyle,
+                        opacity: editDraft.items.length <= 1 ? 0.45 : 1,
+                        cursor: editDraft.items.length <= 1 ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {editError ? <p style={errorStyle}>{editError}</p> : null}
+
+            <div style={actionsStyle}>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSale(null);
+                  setEditDraft(null);
+                  setEditError("");
+                }}
+                style={softButtonStyle}
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveSaleEdit()}
+                disabled={savingEdit}
+                style={primaryButtonStyle}
+              >
+                {savingEdit ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </section>
+        ) : (
+          <>
         <input
           value={salesSearch}
           onChange={(event) => onSearchChange(event.target.value)}
@@ -963,9 +1290,23 @@ export function SalesHistoryModal({
                       </td>
                       <td style={salesTdStyle}>{salePaymentMethod(sale)}</td>
                       <td style={salesTdStyle}>
-                        <button type="button" onClick={() => generateReturnFromSale(sale)} style={primaryButtonStyle}>
-                          Generar devolucion
-                        </button>
+                        <div style={salesActionsColumnStyle}>
+                          <button type="button" onClick={() => generateReturnFromSale(sale)} style={primaryButtonStyle}>
+                            Generar devolucion
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openSaleEdit(sale)}
+                            disabled={sale.status === "cancelled"}
+                            style={{
+                              ...softButtonStyle,
+                              opacity: sale.status === "cancelled" ? 0.45 : 1,
+                              cursor: sale.status === "cancelled" ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            Editar venta
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -974,6 +1315,8 @@ export function SalesHistoryModal({
             </table>
           </div>
         ) : null}
+          </>
+        )}
       </div>
     </div>
   );
@@ -1071,6 +1414,10 @@ function normalizeReturnPaymentMethod(method: string) {
   if (method === "Tarjeta") return "Tarjeta";
   if (method === "Transferencia") return "Transferencia";
   return "Efectivo";
+}
+
+function isDiscountedManualPaymentMethod(method: string) {
+  return method === "Efectivo" || method === "Transferencia";
 }
 
 function effectiveUnitPrices(
@@ -1217,3 +1564,14 @@ const salesTableStyle: React.CSSProperties = { width: "100%", minWidth: 980, bor
 const salesThStyle: React.CSSProperties = { padding: "12px 14px", textAlign: "left", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" };
 const salesTdStyle: React.CSSProperties = { padding: 14, borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-strong)", verticalAlign: "top" };
 const saleItemsStyle: React.CSSProperties = { display: "grid", gap: 6, color: "var(--account-text-muted)", minWidth: 0 };
+const salesActionsColumnStyle: React.CSSProperties = { display: "grid", gap: 8, minWidth: 154 };
+const editSalePanelStyle: React.CSSProperties = { display: "grid", gap: 16, border: "1px solid var(--account-item-border)", borderRadius: 16, background: "var(--account-surface-bg)", padding: 16 };
+const editSaleTotalStyle: React.CSSProperties = { color: "var(--account-text-strong)", fontSize: 24 };
+const editSaleDiscountToggleStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 10, color: "var(--account-text-strong)", fontWeight: 800 };
+const editSaleSummaryStyle: React.CSSProperties = { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", border: "1px solid var(--account-item-border)", borderRadius: 12, background: "var(--account-item-bg)", padding: "10px 12px", color: "var(--account-text-muted)" };
+const editSaleItemsStyle: React.CSSProperties = { display: "grid", gap: 10 };
+const editSaleItemStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", border: "1px solid var(--account-item-border)", borderRadius: 14, background: "var(--account-item-bg)", padding: 12 };
+const editSaleControlsStyle: React.CSSProperties = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" };
+const smallActionButtonStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 10, border: "1px solid var(--account-item-border)", background: "transparent", color: "var(--account-text-strong)", cursor: "pointer", fontWeight: 900 };
+const editSaleQtyStyle: React.CSSProperties = { minWidth: 24, textAlign: "center", fontWeight: 900 };
+const editSalePriceInputStyle: React.CSSProperties = { ...inputStyle, width: 120, minHeight: 38 };
