@@ -4,6 +4,11 @@ import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, apiBlob, getErrorMessage } from "@/lib/api";
 import { downloadBlobFile } from "@/lib/download";
+import {
+  resolveStorePricingPolicy,
+  roundToNearestHundred,
+} from "@/lib/pricing-policy";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 import { useAuth } from "@/context/auth-context";
 import AdminManualSalesSection, {
   type ManualSaleCustomer,
@@ -115,6 +120,8 @@ export default function AdminCurrentAccountsSection({
   const [paymentSearch, setPaymentSearch] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
+  const [cashDiscountPercentage, setCashDiscountPercentage] = useState(0);
+  const [storeId, setStoreId] = useState<number | null>(null);
   const [paymentDescription, setPaymentDescription] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
   const [editAccount, setEditAccount] = useState<CurrentAccount | null>(null);
@@ -202,6 +209,45 @@ export default function AdminCurrentAccountsSection({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [selected]);
 
+  useEffect(() => {
+    try {
+      setStoreId(getClientStoreId());
+    } catch {
+      setStoreId(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadPaymentConfig = async () => {
+      try {
+        const config = (await api("/store/payment-config")) as {
+          bankTransfer?: {
+            discountPercentage?: number | null;
+            enabled?: boolean | null;
+          } | null;
+        };
+        if (!active) return;
+        const enabled = config?.bankTransfer?.enabled !== false;
+        const percentage = Number(config?.bankTransfer?.discountPercentage ?? 0);
+        setCashDiscountPercentage(
+          enabled && Number.isFinite(percentage)
+            ? Math.max(0, Math.min(percentage, 100))
+            : 0,
+        );
+      } catch {
+        if (active) setCashDiscountPercentage(0);
+      }
+    };
+
+    void loadPaymentConfig();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const totals = useMemo(() => {
     const debtAccounts = accounts.filter(
       (account) => Number(account.balance) > 0,
@@ -224,10 +270,45 @@ export default function AdminCurrentAccountsSection({
   }, [accounts]);
   const paymentBalance = Number(paymentCustomer?.balance ?? 0);
   const paymentAmountNumber = parsePaymentAmount(paymentAmount);
-  const paymentRemainingAmount =
-    paymentCustomer && Number.isFinite(paymentAmountNumber)
-      ? roundCurrency(Math.max(paymentBalance - paymentAmountNumber, 0))
-      : paymentBalance;
+  const pricingPolicy = useMemo(
+    () => resolveStorePricingPolicy({ storeId }),
+    [storeId],
+  );
+  const paymentApplication = calculatePaymentApplication(
+    paymentAmountNumber,
+    paymentBalance,
+    paymentMethod,
+    cashDiscountPercentage,
+    pricingPolicy.manualSaleDiscountRounding,
+    paymentCustomer?.movements,
+  );
+  const cashBalanceApplication = calculatePaymentApplication(
+    paymentBalance,
+    paymentBalance,
+    "Efectivo",
+    cashDiscountPercentage,
+    pricingPolicy.manualSaleDiscountRounding,
+    paymentCustomer?.movements,
+  );
+  const paymentCashBalance = paymentCustomer
+    ? cashBalanceApplication.cashToSettle
+    : paymentBalance;
+  const paymentRemainingAmount = paymentCustomer
+    ? paymentApplication.remainingBalance
+    : paymentBalance;
+
+  useEffect(() => {
+    if (!paymentCustomer) return;
+    const parsedAmount = roundCurrency(parsePaymentAmount(paymentAmount));
+    const rawBalance = roundCurrency(Number(paymentCustomer.balance));
+    const wasSaldarTotalAmount =
+      Math.abs(parsedAmount - rawBalance) <= 0.01 ||
+      Math.abs(parsedAmount - paymentApplication.cashToSettle) <= 0.01;
+
+    if (!wasSaldarTotalAmount) return;
+
+    setPaymentAmount(String(paymentApplication.cashToSettle));
+  }, [paymentAmount, paymentApplication.cashToSettle, paymentCustomer, paymentMethod]);
   const canCorrectPayments = ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(
     user?.role ?? "",
   );
@@ -430,9 +511,25 @@ export default function AdminCurrentAccountsSection({
     }
   };
 
-  const selectPaymentCustomer = (account: CurrentAccount) => {
-    setPaymentCustomer(account);
-    setPaymentAmount(String(Number(account.balance)));
+  const selectPaymentCustomer = async (account: CurrentAccount) => {
+    let detailedAccount = account;
+    try {
+      detailedAccount = (await api(
+        currentAccountCustomerPath(account.customerId, storeLocationId),
+      )) as CurrentAccount;
+    } catch {
+      detailedAccount = account;
+    }
+    setPaymentCustomer(detailedAccount);
+    const application = calculatePaymentApplication(
+      Number(detailedAccount.balance),
+      Number(detailedAccount.balance),
+      "Efectivo",
+      cashDiscountPercentage,
+      pricingPolicy.manualSaleDiscountRounding,
+      detailedAccount.movements,
+    );
+    setPaymentAmount(String(application.cashToSettle));
     setPaymentDescription("");
   };
 
@@ -446,7 +543,16 @@ export default function AdminCurrentAccountsSection({
       return;
     }
 
-    if (amount > balance) {
+    const application = calculatePaymentApplication(
+      amount,
+      balance,
+      paymentMethod,
+      cashDiscountPercentage,
+      pricingPolicy.manualSaleDiscountRounding,
+      paymentCustomer.movements,
+    );
+
+    if (amount > application.cashToSettle) {
       setModalError("El pago no puede superar el saldo actual.");
       return;
     }
@@ -847,7 +953,16 @@ export default function AdminCurrentAccountsSection({
                 onClick={() => {
                   setPaymentCustomer(selected);
                   setPaymentAmount(
-                    String(Math.max(Number(selected.balance), 0)),
+                    String(
+                      calculatePaymentApplication(
+                        Number(selected.balance),
+                        Number(selected.balance),
+                        "Efectivo",
+                        cashDiscountPercentage,
+                        pricingPolicy.manualSaleDiscountRounding,
+                        selected.movements,
+                      ).cashToSettle,
+                    ),
                   );
                   setPaymentMethod("Efectivo");
                   setPaymentDescription("");
@@ -900,8 +1015,12 @@ export default function AdminCurrentAccountsSection({
                 {modalError ? <p style={errorStyle}>{modalError}</p> : null}
                 <div style={paymentSummaryStyle}>
                   <div>
-                    <span style={mutedBlockStyle}>Saldo actual</span>
+                    <span style={mutedBlockStyle}>Saldo actual tarjeta</span>
                     <strong>{money(Number(selected.balance))}</strong>
+                  </div>
+                  <div>
+                    <span style={mutedBlockStyle}>Saldo actual efectivo</span>
+                    <strong>{money(paymentCashBalance)}</strong>
                   </div>
                   <div>
                     <span style={mutedBlockStyle}>Pago</span>
@@ -911,6 +1030,20 @@ export default function AdminCurrentAccountsSection({
                         : money(0)}
                     </strong>
                   </div>
+                  {paymentApplication.discountAmount > 0 ? (
+                    <>
+                      <div>
+                        <span style={mutedBlockStyle}>
+                          Descuento aplicado
+                        </span>
+                        <strong>{money(paymentApplication.discountAmount)}</strong>
+                      </div>
+                      <div>
+                        <span style={mutedBlockStyle}>Deuda cancelada</span>
+                        <strong>{money(paymentApplication.debtCancelled)}</strong>
+                      </div>
+                    </>
+                  ) : null}
                   <div>
                     <span style={mutedBlockStyle}>Saldo luego del pago</span>
                     <strong>{balanceLabel(paymentRemainingAmount)}</strong>
@@ -933,7 +1066,7 @@ export default function AdminCurrentAccountsSection({
                     <button
                       type="button"
                       onClick={() =>
-                        setPaymentAmount(String(Number(selected.balance)))
+                        setPaymentAmount(String(paymentApplication.cashToSettle))
                       }
                       style={softButtonStyle}
                     >
@@ -1330,7 +1463,7 @@ export default function AdminCurrentAccountsSection({
                       <button
                         key={account.id}
                         type="button"
-                        onClick={() => selectPaymentCustomer(account)}
+                        onClick={() => void selectPaymentCustomer(account)}
                         style={paymentCustomerOptionStyle}
                       >
                         <span>
@@ -1370,7 +1503,7 @@ export default function AdminCurrentAccountsSection({
                       type="button"
                       onClick={() =>
                         setPaymentAmount(
-                          String(Number(paymentCustomer.balance)),
+                          String(paymentApplication.cashToSettle),
                         )
                       }
                       style={softButtonStyle}
@@ -1381,6 +1514,14 @@ export default function AdminCurrentAccountsSection({
                 </label>
                 <div style={paymentSummaryStyle}>
                   <div>
+                    <span>Saldo tarjeta</span>
+                    <strong>{money(paymentBalance)}</strong>
+                  </div>
+                  <div>
+                    <span>Saldo efectivo</span>
+                    <strong>{money(paymentCashBalance)}</strong>
+                  </div>
+                  <div>
                     <span>Pago</span>
                     <strong>
                       {Number.isFinite(paymentAmountNumber)
@@ -1388,6 +1529,18 @@ export default function AdminCurrentAccountsSection({
                         : money(0)}
                     </strong>
                   </div>
+                  {paymentApplication.discountAmount > 0 ? (
+                    <>
+                      <div>
+                        <span>Descuento</span>
+                        <strong>{money(paymentApplication.discountAmount)}</strong>
+                      </div>
+                      <div>
+                        <span>Deuda cancelada</span>
+                        <strong>{money(paymentApplication.debtCancelled)}</strong>
+                      </div>
+                    </>
+                  ) : null}
                   <div>
                     <span>Saldo restante</span>
                     <strong>{balanceLabel(paymentRemainingAmount)}</strong>
@@ -1972,6 +2125,183 @@ function parsePaymentAmount(value: string) {
 
 function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function roundCurrencyUpToHundred(value: number) {
+  return Math.ceil(Math.max(value, 0) / 100) * 100;
+}
+
+function calculatePaymentApplication(
+  amount: number,
+  balance: number,
+  paymentMethod: string,
+  discountPercentage: number,
+  roundDiscounts: boolean,
+  movements?: Movement[],
+) {
+  const safeAmount = roundCurrency(
+    Number.isFinite(amount) ? Math.max(amount, 0) : 0,
+  );
+  const safeBalance = roundCurrency(Math.max(Number(balance || 0), 0));
+  const eligibleMethod =
+    paymentMethod === "Efectivo" || paymentMethod === "Transferencia";
+  const safePercentage = Number.isFinite(discountPercentage)
+    ? Math.min(Math.max(discountPercentage, 0), 100)
+    : 0;
+
+  if (!eligibleMethod || safePercentage <= 0 || safePercentage >= 100) {
+    const debtCancelled = roundCurrency(Math.min(safeAmount, safeBalance));
+    return {
+      cashReceived: safeAmount,
+      discountAmount: 0,
+      debtCancelled,
+      remainingBalance: roundCurrency(Math.max(safeBalance - debtCancelled, 0)),
+      cashToSettle: safeBalance,
+    };
+  }
+
+  const multiplier = 1 - safePercentage / 100;
+  const buckets =
+    roundDiscounts && movements?.length
+      ? buildPaymentBuckets(movements, multiplier)
+      : [];
+  const bucketDebt = roundCurrency(
+    buckets.reduce((sum, bucket) => sum + bucket.debt, 0),
+  );
+  const useBuckets = buckets.length > 0 && Math.abs(bucketDebt - safeBalance) <= 1;
+  const cashToSettle = useBuckets
+    ? roundCurrency(buckets.reduce((sum, bucket) => sum + bucket.cash, 0))
+    : roundDiscounts
+      ? roundCurrencyUpToHundred(safeBalance * multiplier)
+      : roundCurrency(safeBalance * multiplier);
+  const rawDebtCancelled =
+    safeAmount >= cashToSettle
+      ? safeBalance
+      : useBuckets
+        ? allocateCashAcrossBuckets(
+            buckets.map((bucket) => ({ ...bucket })),
+            safeAmount,
+          )
+        : roundDiscounts
+          ? roundToNearestHundred(safeAmount / multiplier)
+          : roundCurrency(safeAmount / multiplier);
+  const debtCancelled = roundCurrency(
+    Math.min(Math.max(rawDebtCancelled, safeAmount), safeBalance),
+  );
+
+  return {
+    cashReceived: safeAmount,
+    discountAmount: roundCurrency(Math.max(debtCancelled - safeAmount, 0)),
+    debtCancelled,
+    remainingBalance: roundCurrency(Math.max(safeBalance - debtCancelled, 0)),
+    cashToSettle,
+  };
+}
+
+function buildPaymentBuckets(movements: Movement[], multiplier: number) {
+  const buckets: Array<{ debt: number; cash: number }> = [];
+  const orderedMovements = [...movements].sort(
+    (left, right) =>
+      new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+  );
+
+  for (const movement of orderedMovements) {
+    if (movement.cancelledAt) continue;
+    const movementAmount = roundCurrency(Number(movement.amount));
+
+    if (movementAmount > 0) {
+      buckets.push({
+        debt: movementAmount,
+        cash: resolveMovementCashEquivalent(movement, movementAmount, multiplier),
+      });
+      continue;
+    }
+
+    if (movement.type === "PAYMENT") {
+      if (isDiscountedCurrentAccountPayment(movement.paymentMethod)) {
+        allocateCashAcrossBuckets(buckets, Math.abs(movementAmount));
+      } else {
+        allocateDebtAcrossBuckets(buckets, Math.abs(movementAmount));
+      }
+      continue;
+    }
+
+    if (movement.paymentMethod?.startsWith("Descuento ")) continue;
+
+    allocateDebtAcrossBuckets(buckets, Math.abs(movementAmount));
+  }
+
+  return buckets.filter((bucket) => bucket.debt > 0.01 && bucket.cash > 0.01);
+}
+
+function resolveMovementCashEquivalent(
+  movement: Movement,
+  movementAmount: number,
+  multiplier: number,
+) {
+  if (movement.type === "SALE" && movement.order?.items?.length) {
+    const orderTotal = roundCurrency(Number(movement.order.total ?? movementAmount));
+    const itemCashTotal = movement.order.items.reduce((sum, item) => {
+      const quantity = Number(item.quantity ?? 0);
+      const unitPrice = Number(item.price ?? 0);
+      return sum + roundToNearestHundred(unitPrice * multiplier) * quantity;
+    }, 0);
+
+    if (orderTotal > 0 && Math.abs(orderTotal - movementAmount) > 0.01) {
+      return roundToNearestHundred(itemCashTotal * (movementAmount / orderTotal));
+    }
+
+    return roundCurrency(itemCashTotal);
+  }
+
+  return roundCurrencyUpToHundred(movementAmount * multiplier);
+}
+
+function isDiscountedCurrentAccountPayment(paymentMethod?: string | null) {
+  return paymentMethod === "Efectivo" || paymentMethod === "Transferencia";
+}
+
+function allocateCashAcrossBuckets(
+  buckets: Array<{ debt: number; cash: number }>,
+  cashAmount: number,
+) {
+  let remainingCash = roundCurrency(Math.max(cashAmount, 0));
+  let debtCancelled = 0;
+
+  for (const bucket of buckets) {
+    if (remainingCash <= 0 || bucket.cash <= 0 || bucket.debt <= 0) continue;
+    const cashPart = Math.min(remainingCash, bucket.cash);
+    const debtPart =
+      cashPart >= bucket.cash
+        ? bucket.debt
+        : roundToNearestHundred(cashPart * (bucket.debt / bucket.cash));
+    const cappedDebtPart = roundCurrency(Math.min(debtPart, bucket.debt));
+    bucket.cash = roundCurrency(Math.max(bucket.cash - cashPart, 0));
+    bucket.debt = roundCurrency(Math.max(bucket.debt - cappedDebtPart, 0));
+    remainingCash = roundCurrency(remainingCash - cashPart);
+    debtCancelled = roundCurrency(debtCancelled + cappedDebtPart);
+  }
+
+  return debtCancelled;
+}
+
+function allocateDebtAcrossBuckets(
+  buckets: Array<{ debt: number; cash: number }>,
+  debtAmount: number,
+) {
+  let remainingDebt = roundCurrency(Math.max(debtAmount, 0));
+
+  for (const bucket of buckets) {
+    if (remainingDebt <= 0 || bucket.debt <= 0) continue;
+    const debtPart = Math.min(remainingDebt, bucket.debt);
+    const cashPart =
+      debtPart >= bucket.debt
+        ? bucket.cash
+        : roundToNearestHundred(debtPart * (bucket.cash / bucket.debt));
+    bucket.debt = roundCurrency(Math.max(bucket.debt - debtPart, 0));
+    bucket.cash = roundCurrency(Math.max(bucket.cash - cashPart, 0));
+    remainingDebt = roundCurrency(remainingDebt - debtPart);
+  }
 }
 
 function appendStoreLocationParam(

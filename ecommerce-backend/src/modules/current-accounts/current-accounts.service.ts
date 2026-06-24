@@ -8,6 +8,10 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
 import { normalizeEmail } from '../../common/utils/email.util';
+import {
+  resolveStorePricingPolicy,
+  roundToNearestHundred,
+} from '../../common/price-input-mode';
 import { AdjustCurrentAccountDto } from './dto/adjust-current-account.dto';
 import { CancelCurrentAccountPaymentDto } from './dto/cancel-current-account-payment.dto';
 import { CreateCurrentAccountDto } from './dto/create-current-account.dto';
@@ -328,18 +332,37 @@ export class CurrentAccountsService {
       const currentLocalBalance = cashContext.storeLocationId
         ? await this.calculateLocalBalanceTx(tx, account.id, cashContext.storeLocationId)
         : currentBalance;
-      const amount = Number(dto.amount);
+      const amount = roundCurrency(Number(dto.amount));
 
       if (!Number.isFinite(amount) || amount <= 0) {
         throw new BadRequestException('Payment amount must be greater than 0');
       }
 
-      if (amount > currentLocalBalance) {
+      const paymentApplication = await this.calculatePaymentApplicationTx(
+        tx,
+        account.id,
+        cashContext.storeLocationId,
+        amount,
+        currentLocalBalance,
+        dto.paymentMethod,
+        cashContext.discountPercentage,
+        cashContext.roundPaymentDiscounts,
+      );
+
+      if (
+        paymentApplication.debtCancelled > currentLocalBalance ||
+        amount > paymentApplication.cashToSettle
+      ) {
         throw new BadRequestException('Payment cannot exceed current balance');
       }
 
-      const nextGlobalBalance = roundCurrency(currentBalance - amount);
-      const nextLocalBalance = roundCurrency(currentLocalBalance - amount);
+      const nextGlobalBalance = roundCurrency(
+        currentBalance - paymentApplication.debtCancelled,
+      );
+      const nextLocalBalance = roundCurrency(
+        currentLocalBalance - paymentApplication.debtCancelled,
+      );
+      const paymentBalanceAfter = roundCurrency(currentLocalBalance - amount);
 
       const updatedAccount = await tx.currentAccount.update({
         where: { id: account.id },
@@ -364,9 +387,27 @@ export class CurrentAccountsService {
           paymentMethod: dto.paymentMethod,
           description: dto.description?.trim() || 'Pago de cuenta corriente',
           createdByUserId,
-          balanceAfter: cashContext.storeLocationId ? nextLocalBalance : nextGlobalBalance,
+          balanceAfter: cashContext.storeLocationId ? paymentBalanceAfter : roundCurrency(currentBalance - amount),
         },
       });
+
+      if (paymentApplication.discountAmount > 0) {
+        await tx.currentAccountMovement.create({
+          data: {
+            storeId,
+            storeLocationId: cashContext.storeLocationId,
+            accountId: account.id,
+            customerId,
+            cashRegisterId: cashContext.cashRegisterId,
+            type: 'ADJUSTMENT_NEGATIVE',
+            amount: -paymentApplication.discountAmount,
+            paymentMethod: `Descuento ${dto.paymentMethod}`,
+            description: `Descuento por pago en ${dto.paymentMethod} (Pago #${movement.id})`,
+            createdByUserId,
+            balanceAfter: cashContext.storeLocationId ? nextLocalBalance : nextGlobalBalance,
+          },
+        });
+      }
 
       return {
         account: cashContext.storeLocationId
@@ -513,8 +554,27 @@ export class CurrentAccountsService {
 
       await this.ensurePaymentNotCancelledTx(tx, storeId, movement.id);
 
+      const linkedDiscount = await tx.currentAccountMovement.findFirst({
+        where: {
+          storeId,
+          accountId: movement.accountId,
+          type: 'ADJUSTMENT_NEGATIVE',
+          description: {
+            contains: `(Pago #${movement.id})`,
+          },
+          cancelledAt: null,
+          cancellationMovementId: null,
+        },
+      });
+
       const amount = Math.abs(Number(movement.amount));
-      const nextBalance = roundCurrency(Number(movement.account.balance) + amount);
+      const discountAmount = linkedDiscount
+        ? Math.abs(Number(linkedDiscount.amount))
+        : 0;
+      const totalReversalAmount = roundCurrency(amount + discountAmount);
+      const nextBalance = roundCurrency(
+        Number(movement.account.balance) + totalReversalAmount,
+      );
 
       await tx.currentAccount.update({
         where: { id: movement.accountId },
@@ -533,7 +593,7 @@ export class CurrentAccountsService {
           orderId: movement.orderId,
           cashRegisterId: movement.cashRegisterId,
           type: 'ADJUSTMENT_POSITIVE',
-          amount,
+          amount: totalReversalAmount,
           paymentMethod: 'Anulacion de pago',
           description: `Anulacion de pago #${movement.id}: ${reason}`,
           createdByUserId: cancelledByUserId,
@@ -553,6 +613,18 @@ export class CurrentAccountsService {
           account: true,
         },
       });
+
+      if (linkedDiscount) {
+        await tx.currentAccountMovement.update({
+          where: { id: linkedDiscount.id },
+          data: {
+            cancelledAt: new Date(),
+            cancelledByUserId,
+            cancellationReason: reason,
+            cancellationMovementId: reversal.id,
+          },
+        });
+      }
 
       return {
         movement: cancelledMovement,
@@ -607,8 +679,16 @@ export class CurrentAccountsService {
   private async resolveCashContext(storeId: number, userId?: number, requestedStoreLocationId?: number) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },
-      select: { cashRegisterMode: true },
+      select: {
+        id: true,
+        name: true,
+        domain: true,
+        storefrontConfig: true,
+        cashRegisterMode: true,
+        bankTransferDiscountPercentage: true,
+      },
     });
+    const pricingPolicy = resolveStorePricingPolicy(store);
     const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
 
     if (store?.cashRegisterMode !== 'manual') {
@@ -620,6 +700,8 @@ export class CurrentAccountsService {
       return {
         storeLocationId: location?.id ?? null,
         cashRegisterId: session.id,
+        discountPercentage: pricingPolicy.cashInput.discountPercentage,
+        roundPaymentDiscounts: pricingPolicy.manualSaleDiscountRounding,
       };
     }
 
@@ -649,7 +731,259 @@ export class CurrentAccountsService {
     return {
       storeLocationId: location.id,
       cashRegisterId: session.id,
+      discountPercentage: pricingPolicy.cashInput.discountPercentage,
+      roundPaymentDiscounts: pricingPolicy.manualSaleDiscountRounding,
     };
+  }
+
+  private calculatePaymentApplication(
+    amount: number,
+    currentBalance: number,
+    paymentMethod: string,
+    discountPercentage: number,
+    roundDiscounts: boolean,
+  ) {
+    const safeAmount = roundCurrency(amount);
+    const safeBalance = roundCurrency(Math.max(currentBalance, 0));
+    const eligibleMethod =
+      paymentMethod === 'Efectivo' || paymentMethod === 'Transferencia';
+    const safePercentage = Math.min(Math.max(Number(discountPercentage) || 0, 0), 100);
+
+    if (!eligibleMethod || safePercentage <= 0 || safePercentage >= 100) {
+      return {
+        cashReceived: safeAmount,
+        discountAmount: 0,
+        debtCancelled: safeAmount,
+        cashToSettle: safeBalance,
+      };
+    }
+
+    const multiplier = 1 - safePercentage / 100;
+    const cashToSettle = roundDiscounts
+      ? Math.ceil((safeBalance * multiplier) / 100) * 100
+      : roundCurrency(safeBalance * multiplier);
+    const debtCancelled =
+      safeAmount >= cashToSettle
+        ? safeBalance
+        : roundDiscounts
+          ? roundToNearestHundred(safeAmount / multiplier)
+          : roundCurrency(safeAmount / multiplier);
+    const cappedDebtCancelled = roundCurrency(
+      Math.min(Math.max(debtCancelled, safeAmount), safeBalance),
+    );
+
+    return {
+      cashReceived: safeAmount,
+      discountAmount: roundCurrency(cappedDebtCancelled - safeAmount),
+      debtCancelled: cappedDebtCancelled,
+      cashToSettle,
+    };
+  }
+
+  private async calculatePaymentApplicationTx(
+    tx: Prisma.TransactionClient,
+    accountId: number,
+    storeLocationId: number | null,
+    amount: number,
+    currentBalance: number,
+    paymentMethod: string,
+    discountPercentage: number,
+    roundDiscounts: boolean,
+  ) {
+    const eligibleMethod =
+      paymentMethod === 'Efectivo' || paymentMethod === 'Transferencia';
+    const safePercentage = Math.min(Math.max(Number(discountPercentage) || 0, 0), 100);
+
+    if (!eligibleMethod || safePercentage <= 0 || safePercentage >= 100 || !roundDiscounts) {
+      return this.calculatePaymentApplication(
+        amount,
+        currentBalance,
+        paymentMethod,
+        discountPercentage,
+        roundDiscounts,
+      );
+    }
+
+    const buckets = await this.buildCashDebtBucketsTx(
+      tx,
+      accountId,
+      storeLocationId,
+      safePercentage,
+    );
+
+    if (!buckets.length) {
+      return this.calculatePaymentApplication(
+        amount,
+        currentBalance,
+        paymentMethod,
+        discountPercentage,
+        roundDiscounts,
+      );
+    }
+
+    const safeAmount = roundCurrency(amount);
+    const safeBalance = roundCurrency(Math.max(currentBalance, 0));
+    const bucketDebtTotal = roundCurrency(
+      buckets.reduce((sum, bucket) => sum + bucket.debt, 0),
+    );
+
+    if (Math.abs(bucketDebtTotal - safeBalance) > 1) {
+      return this.calculatePaymentApplication(
+        amount,
+        currentBalance,
+        paymentMethod,
+        discountPercentage,
+        roundDiscounts,
+      );
+    }
+
+    const cashToSettle = roundCurrency(
+      buckets.reduce((sum, bucket) => sum + bucket.cash, 0),
+    );
+
+    if (safeAmount >= cashToSettle) {
+      return {
+        cashReceived: safeAmount,
+        discountAmount: roundCurrency(safeBalance - safeAmount),
+        debtCancelled: safeBalance,
+        cashToSettle,
+      };
+    }
+
+    const debtCancelled = this.allocateCashAcrossBuckets(
+      buckets.map((bucket) => ({ ...bucket })),
+      safeAmount,
+    );
+
+    return {
+      cashReceived: safeAmount,
+      discountAmount: roundCurrency(debtCancelled - safeAmount),
+      debtCancelled,
+      cashToSettle,
+    };
+  }
+
+  private async buildCashDebtBucketsTx(
+    tx: Prisma.TransactionClient,
+    accountId: number,
+    storeLocationId: number | null,
+    discountPercentage: number,
+  ) {
+    const multiplier = 1 - discountPercentage / 100;
+    const movements = await tx.currentAccountMovement.findMany({
+      where: {
+        accountId,
+        ...(storeLocationId ? { storeLocationId } : {}),
+        cancelledAt: null,
+      },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        order: {
+          include: {
+            items: true,
+          },
+        },
+      },
+    });
+    const buckets: Array<{ debt: number; cash: number }> = [];
+
+    for (const movement of movements) {
+      const movementAmount = roundCurrency(Number(movement.amount));
+      if (movementAmount > 0) {
+        buckets.push({
+          debt: movementAmount,
+          cash: this.resolveMovementCashEquivalent(movement, movementAmount, multiplier),
+        });
+        continue;
+      }
+
+      if (movement.type === 'PAYMENT') {
+        if (this.isDiscountedCurrentAccountPayment(movement.paymentMethod)) {
+          this.allocateCashAcrossBuckets(buckets, Math.abs(movementAmount));
+        } else {
+          this.allocateDebtAcrossBuckets(buckets, Math.abs(movementAmount));
+        }
+        continue;
+      }
+
+      if (movement.paymentMethod?.startsWith('Descuento ')) {
+        continue;
+      }
+
+      this.allocateDebtAcrossBuckets(buckets, Math.abs(movementAmount));
+    }
+
+    return buckets.filter((bucket) => bucket.debt > 0.01 && bucket.cash > 0.01);
+  }
+
+  private resolveMovementCashEquivalent(
+    movement: Prisma.CurrentAccountMovementGetPayload<{ include: { order: { include: { items: true } } } }>,
+    movementAmount: number,
+    multiplier: number,
+  ) {
+    if (movement.type === 'SALE' && movement.order?.items?.length) {
+      const orderTotal = roundCurrency(Number(movement.order.total ?? movementAmount));
+      const itemCashTotal = movement.order.items.reduce((sum, item) => {
+        const quantity = Number(item.quantity ?? 0);
+        const unitPrice = Number(item.price ?? 0);
+        return sum + roundToNearestHundred(unitPrice * multiplier) * quantity;
+      }, 0);
+
+      if (orderTotal > 0 && Math.abs(orderTotal - movementAmount) > 0.01) {
+        return roundToNearestHundred(itemCashTotal * (movementAmount / orderTotal));
+      }
+
+      return roundCurrency(itemCashTotal);
+    }
+
+    return Math.ceil((movementAmount * multiplier) / 100) * 100;
+  }
+
+  private allocateCashAcrossBuckets(
+    buckets: Array<{ debt: number; cash: number }>,
+    cashAmount: number,
+  ) {
+    let remainingCash = roundCurrency(Math.max(cashAmount, 0));
+    let debtCancelled = 0;
+
+    for (const bucket of buckets) {
+      if (remainingCash <= 0 || bucket.cash <= 0 || bucket.debt <= 0) continue;
+      const cashPart = Math.min(remainingCash, bucket.cash);
+      const debtPart =
+        cashPart >= bucket.cash
+          ? bucket.debt
+          : roundToNearestHundred(cashPart * (bucket.debt / bucket.cash));
+      const cappedDebtPart = roundCurrency(Math.min(debtPart, bucket.debt));
+      bucket.cash = roundCurrency(Math.max(bucket.cash - cashPart, 0));
+      bucket.debt = roundCurrency(Math.max(bucket.debt - cappedDebtPart, 0));
+      remainingCash = roundCurrency(remainingCash - cashPart);
+      debtCancelled = roundCurrency(debtCancelled + cappedDebtPart);
+    }
+
+    return debtCancelled;
+  }
+
+  private allocateDebtAcrossBuckets(
+    buckets: Array<{ debt: number; cash: number }>,
+    debtAmount: number,
+  ) {
+    let remainingDebt = roundCurrency(Math.max(debtAmount, 0));
+
+    for (const bucket of buckets) {
+      if (remainingDebt <= 0 || bucket.debt <= 0) continue;
+      const debtPart = Math.min(remainingDebt, bucket.debt);
+      const cashPart =
+        debtPart >= bucket.debt
+          ? bucket.cash
+          : roundToNearestHundred(debtPart * (bucket.cash / bucket.debt));
+      bucket.debt = roundCurrency(Math.max(bucket.debt - debtPart, 0));
+      bucket.cash = roundCurrency(Math.max(bucket.cash - cashPart, 0));
+      remainingDebt = roundCurrency(remainingDebt - debtPart);
+    }
+  }
+
+  private isDiscountedCurrentAccountPayment(paymentMethod?: string | null) {
+    return paymentMethod === 'Efectivo' || paymentMethod === 'Transferencia';
   }
 
   private async ensureAutomaticCashRegisterSession(
@@ -738,9 +1072,31 @@ export class CurrentAccountsService {
       throw new NotFoundException('Payment receipt not found');
     }
 
+    const discountMovement = await this.prisma.currentAccountMovement.findFirst({
+      where: {
+        storeId,
+        accountId: movement.accountId,
+        type: 'ADJUSTMENT_NEGATIVE',
+        description: {
+          contains: `(Pago #${movement.id})`,
+        },
+        cancelledAt: null,
+      },
+      select: {
+        amount: true,
+        balanceAfter: true,
+      },
+    });
+
     return {
       filename: `recibo-pago-cuenta-${movement.id}.pdf`,
-      pdf: this.renderPaymentReceiptPdf(movement),
+      pdf: this.renderPaymentReceiptPdf({
+        ...movement,
+        discountAmount: discountMovement
+          ? Math.abs(Number(discountMovement.amount))
+          : 0,
+        finalBalanceAfter: discountMovement?.balanceAfter ?? movement.balanceAfter,
+      }),
     };
   }
 
@@ -1160,6 +1516,8 @@ export class CurrentAccountsService {
     description?: string | null;
     createdAt: Date;
     balanceAfter: unknown;
+    discountAmount?: number;
+    finalBalanceAfter?: unknown;
     store: { name: string; domain: string };
     customer: {
       id: number;
@@ -1178,7 +1536,8 @@ export class CurrentAccountsService {
     const issuedAt = new Date(movement.createdAt);
     const customerName = customerDisplayName(movement.customer);
     const amountPaid = Math.abs(Number(movement.amount));
-    const balanceAfter = Number(movement.balanceAfter);
+    const discountAmount = Number(movement.discountAmount ?? 0);
+    const balanceAfter = Number(movement.finalBalanceAfter ?? movement.balanceAfter);
 
     pdf.drawText({
       x: margin,
@@ -1245,17 +1604,33 @@ export class CurrentAccountsService {
     pdf.drawText({
       x: margin + 300,
       y: 444,
-      text: 'Saldo restante',
+      text: discountAmount > 0 ? 'Descuento aplicado' : 'Saldo restante',
       size: 11,
       font: 'Helvetica-Bold',
     });
     pdf.drawText({
       x: margin + 300,
       y: 416,
-      text: formatCurrency(balanceAfter),
+      text: formatCurrency(discountAmount > 0 ? discountAmount : balanceAfter),
       size: 18,
       font: 'Helvetica-Bold',
     });
+    if (discountAmount > 0) {
+      pdf.drawText({
+        x: margin + 478,
+        y: 444,
+        text: 'Saldo restante',
+        size: 11,
+        font: 'Helvetica-Bold',
+      });
+      pdf.drawText({
+        x: margin + 478,
+        y: 416,
+        text: formatCurrency(balanceAfter),
+        size: 18,
+        font: 'Helvetica-Bold',
+      });
+    }
 
     if (movement.description?.trim()) {
       pdf.drawText({
