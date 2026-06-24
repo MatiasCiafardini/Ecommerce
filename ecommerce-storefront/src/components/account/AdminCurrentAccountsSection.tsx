@@ -819,13 +819,6 @@ export default function AdminCurrentAccountsSection({
           >
             Agregar cuenta
           </button>
-          <button
-            type="button"
-            onClick={() => void openGlobalPayment()}
-            style={primaryButtonStyle}
-          >
-            Registrar pago
-          </button>
           <Stat label="Con deuda" value={String(totals.debtAccounts)} />
           <Stat label="Deuda total" value={money(totals.totalDebt)} />
           <Stat label="A favor" value={money(totals.totalCredit)} />
