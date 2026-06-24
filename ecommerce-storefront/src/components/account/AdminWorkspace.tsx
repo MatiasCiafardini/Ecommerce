@@ -95,6 +95,14 @@ type ManualDashboardSale = {
       product?: { title: string } | null;
     } | null;
   }>;
+  events?: Array<{
+    id: number;
+    type: string;
+    title?: string | null;
+    message?: string | null;
+    createdAt: string;
+    metadata?: Record<string, unknown> | null;
+  }>;
 };
 
 type ManualDashboardReturn = {
@@ -145,7 +153,7 @@ type ManualDashboardComment = {
   id: string;
   createdAt: string;
   text: string;
-  tone: "sale" | "return" | "exchange" | "account";
+  tone: "sale" | "return" | "exchange" | "account" | "correction" | "cancel";
 };
 
 export default function AdminWorkspace({
@@ -407,9 +415,10 @@ function ManualSalesDashboard({
     };
   }, [storeLocationId]);
 
+  const allTodaySales = useMemo(() => sales.filter((sale) => isToday(sale.createdAt) || (sale.events ?? []).some((event) => isToday(event.createdAt))), [sales]);
   const todaySales = useMemo(() => sales.filter((sale) => sale.status !== "cancelled" && isToday(sale.createdAt)), [sales]);
   const todayReturns = useMemo(() => returns.filter((entry) => isToday(entry.createdAt)), [returns]);
-  const comments = useMemo(() => buildManualDashboardComments(todaySales, todayReturns, currentAccounts), [currentAccounts, todaySales, todayReturns]);
+  const comments = useMemo(() => buildManualDashboardComments(allTodaySales, todayReturns, currentAccounts), [allTodaySales, currentAccounts, todayReturns]);
   const accountSalesCount = todaySales.filter((sale) => salePaymentMethod(sale) === "Cuenta corriente").length;
   const cashSummary = cash?.summary ?? null;
   const salesTotal = todaySales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
@@ -658,24 +667,54 @@ function buildManualDashboardComments(
   returns: ManualDashboardReturn[],
   currentAccounts: ManualDashboardCurrentAccount[],
 ) {
-  const saleComments: ManualDashboardComment[] = sales.map((sale) => {
-    const customer = saleCustomerName(sale);
-    const hasCustomer = hasSaleCustomer(sale);
-    const product = saleProductSummary(sale.items);
-    const method = salePaymentMethod(sale);
+  const saleComments: ManualDashboardComment[] = sales
+    .filter((sale) => sale.status !== "cancelled" && isToday(sale.createdAt))
+    .map((sale) => {
+      const customer = saleCustomerName(sale);
+      const hasCustomer = hasSaleCustomer(sale);
+      const product = saleProductSummary(sale.items);
+      const method = salePaymentMethod(sale);
 
-    return {
-      id: `sale-${sale.id}`,
-      createdAt: sale.createdAt,
-      tone: method === "Cuenta corriente" ? "account" : "sale",
-      text: method === "Cuenta corriente"
-        ? hasCustomer
-          ? `Se realizo la venta en cuenta corriente de ${customer}: ${product}`
-          : `Se realizo una venta en cuenta corriente de ${product}`
-        : hasCustomer
-          ? `${customer} compro ${product} a ${money(Number(sale.total ?? 0))}`
-          : `Se realizo la venta de ${product} a ${money(Number(sale.total ?? 0))}`,
-    };
+      return {
+        id: `sale-${sale.id}`,
+        createdAt: sale.createdAt,
+        tone: method === "Cuenta corriente" ? "account" : "sale",
+        text: method === "Cuenta corriente"
+          ? hasCustomer
+            ? `Se realizo la venta en cuenta corriente de ${customer}: ${product}`
+            : `Se realizo una venta en cuenta corriente de ${product}`
+          : hasCustomer
+            ? `${customer} compro ${product} a ${money(Number(sale.total ?? 0))}`
+            : `Se realizo la venta de ${product} a ${money(Number(sale.total ?? 0))}`,
+      };
+    });
+
+  const saleEventComments: ManualDashboardComment[] = sales.flatMap((sale) => {
+    const product = saleProductSummary(sale.items);
+
+    return (sale.events ?? [])
+      .filter((event) => isToday(event.createdAt))
+      .flatMap((event): ManualDashboardComment[] => {
+        if (event.type === "order.manual_sale_corrected") {
+          return [{
+            id: `sale-event-${sale.id}-${event.id}`,
+            createdAt: event.createdAt,
+            tone: "correction",
+            text: `Se corrigio la venta #${sale.id} de ${product}. Total actual ${money(Number(sale.total ?? 0))}`,
+          }];
+        }
+
+        if (event.type === "order.manual_sale_cancelled") {
+          return [{
+            id: `sale-event-${sale.id}-${event.id}`,
+            createdAt: event.createdAt,
+            tone: "cancel",
+            text: `Se anulo la venta #${sale.id} de ${product}`,
+          }];
+        }
+
+        return [];
+      });
   });
 
   const returnComments: ManualDashboardComment[] = returns.map((entry) => {
@@ -696,7 +735,7 @@ function buildManualDashboardComments(
 
   const currentAccountComments = buildCurrentAccountDashboardComments(currentAccounts, returns);
 
-  return [...saleComments, ...returnComments, ...currentAccountComments]
+  return [...saleComments, ...saleEventComments, ...returnComments, ...currentAccountComments]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 12);
 }
@@ -2451,7 +2490,11 @@ const dashboardToneDotStyle = (tone: ManualDashboardComment["tone"]): React.CSSP
   height: 10,
   borderRadius: 999,
   background:
-    tone === "return"
+    tone === "cancel"
+      ? "#B42318"
+      : tone === "correction"
+        ? "#D97706"
+        : tone === "return"
       ? "var(--admin-danger-color)"
       : tone === "exchange"
         ? "var(--brand-accent)"

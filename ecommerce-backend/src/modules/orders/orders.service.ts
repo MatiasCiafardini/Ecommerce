@@ -1793,7 +1793,23 @@ export class OrdersService {
           },
         },
       },
-      include: this.orderInclude(),
+      include: {
+        ...this.orderInclude(),
+        events: {
+          where: {
+            type: {
+              in: [
+                'order.manual_sale_corrected',
+                'order.manual_sale_cancelled',
+              ],
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 8,
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },

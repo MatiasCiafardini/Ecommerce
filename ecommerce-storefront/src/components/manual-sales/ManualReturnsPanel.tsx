@@ -839,7 +839,7 @@ async function getProductRows(query: string) {
     return [];
   }
 
-  const data = await api(`/products?search=${encodeURIComponent(normalized)}&limit=40`);
+  const data = await api(`/products?search=${encodeURIComponent(normalized)}&limit=120`);
   const products = Array.isArray(data) ? (data as Product[]) : [];
   const rows = products.flatMap((product) => (product.variants ?? []).map((variant) => ({
     product,
@@ -848,7 +848,10 @@ async function getProductRows(query: string) {
   })));
   const exactSkuRows = rows.filter((row) => normalizeSku(row.variant.sku) === normalizeSku(query));
 
-  return exactSkuRows.length > 0 ? exactSkuRows : rows;
+  if (exactSkuRows.length > 0) return exactSkuRows;
+
+  const termRows = rows.filter((row) => variantRowMatchesSearch(row, normalized));
+  return termRows.length > 0 ? termRows : rows;
 }
 
 async function searchProducts(query: string, setRows: (rows: VariantRow[]) => void) {
@@ -1006,6 +1009,26 @@ function formatVariantMeta(label?: string | null, sku?: string | null) {
 
 function normalizeSku(value?: string | null) {
   return String(value ?? "").trim().toLowerCase();
+}
+
+function variantRowMatchesSearch(row: VariantRow, query: string) {
+  const terms = query.split(/\s+/u).filter(Boolean);
+  if (!terms.length) return true;
+
+  const haystack = normalizeSearch(
+    [
+      row.product.title,
+      row.product.slug,
+      row.variant.sku,
+      row.variant.Size,
+      row.variant.Color,
+      row.variant.product?.title,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  return terms.every((term) => haystack.includes(term));
 }
 
 function appendStoreLocationParam(params: URLSearchParams, storeLocationId?: number | null) {
