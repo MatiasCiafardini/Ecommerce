@@ -939,6 +939,7 @@ export function SalesHistoryModal({
       return;
     }
 
+    const unitPrices = effectiveUnitPrices(sale, pricingPolicy);
     const items = (sale.items ?? [])
       .filter((item) => item.id && item.variant)
       .map((item) => ({
@@ -946,7 +947,7 @@ export function SalesHistoryModal({
         title: item.variant?.product?.title || "Producto",
         variantLabel: formatVariantMeta(getVariantLabel(item.variant), item.variant?.sku),
         quantity: Math.max(Number(item.quantity || 1), 1),
-        price: String(Number(item.price ?? 0)),
+        price: String(unitPrices.get(item.id) ?? Number(item.price ?? 0)),
       }));
 
     if (!items.length) {
@@ -960,7 +961,7 @@ export function SalesHistoryModal({
     setEditDraft({
       reason: "",
       paymentMethod: normalizeReturnPaymentMethod(salePaymentMethod(sale)),
-      applyPaymentDiscount: true,
+      applyPaymentDiscount: false,
       items,
     });
     setEditError("");

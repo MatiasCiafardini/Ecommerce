@@ -394,7 +394,7 @@ export default function AdminManualSalesSection({
   const normalizedSaleLines = useMemo(
     () =>
       lines.map((line) => {
-        const unitPrice = resolveManualSaleUnitPrice(line.price, pricingPolicy);
+        const unitPrice = parseManualSalePriceInput(line.price);
         const quantity = Number(line.quantity || 0);
 
         return {
@@ -405,7 +405,7 @@ export default function AdminManualSalesSection({
           lineTotal: unitPrice * quantity,
         };
       }),
-    [lines, pricingPolicy],
+    [lines],
   );
   const subtotal = normalizedSaleLines.reduce(
     (total, line) => total + line.lineTotal,
@@ -1314,70 +1314,78 @@ export default function AdminManualSalesSection({
             <section className="manual-sale-card manual-sale-total-card">
               {lines.length > 0 ? (
                 <div className="manual-sale-lines">
-                  {normalizedSaleLines.map((line) => (
-                    <article key={line.variantId} className="manual-sale-line">
-                      <div className="manual-sale-line-top">
-                        <span className="manual-sale-line-thumb">
-                          {line.imageUrl ? <img src={line.imageUrl} alt="" /> : <span>{line.title.slice(0, 2)}</span>}
-                        </span>
-                        <div>
-                          <strong>{line.title}</strong>
-                          <span>
-                            {line.variantLabel}
-                            {line.sku ? ` - ${line.sku}` : ""}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeLine(line.variantId)}
-                          className="manual-sale-icon-button"
-                          aria-label={`Quitar ${line.title}`}
-                        >
-                          x
-                        </button>
-                      </div>
+                  {lines.map((line) => {
+                    const normalizedLine = normalizedSaleLines.find(
+                      (entry) => entry.variantId === line.variantId,
+                    );
 
-                      <div className="manual-sale-line-controls">
-                        <div className="manual-sale-qty">
+                    return (
+                      <article key={line.variantId} className="manual-sale-line">
+                        <div className="manual-sale-line-top">
+                          <span className="manual-sale-line-thumb">
+                            {line.imageUrl ? <img src={line.imageUrl} alt="" /> : <span>{line.title.slice(0, 2)}</span>}
+                          </span>
+                          <div>
+                            <strong>{line.title}</strong>
+                            <span>
+                              {line.variantLabel}
+                              {line.sku ? ` - ${line.sku}` : ""}
+                            </span>
+                          </div>
                           <button
                             type="button"
-                            onClick={() =>
-                              updateLine(line.variantId, {
-                                quantity: Math.max(1, Number(line.quantity || 1) - 1),
-                              })
-                            }
-                            aria-label="Restar cantidad"
+                            onClick={() => removeLine(line.variantId)}
+                            className="manual-sale-icon-button"
+                            aria-label={`Quitar ${line.title}`}
                           >
-                            -
-                          </button>
-                          <strong>{line.quantity}</strong>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateLine(line.variantId, {
-                                quantity: Math.min(line.available, Number(line.quantity || 1) + 1),
-                              })
-                            }
-                            aria-label="Sumar cantidad"
-                          >
-                            +
+                            x
                           </button>
                         </div>
-                        <input
-                          inputMode="decimal"
-                          value={line.price}
-                          onChange={(event) =>
-                            updateLine(line.variantId, { price: event.target.value })
-                          }
-                          className="manual-sale-field"
-                          aria-label={`Precio de ${line.title}`}
-                        />
-                        <strong className="manual-sale-line-total">
-                          {money(line.lineTotal)}
-                        </strong>
-                      </div>
-                    </article>
-                  ))}
+
+                        <div className="manual-sale-line-controls">
+                          <div className="manual-sale-qty">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateLine(line.variantId, {
+                                  quantity: Math.max(1, Number(line.quantity || 1) - 1),
+                                })
+                              }
+                              aria-label="Restar cantidad"
+                            >
+                              -
+                            </button>
+                            <strong>{line.quantity}</strong>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateLine(line.variantId, {
+                                  quantity: Math.min(line.available, Number(line.quantity || 1) + 1),
+                                })
+                              }
+                              aria-label="Sumar cantidad"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <input
+                            inputMode="decimal"
+                            value={line.price}
+                            onChange={(event) =>
+                              updateLine(line.variantId, {
+                                price: sanitizeManualSalePriceInput(event.target.value),
+                              })
+                            }
+                            className="manual-sale-field"
+                            aria-label={`Precio de ${line.title}`}
+                          />
+                          <strong className="manual-sale-line-total">
+                            {money(normalizedLine?.lineTotal ?? 0)}
+                          </strong>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : null}
 
@@ -4071,6 +4079,29 @@ function parseCurrencyInput(value: string) {
 
 function sanitizeCurrencyInput(value: string) {
   return value.replace(/[^\d,.$\s-]/g, "");
+}
+
+function sanitizeManualSalePriceInput(value: string) {
+  const normalized = value
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "");
+
+  if (!normalized) return "";
+
+  const [rawIntegerPart, ...decimalParts] = normalized.split(".");
+  const integerPart = (rawIntegerPart || "0").replace(/^0+(?=\d)/, "");
+
+  if (decimalParts.length === 0) {
+    return integerPart || "0";
+  }
+
+  const decimalPart = decimalParts.join("").slice(0, 2);
+  return `${integerPart || "0"}.${decimalPart}`;
+}
+
+function parseManualSalePriceInput(value: string) {
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function formatAccountDate(value?: string | null) {
