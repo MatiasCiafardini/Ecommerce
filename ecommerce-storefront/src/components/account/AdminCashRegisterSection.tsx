@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { api, apiBlob } from "@/lib/api";
 import { downloadBlobFile } from "@/lib/download";
+import {
+  resolveStorePricingPolicy,
+  type StorePricingPolicy,
+} from "@/lib/pricing-policy";
+import { getClientStoreId } from "@/lib/tenant/store-context";
 import { money } from "./order-utils";
 import type { ManualReturnDraft } from "@/components/manual-sales/ManualReturnsPanel";
 
@@ -821,6 +826,13 @@ export function SalesHistoryModal({
   onGenerateReturn?: (draft: ManualReturnDraft) => void;
   onError?: (message: string) => void;
 }) {
+  const pricingPolicy = useMemo(() => {
+    try {
+      return resolveStorePricingPolicy({ storeId: getClientStoreId() });
+    } catch {
+      return resolveStorePricingPolicy({ storeId: null });
+    }
+  }, []);
   const filteredSalesHistory = useMemo(() => {
     const normalized = salesSearch.trim().toLowerCase();
     const activeSales = salesHistory.filter((sale) => sale.status !== "cancelled");
@@ -847,10 +859,11 @@ export function SalesHistoryModal({
   }, [salesHistory, salesSearch]);
 
   function generateReturnFromSale(sale: ManualSaleHistoryOrder) {
+    const unitPrices = effectiveUnitPrices(sale, pricingPolicy);
     const returnedLines = (sale.items ?? [])
       .filter((item) => item.variant?.id && Number(item.quantity) > 0)
       .map((item) => {
-        const unitPrice = effectiveUnitPrice(sale, item);
+        const unitPrice = unitPrices.get(item.id) ?? Number(item.price ?? 0);
         const variant = item.variant!;
 
         return {
@@ -922,37 +935,41 @@ export function SalesHistoryModal({
                 </tr>
               </thead>
               <tbody>
-                {filteredSalesHistory.map((sale) => (
-                  <tr key={sale.id}>
-                    <td style={salesTdStyle}>
-                      <strong>#{sale.id}</strong>
-                      <span style={mutedStyle}>{formatDate(sale.createdAt)}</span>
-                    </td>
-                    <td style={salesTdStyle}>{saleCustomerName(sale)}</td>
-                    <td style={salesTdStyle}>
-                      <div style={saleItemsStyle}>
-                        {(sale.items ?? []).map((item) => (
-                          <span key={item.id}>
-                            {item.variant?.product?.title || "Producto"} {formatVariantMeta(getVariantLabel(item.variant), item.variant?.sku)} x{item.quantity}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td style={salesTdStyle}>
-                      <div style={saleItemsStyle}>
-                        {(sale.items ?? []).map((item) => (
-                          <span key={item.id}>{money(effectiveUnitPrice(sale, item))} c/u</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td style={salesTdStyle}>{salePaymentMethod(sale)}</td>
-                    <td style={salesTdStyle}>
-                      <button type="button" onClick={() => generateReturnFromSale(sale)} style={primaryButtonStyle}>
-                        Generar devolucion
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredSalesHistory.map((sale) => {
+                  const unitPrices = effectiveUnitPrices(sale, pricingPolicy);
+
+                  return (
+                    <tr key={sale.id}>
+                      <td style={salesTdStyle}>
+                        <strong>#{sale.id}</strong>
+                        <span style={mutedStyle}>{formatDate(sale.createdAt)}</span>
+                      </td>
+                      <td style={salesTdStyle}>{saleCustomerName(sale)}</td>
+                      <td style={salesTdStyle}>
+                        <div style={saleItemsStyle}>
+                          {(sale.items ?? []).map((item) => (
+                            <span key={item.id}>
+                              {item.variant?.product?.title || "Producto"} {formatVariantMeta(getVariantLabel(item.variant), item.variant?.sku)} x{item.quantity}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td style={salesTdStyle}>
+                        <div style={saleItemsStyle}>
+                          {(sale.items ?? []).map((item) => (
+                            <span key={item.id}>{money(unitPrices.get(item.id) ?? Number(item.price ?? 0))} c/u</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td style={salesTdStyle}>{salePaymentMethod(sale)}</td>
+                      <td style={salesTdStyle}>
+                        <button type="button" onClick={() => generateReturnFromSale(sale)} style={primaryButtonStyle}>
+                          Generar devolucion
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1056,24 +1073,83 @@ function normalizeReturnPaymentMethod(method: string) {
   return "Efectivo";
 }
 
-function effectiveUnitPrice(
+function effectiveUnitPrices(
   sale: ManualSaleHistoryOrder,
-  item: NonNullable<ManualSaleHistoryOrder["items"]>[number],
+  pricingPolicy: Pick<StorePricingPolicy, "manualSaleDiscountRounding">,
 ) {
-  const quantity = Math.max(Number(item.quantity || 1), 1);
-  const lineSubtotal = Number(item.price ?? 0) * quantity;
-  const orderSubtotal = Number(sale.subtotal ?? 0);
+  const prices = new Map<number, number>();
+  const items = (sale.items ?? []).filter(
+    (item) => item.id && Number(item.quantity) > 0,
+  );
+  const subtotal = roundCurrency(
+    Number(sale.subtotal ?? 0) ||
+      items.reduce(
+        (sum, item) => sum + Number(item.price ?? 0) * Number(item.quantity || 0),
+        0,
+      ),
+  );
   const discountAmount = Math.max(Number(sale.discountAmount ?? 0), 0);
 
-  if (discountAmount <= 0) {
-    return roundToNearestHundred(Number(item.price ?? 0));
+  if (!items.length) return prices;
+
+  if (pricingPolicy.manualSaleDiscountRounding) {
+    for (const item of items) {
+      const quantity = Math.max(Number(item.quantity || 1), 1);
+      const lineSubtotal = Number(item.price ?? 0) * quantity;
+
+      if (discountAmount <= 0) {
+        prices.set(item.id, roundToNearestHundred(Number(item.price ?? 0)));
+        continue;
+      }
+
+      const proportionalDiscount = subtotal > 0
+        ? Math.min(discountAmount * (lineSubtotal / subtotal), lineSubtotal)
+        : 0;
+
+      prices.set(
+        item.id,
+        roundToNearestHundred(Math.max((lineSubtotal - proportionalDiscount) / quantity, 0)),
+      );
+    }
+
+    return prices;
   }
 
-  const proportionalDiscount = orderSubtotal > 0
-    ? Math.min(discountAmount * (lineSubtotal / orderSubtotal), lineSubtotal)
-    : 0;
+  if (discountAmount <= 0 || subtotal <= 0) {
+    for (const item of items) {
+      prices.set(item.id, roundCurrency(Number(item.price ?? 0)));
+    }
+    return prices;
+  }
 
-  return roundToNearestHundred(Math.max((lineSubtotal - proportionalDiscount) / quantity, 0));
+  const paidTotal = roundCurrency(
+    Math.max(Number(sale.total ?? subtotal - discountAmount), 0),
+  );
+  const useWholePesos = Number.isInteger(paidTotal);
+  let allocatedTotal = 0;
+
+  items.forEach((item, index) => {
+    const quantity = Math.max(Number(item.quantity || 1), 1);
+    const lineSubtotal = Number(item.price ?? 0) * quantity;
+    const isLast = index === items.length - 1;
+    const rawLineTotal = subtotal > 0
+      ? Math.max(paidTotal * (lineSubtotal / subtotal), 0)
+      : 0;
+    const lineTotal = isLast
+      ? roundCurrency(Math.max(paidTotal - allocatedTotal, 0))
+      : useWholePesos
+        ? Math.round(rawLineTotal)
+        : roundCurrency(rawLineTotal);
+
+    allocatedTotal = roundCurrency(allocatedTotal + lineTotal);
+    prices.set(item.id, roundCurrency(lineTotal / quantity));
+  });
+
+  return prices;
+}
+
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function getVariantLabel(variant?: { Size?: string | null; Color?: string | null } | null) {
