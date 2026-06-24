@@ -1064,15 +1064,16 @@ function effectiveUnitPrice(
   const lineSubtotal = Number(item.price ?? 0) * quantity;
   const orderSubtotal = Number(sale.subtotal ?? 0);
   const discountAmount = Math.max(Number(sale.discountAmount ?? 0), 0);
+
+  if (discountAmount <= 0) {
+    return roundToNearestHundred(Number(item.price ?? 0));
+  }
+
   const proportionalDiscount = orderSubtotal > 0
     ? Math.min(discountAmount * (lineSubtotal / orderSubtotal), lineSubtotal)
     : 0;
 
-  return roundMoney(Math.max((lineSubtotal - proportionalDiscount) / quantity, 0));
-}
-
-function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return roundToNearestHundred(Math.max((lineSubtotal - proportionalDiscount) / quantity, 0));
 }
 
 function getVariantLabel(variant?: { Size?: string | null; Color?: string | null } | null) {
