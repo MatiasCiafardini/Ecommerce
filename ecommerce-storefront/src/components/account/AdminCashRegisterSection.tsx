@@ -130,12 +130,13 @@ export default function AdminCashRegisterSection({
   const canOpenNewManual = mode === "manual" && Boolean(session?.closedAt);
   const canPrint = mode === "automatic" || Boolean(session?.closedAt);
 
-  const methods = useMemo(
-    () => Object.entries(summary?.byMethod ?? {}).sort((a, b) => b[1] - a[1]),
-    [summary],
-  );
-  const accountMethods = useMemo(
-    () => Object.entries(summary?.byAccountMethod ?? {}).sort((a, b) => b[1] - a[1]),
+  const cashCardTotals = useMemo(
+    () => ({
+      efectivo: methodTotal(summary?.byMethod, ["Efectivo"]),
+      transferencia: methodTotal(summary?.byMethod, ["Transferencia"]),
+      tarjeta: methodTotal(summary?.byMethod, ["Tarjeta"]),
+      cuentaCorriente: Number(summary?.accountAssignedTotal ?? 0),
+    }),
     [summary],
   );
 
@@ -459,11 +460,10 @@ export default function AdminCashRegisterSection({
       {!loading && session && summary ? (
         <>
           <div style={statsGridStyle}>
-            {mode === "manual" ? <Stat label="Apertura" value={money(summary.openingAmount)} /> : null}
-            <Stat label="Recibido" value={money(summary.receivedTotal)} />
-            <Stat label="Cuenta corriente" value={money(summary.accountAssignedTotal ?? 0)} />
-            {mode === "manual" ? <Stat label="Total esperado en caja" value={money(summary.expectedAmount)} /> : null}
-            <Stat label="Movimientos" value={String(summary.movementCount)} />
+            <Stat label="Efectivo" value={cashCardMoney(cashCardTotals.efectivo)} />
+            <Stat label="Transferencia" value={cashCardMoney(cashCardTotals.transferencia)} />
+            <Stat label="Tarjeta" value={cashCardMoney(cashCardTotals.tarjeta)} />
+            <Stat label="Cuenta corriente" value={cashCardMoney(cashCardTotals.cuentaCorriente)} />
           </div>
 
           <div style={twoColumnStyle}>
@@ -477,24 +477,6 @@ export default function AdminCashRegisterSection({
                 </p>
               </div>
 
-              <div style={methodListStyle}>
-                <p style={eyebrowStyle}>Recibido por metodo</p>
-                {methods.length ? methods.map(([method, amount]) => (
-                  <div key={method} style={methodRowStyle}>
-                    <span>{method}</span>
-                    <strong>{money(amount)}</strong>
-                  </div>
-                )) : <p style={copyStyle}>Todavia no hay movimientos recibidos.</p>}
-              </div>
-              <div style={methodListStyle}>
-                <p style={eyebrowStyle}>Asignado a cuenta corriente</p>
-                {accountMethods.length ? accountMethods.map(([method, amount]) => (
-                  <div key={method} style={methodRowStyle}>
-                    <span>{method}</span>
-                    <strong>{money(amount)}</strong>
-                  </div>
-                )) : <p style={copyStyle}>Todavia no hay importes asignados a cuenta corriente.</p>}
-              </div>
             </section>
 
             {canCloseManual ? (
@@ -1021,6 +1003,33 @@ function withStoreLocationQuery(path: string, storeLocationId?: number | null) {
   appendStoreLocationParam(params, storeLocationId);
   const query = params.toString();
   return query ? `${path}?${query}` : path;
+}
+
+function methodTotal(
+  values: Record<string, number> | undefined,
+  labels: string[],
+) {
+  if (!values) return 0;
+  const normalizedLabels = new Set(labels.map(normalizeMethodKey));
+
+  return Object.entries(values).reduce((total, [method, amount]) => {
+    return normalizedLabels.has(normalizeMethodKey(method))
+      ? total + Number(amount || 0)
+      : total;
+  }, 0);
+}
+
+function normalizeMethodKey(method: string) {
+  return method.trim().toLowerCase();
+}
+
+function cashCardMoney(value: number) {
+  return money(roundToNearestHundred(value));
+}
+
+function roundToNearestHundred(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.round(value / 100) * 100;
 }
 
 function saleCustomerName(sale: ManualSaleHistoryOrder) {
