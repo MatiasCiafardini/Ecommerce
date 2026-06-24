@@ -333,6 +333,9 @@ export class CurrentAccountsService {
         ? await this.calculateLocalBalanceTx(tx, account.id, cashContext.storeLocationId)
         : currentBalance;
       const amount = roundCurrency(Number(dto.amount));
+      const discountPercentage = dto.applyCashDiscount === false
+        ? 0
+        : cashContext.discountPercentage;
 
       if (!Number.isFinite(amount) || amount <= 0) {
         throw new BadRequestException('Payment amount must be greater than 0');
@@ -345,7 +348,7 @@ export class CurrentAccountsService {
         amount,
         currentLocalBalance,
         dto.paymentMethod,
-        cashContext.discountPercentage,
+        discountPercentage,
         cashContext.roundPaymentDiscounts,
       );
 

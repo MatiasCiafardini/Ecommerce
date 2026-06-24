@@ -6,7 +6,11 @@ describe('CurrentAccountsService payments', () => {
   const customerId = 10;
   const userId = 88;
 
-  function createService(accountBalance = 1500, role = 'ADMIN') {
+  function createService(
+    accountBalance = 1500,
+    role = 'ADMIN',
+    store: Record<string, unknown> = { cashRegisterMode: 'automatic' },
+  ) {
     const tx = {
       currentAccount: {
         findFirst: jest.fn().mockResolvedValue({
@@ -26,7 +30,7 @@ describe('CurrentAccountsService payments', () => {
     };
     const prisma = {
       store: {
-        findUnique: jest.fn().mockResolvedValue({ cashRegisterMode: 'automatic' }),
+        findUnique: jest.fn().mockResolvedValue(store),
       },
       user: {
         findFirst: jest.fn().mockResolvedValue({ role }),
@@ -93,6 +97,102 @@ describe('CurrentAccountsService payments', () => {
 
     expect(tx.currentAccount.update).not.toHaveBeenCalled();
     expect(tx.currentAccountMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('applies the cash discount by default for eligible payments', async () => {
+    const { service, tx } = createService(100000, 'ADMIN', {
+      id: 7,
+      name: 'Como Vos y Yo',
+      domain: null,
+      storefrontConfig: null,
+      cashRegisterMode: 'automatic',
+      bankTransferDiscountPercentage: 15,
+    });
+    tx.currentAccount.update.mockResolvedValue({ id: 25, balance: 0 });
+
+    await expect(
+      service.registerPayment(7, customerId, userId, {
+        amount: 85000,
+        paymentMethod: 'Efectivo',
+      }),
+    ).resolves.toMatchObject({
+      account: { id: 25, balance: 0 },
+      movement: { id: 91 },
+    });
+
+    expect(tx.currentAccount.update).toHaveBeenCalledWith({
+      where: { id: 25 },
+      data: {
+        balance: 0,
+        lastMovementAt: expect.any(Date),
+      },
+    });
+    expect(tx.currentAccountMovement.create).toHaveBeenCalledTimes(2);
+    expect(tx.currentAccountMovement.create).toHaveBeenNthCalledWith(1, {
+      data: expect.objectContaining({
+        storeId: 7,
+        accountId: 25,
+        customerId,
+        type: 'PAYMENT',
+        amount: -85000,
+        paymentMethod: 'Efectivo',
+        balanceAfter: 15000,
+      }),
+    });
+    expect(tx.currentAccountMovement.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        storeId: 7,
+        accountId: 25,
+        customerId,
+        type: 'ADJUSTMENT_NEGATIVE',
+        amount: -15000,
+        paymentMethod: 'Descuento Efectivo',
+        balanceAfter: 0,
+      }),
+    });
+  });
+
+  it('skips the cash discount when the payment explicitly disables it', async () => {
+    const { service, tx } = createService(1000, 'ADMIN', {
+      id: 7,
+      name: 'Como Vos y Yo',
+      domain: null,
+      storefrontConfig: null,
+      cashRegisterMode: 'automatic',
+      bankTransferDiscountPercentage: 15,
+    });
+    tx.currentAccount.update.mockResolvedValue({ id: 25, balance: 0 });
+
+    await expect(
+      service.registerPayment(7, customerId, userId, {
+        amount: 1000,
+        paymentMethod: 'Efectivo',
+        applyCashDiscount: false,
+      }),
+    ).resolves.toMatchObject({
+      account: { id: 25, balance: 0 },
+      movement: { id: 91 },
+    });
+
+    expect(tx.currentAccount.update).toHaveBeenCalledWith({
+      where: { id: 25 },
+      data: {
+        balance: 0,
+        lastMovementAt: expect.any(Date),
+      },
+    });
+    expect(tx.currentAccountMovement.create).toHaveBeenCalledTimes(1);
+    expect(tx.currentAccountMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        storeId: 7,
+        accountId: 25,
+        customerId,
+        type: 'PAYMENT',
+        amount: -1000,
+        paymentMethod: 'Efectivo',
+        balanceAfter: 0,
+      }),
+    });
   });
 
   it('updates an existing payment and keeps the receipt movement normalized', async () => {

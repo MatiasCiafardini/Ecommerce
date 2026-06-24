@@ -120,6 +120,7 @@ export default function AdminCurrentAccountsSection({
   const [paymentSearch, setPaymentSearch] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
+  const [applyCashDiscount, setApplyCashDiscount] = useState(true);
   const [cashDiscountPercentage, setCashDiscountPercentage] = useState(0);
   const [storeId, setStoreId] = useState<number | null>(null);
   const [paymentDescription, setPaymentDescription] = useState("");
@@ -274,11 +275,19 @@ export default function AdminCurrentAccountsSection({
     () => resolveStorePricingPolicy({ storeId }),
     [storeId],
   );
+  const showCashDiscountToggle =
+    cashDiscountPercentage > 0 &&
+    isDiscountedCurrentAccountPayment(paymentMethod);
+  const paymentDiscountPercentage =
+    showCashDiscountToggle && applyCashDiscount ? cashDiscountPercentage : 0;
+  const cashBalanceDiscountPercentage = applyCashDiscount
+    ? cashDiscountPercentage
+    : 0;
   const paymentApplication = calculatePaymentApplication(
     paymentAmountNumber,
     paymentBalance,
     paymentMethod,
-    cashDiscountPercentage,
+    paymentDiscountPercentage,
     pricingPolicy.manualSaleDiscountRounding,
     paymentCustomer?.movements,
   );
@@ -286,7 +295,7 @@ export default function AdminCurrentAccountsSection({
     paymentBalance,
     paymentBalance,
     "Efectivo",
-    cashDiscountPercentage,
+    cashBalanceDiscountPercentage,
     pricingPolicy.manualSaleDiscountRounding,
     paymentCustomer?.movements,
   );
@@ -308,7 +317,13 @@ export default function AdminCurrentAccountsSection({
     if (!wasSaldarTotalAmount) return;
 
     setPaymentAmount(String(paymentApplication.cashToSettle));
-  }, [paymentAmount, paymentApplication.cashToSettle, paymentCustomer, paymentMethod]);
+  }, [
+    paymentAmount,
+    paymentApplication.cashToSettle,
+    paymentCustomer,
+    paymentMethod,
+    applyCashDiscount,
+  ]);
   const canCorrectPayments = ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(
     user?.role ?? "",
   );
@@ -492,6 +507,7 @@ export default function AdminCurrentAccountsSection({
     setPaymentCustomer(null);
     setPaymentAmount("");
     setPaymentMethod("Efectivo");
+    setApplyCashDiscount(true);
     setPaymentDescription("");
     setPaymentSearch("");
     setModalError("");
@@ -521,6 +537,7 @@ export default function AdminCurrentAccountsSection({
       detailedAccount = account;
     }
     setPaymentCustomer(detailedAccount);
+    setApplyCashDiscount(true);
     const application = calculatePaymentApplication(
       Number(detailedAccount.balance),
       Number(detailedAccount.balance),
@@ -547,7 +564,7 @@ export default function AdminCurrentAccountsSection({
       amount,
       balance,
       paymentMethod,
-      cashDiscountPercentage,
+      paymentDiscountPercentage,
       pricingPolicy.manualSaleDiscountRounding,
       paymentCustomer.movements,
     );
@@ -567,6 +584,7 @@ export default function AdminCurrentAccountsSection({
           body: JSON.stringify({
             amount,
             paymentMethod,
+            applyCashDiscount: paymentDiscountPercentage > 0,
             description: paymentDescription.trim() || undefined,
             storeLocationId: storeLocationId ?? undefined,
           }),
@@ -755,8 +773,20 @@ export default function AdminCurrentAccountsSection({
   const openPaymentInAccount = async (account: CurrentAccount) => {
     await openDetail(account, "payment");
     setPaymentCustomer(account);
-    setPaymentAmount(String(Math.max(Number(account.balance), 0)));
+    setPaymentAmount(
+      String(
+        calculatePaymentApplication(
+          Number(account.balance),
+          Number(account.balance),
+          "Efectivo",
+          cashDiscountPercentage,
+          pricingPolicy.manualSaleDiscountRounding,
+          account.movements,
+        ).cashToSettle,
+      ),
+    );
     setPaymentMethod("Efectivo");
+    setApplyCashDiscount(true);
     setPaymentDescription("");
     setModalError("");
   };
@@ -965,6 +995,7 @@ export default function AdminCurrentAccountsSection({
                     ),
                   );
                   setPaymentMethod("Efectivo");
+                  setApplyCashDiscount(true);
                   setPaymentDescription("");
                   setModalError("");
                   setDetailMode("payment");
@@ -1086,6 +1117,18 @@ export default function AdminCurrentAccountsSection({
                     ))}
                   </select>
                 </label>
+                {showCashDiscountToggle ? (
+                  <label style={checkboxRowStyle}>
+                    <input
+                      type="checkbox"
+                      checked={applyCashDiscount}
+                      onChange={(event) =>
+                        setApplyCashDiscount(event.target.checked)
+                      }
+                    />
+                    <span>Aplicar descuento por efectivo/transferencia</span>
+                  </label>
+                ) : null}
                 <label style={fieldGroupStyle}>
                   Nota del pago
                   <textarea
@@ -1558,6 +1601,18 @@ export default function AdminCurrentAccountsSection({
                     ))}
                   </select>
                 </label>
+                {showCashDiscountToggle ? (
+                  <label style={checkboxRowStyle}>
+                    <input
+                      type="checkbox"
+                      checked={applyCashDiscount}
+                      onChange={(event) =>
+                        setApplyCashDiscount(event.target.checked)
+                      }
+                    />
+                    <span>Aplicar descuento por efectivo/transferencia</span>
+                  </label>
+                ) : null}
                 <label style={fieldGroupStyle}>
                   <span>Observaciones</span>
                   <textarea
@@ -2835,6 +2890,13 @@ const fieldGroupStyle: React.CSSProperties = {
   display: "grid",
   gap: 8,
   color: "var(--account-text-muted)",
+  fontWeight: 700,
+};
+const checkboxRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  color: "var(--account-text-strong)",
   fontWeight: 700,
 };
 const amountRowStyle: React.CSSProperties = {
