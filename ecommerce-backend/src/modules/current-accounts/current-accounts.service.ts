@@ -703,7 +703,7 @@ export class CurrentAccountsService {
       return {
         storeLocationId: location?.id ?? null,
         cashRegisterId: session.id,
-        discountPercentage: pricingPolicy.cashInput.discountPercentage,
+        discountPercentage: pricingPolicy.cashPaymentDiscount.discountPercentage,
         roundPaymentDiscounts: pricingPolicy.manualSaleDiscountRounding,
       };
     }
@@ -734,7 +734,7 @@ export class CurrentAccountsService {
     return {
       storeLocationId: location.id,
       cashRegisterId: session.id,
-      discountPercentage: pricingPolicy.cashInput.discountPercentage,
+      discountPercentage: pricingPolicy.cashPaymentDiscount.discountPercentage,
       roundPaymentDiscounts: pricingPolicy.manualSaleDiscountRounding,
     };
   }

@@ -152,6 +152,41 @@ describe('CurrentAccountsService payments', () => {
     });
   });
 
+  it('applies a regular non-rounded cash discount for Trojani store', async () => {
+    const { service, tx } = createService(46900, 'ADMIN', {
+      id: 3,
+      name: 'Trojani',
+      domain: null,
+      storefrontConfig: null,
+      cashRegisterMode: 'automatic',
+      bankTransferDiscountPercentage: 15,
+    });
+    tx.currentAccount.update.mockResolvedValue({ id: 25, balance: 0 });
+
+    await expect(
+      service.registerPayment(3, customerId, userId, {
+        amount: 39865,
+        paymentMethod: 'Transferencia',
+      }),
+    ).resolves.toMatchObject({
+      account: { id: 25, balance: 0 },
+      movement: { id: 91 },
+    });
+
+    expect(tx.currentAccountMovement.create).toHaveBeenCalledTimes(2);
+    expect(tx.currentAccountMovement.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        storeId: 3,
+        accountId: 25,
+        customerId,
+        type: 'ADJUSTMENT_NEGATIVE',
+        amount: -7035,
+        paymentMethod: 'Descuento Transferencia',
+        balanceAfter: 0,
+      }),
+    });
+  });
+
   it('skips the cash discount when the payment explicitly disables it', async () => {
     const { service, tx } = createService(1000, 'ADMIN', {
       id: 7,

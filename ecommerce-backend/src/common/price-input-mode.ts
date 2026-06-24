@@ -19,9 +19,11 @@ const DEFAULT_SETTINGS: CashPriceInputSettings = {
   discountPercentage: 0,
   multiplier: 1,
 };
+const CASH_PAYMENT_DISCOUNT_STORE_IDS = new Set([3, 7]);
 
 export type StorePricingPolicy = {
   cashInput: CashPriceInputSettings;
+  cashPaymentDiscount: CashPriceInputSettings;
   labelPriceRounding: boolean;
   transferPriceRounding: boolean;
   manualSaleDiscountRounding: boolean;
@@ -62,10 +64,51 @@ export function isComoVosYYoStore(store: StorePricingIdentity) {
   );
 }
 
+export function isRoundedCashPricingStore(store: StorePricingIdentity) {
+  return isComoVosYYoStore(store);
+}
+
+export function isCashPaymentDiscountStore(store: StorePricingIdentity) {
+  const theme = normalizeIdentityValue(readConfigTheme(store.storefrontConfig));
+  const name = normalizeIdentityValue(store.name);
+  const domain = normalizeIdentityValue(store.domain);
+
+  return (
+    CASH_PAYMENT_DISCOUNT_STORE_IDS.has(Number(store.id)) ||
+    isComoVosYYoStore(store) ||
+    theme === 'trojani' ||
+    name.includes('trojani') ||
+    domain.includes('trojani')
+  );
+}
+
 export function resolveCashPriceInputSettings(
   store: StorePricingIdentity | null | undefined,
 ): CashPriceInputSettings {
-  if (!store || !isComoVosYYoStore(store)) {
+  if (!store || !isRoundedCashPricingStore(store)) {
+    return DEFAULT_SETTINGS;
+  }
+
+  const discountPercentage = Math.max(
+    0,
+    Math.min(Number(store.bankTransferDiscountPercentage ?? 0) || 0, 100),
+  );
+
+  if (discountPercentage <= 0 || discountPercentage >= 100) {
+    return DEFAULT_SETTINGS;
+  }
+
+  return {
+    enabled: true,
+    discountPercentage,
+    multiplier: Number((1 - discountPercentage / 100).toFixed(6)),
+  };
+}
+
+export function resolveCashPaymentDiscountSettings(
+  store: StorePricingIdentity | null | undefined,
+): CashPriceInputSettings {
+  if (!store || !isCashPaymentDiscountStore(store)) {
     return DEFAULT_SETTINGS;
   }
 
@@ -88,13 +131,14 @@ export function resolveCashPriceInputSettings(
 export function resolveStorePricingPolicy(
   store: StorePricingIdentity | null | undefined,
 ): StorePricingPolicy {
-  const comoVosYYo = Boolean(store && isComoVosYYoStore(store));
+  const roundedCashPricing = Boolean(store && isRoundedCashPricingStore(store));
 
   return {
     cashInput: resolveCashPriceInputSettings(store),
-    labelPriceRounding: comoVosYYo,
-    transferPriceRounding: comoVosYYo,
-    manualSaleDiscountRounding: comoVosYYo,
+    cashPaymentDiscount: resolveCashPaymentDiscountSettings(store),
+    labelPriceRounding: roundedCashPricing,
+    transferPriceRounding: roundedCashPricing,
+    manualSaleDiscountRounding: roundedCashPricing,
   };
 }
 

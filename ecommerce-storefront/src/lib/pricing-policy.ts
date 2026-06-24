@@ -4,7 +4,7 @@ export type StorePricingPolicy = {
   manualSaleDiscountRounding: boolean;
 };
 
-const COMOVOSYYO_STORE_ID = 7;
+const ROUNDED_CASH_PRICING_STORE_IDS = new Set([7]);
 
 const DEFAULT_POLICY: StorePricingPolicy = {
   labelPriceRounding: false,
@@ -15,7 +15,7 @@ const DEFAULT_POLICY: StorePricingPolicy = {
 export function resolveStorePricingPolicy(input: {
   storeId?: number | null;
 }): StorePricingPolicy {
-  if (Number(input.storeId) !== COMOVOSYYO_STORE_ID) {
+  if (!ROUNDED_CASH_PRICING_STORE_IDS.has(Number(input.storeId))) {
     return DEFAULT_POLICY;
   }
 
