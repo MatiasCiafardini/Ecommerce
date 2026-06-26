@@ -1001,7 +1001,8 @@ export default function AdminLabelsGenerator() {
         }
 
         .admin-label-template-brother_ql570_62x29_clothing .admin-label-preview-barcode svg,
-        .admin-label-template-brother_ql570_29x90 .admin-label-preview-barcode svg {
+        .admin-label-template-brother_ql570_29x90 .admin-label-preview-barcode svg,
+        .admin-label-template-trojani_30x70 .admin-label-preview-barcode svg {
           height: 56px;
         }
 
@@ -1017,20 +1018,104 @@ export default function AdminLabelsGenerator() {
         }
 
         .admin-label-template-brother_ql570_29x90 .admin-label-preview-card,
-        .admin-label-template-brother_ql570_29x90 {
+        .admin-label-template-brother_ql570_29x90,
+        .admin-label-template-trojani_30x70 .admin-label-preview-card,
+        .admin-label-template-trojani_30x70 {
           gap: 6px;
         }
 
-        .admin-label-template-brother_ql570_29x90 .admin-label-preview-copy strong {
+        .admin-label-template-brother_ql570_29x90 .admin-label-preview-copy strong,
+        .admin-label-template-trojani_30x70 .admin-label-preview-copy strong {
           font-size: 10px;
         }
 
-        .admin-label-template-brother_ql570_29x90 .admin-label-preview-copy span {
+        .admin-label-template-brother_ql570_29x90 .admin-label-preview-copy span,
+        .admin-label-template-trojani_30x70 .admin-label-preview-copy span {
           font-size: 9px;
         }
 
-        .admin-label-template-brother_ql570_29x90 .admin-label-price-zone b {
+        .admin-label-template-brother_ql570_29x90 .admin-label-price-zone b,
+        .admin-label-template-trojani_30x70 .admin-label-price-zone b {
           font-size: 16px;
+        }
+
+        .admin-label-template-trojani_100x150_6up .admin-label-preview-copy strong {
+          font-size: 10px;
+        }
+
+        .admin-label-template-trojani_100x150_6up .admin-label-preview-copy span {
+          font-size: 9px;
+        }
+
+        .admin-label-template-trojani_100x150_6up .admin-label-price-zone small {
+          font-size: 9px;
+        }
+
+        .admin-label-template-trojani_100x150_6up .admin-label-price-zone b {
+          font-size: 17px;
+        }
+
+        .admin-label-template-trojani_100x150_6up .admin-label-preview-card code {
+          font-size: 8px;
+        }
+
+        .admin-label-template-trojani_44x55 {
+          flex-direction: column;
+          gap: 5px;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-main-zone {
+          width: 100%;
+          min-height: 0;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-preview-logo {
+          height: 24px;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-price-zone {
+          width: 100%;
+          min-width: 0;
+          margin-top: auto;
+          border-left: 0;
+          border-top: 1px dashed #111;
+          padding: 4px 0 0;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          align-content: start;
+          gap: 4px;
+          text-align: center;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-preview-copy strong {
+          font-size: 10px;
+          font-weight: 800;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-preview-copy span {
+          font-size: 9px;
+          font-weight: 800;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-price-zone small {
+          font-size: 9px;
+          font-weight: 800;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-price-zone b {
+          font-size: 15px;
+          font-weight: 800;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-preview-card code {
+          font-size: 9px;
+          font-weight: 800;
+        }
+
+        .admin-label-template-trojani_44x55 .admin-label-preview-barcode svg {
+          height: 42px;
         }
 
         .admin-label-layout-shipping {

@@ -1004,7 +1004,8 @@ h2 {
   font-size: 12px;
 }
 
-.label-preview-card-brother_ql570_29x90 {
+.label-preview-card-brother_ql570_29x90,
+.label-preview-card-trojani_30x70 {
   aspect-ratio: 3.1 / 1;
   min-height: 104px;
   align-content: center;
@@ -1012,17 +1013,55 @@ h2 {
 }
 
 .label-preview-card-brother_ql570_29x90 span,
-.label-preview-card-brother_ql570_29x90 code {
+.label-preview-card-brother_ql570_29x90 code,
+.label-preview-card-trojani_30x70 span,
+.label-preview-card-trojani_30x70 code {
   font-size: 13px;
 }
 
 .label-preview-card-brother_ql570_29x90 b,
-.label-preview-card-brother_ql570_29x90 strong {
+.label-preview-card-brother_ql570_29x90 strong,
+.label-preview-card-trojani_30x70 b,
+.label-preview-card-trojani_30x70 strong {
   font-size: 14px;
 }
 
-.label-preview-card-brother_ql570_29x90 .barcode svg {
+.label-preview-card-brother_ql570_29x90 .barcode svg,
+.label-preview-card-trojani_30x70 .barcode svg {
   height: 44px;
+}
+
+.label-preview-card-trojani_100x150_6up span,
+.label-preview-card-trojani_100x150_6up code {
+  font-size: 13px;
+}
+
+.label-preview-card-trojani_100x150_6up b,
+.label-preview-card-trojani_100x150_6up strong {
+  font-size: 14px;
+}
+
+.label-preview-card-trojani_44x55 {
+  aspect-ratio: 55 / 44;
+  min-height: 128px;
+  align-content: center;
+  gap: 4px;
+}
+
+.label-preview-card-trojani_44x55 span,
+.label-preview-card-trojani_44x55 code {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.label-preview-card-trojani_44x55 b,
+.label-preview-card-trojani_44x55 strong {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.label-preview-card-trojani_44x55 .barcode svg {
+  height: 48px;
 }
 
 .barcode svg {

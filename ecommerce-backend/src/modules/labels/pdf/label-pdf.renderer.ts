@@ -88,13 +88,22 @@ export class LabelPdfRenderer {
       });
 
       if (template.layout === 'product_cut_price') {
-        this.drawProductCutPriceLabel(page, fonts, label, template, options, {
-          x,
-          y,
-          width: labelWidth,
-          height: labelHeight,
-          padding,
-        });
+        await this.drawProductCutPriceLabel(
+          page,
+          fonts,
+          label,
+          template,
+          options,
+          {
+            x,
+            y,
+            width: labelWidth,
+            height: labelHeight,
+            padding,
+          },
+          pdf,
+          logoCache,
+        );
         continue;
       }
 
@@ -282,15 +291,22 @@ export class LabelPdfRenderer {
     });
   }
 
-  private drawProductCutPriceLabel(
+  private async drawProductCutPriceLabel(
     page: PDFPage,
     fonts: PdfFonts,
     label: PrintableLabel,
     template: LabelTemplate,
     options: Required<LabelOptionsDto>,
     box: { x: number; y: number; width: number; height: number; padding: number },
+    pdf: PDFDocument,
+    logoCache: Map<string, EmbeddedLogo | null>,
   ) {
-    const priceWidth = options.priceMode === 'none' ? 0 : mmToPt(22);
+    if (template.key === 'TROJANI_44X55') {
+      await this.drawBottomPriceLabel(page, fonts, label, template, options, box, pdf, logoCache);
+      return;
+    }
+
+    const priceWidth = options.priceMode === 'none' ? 0 : mmToPt(this.cutPriceWidthMm(template));
     const dividerX = box.x + box.width - priceWidth;
     const contentX = box.x + box.padding;
     const contentWidth = box.width - priceWidth - box.padding * 2 - mmToPt(1);
@@ -298,6 +314,7 @@ export class LabelPdfRenderer {
     const barcodeY = box.y + box.padding + (options.showSku ? mmToPt(3.1) : 0);
     const titleSize = this.fontSize(template, 5.2);
     const metaSize = this.fontSize(template, 4.2);
+    const strongText = this.usesStrongCutPriceText(template);
     let cursorY = box.y + box.height - box.padding - titleSize;
 
     if (options.priceMode !== 'none') {
@@ -351,6 +368,7 @@ export class LabelPdfRenderer {
         y: cursorY,
         text: this.fitText(label.variantName, contentWidth, metaSize),
         size: metaSize,
+        bold: strongText,
       });
     }
 
@@ -362,8 +380,144 @@ export class LabelPdfRenderer {
         y: box.y + box.padding,
         text: this.fitText(label.sku, contentWidth, metaSize),
         size: metaSize,
+        bold: strongText,
       });
     }
+  }
+
+  private async drawBottomPriceLabel(
+    page: PDFPage,
+    fonts: PdfFonts,
+    label: PrintableLabel,
+    template: LabelTemplate,
+    options: Required<LabelOptionsDto>,
+    box: { x: number; y: number; width: number; height: number; padding: number },
+    pdf: PDFDocument,
+    logoCache: Map<string, EmbeddedLogo | null>,
+  ) {
+    const contentX = box.x + box.padding;
+    const contentWidth = box.width - box.padding * 2;
+    const priceLines = this.resolvePriceLines(label, options);
+    const priceBandHeight = priceLines.length > 0 ? mmToPt(10.6) : 0;
+    const dividerY = box.y + box.padding + priceBandHeight;
+    const titleSize = this.fontSize(template, 5.2);
+    const metaSize = this.fontSize(template, 4.2);
+    const barcodeHeight = mmToPt(this.cutPriceBarcodeHeightMm(template, false));
+    const skuY = dividerY + mmToPt(1.6);
+    const barcodeY = skuY + (options.showSku ? metaSize + mmToPt(0.8) : 0);
+    let cursorY = box.y + box.height - box.padding - titleSize;
+
+    if (priceLines.length > 0) {
+      page.drawLine({
+        start: { x: box.x + box.padding, y: dividerY },
+        end: { x: box.x + box.width - box.padding, y: dividerY },
+        thickness: 0.45,
+        color: rgb(0, 0, 0),
+        dashArray: [2, 2],
+      });
+      this.drawBottomPriceBlock(page, fonts, priceLines, template, {
+        x: contentX,
+        y: box.y + box.padding * 0.65,
+        width: contentWidth,
+        height: priceBandHeight - box.padding * 0.2,
+      });
+    }
+
+    if (options.showLogo) {
+      const logo = await this.resolveLogo(pdf, label.logoUrl, logoCache);
+      const maxLogoHeight = mmToPt(5.2);
+      const maxLogoWidth = Math.min(contentWidth * 0.42, mmToPt(18));
+
+      if (logo) {
+        const ratio = logo.width / logo.height;
+        const logoWidth = Math.min(maxLogoWidth, maxLogoHeight * ratio);
+        const logoHeight = logoWidth / ratio;
+
+        page.drawImage(logo.image, {
+          x: contentX + (contentWidth - logoWidth) / 2,
+          y: cursorY - logoHeight + titleSize,
+          width: logoWidth,
+          height: logoHeight,
+        });
+        cursorY -= logoHeight + mmToPt(1.2);
+      } else if (label.storeName) {
+        this.drawCenteredText(
+          page,
+          fonts,
+          label.storeName.toUpperCase(),
+          contentX,
+          cursorY,
+          contentWidth,
+          metaSize,
+          true,
+        );
+        cursorY -= metaSize + 2;
+      }
+    } else if (options.showStoreName && label.storeName) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: cursorY,
+        text: this.fitText(label.storeName.toUpperCase(), contentWidth, metaSize),
+        size: metaSize,
+        bold: true,
+      });
+      cursorY -= metaSize + 2;
+    }
+
+    if (options.showProductName) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: cursorY,
+        text: this.fitText(label.productName, contentWidth, titleSize),
+        size: titleSize,
+        bold: true,
+      });
+      cursorY -= titleSize + this.productVariantGap(template);
+    }
+
+    if (options.showVariantName && label.variantName) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: cursorY,
+        text: this.fitText(label.variantName, contentWidth, metaSize),
+        size: metaSize,
+        bold: true,
+      });
+    }
+
+    this.drawBarcode(page, label.sku, contentX, barcodeY, contentWidth, barcodeHeight, template);
+
+    if (options.showSku) {
+      this.drawText(page, fonts, {
+        x: contentX,
+        y: skuY,
+        text: this.fitText(label.sku, contentWidth, metaSize),
+        size: metaSize,
+        bold: true,
+      });
+    }
+  }
+
+  private drawBottomPriceBlock(
+    page: PDFPage,
+    fonts: PdfFonts,
+    priceLines: { caption: string; value: string }[],
+    template: LabelTemplate,
+    box: { x: number; y: number; width: number; height: number },
+  ) {
+    const scale = this.readabilityScale(template);
+    const labelSize = 4.2 * scale;
+    const priceSize = 7.4 * scale;
+    const columns = Math.max(1, priceLines.length);
+    const columnWidth = box.width / columns;
+    const topY = box.y + box.height - labelSize;
+
+    priceLines.forEach((line, index) => {
+      const x = box.x + index * columnWidth;
+      const width = columnWidth - (index < columns - 1 ? mmToPt(1) : 0);
+      this.drawCenteredText(page, fonts, line.caption, x, topY, width, labelSize, true);
+      this.drawCenteredText(page, fonts, line.value, x, topY - priceSize - 1, width, priceSize, true);
+    });
   }
 
   private drawCompactCutPriceLabel(
@@ -521,7 +675,16 @@ export class LabelPdfRenderer {
     priceLines.forEach((line) => {
       if (line.caption) {
         topY -= labelSize;
-        this.drawRightAlignedText(page, fonts, line.caption, box.x, topY, box.width, labelSize, false);
+        this.drawRightAlignedText(
+          page,
+          fonts,
+          line.caption,
+          box.x,
+          topY,
+          box.width,
+          labelSize,
+          this.usesStrongCutPriceText(box.template),
+        );
         topY -= captionGap;
       }
       topY -= priceSize;
@@ -570,6 +733,28 @@ export class LabelPdfRenderer {
     const textWidth = font.widthOfTextAtSize(fitted, size);
     page.drawText(fitted, {
       x: x + Math.max(0, width - textWidth),
+      y,
+      size,
+      font,
+      color: rgb(0, 0, 0),
+    });
+  }
+
+  private drawCenteredText(
+    page: PDFPage,
+    fonts: PdfFonts,
+    text: string,
+    x: number,
+    y: number,
+    width: number,
+    size: number,
+    bold: boolean,
+  ) {
+    const font = bold ? fonts.bold : fonts.regular;
+    const fitted = this.fitText(text, width, size);
+    const textWidth = font.widthOfTextAtSize(fitted, size);
+    page.drawText(fitted, {
+      x: x + Math.max(0, (width - textWidth) / 2),
       y,
       size,
       font,
@@ -657,8 +842,16 @@ export class LabelPdfRenderer {
       return base + 0.8;
     }
 
-    if (template.key === 'BROTHER_QL570_29X90') {
+    if (template.key === 'BROTHER_QL570_29X90' || template.key === 'TROJANI_30X70') {
       return base + 3;
+    }
+
+    if (template.key === 'TROJANI_100X150_6UP') {
+      return base + 2;
+    }
+
+    if (template.key === 'TROJANI_44X55') {
+      return base + 2.4;
     }
 
     return template.key.startsWith('THERMAL') ? base + 1.4 : base;
@@ -666,7 +859,9 @@ export class LabelPdfRenderer {
 
   private readabilityScale(template: LabelTemplate) {
     if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') return 1.15;
-    if (template.key === 'BROTHER_QL570_29X90') return 1.3;
+    if (template.key === 'BROTHER_QL570_29X90' || template.key === 'TROJANI_30X70') return 1.3;
+    if (template.key === 'TROJANI_100X150_6UP') return 1.24;
+    if (template.key === 'TROJANI_44X55') return 1.28;
     return 1;
   }
 
@@ -674,18 +869,34 @@ export class LabelPdfRenderer {
     if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') return 9;
     if (template.key === 'BROTHER_QL570_62X29_CLOTHING') return 14;
     if (template.key === 'BROTHER_QL570_29X90') return 15.5;
+    if (template.key === 'TROJANI_30X70') return 13;
+    if (template.key === 'TROJANI_44X55') return 11.6;
+    if (template.key === 'TROJANI_100X150_6UP') return 9.8;
     return compact ? 5 : 7.6;
+  }
+
+  private cutPriceWidthMm(template: LabelTemplate) {
+    if (template.key === 'TROJANI_44X55') return 18;
+    return 22;
+  }
+
+  private usesStrongCutPriceText(template: LabelTemplate) {
+    return template.key === 'TROJANI_44X55';
   }
 
   private barWidthRatio(template: LabelTemplate) {
     if (template.key === 'BROTHER_QL570_54X17_ACCESSORY') return 0.72;
     if (template.key === 'BROTHER_QL570_62X29_CLOTHING') return 0.76;
-    if (template.key === 'BROTHER_QL570_29X90') return 0.76;
+    if (template.key === 'BROTHER_QL570_29X90' || template.key === 'TROJANI_30X70') return 0.76;
+    if (template.key === 'TROJANI_44X55') return 0.78;
+    if (template.key === 'TROJANI_100X150_6UP') return 0.8;
     return 0.86;
   }
 
   private productVariantGap(template: LabelTemplate) {
-    if (template.key === 'BROTHER_QL570_29X90') return 0.35;
+    if (template.key === 'BROTHER_QL570_29X90' || template.key === 'TROJANI_30X70') return 0.35;
+    if (template.key === 'TROJANI_100X150_6UP') return 0.8;
+    if (template.key === 'TROJANI_44X55') return 1;
     return 1.8;
   }
 

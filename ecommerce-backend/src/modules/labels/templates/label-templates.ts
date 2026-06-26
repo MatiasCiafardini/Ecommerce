@@ -4,6 +4,8 @@ export type LabelTemplateKey =
   | 'BROTHER_DK2205_SHIPPING'
   | 'BROTHER_QL570_29X90'
   | 'TROJANI_100X150_6UP'
+  | 'TROJANI_30X70'
+  | 'TROJANI_44X55'
   | 'A4_50x25'
   | 'A4_40x30'
   | 'THERMAL_58'
@@ -117,6 +119,34 @@ export const LABEL_TEMPLATES: Record<LabelTemplateKey, LabelTemplate> = {
     label: { widthMm: 75, heightMm: 33.33, paddingMm: 2.4 },
     margins: { topMm: 0, rightMm: 0, bottomMm: 0, leftMm: 0 },
     grid: { columns: 2, rows: 3, columnSpacingMm: 0, rowSpacingMm: 0 },
+  },
+  TROJANI_30X70: {
+    key: 'TROJANI_30X70',
+    id: 'TROJANI_30X70',
+    name: 'Trojani 70x30 mm horizontal',
+    type: 'clothing',
+    useCase: 'clothing',
+    layout: 'product_cut_price',
+    fields: ['storeName', 'productName', 'variantName', 'sku', 'barcode', 'price'],
+    priceOptions: ['normal', 'transfer', 'both', 'none'],
+    page: { widthMm: 70, heightMm: 30 },
+    label: { widthMm: 70, heightMm: 30, paddingMm: 2 },
+    margins: { topMm: 0, rightMm: 0, bottomMm: 0, leftMm: 0 },
+    grid: { columns: 1, rows: 1, columnSpacingMm: 0, rowSpacingMm: 0 },
+  },
+  TROJANI_44X55: {
+    key: 'TROJANI_44X55',
+    id: 'TROJANI_44X55',
+    name: 'Trojani 44x55 mm horizontal',
+    type: 'clothing',
+    useCase: 'clothing',
+    layout: 'product_cut_price',
+    fields: ['storeName', 'productName', 'variantName', 'sku', 'barcode', 'price'],
+    priceOptions: ['normal', 'transfer', 'both', 'none'],
+    page: { widthMm: 55, heightMm: 44 },
+    label: { widthMm: 55, heightMm: 44, paddingMm: 2 },
+    margins: { topMm: 0, rightMm: 0, bottomMm: 0, leftMm: 0 },
+    grid: { columns: 1, rows: 1, columnSpacingMm: 0, rowSpacingMm: 0 },
   },
   A4_50x25: {
     key: 'A4_50x25',
