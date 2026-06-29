@@ -1,0 +1,75 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e6]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+      - generic [ref=e8]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+    - banner [ref=e9]:
+      - generic [ref=e10]:
+        - button "Menu" [ref=e12] [cursor=pointer]
+        - link "Ir al inicio" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img "Como Vos y Yo" [ref=e14]
+        - generic [ref=e15]:
+          - button "Abrir buscador" [ref=e16] [cursor=pointer]:
+            - img [ref=e17]
+          - link "Carrito" [ref=e20] [cursor=pointer]:
+            - /url: /cart
+            - img [ref=e21]
+    - main [ref=e25]:
+      - generic [ref=e26]:
+        - main [ref=e27]:
+          - generic [ref=e29]:
+            - generic [ref=e30]:
+              - generic [ref=e31]:
+                - heading "Volvé a tu cuenta" [level=1] [ref=e32]
+                - paragraph [ref=e33]: Ingresá para revisar tus direcciones, completar tu compra y seguir el próximo drop urbano.
+              - generic [ref=e34]:
+                - paragraph [ref=e35]: Access panel
+                - paragraph [ref=e36]: Accede a tu perfil para revisar pedidos, direcciones y compras.
+            - generic [ref=e37]:
+              - heading "Iniciar sesión" [level=2] [ref=e38]
+              - generic [ref=e39]:
+                - textbox "Email" [ref=e40]
+                - textbox "Contraseña" [ref=e41]
+                - button "Ingresar" [ref=e42] [cursor=pointer]
+              - paragraph [ref=e43]: ¿No tenés cuenta? Crear cuenta
+        - link "Contactar por WhatsApp" [ref=e44] [cursor=pointer]:
+          - /url: https://wa.me/5492326494545?text=Hola!%20Quiero%20hacer%20una%20consulta%20sobre%20Como%20Vos%20y%20Yo.
+          - img [ref=e45]
+    - contentinfo [ref=e47]:
+      - generic [ref=e48]:
+        - generic [ref=e49]:
+          - generic [ref=e50]: Como Vos y Yo
+          - heading "Como Vos y Yo" [level=3] [ref=e51]
+          - paragraph [ref=e52]: Moda femenina elegante, limpia y actual para una boutique minimalista con mirada premium.
+        - generic [ref=e53]:
+          - heading "Comprar" [level=4] [ref=e54]
+          - generic [ref=e55]:
+            - link "Coleccion completa" [ref=e56] [cursor=pointer]:
+              - /url: /product
+            - link "Remeras" [ref=e57] [cursor=pointer]:
+              - /url: /category/remeras
+            - link "Camisas" [ref=e58] [cursor=pointer]:
+              - /url: /category/camisas
+            - link "Vestidos" [ref=e59] [cursor=pointer]:
+              - /url: /category/vestidos
+        - generic [ref=e60]:
+          - heading "Cuenta" [level=4] [ref=e61]
+          - generic [ref=e62]:
+            - link "Mi cuenta" [ref=e63] [cursor=pointer]:
+              - /url: /account
+            - link "Carrito" [ref=e64] [cursor=pointer]:
+              - /url: /cart
+            - link "Checkout" [ref=e65] [cursor=pointer]:
+              - /url: /checkout
+        - generic [ref=e66]:
+          - heading "Contacto" [level=4] [ref=e67]
+          - generic [ref=e68]:
+            - link "hola@comovosyyo.com" [ref=e69] [cursor=pointer]:
+              - /url: mailto:hola@comovosyyo.com
+            - link "Instagram" [ref=e70] [cursor=pointer]:
+              - /url: https://www.instagram.com/comovosyyo_
+            - link "WhatsApp" [ref=e71] [cursor=pointer]:
+              - /url: https://wa.me/5492326494545
+  - button "Open Next.js Dev Tools" [ref=e77] [cursor=pointer]:
+    - img [ref=e78]

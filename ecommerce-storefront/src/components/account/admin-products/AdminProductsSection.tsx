@@ -1779,19 +1779,27 @@ export default function AdminProductsSection({
     return cycle > 0 ? `${first}${cycle + 1}` : first;
   };
 
+  const buildAutomaticSkuCandidate = (
+    productTitle: string,
+    index: number,
+    sequence: number,
+  ) => {
+    const prefix = buildProductSkuPrefix(productTitle);
+    const variantCode = variantIndexCode(index);
+    return `${prefix}${String(sequence).padStart(3, "0")}${variantCode}`;
+  };
+
   const buildAutomaticSku = (
     productTitle: string,
     variant: EditableVariant,
     index: number,
     usedSkus: Set<string>,
   ) => {
-    const prefix = buildProductSkuPrefix(productTitle);
-    const variantCode = variantIndexCode(index);
     let sequence = Math.max(products.length + 1, 1);
-    let candidate = `${prefix}${String(sequence).padStart(3, "0")}${variantCode}`;
+    let candidate = buildAutomaticSkuCandidate(productTitle, index, sequence);
     while (usedSkus.has(candidate.toLowerCase())) {
       sequence += 1;
-      candidate = `${prefix}${String(sequence).padStart(3, "0")}${variantCode}`;
+      candidate = buildAutomaticSkuCandidate(productTitle, index, sequence);
     }
     usedSkus.add(candidate.toLowerCase());
     return candidate;
@@ -1814,7 +1822,40 @@ export default function AdminProductsSection({
     );
   };
 
-  const generateAutomaticSkusForTitle = (
+  const checkUnavailableSkuKeys = async (
+    candidates: Array<{ sku: string; excludeVariantId?: number }>,
+  ) => {
+    const uniqueCandidates = [
+      ...new Map(
+        candidates
+          .filter((candidate) => candidate.sku.trim())
+          .map((candidate) => [
+            `${candidate.sku.trim().toLowerCase()}:${candidate.excludeVariantId ?? ""}`,
+            {
+              sku: candidate.sku.trim(),
+              excludeVariantId: candidate.excludeVariantId,
+            },
+          ]),
+      ).values(),
+    ];
+
+    if (uniqueCandidates.length === 0) {
+      return new Set<string>();
+    }
+
+    const response = await api("/products/admin/skus/check", {
+      method: "POST",
+      body: JSON.stringify({ candidates: uniqueCandidates }),
+    }) as { unavailableSkus?: string[] };
+
+    return new Set(
+      (response.unavailableSkus ?? [])
+        .map((sku) => sku.trim().toLowerCase())
+        .filter(Boolean),
+    );
+  };
+
+  const generateAutomaticSkusLocallyForTitle = (
     productTitle: string,
     variantsToUpdate: EditableVariant[],
   ) => {
@@ -1825,14 +1866,92 @@ export default function AdminProductsSection({
     }));
   };
 
+  const generateAutomaticSkusForTitle = async (
+    productTitle: string,
+    variantsToUpdate: EditableVariant[],
+  ) => {
+    const usedSkus = collectExistingSkuKeys(variantsToUpdate);
+    let generated = variantsToUpdate.map((variant, index) => ({
+      ...variant,
+      sku: buildAutomaticSku(productTitle, variant, index, usedSkus),
+    }));
+
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const unavailableSkuKeys = await checkUnavailableSkuKeys(
+        generated.map((variant) => ({
+          sku: variant.sku,
+          excludeVariantId: variant.id,
+        })),
+      );
+
+      if (unavailableSkuKeys.size === 0) {
+        return generated;
+      }
+
+      generated = generated.map((variant, index) => {
+        if (!unavailableSkuKeys.has(variant.sku.trim().toLowerCase())) {
+          return variant;
+        }
+
+        usedSkus.add(variant.sku.trim().toLowerCase());
+        return {
+          ...variant,
+          sku: buildAutomaticSku(productTitle, variant, index, usedSkus),
+        };
+      });
+    }
+
+    throw new Error("No pudimos generar SKU disponibles para las variantes.");
+  };
+
+  const generateAvailableAutomaticSku = async (
+    productTitle: string,
+    variant: EditableVariant,
+    index: number,
+    usedSkus: Set<string>,
+    excludeVariantId?: number,
+  ) => {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const candidate = buildAutomaticSku(productTitle, variant, index, usedSkus);
+      const unavailableSkuKeys = await checkUnavailableSkuKeys([
+        { sku: candidate, excludeVariantId },
+      ]);
+
+      if (!unavailableSkuKeys.has(candidate.toLowerCase())) {
+        return candidate;
+      }
+
+      usedSkus.add(candidate.toLowerCase());
+    }
+
+    throw new Error("No pudimos generar un SKU disponible para la variante.");
+  };
+
   const generateAutomaticSkus = (variantsToUpdate: EditableVariant[]) =>
     generateAutomaticSkusForTitle(form.title.trim(), variantsToUpdate);
 
+  const regenerateVisibleSkusForTitle = async (
+    title: string,
+    variantsToUpdate: EditableVariant[],
+  ) => {
+    try {
+      const generated = await generateAutomaticSkusForTitle(title, variantsToUpdate);
+      setVariants(generated);
+    } catch (error) {
+      setVariants(generateAutomaticSkusLocallyForTitle(title, variantsToUpdate));
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron validar los SKU contra la base.",
+      );
+    }
+  };
+
   const handleProductTitleChange = (title: string) => {
     setForm((current) => ({ ...current, title }));
-    setVariants((current) =>
-      current.length > 0 ? generateAutomaticSkusForTitle(title.trim(), current) : current,
-    );
+    if (variants.length > 0) {
+      void regenerateVisibleSkusForTitle(title.trim(), variants);
+    }
   };
 
   const loadVariantIntoDraft = useCallback((index: number) => {
@@ -1911,7 +2030,7 @@ export default function AdminProductsSection({
     return true;
   };
 
-  const generateVariantsFromMatrix = () => {
+  const generateVariantsFromMatrix = async () => {
     const selectedAttributes = options.filter((option) =>
       selectedVariantAttributeIds.includes(option.id) && !isVariantConfigOption(option),
     );
@@ -1967,7 +2086,12 @@ export default function AdminProductsSection({
         height: variantDraft.height.trim(),
         length: variantDraft.length.trim(),
       };
-      const sku = buildAutomaticSku(form.title.trim(), nextVariant, variants.length, usedGeneratedSkus);
+      const sku = await generateAvailableAutomaticSku(
+        form.title.trim(),
+        nextVariant,
+        variants.length,
+        usedGeneratedSkus,
+      );
       const normalized = normalizeVariant({ ...nextVariant, sku });
 
       setVariants((current) => {
@@ -1996,7 +2120,7 @@ export default function AdminProductsSection({
       .filter(Boolean)
       .forEach((sku) => usedGeneratedSkus.add(sku));
 
-    const generated = combinations.map((combo, comboIndex) => {
+    const generated = await Promise.all(combinations.map(async (combo, comboIndex) => {
         const colorIndex = matrixValues.findIndex((entry) => entry.option.name.trim().toLowerCase() === "color");
         const sizeIndex = matrixValues.findIndex((entry) => ["talle", "talles", "size", "sizes"].includes(entry.option.name.trim().toLowerCase()));
         const waistIndex = matrixValues.findIndex((entry) => ["talle cintura", "talles cintura", "cintura", "waist", "waist size"].includes(entry.option.name.trim().toLowerCase()));
@@ -2015,9 +2139,14 @@ export default function AdminProductsSection({
 
         return {
           ...nextVariant,
-          sku: buildAutomaticSku(form.title.trim(), nextVariant, variants.length + comboIndex, usedGeneratedSkus),
+          sku: await generateAvailableAutomaticSku(
+            form.title.trim(),
+            nextVariant,
+            variants.length + comboIndex,
+            usedGeneratedSkus,
+          ),
         };
-    });
+    }));
 
     setVariants((current) => {
       const existingCombinationKeys = new Set<string>();
@@ -3408,7 +3537,7 @@ export default function AdminProductsSection({
       }
 
       const variantsToSync = shouldGenerateSkus
-        ? generateAutomaticSkus(baseVariantsToSync)
+        ? await generateAutomaticSkus(baseVariantsToSync)
         : baseVariantsToSync;
 
       const savedProduct = editingProductId
@@ -4042,7 +4171,21 @@ export default function AdminProductsSection({
               <SuggestionInput value={variantDraft.width} onChange={(value) => setVariantDraft((current) => ({ ...current, width: value }))} placeholder="Ancho prenda base (cm)" suggestions={variantAutocomplete.width} sanitize={sanitizeDecimalInput} />
               <SuggestionInput value={variantDraft.length} onChange={(value) => setVariantDraft((current) => ({ ...current, length: value }))} placeholder="Largo prenda base (cm)" suggestions={variantAutocomplete.length} sanitize={sanitizeDecimalInput} />
             </div>
-            <button type="button" onClick={generateVariantsFromMatrix} style={primaryButtonStyle}>Generar variantes</button>
+            <button
+              type="button"
+              onClick={() =>
+                void generateVariantsFromMatrix().catch((error) =>
+                  setError(
+                    error instanceof Error
+                      ? error.message
+                      : "No se pudieron generar las variantes.",
+                  ),
+                )
+              }
+              style={primaryButtonStyle}
+            >
+              Generar variantes
+            </button>
           </div>
           {selectedVariantIndexes.length > 0 ? (
             <div style={wizardSubpanelStyle}>

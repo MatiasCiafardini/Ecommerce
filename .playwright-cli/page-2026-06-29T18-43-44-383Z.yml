@@ -1,0 +1,341 @@
+- generic [ref=e1]:
+  - main [ref=e25]:
+    - main [ref=e27]:
+      - generic [ref=e101]:
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - paragraph [ref=e104]: Cuenta y gestion
+            - heading "Workspace" [level=1] [ref=e105]
+          - generic [ref=e200]:
+            - generic [ref=e201]:
+              - heading "Gestión del catálogo" [level=2] [ref=e202]
+              - generic [ref=e203]:
+                - button "Productos" [ref=e204] [cursor=pointer]
+                - button "Atributos" [ref=e205] [cursor=pointer]
+                - button "Opciones de variantes" [ref=e206] [cursor=pointer]
+                - button "Categorias" [ref=e207] [cursor=pointer]
+            - generic [ref=e209]:
+              - generic [ref=e210]:
+                - textbox "Buscar productos" [ref=e211]
+                - combobox [ref=e212]:
+                  - option "Todas las categorias" [selected]
+                  - option "Abrigos"
+                  - option "Accesorios"
+                  - option "Camisas"
+                  - option "Pantalones"
+                  - option "Remeras"
+                  - option "Vestidos"
+                - combobox [ref=e213]:
+                  - option "Todos los estados" [selected]
+                  - option "Publicado"
+                  - option "Inventario"
+                  - option "Sin stock"
+                - button "+ Crear nuevo producto" [ref=e214] [cursor=pointer]
+              - generic [ref=e215]:
+                - article [ref=e216]:
+                  - generic [ref=e217]: Productos totales
+                  - strong [ref=e218]: "13"
+                - article [ref=e219]:
+                  - generic [ref=e220]: Publicados
+                  - strong [ref=e221]: "12"
+                - article [ref=e222]:
+                  - generic [ref=e223]: Inventario
+                  - strong [ref=e224]: "1"
+                - article [ref=e225]:
+                  - generic [ref=e226]: Sin stock
+                  - strong [ref=e227]: "1"
+              - table [ref=e229]:
+                - rowgroup [ref=e230]:
+                  - row "Imagen Producto ^ Categoria Variantes Stock total Estado Precio desde Acciones" [ref=e231]:
+                    - columnheader "Imagen" [ref=e232]:
+                      - button "Imagen" [ref=e233] [cursor=pointer]
+                    - columnheader "Producto ^" [ref=e234]:
+                      - button "Producto ^" [ref=e235] [cursor=pointer]:
+                        - text: Producto
+                        - generic [ref=e236]: ^
+                    - columnheader "Categoria" [ref=e237]:
+                      - button "Categoria" [ref=e238] [cursor=pointer]
+                    - columnheader "Variantes" [ref=e239]:
+                      - button "Variantes" [ref=e240] [cursor=pointer]
+                    - columnheader "Stock total" [ref=e241]:
+                      - button "Stock total" [ref=e242] [cursor=pointer]
+                    - columnheader "Estado" [ref=e243]:
+                      - button "Estado" [ref=e244] [cursor=pointer]
+                    - columnheader "Precio desde" [ref=e245]:
+                      - button "Precio desde" [ref=e246] [cursor=pointer]
+                    - columnheader "Acciones" [ref=e247]
+                - rowgroup [ref=e248]:
+                  - row "Blazer clasico Blazer clasico/blazer-clasico Abrigos 8 100 Publicado $84.100,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e249]:
+                    - cell "Blazer clasico" [ref=e250]:
+                      - img "Blazer clasico" [ref=e251]
+                    - cell "Blazer clasico/blazer-clasico" [ref=e252]:
+                      - strong [ref=e253]: Blazer clasico
+                      - generic [ref=e254]: /blazer-clasico
+                    - cell "Abrigos" [ref=e255]
+                    - cell "8" [ref=e256]
+                    - cell "100" [ref=e257]
+                    - cell "Publicado" [ref=e258]:
+                      - generic [ref=e259]: Publicado
+                    - cell "$84.100,00" [ref=e260]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e261]:
+                      - generic [ref=e262]:
+                        - button "Despublicar producto" [ref=e263] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e264] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e265] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e266] [cursor=pointer]: ×
+                  - row "Blusa satinada Blusa satinada/blusa-satinada Camisas 8 100 Publicado $57.800,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e267]:
+                    - cell "Blusa satinada" [ref=e268]:
+                      - img "Blusa satinada" [ref=e269]
+                    - cell "Blusa satinada/blusa-satinada" [ref=e270]:
+                      - strong [ref=e271]: Blusa satinada
+                      - generic [ref=e272]: /blusa-satinada
+                    - cell "Camisas" [ref=e273]
+                    - cell "8" [ref=e274]
+                    - cell "100" [ref=e275]
+                    - cell "Publicado" [ref=e276]:
+                      - generic [ref=e277]: Publicado
+                    - cell "$57.800,00" [ref=e278]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e279]:
+                      - generic [ref=e280]:
+                        - button "Despublicar producto" [ref=e281] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e282] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e283] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e284] [cursor=pointer]: ×
+                  - row "Buzo urbano Buzo urbano/buzo-urbano Abrigos 8 112 Publicado $50.100,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e285]:
+                    - cell "Buzo urbano" [ref=e286]:
+                      - img "Buzo urbano" [ref=e287]
+                    - cell "Buzo urbano/buzo-urbano" [ref=e288]:
+                      - strong [ref=e289]: Buzo urbano
+                      - generic [ref=e290]: /buzo-urbano
+                    - cell "Abrigos" [ref=e291]
+                    - cell "8" [ref=e292]
+                    - cell "112" [ref=e293]
+                    - cell "Publicado" [ref=e294]:
+                      - generic [ref=e295]: Publicado
+                    - cell "$50.100,00" [ref=e296]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e297]:
+                      - generic [ref=e298]:
+                        - button "Despublicar producto" [ref=e299] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e300] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e301] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e302] [cursor=pointer]: ×
+                  - row "Camisa oversize lino Camisa oversize lino/camisa-oversize-lino Camisas 8 96 Publicado $55.200,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e303]:
+                    - cell "Camisa oversize lino" [ref=e304]:
+                      - img "Camisa oversize lino" [ref=e305]
+                    - cell "Camisa oversize lino/camisa-oversize-lino" [ref=e306]:
+                      - strong [ref=e307]: Camisa oversize lino
+                      - generic [ref=e308]: /camisa-oversize-lino
+                    - cell "Camisas" [ref=e309]
+                    - cell "8" [ref=e310]
+                    - cell "96" [ref=e311]
+                    - cell "Publicado" [ref=e312]:
+                      - generic [ref=e313]: Publicado
+                    - cell "$55.200,00" [ref=e314]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e315]:
+                      - generic [ref=e316]:
+                        - button "Despublicar producto" [ref=e317] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e318] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e319] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e320] [cursor=pointer]: ×
+                  - row "Campera de jean Campera de jean/campera-de-jean Abrigos 8 108 Publicado $76.500,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e321]:
+                    - cell "Campera de jean" [ref=e322]:
+                      - img "Campera de jean" [ref=e323]
+                    - cell "Campera de jean/campera-de-jean" [ref=e324]:
+                      - strong [ref=e325]: Campera de jean
+                      - generic [ref=e326]: /campera-de-jean
+                    - cell "Abrigos" [ref=e327]
+                    - cell "8" [ref=e328]
+                    - cell "108" [ref=e329]
+                    - cell "Publicado" [ref=e330]:
+                      - generic [ref=e331]: Publicado
+                    - cell "$76.500,00" [ref=e332]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e333]:
+                      - generic [ref=e334]:
+                        - button "Despublicar producto" [ref=e335] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e336] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e337] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e338] [cursor=pointer]: ×
+                  - row "Chaleco sastrero Chaleco sastrero/chaleco-sastrero Abrigos 8 116 Publicado $59.500,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e339]:
+                    - cell "Chaleco sastrero" [ref=e340]:
+                      - img "Chaleco sastrero" [ref=e341]
+                    - cell "Chaleco sastrero/chaleco-sastrero" [ref=e342]:
+                      - strong [ref=e343]: Chaleco sastrero
+                      - generic [ref=e344]: /chaleco-sastrero
+                    - cell "Abrigos" [ref=e345]
+                    - cell "8" [ref=e346]
+                    - cell "116" [ref=e347]
+                    - cell "Publicado" [ref=e348]:
+                      - generic [ref=e349]: Publicado
+                    - cell "$59.500,00" [ref=e350]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e351]:
+                      - generic [ref=e352]:
+                        - button "Despublicar producto" [ref=e353] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e354] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e355] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e356] [cursor=pointer]: ×
+                  - row "Fixture SCP013A/sku-collision-fixture-1782758540405 Sin categoria 1 0 Sin stock - Publicar producto Editar producto Duplicar producto Eliminar producto" [ref=e357]:
+                    - cell [ref=e358]
+                    - cell "Fixture SCP013A/sku-collision-fixture-1782758540405" [ref=e360]:
+                      - strong [ref=e361]: Fixture SCP013A
+                      - generic [ref=e362]: /sku-collision-fixture-1782758540405
+                    - cell "Sin categoria" [ref=e363]
+                    - cell "1" [ref=e364]
+                    - cell "0" [ref=e365]
+                    - cell "Sin stock" [ref=e366]:
+                      - generic [ref=e367]: Sin stock
+                    - cell "-" [ref=e368]
+                    - cell "Publicar producto Editar producto Duplicar producto Eliminar producto" [ref=e369]:
+                      - generic [ref=e370]:
+                        - button "Publicar producto" [ref=e371] [cursor=pointer]: Publicar
+                        - button "Editar producto" [ref=e372] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e373] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e374] [cursor=pointer]: ×
+                  - row "Jean wide leg Jean wide leg/jean-wide-leg Pantalones 8 112 Publicado $67.100,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e375]:
+                    - cell "Jean wide leg" [ref=e376]:
+                      - img "Jean wide leg" [ref=e377]
+                    - cell "Jean wide leg/jean-wide-leg" [ref=e378]:
+                      - strong [ref=e379]: Jean wide leg
+                      - generic [ref=e380]: /jean-wide-leg
+                    - cell "Pantalones" [ref=e381]
+                    - cell "8" [ref=e382]
+                    - cell "112" [ref=e383]
+                    - cell "Publicado" [ref=e384]:
+                      - generic [ref=e385]: Publicado
+                    - cell "$67.100,00" [ref=e386]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e387]:
+                      - generic [ref=e388]:
+                        - button "Despublicar producto" [ref=e389] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e390] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e391] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e392] [cursor=pointer]: ×
+                  - row "Pantalon sastrero Pantalon sastrero/pantalon-sastrero Pantalones 8 92 Publicado $70.500,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e393]:
+                    - cell "Pantalon sastrero" [ref=e394]:
+                      - img "Pantalon sastrero" [ref=e395]
+                    - cell "Pantalon sastrero/pantalon-sastrero" [ref=e396]:
+                      - strong [ref=e397]: Pantalon sastrero
+                      - generic [ref=e398]: /pantalon-sastrero
+                    - cell "Pantalones" [ref=e399]
+                    - cell "8" [ref=e400]
+                    - cell "92" [ref=e401]
+                    - cell "Publicado" [ref=e402]:
+                      - generic [ref=e403]: Publicado
+                    - cell "$70.500,00" [ref=e404]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e405]:
+                      - generic [ref=e406]:
+                        - button "Despublicar producto" [ref=e407] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e408] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e409] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e410] [cursor=pointer]: ×
+                  - row "Remera basica Remera basica/remera-basica Remeras 8 96 Publicado $28.000,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e411]:
+                    - cell "Remera basica" [ref=e412]:
+                      - img "Remera basica" [ref=e413]
+                    - cell "Remera basica/remera-basica" [ref=e414]:
+                      - strong [ref=e415]: Remera basica
+                      - generic [ref=e416]: /remera-basica
+                    - cell "Remeras" [ref=e417]
+                    - cell "8" [ref=e418]
+                    - cell "96" [ref=e419]
+                    - cell "Publicado" [ref=e420]:
+                      - generic [ref=e421]: Publicado
+                    - cell "$28.000,00" [ref=e422]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e423]:
+                      - generic [ref=e424]:
+                        - button "Despublicar producto" [ref=e425] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e426] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e427] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e428] [cursor=pointer]: ×
+                  - row "Sweater tejido Sweater tejido/sweater-tejido Abrigos 8 108 Publicado $61.200,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e429]:
+                    - cell "Sweater tejido" [ref=e430]:
+                      - img "Sweater tejido" [ref=e431]
+                    - cell "Sweater tejido/sweater-tejido" [ref=e432]:
+                      - strong [ref=e433]: Sweater tejido
+                      - generic [ref=e434]: /sweater-tejido
+                    - cell "Abrigos" [ref=e435]
+                    - cell "8" [ref=e436]
+                    - cell "108" [ref=e437]
+                    - cell "Publicado" [ref=e438]:
+                      - generic [ref=e439]: Publicado
+                    - cell "$61.200,00" [ref=e440]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e441]:
+                      - generic [ref=e442]:
+                        - button "Despublicar producto" [ref=e443] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e444] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e445] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e446] [cursor=pointer]: ×
+                  - row "Tote bag Tote bag/tote-bag Accesorios 2 26 Publicado $39.100,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e447]:
+                    - cell "Tote bag" [ref=e448]:
+                      - img "Tote bag" [ref=e449]
+                    - cell "Tote bag/tote-bag" [ref=e450]:
+                      - strong [ref=e451]: Tote bag
+                      - generic [ref=e452]: /tote-bag
+                    - cell "Accesorios" [ref=e453]
+                    - cell "2" [ref=e454]
+                    - cell "26" [ref=e455]
+                    - cell "Publicado" [ref=e456]:
+                      - generic [ref=e457]: Publicado
+                    - cell "$39.100,00" [ref=e458]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e459]:
+                      - generic [ref=e460]:
+                        - button "Despublicar producto" [ref=e461] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e462] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e463] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e464] [cursor=pointer]: ×
+                  - row "Vestido midi Vestido midi/vestido-midi Vestidos 8 116 Publicado $72.200,00 Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e465]:
+                    - cell "Vestido midi" [ref=e466]:
+                      - img "Vestido midi" [ref=e467]
+                    - cell "Vestido midi/vestido-midi" [ref=e468]:
+                      - strong [ref=e469]: Vestido midi
+                      - generic [ref=e470]: /vestido-midi
+                    - cell "Vestidos" [ref=e471]
+                    - cell "8" [ref=e472]
+                    - cell "116" [ref=e473]
+                    - cell "Publicado" [ref=e474]:
+                      - generic [ref=e475]: Publicado
+                    - cell "$72.200,00" [ref=e476]
+                    - cell "Despublicar producto Editar producto Duplicar producto Eliminar producto" [ref=e477]:
+                      - generic [ref=e478]:
+                        - button "Despublicar producto" [ref=e479] [cursor=pointer]: Despublicar
+                        - button "Editar producto" [ref=e480] [cursor=pointer]: ✎
+                        - button "Duplicar producto" [ref=e481] [cursor=pointer]: ⧉
+                        - button "Eliminar producto" [ref=e482] [cursor=pointer]: ×
+              - generic [ref=e483]:
+                - generic [ref=e484]: Mostrando 13 de 13 productos
+                - generic [ref=e485]:
+                  - button "Anterior" [disabled] [ref=e486] [cursor=pointer]
+                  - generic [ref=e487]: Pagina 1 de 1
+                  - button "Siguiente" [disabled] [ref=e488] [cursor=pointer]
+        - navigation "Menu administrador" [ref=e134]:
+          - generic [ref=e135]:
+            - button "Dashb." [ref=e136] [cursor=pointer]:
+              - img [ref=e138]
+              - generic [ref=e141]: Dashb.
+            - button "Ventas" [ref=e142] [cursor=pointer]:
+              - img [ref=e144]
+              - generic [ref=e149]: Ventas
+            - button "Hist." [ref=e150] [cursor=pointer]:
+              - img [ref=e152]
+              - generic [ref=e156]: Hist.
+            - button "Remitos" [ref=e157] [cursor=pointer]:
+              - img [ref=e159]
+              - generic [ref=e164]: Remitos
+            - button "Fiscal" [ref=e165] [cursor=pointer]:
+              - img [ref=e167]
+              - generic [ref=e169]: Fiscal
+            - button "Clientes" [ref=e170] [cursor=pointer]:
+              - img [ref=e172]
+              - generic [ref=e175]: Clientes
+            - button "Prod." [active] [ref=e176] [cursor=pointer]:
+              - img [ref=e178]
+              - generic [ref=e181]: Prod.
+            - button "Stock" [ref=e182] [cursor=pointer]:
+              - img [ref=e184]
+              - generic [ref=e187]: Stock
+            - button "Cat." [ref=e188] [cursor=pointer]:
+              - img [ref=e190]
+              - generic [ref=e192]: Cat.
+            - button "Ajustes" [ref=e193] [cursor=pointer]:
+              - img [ref=e195]
+              - generic [ref=e198]: Ajustes
+  - button "Open Next.js Dev Tools" [ref=e77] [cursor=pointer]:
+    - img [ref=e78]
+  - alert [ref=e100]: WORKSPACE

@@ -14,6 +14,7 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
+import { CheckProductSkusDto } from './dto/check-product-skus.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { CatalogManagerGuard } from '../auth/guards/catalog-manager.guard';
@@ -65,6 +66,12 @@ export class ProductsController {
       pageSize,
       includeMetrics,
     });
+  }
+
+  @Post('admin/skus/check')
+  @UseGuards(CatalogManagerGuard)
+  checkSkus(@Body() dto: CheckProductSkusDto, @Req() req) {
+    return this.productsService.checkSkus(dto.candidates, req.storeId);
   }
 
   @Get('admin/:id')

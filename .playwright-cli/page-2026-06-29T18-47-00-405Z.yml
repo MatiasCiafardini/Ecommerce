@@ -1,0 +1,61 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e6]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+      - generic [ref=e8]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+    - banner [ref=e9]:
+      - generic [ref=e10]:
+        - button "Menu" [ref=e12] [cursor=pointer]
+        - link "Ir al inicio" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img "Como Vos y Yo" [ref=e14]
+        - generic [ref=e15]:
+          - button "Abrir buscador" [ref=e16] [cursor=pointer]:
+            - img [ref=e17]
+          - link "Carrito" [ref=e20] [cursor=pointer]:
+            - /url: /cart
+            - img [ref=e21]
+    - main [ref=e25]:
+      - generic [ref=e26]:
+        - main [ref=e27]:
+          - generic [ref=e29]: Cargando cuenta...
+        - link "Contactar por WhatsApp" [ref=e30] [cursor=pointer]:
+          - /url: https://wa.me/5492326494545?text=Hola!%20Quiero%20hacer%20una%20consulta%20sobre%20Como%20Vos%20y%20Yo.
+          - img [ref=e31]
+    - contentinfo [ref=e33]:
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - generic [ref=e36]: Como Vos y Yo
+          - heading "Como Vos y Yo" [level=3] [ref=e37]
+          - paragraph [ref=e38]: Moda femenina elegante, limpia y actual para una boutique minimalista con mirada premium.
+        - generic [ref=e39]:
+          - heading "Comprar" [level=4] [ref=e40]
+          - generic [ref=e41]:
+            - link "Coleccion completa" [ref=e42] [cursor=pointer]:
+              - /url: /product
+            - link "Remeras" [ref=e43] [cursor=pointer]:
+              - /url: /category/remeras
+            - link "Camisas" [ref=e44] [cursor=pointer]:
+              - /url: /category/camisas
+            - link "Vestidos" [ref=e45] [cursor=pointer]:
+              - /url: /category/vestidos
+        - generic [ref=e46]:
+          - heading "Cuenta" [level=4] [ref=e47]
+          - generic [ref=e48]:
+            - link "Mi cuenta" [ref=e49] [cursor=pointer]:
+              - /url: /account
+            - link "Carrito" [ref=e50] [cursor=pointer]:
+              - /url: /cart
+            - link "Checkout" [ref=e51] [cursor=pointer]:
+              - /url: /checkout
+        - generic [ref=e52]:
+          - heading "Contacto" [level=4] [ref=e53]
+          - generic [ref=e54]:
+            - link "hola@comovosyyo.com" [ref=e55] [cursor=pointer]:
+              - /url: mailto:hola@comovosyyo.com
+            - link "Instagram" [ref=e56] [cursor=pointer]:
+              - /url: https://www.instagram.com/comovosyyo_
+            - link "WhatsApp" [ref=e57] [cursor=pointer]:
+              - /url: https://wa.me/5492326494545
+  - button "Open Next.js Dev Tools" [ref=e63] [cursor=pointer]:
+    - img [ref=e64]

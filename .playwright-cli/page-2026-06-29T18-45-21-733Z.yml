@@ -1,0 +1,96 @@
+- generic [ref=e1]:
+  - main [ref=e25]:
+    - main [ref=e27]:
+      - generic [ref=e101]:
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - paragraph [ref=e104]: Cuenta y gestion
+            - heading "Workspace" [level=1] [ref=e105]
+          - generic [ref=e490]:
+            - generic [ref=e491]:
+              - button "1 Info y logistica" [ref=e492] [cursor=pointer]:
+                - generic [ref=e493]: "1"
+                - text: Info y logistica
+              - button "2 Imagenes" [ref=e494] [cursor=pointer]:
+                - generic [ref=e495]: "2"
+                - text: Imagenes
+              - button "3 Atributos" [ref=e496] [cursor=pointer]:
+                - generic [ref=e497]: "3"
+                - text: Atributos
+              - button "4 Variantes" [ref=e498] [cursor=pointer]:
+                - generic [ref=e499]: "4"
+                - text: Variantes
+              - button "5 Publicacion" [ref=e500] [cursor=pointer]:
+                - generic [ref=e501]: "5"
+                - text: Publicacion
+            - generic [ref=e542]:
+              - generic [ref=e543]:
+                - paragraph [ref=e544]: Paso 4
+                - heading "Variantes y stock" [level=3] [ref=e545]
+              - generic [ref=e546]:
+                - strong [ref=e547]: Generador rapido
+                - generic [ref=e548]: Completa los datos base. Si elegiste valores en Atributos, se generan combinaciones; si no, se crea una variante unica.
+                - generic [ref=e549]:
+                  - textbox "Precio efectivo/transferencia" [ref=e551]: "1000"
+                  - textbox "Stock base" [ref=e553]: "1"
+                  - textbox "Color/es (Negro, Blanco)" [ref=e555]: Negro, Blanco
+                  - textbox "Talle/s (S, M, L)" [ref=e557]
+                  - textbox "Talle cintura/s (36, 38, 40)" [ref=e559]
+                  - textbox "Ancho prenda base (cm)" [ref=e561]
+                  - textbox "Largo prenda base (cm)" [ref=e563]
+                - button "Generar variantes" [active] [ref=e564] [cursor=pointer]
+              - table [ref=e566]:
+                - rowgroup [ref=e567]:
+                  - row "SKU Color Talle Talle cintura Precio Stock Ancho prenda Largo prenda Acciones" [ref=e568]:
+                    - columnheader
+                    - columnheader "SKU" [ref=e569]
+                    - columnheader "Color" [ref=e570]
+                    - columnheader "Talle" [ref=e571]
+                    - columnheader "Talle cintura" [ref=e572]
+                    - columnheader "Precio" [ref=e573]
+                    - columnheader "Stock" [ref=e574]
+                    - columnheader "Ancho prenda" [ref=e575]
+                    - columnheader "Largo prenda" [ref=e576]
+                    - columnheader "Acciones" [ref=e577]
+                - rowgroup
+            - generic [ref=e537]:
+              - paragraph [ref=e579]: Cannot POST /api/products/admin/skus/check
+              - generic [ref=e538]:
+                - button "Volver al catalogo" [ref=e539] [cursor=pointer]
+                - button "Atras" [ref=e540] [cursor=pointer]
+                - button "Siguiente" [ref=e541] [cursor=pointer]
+        - navigation "Menu administrador" [ref=e134]:
+          - generic [ref=e135]:
+            - button "Dashb." [ref=e136] [cursor=pointer]:
+              - img [ref=e138]
+              - generic [ref=e141]: Dashb.
+            - button "Ventas" [ref=e142] [cursor=pointer]:
+              - img [ref=e144]
+              - generic [ref=e149]: Ventas
+            - button "Hist." [ref=e150] [cursor=pointer]:
+              - img [ref=e152]
+              - generic [ref=e156]: Hist.
+            - button "Remitos" [ref=e157] [cursor=pointer]:
+              - img [ref=e159]
+              - generic [ref=e164]: Remitos
+            - button "Fiscal" [ref=e165] [cursor=pointer]:
+              - img [ref=e167]
+              - generic [ref=e169]: Fiscal
+            - button "Clientes" [ref=e170] [cursor=pointer]:
+              - img [ref=e172]
+              - generic [ref=e175]: Clientes
+            - button "Prod." [ref=e176] [cursor=pointer]:
+              - img [ref=e178]
+              - generic [ref=e181]: Prod.
+            - button "Stock" [ref=e182] [cursor=pointer]:
+              - img [ref=e184]
+              - generic [ref=e187]: Stock
+            - button "Cat." [ref=e188] [cursor=pointer]:
+              - img [ref=e190]
+              - generic [ref=e192]: Cat.
+            - button "Ajustes" [ref=e193] [cursor=pointer]:
+              - img [ref=e195]
+              - generic [ref=e198]: Ajustes
+  - button "Open Next.js Dev Tools" [ref=e77] [cursor=pointer]:
+    - img [ref=e78]
+  - alert [ref=e100]: WORKSPACE

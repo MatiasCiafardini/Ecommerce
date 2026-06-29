@@ -1,0 +1,140 @@
+- generic [ref=e1]:
+  - main [ref=e25]:
+    - main [ref=e27]:
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - paragraph [ref=e70]: Cuenta y gestion
+            - heading "Workspace" [level=1] [ref=e71]
+          - generic [ref=e467]:
+            - generic [ref=e468]:
+              - button "1 Info y logistica" [ref=e469] [cursor=pointer]:
+                - generic [ref=e470]: "1"
+                - text: Info y logistica
+              - button "2 Imagenes" [ref=e471] [cursor=pointer]:
+                - generic [ref=e472]: "2"
+                - text: Imagenes
+              - button "3 Atributos" [ref=e473] [cursor=pointer]:
+                - generic [ref=e474]: "3"
+                - text: Atributos
+              - button "4 Variantes" [ref=e475] [cursor=pointer]:
+                - generic [ref=e476]: "4"
+                - text: Variantes
+              - button "5 Publicacion" [ref=e477] [cursor=pointer]:
+                - generic [ref=e478]: "5"
+                - text: Publicacion
+            - generic [ref=e519]:
+              - generic [ref=e520]:
+                - paragraph [ref=e521]: Paso 4
+                - heading "Variantes y stock" [level=3] [ref=e522]
+              - generic [ref=e523]:
+                - strong [ref=e524]: Generador rapido
+                - generic [ref=e525]: Completa los datos base. Si elegiste valores en Atributos, se generan combinaciones; si no, se crea una variante unica.
+                - generic [ref=e526]:
+                  - textbox "Precio efectivo/transferencia" [ref=e528]
+                  - textbox "Stock base" [ref=e530]: "10001"
+                  - textbox "Color/es (Negro, Blanco)" [ref=e532]: Negro, Blanco
+                  - textbox "Talle/s (S, M, L)" [ref=e534]
+                  - textbox "Talle cintura/s (36, 38, 40)" [ref=e536]
+                  - textbox "Ancho prenda base (cm)" [ref=e538]
+                  - textbox "Largo prenda base (cm)" [ref=e540]
+                - button "Generar variantes" [active] [ref=e541] [cursor=pointer]
+              - table [ref=e543]:
+                - rowgroup [ref=e544]:
+                  - row "SKU Color Talle Talle cintura Precio Stock Ancho prenda Largo prenda Acciones" [ref=e545]:
+                    - columnheader [ref=e555]
+                    - columnheader "SKU" [ref=e546]
+                    - columnheader "Color" [ref=e547]
+                    - columnheader "Talle" [ref=e548]
+                    - columnheader "Talle cintura" [ref=e549]
+                    - columnheader "Precio" [ref=e550]
+                    - columnheader "Stock" [ref=e551]
+                    - columnheader "Ancho prenda" [ref=e552]
+                    - columnheader "Largo prenda" [ref=e553]
+                    - columnheader "Acciones" [ref=e554]
+                - rowgroup [ref=e556]:
+                  - row "SCP017A Negro 10001 Duplicar variante Eliminar variante" [ref=e557]:
+                    - cell [ref=e558]:
+                      - checkbox [ref=e559]
+                    - cell "SCP017A" [ref=e560]:
+                      - textbox "SKU" [ref=e561]: SCP017A
+                    - cell "Negro" [ref=e562]:
+                      - textbox "Color" [ref=e564]: Negro
+                    - cell [ref=e565]:
+                      - textbox "Talle" [ref=e567]
+                    - cell [ref=e568]:
+                      - textbox "Talle cintura" [ref=e570]
+                    - cell [ref=e571]:
+                      - textbox "Precio efectivo/transferencia" [ref=e572]
+                    - cell "10001" [ref=e573]:
+                      - textbox "0" [ref=e574]: "10001"
+                    - cell [ref=e575]:
+                      - textbox "cm" [ref=e576]
+                    - cell [ref=e577]:
+                      - textbox "cm" [ref=e578]
+                    - cell "Duplicar variante Eliminar variante" [ref=e579]:
+                      - generic [ref=e580]:
+                        - button "Duplicar variante" [ref=e581] [cursor=pointer]: ⧉
+                        - button "Eliminar variante" [ref=e582] [cursor=pointer]: ×
+                  - row "SCP017B Blanco 10001 Duplicar variante Eliminar variante" [ref=e583]:
+                    - cell [ref=e584]:
+                      - checkbox [ref=e585]
+                    - cell "SCP017B" [ref=e586]:
+                      - textbox "SKU" [ref=e587]: SCP017B
+                    - cell "Blanco" [ref=e588]:
+                      - textbox "Color" [ref=e590]: Blanco
+                    - cell [ref=e591]:
+                      - textbox "Talle" [ref=e593]
+                    - cell [ref=e594]:
+                      - textbox "Talle cintura" [ref=e596]
+                    - cell [ref=e597]:
+                      - textbox "Precio efectivo/transferencia" [ref=e598]
+                    - cell "10001" [ref=e599]:
+                      - textbox "0" [ref=e600]: "10001"
+                    - cell [ref=e601]:
+                      - textbox "cm" [ref=e602]
+                    - cell [ref=e603]:
+                      - textbox "cm" [ref=e604]
+                    - cell "Duplicar variante Eliminar variante" [ref=e605]:
+                      - generic [ref=e606]:
+                        - button "Duplicar variante" [ref=e607] [cursor=pointer]: ⧉
+                        - button "Eliminar variante" [ref=e608] [cursor=pointer]: ×
+            - generic [ref=e515]:
+              - button "Volver al catalogo" [ref=e516] [cursor=pointer]
+              - button "Atras" [ref=e517] [cursor=pointer]
+              - button "Siguiente" [ref=e518] [cursor=pointer]
+        - navigation "Menu administrador" [ref=e400]:
+          - generic [ref=e401]:
+            - button "Dashb." [ref=e402] [cursor=pointer]:
+              - img [ref=e404]
+              - generic [ref=e407]: Dashb.
+            - button "Ventas" [ref=e408] [cursor=pointer]:
+              - img [ref=e410]
+              - generic [ref=e415]: Ventas
+            - button "Hist." [ref=e416] [cursor=pointer]:
+              - img [ref=e418]
+              - generic [ref=e422]: Hist.
+            - button "Remitos" [ref=e423] [cursor=pointer]:
+              - img [ref=e425]
+              - generic [ref=e430]: Remitos
+            - button "Fiscal" [ref=e431] [cursor=pointer]:
+              - img [ref=e433]
+              - generic [ref=e435]: Fiscal
+            - button "Clientes" [ref=e436] [cursor=pointer]:
+              - img [ref=e438]
+              - generic [ref=e441]: Clientes
+            - button "Prod." [ref=e442] [cursor=pointer]:
+              - img [ref=e444]
+              - generic [ref=e447]: Prod.
+            - button "Stock" [ref=e448] [cursor=pointer]:
+              - img [ref=e450]
+              - generic [ref=e453]: Stock
+            - button "Cat." [ref=e454] [cursor=pointer]:
+              - img [ref=e456]
+              - generic [ref=e458]: Cat.
+            - button "Ajustes" [ref=e459] [cursor=pointer]:
+              - img [ref=e461]
+              - generic [ref=e464]: Ajustes
+  - button "Open Next.js Dev Tools" [ref=e63] [cursor=pointer]:
+    - img [ref=e64]
+  - alert [ref=e465]

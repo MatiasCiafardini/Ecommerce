@@ -1453,6 +1453,53 @@ export class ProductsService {
     }
   }
 
+  async checkSkus(
+    candidates: Array<{ sku: string; excludeVariantId?: number }>,
+    storeId: number,
+  ) {
+    const normalizedCandidates = candidates
+      .map((candidate) => ({
+        sku: candidate.sku.trim(),
+        excludeVariantId: candidate.excludeVariantId,
+      }))
+      .filter((candidate) => candidate.sku.length > 0);
+
+    if (normalizedCandidates.length === 0) {
+      return { unavailableSkus: [] };
+    }
+
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        deletedAt: null,
+        product: {
+          storeId,
+        },
+        OR: normalizedCandidates.map((candidate) => ({
+          sku: {
+            equals: candidate.sku,
+            mode: 'insensitive',
+          },
+        })),
+      },
+      select: {
+        id: true,
+        sku: true,
+      },
+    });
+
+    const unavailableSkus = normalizedCandidates
+      .filter((candidate) =>
+        variants.some(
+          (variant) =>
+            variant.sku.trim().toLowerCase() === candidate.sku.toLowerCase() &&
+            variant.id !== candidate.excludeVariantId,
+        ),
+      )
+      .map((candidate) => candidate.sku);
+
+    return { unavailableSkus };
+  }
+
   private normalizePositiveNumber(value?: number | null) {
     const parsed = Number(value ?? 0);
     if (!Number.isFinite(parsed) || parsed <= 0) {
