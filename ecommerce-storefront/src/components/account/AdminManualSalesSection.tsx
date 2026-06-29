@@ -215,6 +215,7 @@ export default function AdminManualSalesSection({
   const [splitPayments, setSplitPayments] = useState<ManualSalePaymentLine[]>([
     { method: "Efectivo", amount: "" },
   ]);
+  const [applyPaymentDiscount, setApplyPaymentDiscount] = useState(true);
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
   const [discountValue, setDiscountValue] = useState("");
   const [bankTransferDiscountPercentage, setBankTransferDiscountPercentage] = useState(0);
@@ -431,6 +432,14 @@ export default function AdminManualSalesSection({
   const selectedPaymentMethods = splitPayments.map((payment) => payment.method);
   const paymentMethodDiscountEligible = (method: string) =>
     method === "Efectivo" || method === "Transferencia";
+  const paymentDiscountActive =
+    applyPaymentDiscount && bankTransferDiscountPercentage > 0;
+  const effectivePaymentDiscountPercentage = paymentDiscountActive
+    ? bankTransferDiscountPercentage
+    : 0;
+  const showPaymentDiscountToggle =
+    bankTransferDiscountPercentage > 0 &&
+    selectedPaymentMethods.some((method) => paymentMethodDiscountEligible(method));
   const splitPaymentTotal = roundCurrency(
     normalizedSplitPayments.reduce((sum, payment) => sum + payment.amount, 0),
   );
@@ -442,7 +451,7 @@ export default function AdminManualSalesSection({
           calculatePaymentBaseCovered(
             payment.amount,
             payment.method,
-            bankTransferDiscountPercentage,
+            effectivePaymentDiscountPercentage,
           ),
         0,
       ),
@@ -459,7 +468,7 @@ export default function AdminManualSalesSection({
             calculatePaymentBaseCovered(
               payment.amount,
               payment.method,
-              bankTransferDiscountPercentage,
+              effectivePaymentDiscountPercentage,
             ) - payment.amount,
             0,
           ),
@@ -474,8 +483,8 @@ export default function AdminManualSalesSection({
       ? 1
       : 0;
   const paymentMethodDiscountPercentage =
-    paymentMethodDiscountRatio > 0
-      ? bankTransferDiscountPercentage
+    paymentDiscountActive && paymentMethodDiscountRatio > 0
+      ? effectivePaymentDiscountPercentage
       : 0;
   const fullPaymentMethodDiscountAmount =
     paymentMethodDiscountPercentage > 0
@@ -771,6 +780,7 @@ export default function AdminManualSalesSection({
     setSelectedCustomer(lockCustomer ? initialCustomer ?? null : null);
     setSelectedCurrentAccount(lockCustomer ? initialCurrentAccount ?? null : null);
     setUseCurrentAccountCredit(false);
+    setApplyPaymentDiscount(true);
     applyPaymentMethod(resetPaymentMethod);
     setSplitPaymentEnabled(false);
     setSplitPayments([
@@ -802,7 +812,7 @@ export default function AdminManualSalesSection({
         calculatePaymentBaseCovered(
           parseCurrencyInput(payment.amount),
           payment.method,
-          bankTransferDiscountPercentage,
+          effectivePaymentDiscountPercentage,
         )
       );
     }, 0);
@@ -810,7 +820,7 @@ export default function AdminManualSalesSection({
     const targetAmount = calculatePaymentAmountForBase(
       remainingBase,
       payments[targetIndex]?.method || "Efectivo",
-      bankTransferDiscountPercentage,
+      effectivePaymentDiscountPercentage,
     );
 
     return payments.map((payment, index) =>
@@ -818,7 +828,7 @@ export default function AdminManualSalesSection({
         ? { ...payment, amount: formatAmountInput(targetAmount) }
         : payment,
     );
-  }, [bankTransferDiscountPercentage, splitPaymentBaseTarget, subtotal]);
+  }, [effectivePaymentDiscountPercentage, splitPaymentBaseTarget, subtotal]);
 
   useEffect(() => {
     if (!splitPaymentEnabled) return;
@@ -828,7 +838,7 @@ export default function AdminManualSalesSection({
       const nextPayments = balanceSplitPayments(current, 0);
       return arePaymentLinesEqual(current, nextPayments) ? current : nextPayments;
     });
-  }, [balanceSplitPayments, bankTransferDiscountPercentage, discountType, discountValue, splitPaymentBaseTarget, splitPaymentEnabled]);
+  }, [balanceSplitPayments, discountType, discountValue, splitPaymentBaseTarget, splitPaymentEnabled]);
 
   const toggleSplitPayment = (enabled: boolean) => {
     setSplitPaymentEnabled(enabled);
@@ -841,7 +851,7 @@ export default function AdminManualSalesSection({
       const firstAmount = calculatePaymentAmountForBase(
         firstBase,
         firstMethod,
-        bankTransferDiscountPercentage,
+        effectivePaymentDiscountPercentage,
       );
       setSplitPayments(balanceSplitPayments([
         { method: firstMethod, amount: formatAmountInput(firstAmount) },
@@ -1603,6 +1613,19 @@ export default function AdminManualSalesSection({
                       >
                         + Agregar otro pago
                       </button>
+                    ) : null}
+
+                    {showPaymentDiscountToggle ? (
+                      <label className="manual-sale-payment-discount-check">
+                        <input
+                          type="checkbox"
+                          checked={applyPaymentDiscount}
+                          onChange={(event) => setApplyPaymentDiscount(event.target.checked)}
+                        />
+                        <span>
+                          Utilizar descuento efectivo/transferencia ({bankTransferDiscountPercentage}%)
+                        </span>
+                      </label>
                     ) : null}
 
                     {splitPaymentEnabled ? (
@@ -2408,7 +2431,8 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-split-toggle,
-        .manual-sale-credit-check {
+        .manual-sale-credit-check,
+        .manual-sale-payment-discount-check {
           display: flex;
           align-items: center;
           gap: 9px;
@@ -2421,7 +2445,8 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-split-toggle > span,
-        .manual-sale-credit-check > span {
+        .manual-sale-credit-check > span,
+        .manual-sale-payment-discount-check > span {
           margin: 0;
           color: inherit;
           font-size: inherit;
@@ -2431,7 +2456,8 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-split-toggle input,
-        .manual-sale-credit-check input {
+        .manual-sale-credit-check input,
+        .manual-sale-payment-discount-check input {
           width: 18px;
           height: 18px;
           accent-color: var(--sale-primary);
