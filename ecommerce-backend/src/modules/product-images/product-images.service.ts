@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { unlink } from 'fs/promises';
-import { join } from 'path';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { unlink, writeFile } from 'fs/promises';
+import { extname, join } from 'path';
+import type { ProductImage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductImageDto } from './dto/create-product-image.dto';
 import { UpdateProductImageDto } from './dto/update-product-image.dto';
@@ -9,6 +15,26 @@ import {
   CatalogAuditService,
   type CatalogAuditActor,
 } from '../catalog-audit/catalog-audit.service';
+import { ImportDriveProductImageItemDto } from './dto/import-drive-product-image.dto';
+
+const DRIVE_ALLOWED_MIMETYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+]);
+const DRIVE_EXTENSION_BY_MIMETYPE: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+};
+const DRIVE_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+type DriveFileMetadata = {
+  id?: string;
+  name?: string;
+  mimeType?: string;
+  size?: string;
+};
 
 @Injectable()
 export class ProductImagesService {
@@ -30,6 +56,84 @@ export class ProductImagesService {
     } catch {
       // File may already be gone — not a fatal error
     }
+  }
+
+  private async fetchDriveMetadata(
+    fileId: string,
+    accessToken: string,
+  ): Promise<DriveFileMetadata> {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(
+        fileId,
+      )}?fields=id,name,mimeType,size`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new BadRequestException(
+        'No se pudo leer la informacion de la imagen de Drive.',
+      );
+    }
+
+    return response.json() as Promise<DriveFileMetadata>;
+  }
+
+  private async downloadDriveFile(
+    fileId: string,
+    accessToken: string,
+  ): Promise<Buffer> {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(
+        fileId,
+      )}?alt=media`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new BadRequestException(
+        'No se pudo descargar la imagen seleccionada desde Drive.',
+      );
+    }
+
+    const contentLength = Number(response.headers.get('content-length') ?? 0);
+    if (contentLength > DRIVE_MAX_IMAGE_BYTES) {
+      throw new BadRequestException(
+        'Una imagen de Drive supera el limite de 8 MB.',
+      );
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > DRIVE_MAX_IMAGE_BYTES) {
+      throw new BadRequestException(
+        'Una imagen de Drive supera el limite de 8 MB.',
+      );
+    }
+
+    return Buffer.from(arrayBuffer);
+  }
+
+  private getDriveImageExtension(metadata: DriveFileMetadata) {
+    const mimeType = metadata.mimeType ?? '';
+    const extension = DRIVE_EXTENSION_BY_MIMETYPE[mimeType];
+
+    if (extension) {
+      return extension;
+    }
+
+    const nameExtension = extname(metadata.name ?? '').toLowerCase();
+    if (['.png', '.jpg', '.jpeg', '.webp'].includes(nameExtension)) {
+      return nameExtension === '.jpeg' ? '.jpg' : nameExtension;
+    }
+
+    return '.jpg';
   }
 
   async countByProduct(productId: number, storeId: number): Promise<number> {
@@ -84,6 +188,61 @@ export class ProductImagesService {
 
       return image;
     });
+  }
+
+  async importFromDrive(
+    productId: number,
+    files: ImportDriveProductImageItemDto[],
+    accessToken: string,
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
+    const importedImages: ProductImage[] = [];
+
+    for (const file of files) {
+      const metadata = await this.fetchDriveMetadata(file.fileId, accessToken);
+
+      if (!DRIVE_ALLOWED_MIMETYPES.has(metadata.mimeType ?? '')) {
+        throw new BadRequestException(
+          'Solo se pueden importar imagenes PNG, JPG o WebP desde Drive.',
+        );
+      }
+
+      const metadataSize = Number(metadata.size ?? 0);
+      if (metadataSize > DRIVE_MAX_IMAGE_BYTES) {
+        throw new BadRequestException(
+          'Una imagen de Drive supera el limite de 8 MB.',
+        );
+      }
+
+      const buffer = await this.downloadDriveFile(file.fileId, accessToken);
+      const filename = `${Date.now()}-${randomUUID()}${this.getDriveImageExtension(
+        metadata,
+      )}`;
+      const uploadPath = join(uploadsDir, filename);
+
+      try {
+        await writeFile(uploadPath, buffer);
+        const image = await this.create(
+          productId,
+          {
+            url: `${uploadsPublicPath}/${filename}`,
+            position: file.position,
+            offsetX: file.offsetX,
+            offsetY: file.offsetY,
+            zoom: file.zoom,
+          },
+          storeId,
+          actor,
+        );
+        importedImages.push(image);
+      } catch (error) {
+        await unlink(uploadPath).catch(() => null);
+        throw error;
+      }
+    }
+
+    return importedImages;
   }
 
   async findByProduct(productId: number, storeId: number) {

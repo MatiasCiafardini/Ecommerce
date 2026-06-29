@@ -26,3 +26,7 @@ export function getPublicApiUrl() {
 export function getGoogleClientId() {
   return process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
 }
+
+export function getGoogleApiKey() {
+  return process.env.NEXT_PUBLIC_GOOGLE_API_KEY?.trim() || "";
+}

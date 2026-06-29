@@ -5,6 +5,7 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, apiBlob } from "@/lib/api";
+import { getGoogleApiKey, getGoogleClientId } from "@/lib/runtime-config";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import { getClientStoreContext, getClientStoreId } from "@/lib/tenant/store-context";
 import {
@@ -184,6 +185,61 @@ type ExistingProductImage = {
   url: string;
 } & ImageLayoutState;
 
+type DrivePickerDocument = {
+  id?: string;
+  mimeType?: string;
+  name?: string;
+};
+
+type GoogleTokenResponse = {
+  access_token?: string;
+  error?: string;
+};
+
+type GoogleTokenClient = {
+  requestAccessToken: (options?: { prompt?: string }) => void;
+};
+
+type GooglePickerResponse = {
+  action?: string;
+  docs?: DrivePickerDocument[];
+};
+
+type GoogleApisWindow = Window & {
+  gapi?: {
+    load: (api: string, callback: () => void) => void;
+  };
+  google?: {
+    accounts?: {
+      oauth2?: {
+        initTokenClient: (options: {
+          client_id: string;
+          scope: string;
+          callback: (response: GoogleTokenResponse) => void;
+        }) => GoogleTokenClient;
+      };
+    };
+    picker?: {
+      Action: { CANCEL: string; PICKED: string };
+      DocsView: new (viewId: string) => {
+        setIncludeFolders: (includeFolders: boolean) => unknown;
+        setMimeTypes: (mimeTypes: string) => unknown;
+        setSelectFolderEnabled: (enabled: boolean) => unknown;
+      };
+      Feature: { MULTISELECT_ENABLED: string };
+      PickerBuilder: new () => {
+        addView: (view: unknown) => unknown;
+        enableFeature: (feature: string) => unknown;
+        setCallback: (callback: (response: GooglePickerResponse) => void) => unknown;
+        setDeveloperKey: (developerKey: string) => unknown;
+        setOAuthToken: (token: string) => unknown;
+        build: () => { setVisible: (visible: boolean) => void };
+      };
+      ViewId: { DOCS: string };
+    };
+  };
+};
+
 type EditableVariant = DraftVariant & {
   id?: number;
 };
@@ -296,6 +352,10 @@ const MAX_IMAGE_DIMENSION = 1400;
 const QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
 const IMAGE_UPLOAD_CONCURRENCY = 2;
 const ADMIN_PRODUCTS_PAGE_SIZE = 80;
+const GOOGLE_DRIVE_IMAGE_MIME_TYPES = "image/png,image/jpeg,image/webp";
+const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+let googleIdentityScriptPromise: Promise<void> | null = null;
+let googlePickerScriptPromise: Promise<void> | null = null;
 
 const revokeUploadImages = (images: UploadImage[]) => {
   images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
@@ -401,6 +461,118 @@ async function runWithConcurrency<T>(
       }
     }),
   );
+}
+
+function loadExternalScript(src: string) {
+  return new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${src}"]`,
+    );
+
+    if (existing) {
+      if (existing.dataset.loaded === "true") {
+        resolve();
+        return;
+      }
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("No se pudo cargar Google Drive.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      script.dataset.loaded = "true";
+      resolve();
+    };
+    script.onerror = () => reject(new Error("No se pudo cargar Google Drive."));
+    document.head.appendChild(script);
+  });
+}
+
+async function loadGoogleIdentityScript() {
+  if (!googleIdentityScriptPromise) {
+    googleIdentityScriptPromise = loadExternalScript("https://accounts.google.com/gsi/client");
+  }
+
+  return googleIdentityScriptPromise;
+}
+
+async function loadGooglePickerScript() {
+  if (!googlePickerScriptPromise) {
+    googlePickerScriptPromise = loadExternalScript("https://apis.google.com/js/api.js").then(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const googleWindow = window as GoogleApisWindow;
+          if (!googleWindow.gapi?.load) {
+            reject(new Error("No se pudo iniciar Google Picker."));
+            return;
+          }
+          googleWindow.gapi.load("picker", resolve);
+        }),
+    );
+  }
+
+  return googlePickerScriptPromise;
+}
+
+function requestGoogleDriveAccessToken(clientId: string) {
+  return new Promise<string>((resolve, reject) => {
+    const googleWindow = window as GoogleApisWindow;
+    const tokenClient = googleWindow.google?.accounts?.oauth2?.initTokenClient({
+      client_id: clientId,
+      scope: GOOGLE_DRIVE_FILE_SCOPE,
+      callback: (response) => {
+        if (response.error || !response.access_token) {
+          reject(new Error("Google no autorizo el acceso a Drive."));
+          return;
+        }
+        resolve(response.access_token);
+      },
+    });
+
+    if (!tokenClient) {
+      reject(new Error("Google Drive no esta disponible en este navegador."));
+      return;
+    }
+
+    tokenClient.requestAccessToken({ prompt: "" });
+  });
+}
+
+function openGoogleDrivePicker(apiKey: string, accessToken: string) {
+  return new Promise<DrivePickerDocument[]>((resolve) => {
+    const googleWindow = window as GoogleApisWindow;
+    const pickerApi = googleWindow.google?.picker;
+
+    if (!pickerApi) {
+      resolve([]);
+      return;
+    }
+
+    const view = new pickerApi.DocsView(pickerApi.ViewId.DOCS);
+    view.setIncludeFolders(false);
+    view.setSelectFolderEnabled(false);
+    view.setMimeTypes(GOOGLE_DRIVE_IMAGE_MIME_TYPES);
+
+    const picker = new pickerApi.PickerBuilder();
+    picker.setDeveloperKey(apiKey);
+    picker.setOAuthToken(accessToken);
+    picker.addView(view);
+    picker.enableFeature(pickerApi.Feature.MULTISELECT_ENABLED);
+    picker.setCallback((response) => {
+      if (response.action === pickerApi.Action.PICKED) {
+        resolve(response.docs ?? []);
+        return;
+      }
+      if (response.action === pickerApi.Action.CANCEL) {
+        resolve([]);
+      }
+    });
+    picker.build().setVisible(true);
+  });
 }
 
 export function scopeCategoriesToActiveStore(items: Category[]) {
@@ -799,6 +971,7 @@ export default function AdminProductsSection({
     [],
   );
   const [originalImageIds, setOriginalImageIds] = useState<number[]>([]);
+  const [importingDriveImages, setImportingDriveImages] = useState(false);
   const [imageGridLines, setImageGridLines] = useState(5);
   const [selectedOptionValues, setSelectedOptionValues] = useState<
     Record<number, string[]>
@@ -3017,6 +3190,110 @@ export default function AdminProductsSection({
     }
   }, [editingProductId, form, buildDraftProductPayload]);
 
+  const importImagesFromDrive = useCallback(async () => {
+    if (!canManageCatalog) {
+      setError("El vendedor puede consultar productos, pero no crear ni editar el catalogo.");
+      return;
+    }
+
+    if (importingDriveImages) {
+      return;
+    }
+
+    const clientId = getGoogleClientId();
+    const apiKey = getGoogleApiKey();
+
+    if (!clientId || !apiKey) {
+      setError("Google Drive no esta configurado en este frontend.");
+      return;
+    }
+
+    const availableSlots = Math.max(
+      0,
+      10 - existingImages.length - imageFiles.length,
+    );
+
+    if (availableSlots <= 0) {
+      setError("El producto ya tiene el maximo de 10 imagenes.");
+      return;
+    }
+
+    setImportingDriveImages(true);
+    setError("");
+
+    try {
+      const productId = editingProductId ?? (await ensureProductExistsForImageUploads());
+      if (!productId) {
+        return;
+      }
+
+      await Promise.all([loadGoogleIdentityScript(), loadGooglePickerScript()]);
+      const accessToken = await requestGoogleDriveAccessToken(clientId);
+      const docs = await openGoogleDrivePicker(apiKey, accessToken);
+      const selectedImages = docs
+        .filter((doc) => doc.id)
+        .slice(0, availableSlots);
+
+      if (selectedImages.length === 0) {
+        return;
+      }
+
+      const imported = await api(`/products/${productId}/images/import-drive`, {
+        method: "POST",
+        timeoutMs: 120_000,
+        body: JSON.stringify({
+          accessToken,
+          files: selectedImages.map((doc, index) => ({
+            fileId: doc.id,
+            ...defaultImageLayout(existingImages.length + imageFiles.length + index),
+          })),
+        }),
+      }) as Array<{
+        id: number;
+        url: string;
+        position?: number;
+        offsetX?: number;
+        offsetY?: number;
+        zoom?: number;
+      }>;
+
+      const importedImages = imported.map((image, index) => ({
+        id: image.id,
+        url: image.url,
+        position: Number(image.position ?? existingImages.length + imageFiles.length + index),
+        offsetX: Number(image.offsetX ?? 0),
+        offsetY: Number(image.offsetY ?? 0),
+        zoom: Number(image.zoom ?? 1),
+      }));
+
+      setExistingImages((current) => [...current, ...importedImages]);
+      setOriginalImageIds((current) => [
+        ...current,
+        ...importedImages.map((image) => image.id),
+      ]);
+      setSuccess(
+        importedImages.length === 1
+          ? "Imagen importada desde Drive."
+          : `${importedImages.length} imagenes importadas desde Drive.`,
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron importar las imagenes desde Drive.",
+      );
+    } finally {
+      setImportingDriveImages(false);
+    }
+  }, [
+    canManageCatalog,
+    editingProductId,
+    ensureProductExistsForImageUploads,
+    existingImages.length,
+    imageFiles.length,
+    importingDriveImages,
+  ]);
+
   const saveProduct = async (autoGenerateSkus = false, publishedOverride = form.published) => {
     if (!canManageCatalog) {
       setError("El vendedor puede consultar productos, pero no crear ni editar el catalogo.");
@@ -3466,16 +3743,26 @@ export default function AdminProductsSection({
             <h3 style={title3Style}>Imagenes</h3>
             <p style={copyStyle}>Hasta 10 imagenes. La primera es la portada. Usa los controles de orden de cada imagen y arrastra dentro del marco para encuadrar.</p>
           </div>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(event) => {
-              void appendImageFiles(Array.from(event.target.files ?? []));
-              event.currentTarget.value = "";
-            }}
-            style={fieldStyle}
-          />
+          <div style={imageSourceActionsStyle}>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => {
+                void appendImageFiles(Array.from(event.target.files ?? []));
+                event.currentTarget.value = "";
+              }}
+              style={fieldStyle}
+            />
+            <button
+              type="button"
+              onClick={() => void importImagesFromDrive()}
+              disabled={importingDriveImages}
+              style={secondaryButtonStyle}
+            >
+              {importingDriveImages ? "Importando..." : "Elegir desde Drive"}
+            </button>
+          </div>
           {existingImages.length > 0 ? (
             <div style={responsiveImageEditorGridStyle}>
               {existingImages.map((image, index) => (
@@ -4204,16 +4491,26 @@ export default function AdminProductsSection({
           </div>
 
           <Step title="Imagenes">
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(event) => {
-                void appendImageFiles(Array.from(event.target.files ?? []));
-                event.currentTarget.value = "";
-              }}
-              style={fieldStyle}
-            />
+            <div style={imageSourceActionsStyle}>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) => {
+                  void appendImageFiles(Array.from(event.target.files ?? []));
+                  event.currentTarget.value = "";
+                }}
+                style={fieldStyle}
+              />
+              <button
+                type="button"
+                onClick={() => void importImagesFromDrive()}
+                disabled={importingDriveImages}
+                style={secondaryButtonStyle}
+              >
+                {importingDriveImages ? "Importando..." : "Elegir desde Drive"}
+              </button>
+            </div>
             <span style={metaStyle}>
               Hasta 10 imagenes. Arrastra cada foto dentro del cuadro para
               definir exactamente como se vera en el catalogo.
@@ -6838,6 +7135,12 @@ const fieldStyle: React.CSSProperties = {
   borderRadius: 16,
   outline: "none",
   boxSizing: "border-box",
+};
+const imageSourceActionsStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
 };
 const smallFieldStyle: React.CSSProperties = {
   ...fieldStyle,
