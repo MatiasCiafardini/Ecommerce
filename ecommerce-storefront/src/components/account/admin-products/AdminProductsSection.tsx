@@ -197,7 +197,7 @@ type GoogleTokenResponse = {
 };
 
 type GoogleTokenClient = {
-  requestAccessToken: (options?: { prompt?: string }) => void;
+  requestAccessToken: (options?: { login_hint?: string; prompt?: string }) => void;
 };
 
 type GooglePickerResponse = {
@@ -215,6 +215,8 @@ type GoogleApisWindow = Window & {
         initTokenClient: (options: {
           client_id: string;
           scope: string;
+          login_hint?: string;
+          prompt?: string;
           callback: (response: GoogleTokenResponse) => void;
         }) => GoogleTokenClient;
       };
@@ -231,6 +233,7 @@ type GoogleApisWindow = Window & {
         addView: (view: unknown) => unknown;
         enableFeature: (feature: string) => unknown;
         setCallback: (callback: (response: GooglePickerResponse) => void) => unknown;
+        setAppId: (appId: string) => unknown;
         setDeveloperKey: (developerKey: string) => unknown;
         setOAuthToken: (token: string) => unknown;
         build: () => { setVisible: (visible: boolean) => void };
@@ -353,7 +356,7 @@ const QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
 const IMAGE_UPLOAD_CONCURRENCY = 2;
 const ADMIN_PRODUCTS_PAGE_SIZE = 80;
 const GOOGLE_DRIVE_IMAGE_MIME_TYPES = "image/png,image/jpeg,image/webp";
-const GOOGLE_DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const GOOGLE_DRIVE_AUTH_SCOPES = "openid email https://www.googleapis.com/auth/drive.file";
 let googleIdentityScriptPromise: Promise<void> | null = null;
 let googlePickerScriptPromise: Promise<void> | null = null;
 
@@ -518,12 +521,59 @@ async function loadGooglePickerScript() {
   return googlePickerScriptPromise;
 }
 
-function requestGoogleDriveAccessToken(clientId: string) {
+function getDriveAccountStorageKey() {
+  const { host, storeId } = getClientStoreContext();
+  return `admin-products:drive-account:${storeId}:${host}`;
+}
+
+function readStoredDriveAccountEmail() {
+  try {
+    return window.localStorage.getItem(getDriveAccountStorageKey()) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredDriveAccountEmail(email: string) {
+  try {
+    window.localStorage.setItem(getDriveAccountStorageKey(), email);
+  } catch {
+    // Local storage can be unavailable in private or restricted browsers.
+  }
+}
+
+function getGoogleDriveAppId(clientId: string) {
+  const [projectNumber] = clientId.split("-");
+  return /^\d+$/.test(projectNumber ?? "") ? projectNumber : "";
+}
+
+async function fetchGoogleDriveAccountEmail(accessToken: string) {
+  const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    return "";
+  }
+
+  const data = await response.json() as { email?: string };
+  return data.email?.trim() ?? "";
+}
+
+function requestGoogleDriveAccessToken(
+  clientId: string,
+  loginHint?: string,
+  forceAccountSelection = false,
+) {
   return new Promise<string>((resolve, reject) => {
     const googleWindow = window as GoogleApisWindow;
     const tokenClient = googleWindow.google?.accounts?.oauth2?.initTokenClient({
       client_id: clientId,
-      scope: GOOGLE_DRIVE_FILE_SCOPE,
+      scope: GOOGLE_DRIVE_AUTH_SCOPES,
+      ...(loginHint && !forceAccountSelection ? { login_hint: loginHint } : {}),
+      prompt: forceAccountSelection ? "select_account" : "",
       callback: (response) => {
         if (response.error || !response.access_token) {
           reject(new Error("Google no autorizo el acceso a Drive."));
@@ -538,11 +588,14 @@ function requestGoogleDriveAccessToken(clientId: string) {
       return;
     }
 
-    tokenClient.requestAccessToken({ prompt: "" });
+    tokenClient.requestAccessToken({
+      prompt: forceAccountSelection ? "select_account" : "",
+      ...(loginHint && !forceAccountSelection ? { login_hint: loginHint } : {}),
+    });
   });
 }
 
-function openGoogleDrivePicker(apiKey: string, accessToken: string) {
+function openGoogleDrivePicker(apiKey: string, accessToken: string, appId: string) {
   return new Promise<DrivePickerDocument[]>((resolve) => {
     const googleWindow = window as GoogleApisWindow;
     const pickerApi = googleWindow.google?.picker;
@@ -558,6 +611,7 @@ function openGoogleDrivePicker(apiKey: string, accessToken: string) {
     view.setMimeTypes(GOOGLE_DRIVE_IMAGE_MIME_TYPES);
 
     const picker = new pickerApi.PickerBuilder();
+    picker.setAppId(appId);
     picker.setDeveloperKey(apiKey);
     picker.setOAuthToken(accessToken);
     picker.addView(view);
@@ -972,6 +1026,7 @@ export default function AdminProductsSection({
   );
   const [originalImageIds, setOriginalImageIds] = useState<number[]>([]);
   const [importingDriveImages, setImportingDriveImages] = useState(false);
+  const [driveAccountEmail, setDriveAccountEmail] = useState("");
   const [imageGridLines, setImageGridLines] = useState(5);
   const [selectedOptionValues, setSelectedOptionValues] = useState<
     Record<number, string[]>
@@ -1177,6 +1232,10 @@ export default function AdminProductsSection({
   useEffect(() => {
     uploadImagesRef.current = imageFiles;
   }, [imageFiles]);
+
+  useEffect(() => {
+    setDriveAccountEmail(readStoredDriveAccountEmail());
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -3190,7 +3249,7 @@ export default function AdminProductsSection({
     }
   }, [editingProductId, form, buildDraftProductPayload]);
 
-  const importImagesFromDrive = useCallback(async () => {
+  const importImagesFromDrive = useCallback(async (forceAccountSelection = false) => {
     if (!canManageCatalog) {
       setError("El vendedor puede consultar productos, pero no crear ni editar el catalogo.");
       return;
@@ -3202,8 +3261,9 @@ export default function AdminProductsSection({
 
     const clientId = getGoogleClientId();
     const apiKey = getGoogleApiKey();
+    const appId = getGoogleDriveAppId(clientId);
 
-    if (!clientId || !apiKey) {
+    if (!clientId || !apiKey || !appId) {
       setError("Google Drive no esta configurado en este frontend.");
       return;
     }
@@ -3228,8 +3288,17 @@ export default function AdminProductsSection({
       }
 
       await Promise.all([loadGoogleIdentityScript(), loadGooglePickerScript()]);
-      const accessToken = await requestGoogleDriveAccessToken(clientId);
-      const docs = await openGoogleDrivePicker(apiKey, accessToken);
+      const accessToken = await requestGoogleDriveAccessToken(
+        clientId,
+        driveAccountEmail,
+        forceAccountSelection,
+      );
+      const accountEmail = await fetchGoogleDriveAccountEmail(accessToken);
+      if (accountEmail) {
+        writeStoredDriveAccountEmail(accountEmail);
+        setDriveAccountEmail(accountEmail);
+      }
+      const docs = await openGoogleDrivePicker(apiKey, accessToken, appId);
       const selectedImages = docs
         .filter((doc) => doc.id)
         .slice(0, availableSlots);
@@ -3290,6 +3359,7 @@ export default function AdminProductsSection({
     editingProductId,
     ensureProductExistsForImageUploads,
     existingImages.length,
+    driveAccountEmail,
     imageFiles.length,
     importingDriveImages,
   ]);
@@ -3762,6 +3832,19 @@ export default function AdminProductsSection({
             >
               {importingDriveImages ? "Importando..." : "Elegir desde Drive"}
             </button>
+            {driveAccountEmail ? (
+              <>
+                <span style={metaStyle}>{driveAccountEmail}</span>
+                <button
+                  type="button"
+                  onClick={() => void importImagesFromDrive(true)}
+                  disabled={importingDriveImages}
+                  style={ghostButtonStyle}
+                >
+                  Cambiar cuenta
+                </button>
+              </>
+            ) : null}
           </div>
           {existingImages.length > 0 ? (
             <div style={responsiveImageEditorGridStyle}>
@@ -4510,6 +4593,19 @@ export default function AdminProductsSection({
               >
                 {importingDriveImages ? "Importando..." : "Elegir desde Drive"}
               </button>
+              {driveAccountEmail ? (
+                <>
+                  <span style={metaStyle}>{driveAccountEmail}</span>
+                  <button
+                    type="button"
+                    onClick={() => void importImagesFromDrive(true)}
+                    disabled={importingDriveImages}
+                    style={ghostButtonStyle}
+                  >
+                    Cambiar cuenta
+                  </button>
+                </>
+              ) : null}
             </div>
             <span style={metaStyle}>
               Hasta 10 imagenes. Arrastra cada foto dentro del cuadro para
