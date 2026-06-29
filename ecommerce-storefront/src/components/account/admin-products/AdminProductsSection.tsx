@@ -196,6 +196,10 @@ type GoogleTokenResponse = {
   error?: string;
 };
 
+type GoogleTokenError = {
+  type?: string;
+};
+
 type GoogleTokenClient = {
   requestAccessToken: (options?: { login_hint?: string; prompt?: string }) => void;
 };
@@ -218,6 +222,7 @@ type GoogleApisWindow = Window & {
           login_hint?: string;
           prompt?: string;
           callback: (response: GoogleTokenResponse) => void;
+          error_callback?: (error: GoogleTokenError) => void;
         }) => GoogleTokenClient;
       };
     };
@@ -357,6 +362,7 @@ const IMAGE_UPLOAD_CONCURRENCY = 2;
 const ADMIN_PRODUCTS_PAGE_SIZE = 80;
 const GOOGLE_DRIVE_IMAGE_MIME_TYPES = "image/png,image/jpeg,image/webp";
 const GOOGLE_DRIVE_AUTH_SCOPES = "openid email https://www.googleapis.com/auth/drive.file";
+const GOOGLE_DRIVE_AUTH_TIMEOUT_MS = 45_000;
 let googleIdentityScriptPromise: Promise<void> | null = null;
 let googlePickerScriptPromise: Promise<void> | null = null;
 
@@ -568,6 +574,24 @@ function requestGoogleDriveAccessToken(
   forceAccountSelection = false,
 ) {
   return new Promise<string>((resolve, reject) => {
+    let settled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(new Error("Se cancelo la seleccion de cuenta de Google."));
+    }, GOOGLE_DRIVE_AUTH_TIMEOUT_MS);
+
+    const finish = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      window.clearTimeout(timeoutId);
+      callback();
+    };
+
     const googleWindow = window as GoogleApisWindow;
     const tokenClient = googleWindow.google?.accounts?.oauth2?.initTokenClient({
       client_id: clientId,
@@ -575,16 +599,24 @@ function requestGoogleDriveAccessToken(
       ...(loginHint && !forceAccountSelection ? { login_hint: loginHint } : {}),
       prompt: forceAccountSelection ? "select_account" : "",
       callback: (response) => {
-        if (response.error || !response.access_token) {
-          reject(new Error("Google no autorizo el acceso a Drive."));
+        const accessToken = response.access_token;
+        if (response.error || !accessToken) {
+          finish(() => reject(new Error("Google no autorizo el acceso a Drive.")));
           return;
         }
-        resolve(response.access_token);
+        finish(() => resolve(accessToken));
+      },
+      error_callback: (error) => {
+        const message =
+          error.type === "popup_closed"
+            ? "Se cancelo la seleccion de cuenta de Google."
+            : "Google no autorizo el acceso a Drive.";
+        finish(() => reject(new Error(message)));
       },
     });
 
     if (!tokenClient) {
-      reject(new Error("Google Drive no esta disponible en este navegador."));
+      finish(() => reject(new Error("Google Drive no esta disponible en este navegador.")));
       return;
     }
 
