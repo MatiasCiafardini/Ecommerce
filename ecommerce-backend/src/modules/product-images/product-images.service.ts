@@ -36,6 +36,10 @@ type DriveFileMetadata = {
   size?: string;
 };
 
+function formatMegabytes(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 @Injectable()
 export class ProductImagesService {
   constructor(
@@ -85,6 +89,7 @@ export class ProductImagesService {
   private async downloadDriveFile(
     fileId: string,
     accessToken: string,
+    fileName?: string,
   ): Promise<Buffer> {
     const response = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(
@@ -106,14 +111,18 @@ export class ProductImagesService {
     const contentLength = Number(response.headers.get('content-length') ?? 0);
     if (contentLength > DRIVE_MAX_IMAGE_BYTES) {
       throw new BadRequestException(
-        'Una imagen de Drive supera el limite de 8 MB.',
+        `${fileName ?? 'Una imagen de Drive'} pesa ${formatMegabytes(
+          contentLength,
+        )}. El limite por imagen es 8 MB.`,
       );
     }
 
     const arrayBuffer = await response.arrayBuffer();
     if (arrayBuffer.byteLength > DRIVE_MAX_IMAGE_BYTES) {
       throw new BadRequestException(
-        'Una imagen de Drive supera el limite de 8 MB.',
+        `${fileName ?? 'Una imagen de Drive'} pesa ${formatMegabytes(
+          arrayBuffer.byteLength,
+        )}. El limite por imagen es 8 MB.`,
       );
     }
 
@@ -211,11 +220,17 @@ export class ProductImagesService {
       const metadataSize = Number(metadata.size ?? 0);
       if (metadataSize > DRIVE_MAX_IMAGE_BYTES) {
         throw new BadRequestException(
-          'Una imagen de Drive supera el limite de 8 MB.',
+          `${metadata.name ?? 'Una imagen de Drive'} pesa ${formatMegabytes(
+            metadataSize,
+          )}. El limite por imagen es 8 MB.`,
         );
       }
 
-      const buffer = await this.downloadDriveFile(file.fileId, accessToken);
+      const buffer = await this.downloadDriveFile(
+        file.fileId,
+        accessToken,
+        metadata.name,
+      );
       const filename = `${Date.now()}-${randomUUID()}${this.getDriveImageExtension(
         metadata,
       )}`;

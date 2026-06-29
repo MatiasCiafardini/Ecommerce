@@ -189,6 +189,7 @@ type DrivePickerDocument = {
   id?: string;
   mimeType?: string;
   name?: string;
+  sizeBytes?: number | string;
 };
 
 type GoogleTokenResponse = {
@@ -240,6 +241,7 @@ type GoogleApisWindow = Window & {
         setCallback: (callback: (response: GooglePickerResponse) => void) => unknown;
         setAppId: (appId: string) => unknown;
         setDeveloperKey: (developerKey: string) => unknown;
+        setSelectableMimeTypes?: (mimeTypes: string) => unknown;
         setOAuthToken: (token: string) => unknown;
         build: () => { setVisible: (visible: boolean) => void };
       };
@@ -363,6 +365,7 @@ const ADMIN_PRODUCTS_PAGE_SIZE = 80;
 const GOOGLE_DRIVE_IMAGE_MIME_TYPES = "image/png,image/jpeg,image/webp";
 const GOOGLE_DRIVE_AUTH_SCOPES = "openid email https://www.googleapis.com/auth/drive.file";
 const GOOGLE_DRIVE_AUTH_TIMEOUT_MS = 45_000;
+const GOOGLE_DRIVE_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 let googleIdentityScriptPromise: Promise<void> | null = null;
 let googlePickerScriptPromise: Promise<void> | null = null;
 
@@ -646,6 +649,7 @@ function openGoogleDrivePicker(apiKey: string, accessToken: string, appId: strin
     picker.setAppId(appId);
     picker.setDeveloperKey(apiKey);
     picker.setOAuthToken(accessToken);
+    picker.setSelectableMimeTypes?.(GOOGLE_DRIVE_IMAGE_MIME_TYPES);
     picker.addView(view);
     picker.enableFeature(pickerApi.Feature.MULTISELECT_ENABLED);
     picker.setCallback((response) => {
@@ -659,6 +663,15 @@ function openGoogleDrivePicker(apiKey: string, accessToken: string, appId: strin
     });
     picker.build().setVisible(true);
   });
+}
+
+function getDriveDocumentSizeBytes(document: DrivePickerDocument) {
+  const parsed = Number(document.sizeBytes ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function formatMegabytes(bytes: number) {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function scopeCategoriesToActiveStore(items: Category[]) {
@@ -3465,6 +3478,27 @@ export default function AdminProductsSection({
         .slice(0, availableSlots);
 
       if (selectedImages.length === 0) {
+        return;
+      }
+
+      const oversizedImages = selectedImages.filter(
+        (doc) => getDriveDocumentSizeBytes(doc) > GOOGLE_DRIVE_MAX_IMAGE_BYTES,
+      );
+
+      if (oversizedImages.length > 0) {
+        const oversizedNames = oversizedImages
+          .slice(0, 3)
+          .map((doc) => {
+            const size = getDriveDocumentSizeBytes(doc);
+            return `${doc.name ?? "Imagen sin nombre"} (${formatMegabytes(size)})`;
+          })
+          .join(", ");
+        const extraCount = oversizedImages.length - 3;
+        setError(
+          `No se importo desde Drive: ${oversizedNames}${
+            extraCount > 0 ? ` y ${extraCount} mas` : ""
+          }. Cada imagen debe pesar menos de 8 MB.`,
+        );
         return;
       }
 
