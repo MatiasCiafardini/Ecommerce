@@ -254,6 +254,8 @@ type GoogleApisWindow = Window & {
         setCallback: (callback: (response: GooglePickerResponse) => void) => unknown;
         setAppId: (appId: string) => unknown;
         setDeveloperKey: (developerKey: string) => unknown;
+        setMaxItems?: (maxItems: number) => unknown;
+        setOrigin?: (origin: string) => unknown;
         setSelectableMimeTypes?: (mimeTypes: string) => unknown;
         setOAuthToken: (token: string) => unknown;
         build: () => { setVisible: (visible: boolean) => void };
@@ -656,7 +658,7 @@ function requestGoogleDriveAccessToken(
   });
 }
 
-function openGoogleDrivePicker(apiKey: string, accessToken: string, appId: string) {
+function openGoogleDrivePicker(apiKey: string, accessToken: string, appId: string, maxItems: number) {
   return new Promise<DrivePickerDocument[]>((resolve) => {
     const googleWindow = window as GoogleApisWindow;
     const pickerApi = googleWindow.google?.picker;
@@ -666,18 +668,20 @@ function openGoogleDrivePicker(apiKey: string, accessToken: string, appId: strin
       return;
     }
 
-    const view = new pickerApi.DocsView(pickerApi.ViewId.DOCS_IMAGES ?? pickerApi.ViewId.DOCS);
+    const view = new pickerApi.DocsView(pickerApi.ViewId.DOCS);
     view.setIncludeFolders(false);
     view.setSelectFolderEnabled(false);
     view.setMimeTypes(GOOGLE_DRIVE_IMAGE_MIME_TYPES);
-    if (pickerApi.DocsViewMode?.LIST) {
-      view.setMode?.(pickerApi.DocsViewMode.LIST);
+    if (pickerApi.DocsViewMode?.GRID) {
+      view.setMode?.(pickerApi.DocsViewMode.GRID);
     }
 
     const picker = new pickerApi.PickerBuilder();
     picker.setAppId(appId);
     picker.setDeveloperKey(apiKey);
     picker.setOAuthToken(accessToken);
+    picker.setMaxItems?.(maxItems);
+    picker.setOrigin?.(window.location.origin);
     picker.setSelectableMimeTypes?.(GOOGLE_DRIVE_IMAGE_MIME_TYPES);
     picker.addView(view);
     picker.enableFeature(pickerApi.Feature.MULTISELECT_ENABLED);
@@ -3540,7 +3544,7 @@ export default function AdminProductsSection({
         writeStoredDriveAccountEmail(accountEmail);
         setDriveAccountEmail(accountEmail);
       }
-      const docs = await openGoogleDrivePicker(apiKey, accessToken, appId);
+      const docs = await openGoogleDrivePicker(apiKey, accessToken, appId, availableSlots);
       const selectedImages = docs
         .filter((doc) => doc.id)
         .slice(0, availableSlots);
