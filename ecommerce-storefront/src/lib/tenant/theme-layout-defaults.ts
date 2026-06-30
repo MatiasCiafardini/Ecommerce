@@ -305,6 +305,13 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
             { href: "https://wa.me/5492326494545", label: "WhatsApp" },
           ],
         },
+        {
+          title: "Legal",
+          links: [
+            { href: "/politica-de-privacidad", label: "Politica de privacidad" },
+            { href: "/terminos-y-condiciones", label: "Terminos y condiciones" },
+          ],
+        },
       ],
     },
   },
