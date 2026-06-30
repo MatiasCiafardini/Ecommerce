@@ -377,7 +377,7 @@ const GOOGLE_DRIVE_IMAGE_MIME_TYPES = [
   "image/heif",
   "image/svg+xml",
 ].join(",");
-const GOOGLE_DRIVE_AUTH_SCOPES = "openid email https://www.googleapis.com/auth/drive.readonly";
+const GOOGLE_DRIVE_AUTH_SCOPES = "openid email https://www.googleapis.com/auth/drive.file";
 const GOOGLE_DRIVE_AUTH_TIMEOUT_MS = 45_000;
 const GOOGLE_DRIVE_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 let googleIdentityScriptPromise: Promise<void> | null = null;
