@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import { unlink, writeFile } from 'fs/promises';
 import { extname, join } from 'path';
 import type { ProductImage } from '@prisma/client';
+import sharp from 'sharp';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductImageDto } from './dto/create-product-image.dto';
 import { UpdateProductImageDto } from './dto/update-product-image.dto';
@@ -21,12 +22,37 @@ const DRIVE_ALLOWED_MIMETYPES = new Set([
   'image/png',
   'image/jpeg',
   'image/webp',
+  'image/gif',
+  'image/avif',
+  'image/bmp',
+  'image/x-ms-bmp',
+  'image/tiff',
+  'image/heic',
+  'image/heif',
+  'image/svg+xml',
 ]);
 const DRIVE_EXTENSION_BY_MIMETYPE: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
   'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/avif': '.avif',
+  'image/bmp': '.bmp',
+  'image/x-ms-bmp': '.bmp',
+  'image/tiff': '.tiff',
+  'image/heic': '.heic',
+  'image/heif': '.heif',
+  'image/svg+xml': '.svg',
 };
+const DRIVE_BROWSER_RENDERABLE_MIMETYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+  'image/bmp',
+  'image/x-ms-bmp',
+]);
 const DRIVE_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 type DriveFileMetadata = {
@@ -138,11 +164,58 @@ export class ProductImagesService {
     }
 
     const nameExtension = extname(metadata.name ?? '').toLowerCase();
-    if (['.png', '.jpg', '.jpeg', '.webp'].includes(nameExtension)) {
+    if (
+      [
+        '.png',
+        '.jpg',
+        '.jpeg',
+        '.webp',
+        '.gif',
+        '.avif',
+        '.bmp',
+        '.tif',
+        '.tiff',
+        '.heic',
+        '.heif',
+        '.svg',
+      ].includes(nameExtension)
+    ) {
       return nameExtension === '.jpeg' ? '.jpg' : nameExtension;
     }
 
     return '.jpg';
+  }
+
+  private async prepareDriveImageForStorage(
+    metadata: DriveFileMetadata,
+    buffer: Buffer,
+  ): Promise<{ buffer: Buffer; extension: string }> {
+    try {
+      const converted = await sharp(buffer, { animated: metadata.mimeType === 'image/gif' })
+        .rotate()
+        .webp({ quality: 88 })
+        .toBuffer();
+
+      if (converted.byteLength > DRIVE_MAX_IMAGE_BYTES) {
+        throw new BadRequestException(
+          `${metadata.name ?? 'Una imagen de Drive'} pesa ${formatMegabytes(
+            converted.byteLength,
+          )} luego de convertirla. El limite por imagen es 8 MB.`,
+        );
+      }
+
+      return { buffer: converted, extension: '.webp' };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      if (DRIVE_BROWSER_RENDERABLE_MIMETYPES.has(metadata.mimeType ?? '')) {
+        return { buffer, extension: this.getDriveImageExtension(metadata) };
+      }
+      throw new BadRequestException(
+        `No se pudo convertir ${metadata.name ?? 'la imagen de Drive'} a un formato compatible para previsualizar.`,
+      );
+    }
   }
 
   async countByProduct(productId: number, storeId: number): Promise<number> {
@@ -213,7 +286,7 @@ export class ProductImagesService {
 
       if (!DRIVE_ALLOWED_MIMETYPES.has(metadata.mimeType ?? '')) {
         throw new BadRequestException(
-          'Solo se pueden importar imagenes PNG, JPG o WebP desde Drive.',
+          'Solo se pueden importar imagenes PNG, JPG, WebP, GIF, AVIF, BMP, TIFF, HEIC, HEIF o SVG desde Drive.',
         );
       }
 
@@ -231,13 +304,12 @@ export class ProductImagesService {
         accessToken,
         metadata.name,
       );
-      const filename = `${Date.now()}-${randomUUID()}${this.getDriveImageExtension(
-        metadata,
-      )}`;
+      const storageImage = await this.prepareDriveImageForStorage(metadata, buffer);
+      const filename = `${Date.now()}-${randomUUID()}${storageImage.extension}`;
       const uploadPath = join(uploadsDir, filename);
 
       try {
-        await writeFile(uploadPath, buffer);
+        await writeFile(uploadPath, storageImage.buffer);
         const image = await this.create(
           productId,
           {

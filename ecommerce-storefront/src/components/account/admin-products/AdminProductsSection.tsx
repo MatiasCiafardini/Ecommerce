@@ -231,6 +231,7 @@ type GoogleApisWindow = Window & {
       Action: { CANCEL: string; PICKED: string };
       DocsView: new (viewId: string) => {
         setIncludeFolders: (includeFolders: boolean) => unknown;
+        setMode?: (mode: string) => unknown;
         setMimeTypes: (mimeTypes: string) => unknown;
         setSelectFolderEnabled: (enabled: boolean) => unknown;
       };
@@ -245,7 +246,8 @@ type GoogleApisWindow = Window & {
         setOAuthToken: (token: string) => unknown;
         build: () => { setVisible: (visible: boolean) => void };
       };
-      ViewId: { DOCS: string };
+      DocsViewMode?: { GRID: string; LIST: string };
+      ViewId: { DOCS: string; DOCS_IMAGES?: string };
     };
   };
 };
@@ -362,8 +364,20 @@ const MAX_IMAGE_DIMENSION = 1400;
 const QUALITY_STEPS = [0.85, 0.75, 0.65, 0.55, 0.45];
 const IMAGE_UPLOAD_CONCURRENCY = 2;
 const ADMIN_PRODUCTS_PAGE_SIZE = 80;
-const GOOGLE_DRIVE_IMAGE_MIME_TYPES = "image/png,image/jpeg,image/webp";
-const GOOGLE_DRIVE_AUTH_SCOPES = "openid email https://www.googleapis.com/auth/drive.file";
+const GOOGLE_DRIVE_IMAGE_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+  "image/bmp",
+  "image/x-ms-bmp",
+  "image/tiff",
+  "image/heic",
+  "image/heif",
+  "image/svg+xml",
+].join(",");
+const GOOGLE_DRIVE_AUTH_SCOPES = "openid email https://www.googleapis.com/auth/drive.readonly";
 const GOOGLE_DRIVE_AUTH_TIMEOUT_MS = 45_000;
 const GOOGLE_DRIVE_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 let googleIdentityScriptPromise: Promise<void> | null = null;
@@ -640,10 +654,13 @@ function openGoogleDrivePicker(apiKey: string, accessToken: string, appId: strin
       return;
     }
 
-    const view = new pickerApi.DocsView(pickerApi.ViewId.DOCS);
+    const view = new pickerApi.DocsView(pickerApi.ViewId.DOCS_IMAGES ?? pickerApi.ViewId.DOCS);
     view.setIncludeFolders(false);
     view.setSelectFolderEnabled(false);
     view.setMimeTypes(GOOGLE_DRIVE_IMAGE_MIME_TYPES);
+    if (pickerApi.DocsViewMode?.GRID) {
+      view.setMode?.(pickerApi.DocsViewMode.GRID);
+    }
 
     const picker = new pickerApi.PickerBuilder();
     picker.setAppId(appId);

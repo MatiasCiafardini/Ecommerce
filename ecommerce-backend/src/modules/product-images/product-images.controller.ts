@@ -28,11 +28,23 @@ import { uploadsDir } from '../../common/uploads';
 
 const MAX_IMAGES_PER_PRODUCT = 10;
 
-const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const ALLOWED_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
+  '.gif',
+  '.avif',
+  '.bmp',
+]);
 const ALLOWED_MIMETYPES = new Set([
   'image/png',
   'image/jpeg',
   'image/webp',
+  'image/gif',
+  'image/avif',
+  'image/bmp',
+  'image/x-ms-bmp',
 ]);
 
 interface UploadedImageFile {
