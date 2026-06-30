@@ -192,18 +192,6 @@ type DrivePickerDocument = {
   sizeBytes?: number | string;
 };
 
-type DrivePreviewImage = {
-  fileId: string;
-  name: string;
-  previewUrl: string;
-} & ImageLayoutState;
-
-type DrivePreviewSelection = {
-  accessToken: string;
-  productId: number;
-  images: DrivePreviewImage[];
-};
-
 type GoogleTokenResponse = {
   access_token?: string;
   error?: string;
@@ -707,37 +695,6 @@ function formatMegabytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-async function createDrivePreviewImage(
-  document: DrivePickerDocument,
-  accessToken: string,
-  layout: ImageLayoutState,
-): Promise<DrivePreviewImage> {
-  if (!document.id) {
-    throw new Error("La imagen seleccionada no tiene identificador de Drive.");
-  }
-
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(document.id)}?alt=media`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`No se pudo previsualizar ${document.name ?? "la imagen seleccionada"}.`);
-  }
-
-  const blob = await response.blob();
-  return {
-    fileId: document.id,
-    name: document.name ?? "Imagen de Drive",
-    previewUrl: URL.createObjectURL(blob),
-    ...layout,
-  };
-}
-
 export function scopeCategoriesToActiveStore(items: Category[]) {
   const storeId = (() => {
     try {
@@ -1136,8 +1093,6 @@ export default function AdminProductsSection({
   const [originalImageIds, setOriginalImageIds] = useState<number[]>([]);
   const [importingDriveImages, setImportingDriveImages] = useState(false);
   const [driveAccountEmail, setDriveAccountEmail] = useState("");
-  const [drivePreviewSelection, setDrivePreviewSelection] =
-    useState<DrivePreviewSelection | null>(null);
   const [imageGridLines, setImageGridLines] = useState(5);
   const [selectedOptionValues, setSelectedOptionValues] = useState<
     Record<number, string[]>
@@ -1347,12 +1302,6 @@ export default function AdminProductsSection({
   useEffect(() => {
     setDriveAccountEmail(readStoredDriveAccountEmail());
   }, []);
-
-  useEffect(() => {
-    return () => {
-      drivePreviewSelection?.images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-    };
-  }, [drivePreviewSelection]);
 
   useEffect(() => {
     return () => {
@@ -3574,65 +3523,14 @@ export default function AdminProductsSection({
         return;
       }
 
-      const previewImages = await Promise.all(
-        selectedImages.map((doc, index) =>
-          createDrivePreviewImage(
-            doc,
-            accessToken,
-            defaultImageLayout(existingImages.length + imageFiles.length + index),
-          ),
-        ),
-      );
-
-      setDrivePreviewSelection({
-        accessToken,
-        productId,
-        images: previewImages,
-      });
-      setSuccess("");
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "No se pudieron importar las imagenes desde Drive.",
-      );
-    } finally {
-      setImportingDriveImages(false);
-    }
-  }, [
-    canManageCatalog,
-    editingProductId,
-    ensureProductExistsForImageUploads,
-    existingImages.length,
-    driveAccountEmail,
-    imageFiles.length,
-    importingDriveImages,
-  ]);
-
-  const closeDrivePreviewSelection = useCallback(() => {
-    setDrivePreviewSelection(null);
-  }, []);
-
-  const confirmDrivePreviewImport = useCallback(async () => {
-    if (!drivePreviewSelection || importingDriveImages) {
-      return;
-    }
-
-    setImportingDriveImages(true);
-    setError("");
-
-    try {
-      const imported = await api(`/products/${drivePreviewSelection.productId}/images/import-drive`, {
+      const imported = await api(`/products/${productId}/images/import-drive`, {
         method: "POST",
         timeoutMs: 120_000,
         body: JSON.stringify({
-          accessToken: drivePreviewSelection.accessToken,
-          files: drivePreviewSelection.images.map((image) => ({
-            fileId: image.fileId,
-            position: image.position,
-            offsetX: image.offsetX,
-            offsetY: image.offsetY,
-            zoom: image.zoom,
+          accessToken,
+          files: selectedImages.map((doc, index) => ({
+            fileId: doc.id,
+            ...defaultImageLayout(existingImages.length + imageFiles.length + index),
           })),
         }),
       }) as Array<{
@@ -3658,7 +3556,6 @@ export default function AdminProductsSection({
         ...current,
         ...importedImages.map((image) => image.id),
       ]);
-      setDrivePreviewSelection(null);
       setSuccess(
         importedImages.length === 1
           ? "Imagen importada desde Drive."
@@ -3674,8 +3571,11 @@ export default function AdminProductsSection({
       setImportingDriveImages(false);
     }
   }, [
-    drivePreviewSelection,
+    canManageCatalog,
+    editingProductId,
+    ensureProductExistsForImageUploads,
     existingImages.length,
+    driveAccountEmail,
     imageFiles.length,
     importingDriveImages,
   ]);
@@ -5762,71 +5662,6 @@ export default function AdminProductsSection({
           />
         </section>
       </section>
-      {drivePreviewSelection ? (
-        <div
-          style={confirmModalOverlayStyle}
-          role="presentation"
-          onClick={closeDrivePreviewSelection}
-        >
-          <section
-            style={{ ...modalCardStyle, maxWidth: 920 }}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="drive-preview-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div style={{ display: "grid", gap: 16 }}>
-              <div style={betweenStyle}>
-                <div>
-                  <p style={eyebrowStyle}>Google Drive</p>
-                  <h3 id="drive-preview-title" style={{ ...title3Style, marginTop: 6 }}>
-                    Revisar imagenes seleccionadas
-                  </h3>
-                </div>
-                <span style={statusChipStyle("active")}>
-                  {drivePreviewSelection.images.length} imagen{drivePreviewSelection.images.length === 1 ? "" : "es"}
-                </span>
-              </div>
-              <div style={drivePreviewGridStyle}>
-                {drivePreviewSelection.images.map((image) => (
-                  <article key={image.fileId} style={drivePreviewCardStyle}>
-                    <div
-                      aria-label={image.name}
-                      role="img"
-                      style={{
-                        ...drivePreviewImageWrapStyle,
-                        backgroundImage: `url("${image.previewUrl}")`,
-                      }}
-                    />
-                    <span style={drivePreviewNameStyle} title={image.name}>
-                      {image.name}
-                    </span>
-                  </article>
-                ))}
-              </div>
-              {error ? <p style={errorStyle}>{error}</p> : null}
-              <div style={modalActionsStyle}>
-                <button
-                  type="button"
-                  onClick={closeDrivePreviewSelection}
-                  disabled={importingDriveImages}
-                  style={ghostButtonStyle}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void confirmDrivePreviewImport()}
-                  disabled={importingDriveImages}
-                  style={primaryButtonStyle}
-                >
-                  {importingDriveImages ? "Importando..." : "Importar estas imagenes"}
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
-      ) : null}
       {pendingRemoval ? (
         <div
           style={confirmModalOverlayStyle}
@@ -8073,39 +7908,6 @@ const modalActionsStyle: React.CSSProperties = {
   justifyContent: "flex-end",
   gap: 12,
   flexWrap: "wrap",
-};
-const drivePreviewGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-  gap: 12,
-};
-const drivePreviewCardStyle: React.CSSProperties = {
-  minWidth: 0,
-  borderRadius: 14,
-  border: "1px solid var(--checkout-border)",
-  background: "var(--page-panel-bg)",
-  padding: 10,
-  display: "grid",
-  gap: 8,
-};
-const drivePreviewImageWrapStyle: React.CSSProperties = {
-  position: "relative",
-  width: "100%",
-  aspectRatio: "1 / 1",
-  borderRadius: 10,
-  overflow: "hidden",
-  background: "var(--muted-field-bg)",
-  backgroundPosition: "center",
-  backgroundRepeat: "no-repeat",
-  backgroundSize: "cover",
-};
-const drivePreviewNameStyle: React.CSSProperties = {
-  minWidth: 0,
-  color: "var(--account-text-muted)",
-  fontSize: 12,
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
 };
 const optionCardStyle: React.CSSProperties = {
   ...blockStyle,
