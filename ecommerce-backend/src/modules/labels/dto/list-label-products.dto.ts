@@ -9,7 +9,7 @@ const toOptionalBoolean = ({ value }: { value: unknown }) => {
   return value;
 };
 
-const sortFields = ['product', 'variant', 'sku', 'stock', 'price'] as const;
+const sortFields = ['product', 'variant', 'color', 'size', 'sku', 'stock', 'price'] as const;
 const sortDirections = ['asc', 'desc'] as const;
 
 export class ListLabelProductsDto {
@@ -27,6 +27,16 @@ export class ListLabelProductsDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  size?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

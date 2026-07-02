@@ -76,7 +76,7 @@ export class LabelsService {
     const limit = Math.min(100, Math.max(1, Number(query.limit ?? 25)));
     const where = this.buildVariantWhere(storeId, query);
 
-    const [total, variants] = await Promise.all([
+    const [total, variants, filterOptions] = await Promise.all([
       this.prisma.productVariant.count({ where }),
       this.prisma.productVariant.findMany({
         where,
@@ -100,10 +100,12 @@ export class LabelsService {
         skip: (page - 1) * limit,
         take: limit,
       }),
+      this.getVariantFilterOptions(storeId, query),
     ]);
 
     return {
       items: variants.map((variant) => this.serializeVariant(variant, storeId)),
+      filterOptions,
       page,
       limit,
       total,
@@ -228,6 +230,8 @@ export class LabelsService {
     const search = query.search?.trim().slice(0, 80);
     const sku = query.sku?.trim().slice(0, 80);
     const name = query.name?.trim().slice(0, 80);
+    const color = query.color?.trim().slice(0, 80);
+    const size = query.size?.trim().slice(0, 80);
 
     if (query.activeOnly ?? true) {
       and.push({ product: { published: true } });
@@ -251,6 +255,14 @@ export class LabelsService {
 
     if (name) {
       and.push({ product: { title: { contains: name, mode: 'insensitive' } } });
+    }
+
+    if (color) {
+      and.push({ Color: { contains: color, mode: 'insensitive' } });
+    }
+
+    if (size) {
+      and.push({ Size: { contains: size, mode: 'insensitive' } });
     }
 
     if (query.categoryId) {
@@ -323,6 +335,10 @@ export class LabelsService {
         return [{ product: { title: direction } }, { sku: 'asc' }, { id: 'asc' }];
       case 'variant':
         return [{ Color: direction }, { Size: direction }, { product: { title: 'asc' } }, { id: 'asc' }];
+      case 'color':
+        return [{ Color: direction }, { Size: 'asc' }, { product: { title: 'asc' } }, { id: 'asc' }];
+      case 'size':
+        return [{ Size: direction }, { Color: 'asc' }, { product: { title: 'asc' } }, { id: 'asc' }];
       case 'sku':
         return [{ sku: direction }, { product: { title: 'asc' } }, { id: 'asc' }];
       case 'price':
@@ -330,6 +346,31 @@ export class LabelsService {
       default:
         return [{ product: { title: 'asc' } }, { sku: 'asc' }, { id: 'asc' }];
     }
+  }
+
+  private async getVariantFilterOptions(storeId: number, query: ListLabelProductsDto) {
+    const colorWhere = this.buildVariantWhere(storeId, { ...query, color: undefined });
+    const sizeWhere = this.buildVariantWhere(storeId, { ...query, size: undefined });
+
+    const [colorRows, sizeRows] = await Promise.all([
+      this.prisma.productVariant.findMany({
+        where: colorWhere,
+        select: { Color: true },
+        distinct: ['Color'],
+        orderBy: { Color: 'asc' },
+      }),
+      this.prisma.productVariant.findMany({
+        where: sizeWhere,
+        select: { Size: true },
+        distinct: ['Size'],
+        orderBy: { Size: 'asc' },
+      }),
+    ]);
+
+    return {
+      colors: this.normalizeOptionValues(colorRows.map((row) => row.Color)),
+      sizes: this.normalizeOptionValues(sizeRows.map((row) => row.Size)),
+    };
   }
 
   private async buildLabels(storeId: number, dto: GenerateLabelsDto, maxLabels: number) {
@@ -679,6 +720,8 @@ export class LabelsService {
       productId: variant.productId,
       productName: variant.product.title,
       variantName: this.formatVariantName(variant),
+      color: variant.Color ?? null,
+      size: variant.Size ?? null,
       sku: variant.sku,
       stock: inventory?.quantity ?? 0,
       price: Number(variant.price),
@@ -716,6 +759,16 @@ export class LabelsService {
 
   private normalizeDiscountPercentage(value: number | null | undefined) {
     return Math.max(0, Math.min(Number(value ?? 0) || 0, 100));
+  }
+
+  private normalizeOptionValues(values: Array<string | null>) {
+    return [
+      ...new Set(
+        values
+          .map((value) => value?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ].sort((left, right) => left.localeCompare(right, 'es', { numeric: true }));
   }
 
   private formatVariantName(variant: {

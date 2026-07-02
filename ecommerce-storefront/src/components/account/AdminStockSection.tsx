@@ -13,6 +13,8 @@ type VariantRow = {
   productId: number;
   productName: string;
   variantName: string;
+  color?: string | null;
+  size?: string | null;
   sku: string;
   stock: number;
   price: number;
@@ -22,13 +24,16 @@ type VariantRow = {
 };
 
 type Category = { id: number; name: string };
-type SortKey = "product" | "variant" | "sku" | "stock" | "price" | "active";
+type FilterOptions = { colors: string[]; sizes: string[] };
+type SortKey = "product" | "color" | "size" | "sku" | "stock" | "price" | "active";
 type SortDirection = "asc" | "desc";
 
 type Filters = {
   search: string;
   sku: string;
   name: string;
+  color: string;
+  size: string;
   categoryId: string;
   activeOnly: boolean;
   withoutStockOnly: boolean;
@@ -38,6 +43,8 @@ const initialFilters: Filters = {
   search: "",
   sku: "",
   name: "",
+  color: "",
+  size: "",
   categoryId: "",
   activeOnly: false,
   withoutStockOnly: false,
@@ -46,6 +53,7 @@ const initialFilters: Filters = {
 export default function AdminStockSection({ userRole }: { userRole?: string | null }) {
   const [rows, setRows] = useState<VariantRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({ colors: [], sizes: [] });
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [adjustingRow, setAdjustingRow] = useState<VariantRow | null>(null);
   const [adjustStockValue, setAdjustStockValue] = useState("");
@@ -123,6 +131,8 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
     if (filters.search.trim()) params.set("search", filters.search.trim());
     if (filters.sku.trim()) params.set("sku", filters.sku.trim());
     if (filters.name.trim()) params.set("name", filters.name.trim());
+    if (filters.color.trim()) params.set("color", filters.color.trim());
+    if (filters.size.trim()) params.set("size", filters.size.trim());
     if (filters.categoryId) params.set("categoryId", filters.categoryId);
     if (filters.withoutStockOnly) params.set("withoutStockOnly", "true");
     if (!["stock", "active"].includes(sortKey)) {
@@ -138,11 +148,13 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
     try {
       const payload = await api(`/admin/labels/products?${buildParams(nextPage, 40)}`) as {
         items: VariantRow[];
+        filterOptions?: FilterOptions;
         total: number;
         page: number;
         totalPages: number;
       };
       setRows(payload.items);
+      setFilterOptions(normalizeFilterOptions(payload.filterOptions ?? buildFilterOptionsFromRows(payload.items)));
       setPage(Number(payload.page ?? nextPage));
       setTotalRows(Number(payload.total ?? payload.items.length));
       setTotalPages(Math.max(1, Number(payload.totalPages ?? 1)));
@@ -217,13 +229,25 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
       <div style={panelGridStyle}>
         <aside style={filtersStyle}>
           <Field label="Buscador">
-            <input style={inputStyle} value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nombre, SKU o variante" />
+            <input style={inputStyle} value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nombre, SKU, color o talle" />
           </Field>
           <Field label="SKU">
             <input style={inputStyle} value={filters.sku} onChange={(event) => setFilters({ ...filters, sku: event.target.value })} />
           </Field>
           <Field label="Nombre">
             <input style={inputStyle} value={filters.name} onChange={(event) => setFilters({ ...filters, name: event.target.value })} />
+          </Field>
+          <Field label="Color">
+            <select style={inputStyle} value={filters.color} onChange={(event) => setFilters({ ...filters, color: event.target.value })}>
+              <option value="">Todos los colores</option>
+              {withSelectedOption(filterOptions.colors, filters.color).map((color) => <option key={color} value={color}>{color}</option>)}
+            </select>
+          </Field>
+          <Field label="Talle">
+            <select style={inputStyle} value={filters.size} onChange={(event) => setFilters({ ...filters, size: event.target.value })}>
+              <option value="">Todos los talles</option>
+              {withSelectedOption(filterOptions.sizes, filters.size).map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
           </Field>
           <Field label="Categoria">
             <select style={inputStyle} value={filters.categoryId} onChange={(event) => setFilters({ ...filters, categoryId: event.target.value })}>
@@ -249,7 +273,8 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
             <thead>
               <tr>
                 <SortableTh sortKey="product" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Producto</SortableTh>
-                <SortableTh sortKey="variant" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Variante</SortableTh>
+                <SortableTh sortKey="color" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Color</SortableTh>
+                <SortableTh sortKey="size" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Talle</SortableTh>
                 <SortableTh sortKey="sku" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>SKU</SortableTh>
                 <SortableTh sortKey="stock" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Stock</SortableTh>
                 <SortableTh sortKey="price" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Precio</SortableTh>
@@ -258,8 +283,8 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
               </tr>
             </thead>
             <tbody>
-              {loading ? <StateRow colSpan={canAdjustStock ? 7 : 6} label="Cargando variantes..." /> : null}
-              {!loading && sortedRows.length === 0 ? <StateRow colSpan={canAdjustStock ? 7 : 6} label="No hay variantes para estos filtros." /> : null}
+              {loading ? <StateRow colSpan={canAdjustStock ? 8 : 7} label="Cargando variantes..." /> : null}
+              {!loading && sortedRows.length === 0 ? <StateRow colSpan={canAdjustStock ? 8 : 7} label="No hay variantes para estos filtros." /> : null}
               {!loading && sortedRows.map((row) => (
                 <tr key={row.id}>
                   <td style={tdStyle}>
@@ -268,7 +293,8 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
                       <strong>{row.productName}</strong>
                     </div>
                   </td>
-                  <td style={tdStyle}>{row.variantName || "Unica"}</td>
+                  <td style={tdStyle}>{formatAttribute(row.color, "Sin color")}</td>
+                  <td style={tdStyle}>{formatAttribute(row.size, "Sin talle")}</td>
                   <td style={tdStyle}>{row.sku?.trim() ? <code>{row.sku}</code> : <span style={mutedStyle}>Sin SKU</span>}</td>
                   <td style={tdStyle}><strong>{row.stock}</strong></td>
                   <td style={tdStyle}>{money(resolveManualSaleUnitPrice(row.price, pricingPolicy))}</td>
@@ -323,7 +349,7 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
                 <p style={eyebrowStyle}>Ajustar stock</p>
                 <h3 style={modalTitleStyle}>{adjustingRow.productName}</h3>
                 <span style={mutedStyle}>
-                  {adjustingRow.variantName || "Unica"}
+                  {variantSummary(adjustingRow)}
                   {adjustingRow.sku ? ` - ${adjustingRow.sku}` : ""}
                 </span>
               </div>
@@ -372,8 +398,10 @@ function sortValue(
   switch (key) {
     case "product":
       return row.productName ?? "";
-    case "variant":
-      return row.variantName ?? "";
+    case "color":
+      return row.color ?? "";
+    case "size":
+      return row.size ?? "";
     case "sku":
       return row.sku ?? "";
     case "stock":
@@ -383,6 +411,49 @@ function sortValue(
     case "active":
       return row.active ? 1 : 0;
   }
+}
+
+function formatAttribute(value: string | null | undefined, fallback: string) {
+  const text = value?.trim();
+  return text || <span style={mutedStyle}>{fallback}</span>;
+}
+
+function variantSummary(row: Pick<VariantRow, "color" | "size" | "variantName">) {
+  const parts = [row.color, row.size]
+    .map((value) => value?.trim())
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" - ") : row.variantName?.trim() || "Unica";
+}
+
+function normalizeFilterOptions(options: FilterOptions): FilterOptions {
+  return {
+    colors: normalizeOptionValues(options.colors),
+    sizes: normalizeOptionValues(options.sizes),
+  };
+}
+
+function buildFilterOptionsFromRows(rows: VariantRow[]): FilterOptions {
+  return normalizeFilterOptions({
+    colors: rows.map((row) => row.color ?? ""),
+    sizes: rows.map((row) => row.size ?? ""),
+  });
+}
+
+function normalizeOptionValues(values: string[]) {
+  return [
+    ...new Set(
+      values
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ].sort((left, right) => left.localeCompare(right, "es", { numeric: true }));
+}
+
+function withSelectedOption(options: string[], selected: string) {
+  const selectedValue = selected.trim();
+  if (!selectedValue || options.includes(selectedValue)) return options;
+  return normalizeOptionValues([...options, selectedValue]);
 }
 
 function SortableTh({
@@ -475,8 +546,8 @@ const fieldStyle: React.CSSProperties = { display: "grid", gap: 6, color: "var(-
 const inputStyle: React.CSSProperties = { width: "100%", minHeight: 40, border: "1px solid var(--account-item-border)", borderRadius: 12, background: "var(--account-sidebar-bg)", color: "var(--account-text-strong)", padding: "0 12px", font: "inherit" };
 const checkStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, color: "var(--account-text-strong)", fontWeight: 700 };
 const tableWrapStyle: React.CSSProperties = { minWidth: 0, overflow: "auto", border: "1px solid var(--account-item-border)", borderRadius: 18, background: "var(--account-item-bg)" };
-const tableStyle: React.CSSProperties = { width: "100%", minWidth: 860, borderCollapse: "collapse" };
-const paginationStyle: React.CSSProperties = { minWidth: 860, borderTop: "1px solid var(--account-item-border)", padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" };
+const tableStyle: React.CSSProperties = { width: "100%", minWidth: 960, borderCollapse: "collapse" };
+const paginationStyle: React.CSSProperties = { minWidth: 960, borderTop: "1px solid var(--account-item-border)", padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" };
 const paginationActionsStyle: React.CSSProperties = { display: "flex", gap: 8, alignItems: "center" };
 const thStyle: React.CSSProperties = { padding: "12px 14px", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-muted)", textAlign: "left", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" };
 const tdStyle: React.CSSProperties = { padding: "12px 14px", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-strong)", verticalAlign: "middle" };
