@@ -999,6 +999,8 @@ export default function AdminProductsSection({
   const catalogAutoReloadAttemptedRef = useRef(false);
   const catalogBaseLoadedRef = useRef(false);
   const canManageCatalog = userRole !== "STAFF";
+  const [activeStoreId, setActiveStoreId] = useState<number | null>(null);
+  const usesPortraitCatalogImages = activeStoreId === 7;
   const [products, setProducts] = useState<Product[]>([]);
   const [productPage, setProductPage] = useState(1);
   const [productTotal, setProductTotal] = useState(0);
@@ -1177,6 +1179,14 @@ export default function AdminProductsSection({
   const variantPricePlaceholder = priceInputSettings.enabled
     ? "Precio efectivo/transferencia"
     : "Precio base";
+
+  useEffect(() => {
+    try {
+      setActiveStoreId(getClientStoreId());
+    } catch {
+      setActiveStoreId(null);
+    }
+  }, []);
 
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
@@ -4071,6 +4081,7 @@ export default function AdminProductsSection({
                   label={index === 0 ? "Portada" : `Imagen ${index + 1}`}
                   secondaryText=""
                   value={image}
+                  portraitLayout={usesPortraitCatalogImages}
                   gridLines={imageGridLines}
                   orderLabel={`Orden ${index + 1}`}
                   canMoveUp={index > 0}
@@ -4092,6 +4103,7 @@ export default function AdminProductsSection({
                   label={existingImages.length + index === 0 ? "Portada" : entry.name}
                   secondaryText={entry.status === "uploading" ? `Subiendo ${entry.progress}%` : entry.status === "error" ? entry.errorMessage ?? "Fallo la subida" : "Pendiente"}
                   value={entry}
+                  portraitLayout={usesPortraitCatalogImages}
                   gridLines={imageGridLines}
                   orderLabel={`Orden ${existingImages.length + index + 1}`}
                   canMoveUp={index > 0 && entry.status !== "uploading"}
@@ -4512,20 +4524,28 @@ export default function AdminProductsSection({
               </tr>
             ) : sortedProducts.map((product) => {
               const priceFrom = getProductPriceFrom(product, priceInputSettings);
+              const primaryImage = product.images?.[0];
 
               return (
               <tr key={product.id}>
                 <td style={tdStyle}>
-                  {product.images?.[0]?.url ? (
-                    <Image
-                      src={resolveAssetUrl(product.images[0].url) ?? product.images[0].url}
-                      alt={product.title}
-                      width={48}
-                      height={48}
-                      unoptimized
-                      style={productThumbStyle}
-                    />
-                  ) : <span style={productThumbEmptyStyle} />}
+                  {primaryImage?.url ? (
+                    <span style={productThumbFrameStyle(usesPortraitCatalogImages)}>
+                      <Image
+                        src={resolveAssetUrl(primaryImage.url) ?? primaryImage.url}
+                        alt={product.title}
+                        fill
+                        sizes="48px"
+                        unoptimized
+                        style={{
+                          ...productThumbImageStyle,
+                          ...(usesPortraitCatalogImages
+                            ? getCatalogImageTransform(primaryImage)
+                            : productThumbSquareImageStyle),
+                        }}
+                      />
+                    </span>
+                  ) : <span style={productThumbEmptyStyle(usesPortraitCatalogImages)} />}
                 </td>
                 <td style={tdStyle}>
                   <strong style={{ color: "var(--account-text-strong)" }}>{product.title}</strong>
@@ -4893,6 +4913,7 @@ export default function AdminProductsSection({
                     label={`Imagen actual #${index + 1}`}
                     secondaryText={image.url}
                     value={image}
+                    portraitLayout={usesPortraitCatalogImages}
                     gridLines={imageGridLines}
                     orderLabel={`Orden ${index + 1} de ${
                       existingImages.length + imageFiles.length
@@ -4929,6 +4950,7 @@ export default function AdminProductsSection({
                           : "Pendiente"
                     }`}
                     value={entry}
+                    portraitLayout={usesPortraitCatalogImages}
                     gridLines={imageGridLines}
                     orderLabel={`Orden ${existingImages.length + index + 1} de ${
                       existingImages.length + imageFiles.length
@@ -6770,6 +6792,7 @@ function CatalogImageLayoutEditor({
   label,
   secondaryText,
   value,
+  portraitLayout,
   gridLines,
   orderLabel,
   canMoveUp,
@@ -6783,6 +6806,7 @@ function CatalogImageLayoutEditor({
   label: string;
   secondaryText: string;
   value: ImageLayoutState;
+  portraitLayout: boolean;
   gridLines: number;
   orderLabel: string;
   canMoveUp: boolean;
@@ -6856,6 +6880,7 @@ function CatalogImageLayoutEditor({
           ref={stageRef}
           style={{
             ...catalogPreviewEditorStageStyle,
+            aspectRatio: portraitLayout ? "4 / 5" : catalogPreviewEditorStageStyle.aspectRatio,
             cursor: dragging ? "grabbing" : "grab",
           }}
           onPointerDown={(event) => {
@@ -7623,21 +7648,33 @@ const publicationActionButtonStyle = (published: boolean, disabled: boolean): Re
   opacity: disabled ? 0.68 : 1,
   whiteSpace: "nowrap",
 });
-const productThumbStyle: React.CSSProperties = {
-  width: 48,
-  height: 48,
-  borderRadius: 10,
-  objectFit: "cover",
-  border: "1px solid var(--checkout-border)",
-};
-const productThumbEmptyStyle: React.CSSProperties = {
+const productThumbFrameStyle = (portraitLayout: boolean): React.CSSProperties => ({
   display: "inline-block",
+  position: "relative",
   width: 48,
-  height: 48,
+  height: portraitLayout ? 60 : 48,
+  aspectRatio: portraitLayout ? "4 / 5" : "1 / 1",
   borderRadius: 10,
-  background: "var(--muted-field-bg)",
+  overflow: "hidden",
   border: "1px solid var(--checkout-border)",
+  background: "#fff",
+  verticalAlign: "middle",
+});
+const productThumbImageStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  display: "block",
+  pointerEvents: "none",
 };
+const productThumbSquareImageStyle: React.CSSProperties = {
+  objectFit: "cover",
+  objectPosition: "center center",
+};
+const productThumbEmptyStyle = (portraitLayout: boolean): React.CSSProperties => ({
+  ...productThumbFrameStyle(portraitLayout),
+  background: "var(--muted-field-bg)",
+});
 const compactCellInputStyle: React.CSSProperties = {
   width: 92,
   padding: "9px 10px",

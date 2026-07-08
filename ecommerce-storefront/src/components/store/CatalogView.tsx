@@ -102,6 +102,7 @@ export default function CatalogView({
   bankTransferDiscountPercentage = 0,
 }: CatalogViewProps) {
   const isMiMaria = storeId === 5;
+  const isComoVosYYo = storeId === 7;
   const pricingPolicy = useMemo(
     () => resolveStorePricingPolicy({ storeId }),
     [storeId],
@@ -326,32 +327,59 @@ export default function CatalogView({
     (priceMin !== String(minCatalogPrice || "") ? 1 : 0) +
     (priceMax !== String(maxCatalogPrice || "") ? 1 : 0);
 
-  const desktopCatalogMetrics = filtersOpen
-    ? {
+  const desktopCatalogMetrics = isComoVosYYo
+    ? filtersOpen
+      ? {
           cardWidth: "258px",
-         cardHeight: "430px",
-         mediaHeight: "250px",
-         copyMinHeight: "168px",
-         gap: 20,
-         columns: "repeat(3, minmax(0, var(--product-card-width)))",
-       }
-    : {
-        cardWidth: "272px",
-        cardHeight: "472px",
-        mediaHeight: "282px",
-        copyMinHeight: "130px",
-        gap: 18,
-        columns: "repeat(4, minmax(0, var(--product-card-width)))",
-      };
+          cardHeight: "503px",
+          mediaHeight: "323px",
+          copyMinHeight: "168px",
+          gap: 20,
+          columns: "repeat(3, minmax(0, var(--product-card-width)))",
+        }
+      : {
+          cardWidth: "272px",
+          cardHeight: "530px",
+          mediaHeight: "340px",
+          copyMinHeight: "130px",
+          gap: 18,
+          columns: "repeat(4, minmax(0, var(--product-card-width)))",
+        }
+    : filtersOpen
+      ? {
+          cardWidth: "258px",
+          cardHeight: "430px",
+          mediaHeight: "250px",
+          copyMinHeight: "168px",
+          gap: 20,
+          columns: "repeat(3, minmax(0, var(--product-card-width)))",
+        }
+      : {
+          cardWidth: "272px",
+          cardHeight: "472px",
+          mediaHeight: "282px",
+          copyMinHeight: "130px",
+          gap: 18,
+          columns: "repeat(4, minmax(0, var(--product-card-width)))",
+        };
 
-  const mobileCatalogMetrics = {
-    cardWidth: "minmax(0, 1fr)",
-    cardHeight: "342px",
-    mediaHeight: "218px",
-    copyMinHeight: "124px",
-    gap: 10,
-    columns: "repeat(2, minmax(0, 1fr))",
-  };
+  const mobileCatalogMetrics = isComoVosYYo
+    ? {
+        cardWidth: "minmax(0, 1fr)",
+        cardHeight: "calc((100vw - 50px) / 1.6 + 138px)",
+        mediaHeight: "calc((100vw - 50px) / 1.6)",
+        copyMinHeight: "138px",
+        gap: 10,
+        columns: "repeat(2, minmax(0, 1fr))",
+      }
+    : {
+        cardWidth: "minmax(0, 1fr)",
+        cardHeight: "342px",
+        mediaHeight: "218px",
+        copyMinHeight: "124px",
+        gap: 10,
+        columns: "repeat(2, minmax(0, 1fr))",
+      };
 
   return (
     <section

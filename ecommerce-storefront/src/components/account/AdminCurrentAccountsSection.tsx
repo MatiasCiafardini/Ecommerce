@@ -338,8 +338,17 @@ export default function AdminCurrentAccountsSection({
         movementFilter,
         movementSearch,
         selected?.customer,
+        cashDiscountPercentage,
+        pricingPolicy.manualSaleDiscountRounding,
       ),
-    [movementFilter, movementSearch, selected?.customer, selected?.movements],
+    [
+      cashDiscountPercentage,
+      movementFilter,
+      movementSearch,
+      pricingPolicy.manualSaleDiscountRounding,
+      selected?.customer,
+      selected?.movements,
+    ],
   );
   const selectedSaleCustomer = useMemo(
     () =>
@@ -1175,7 +1184,8 @@ export default function AdminCurrentAccountsSection({
                         <th style={movementThStyle}>Movimiento</th>
                         <th style={movementThStyle}>Pago</th>
                         <th style={movementThStyle}>Detalle de venta</th>
-                        <th style={movementThRightStyle}>Importe</th>
+                        <th style={movementThRightStyle}>Efectivo</th>
+                        <th style={movementThRightStyle}>Tarjeta</th>
                         <th style={movementThRightStyle}>Saldo</th>
                         <th style={movementThRightStyle}>Acciones</th>
                       </tr>
@@ -1183,6 +1193,13 @@ export default function AdminCurrentAccountsSection({
                     <tbody>
                     {visibleMovements.map((movement) => {
                       const paymentCancelled = cancelledPaymentIds.has(movement.id);
+                      const amountBreakdown = movementAmountBreakdown(
+                        movement,
+                        selected.movements ?? [],
+                        cashDiscountPercentage,
+                        pricingPolicy.manualSaleDiscountRounding,
+                      );
+                      const manualPriceComment = movementManualPriceComment(movement);
 
                       return (
                         <tr key={movement.id} style={movementTrStyle}>
@@ -1217,9 +1234,17 @@ export default function AdminCurrentAccountsSection({
                                 ))}
                               </div>
                             ) : null}
+                            {manualPriceComment ? (
+                              <small style={manualPriceNoteStyle}>
+                                {manualPriceComment}
+                              </small>
+                            ) : null}
                           </td>
                           <td style={movementTdRightStyle}>
-                            <strong>{movementAmountLabel(movement)}</strong>
+                            <strong>{amountBreakdown.cash}</strong>
+                          </td>
+                          <td style={movementTdRightStyle}>
+                            <strong>{amountBreakdown.card}</strong>
                           </td>
                           <td style={movementTdRightStyle}>
                             {balanceLabel(Number(movement.balanceAfter))}
@@ -2047,6 +2072,117 @@ function movementAmountLabel(movement: Movement) {
   return money(movement.type === "PAYMENT" ? Math.abs(amount) : amount);
 }
 
+function movementAmountBreakdown(
+  movement: Movement,
+  movements: Movement[],
+  discountPercentage: number,
+  roundDiscounts: boolean,
+) {
+  if (isPaymentCorrectionMovement(movement)) {
+    return { cash: "Sin importe", card: "Sin importe" };
+  }
+
+  const rawAmount = Number(movement.amount);
+  const amount = roundCurrency(Math.abs(rawAmount));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { cash: "Sin importe", card: "Sin importe" };
+  }
+
+  if (movement.paymentMethod?.startsWith("Descuento ")) {
+    return {
+      cash: "-",
+      card: money(rawAmount),
+    };
+  }
+
+  if (movement.type === "PAYMENT") {
+    const linkedDiscount = linkedPaymentDiscountAmount(movement, movements);
+    const cardAmount = roundCurrency(amount + linkedDiscount);
+    return {
+      cash: money(
+        isDiscountedCurrentAccountPayment(movement.paymentMethod)
+          ? amount
+          : resolveMovementCashDisplayAmount(
+              movement,
+              cardAmount,
+              discountPercentage,
+              roundDiscounts,
+            ),
+      ),
+      card: money(cardAmount),
+    };
+  }
+
+  const sign = rawAmount < 0 ? -1 : 1;
+  const cardAmount = amount;
+  const cashAmount = resolveMovementCashDisplayAmount(
+    movement,
+    cardAmount,
+    discountPercentage,
+    roundDiscounts,
+  );
+  return {
+    cash: money(cashAmount * sign),
+    card: money(cardAmount * sign),
+  };
+}
+
+function movementAmountBreakdownLabel(
+  movement: Movement,
+  movements: Movement[],
+  discountPercentage: number,
+  roundDiscounts: boolean,
+) {
+  const breakdown = movementAmountBreakdown(
+    movement,
+    movements,
+    discountPercentage,
+    roundDiscounts,
+  );
+  return `efectivo ${breakdown.cash} tarjeta ${breakdown.card}`;
+}
+
+function linkedPaymentDiscountAmount(payment: Movement, movements: Movement[]) {
+  return roundCurrency(
+    movements
+      .filter((movement) => {
+        if (movement.cancelledAt) return false;
+        if (!movement.paymentMethod?.startsWith("Descuento ")) return false;
+        return movement.description?.includes(`(Pago #${payment.id})`) ?? false;
+      })
+      .reduce((sum, movement) => sum + Math.abs(Number(movement.amount)), 0),
+  );
+}
+
+function resolveMovementCashDisplayAmount(
+  movement: Movement,
+  cardAmount: number,
+  discountPercentage: number,
+  roundDiscounts: boolean,
+) {
+  const multiplier = getCurrentAccountDiscountMultiplier(discountPercentage);
+  if (multiplier <= 0 || multiplier >= 1) return roundCurrency(cardAmount);
+
+  if (roundDiscounts) {
+    return resolveMovementCashEquivalent(movement, cardAmount, multiplier);
+  }
+
+  return roundCurrency(cardAmount * multiplier);
+}
+
+function getCurrentAccountDiscountMultiplier(discountPercentage: number) {
+  const safePercentage = Number.isFinite(discountPercentage)
+    ? Math.min(Math.max(discountPercentage, 0), 100)
+    : 0;
+  return Math.max(1 - safePercentage / 100, 0);
+}
+
+function movementManualPriceComment(movement: Movement) {
+  const description = movement.description?.trim() ?? "";
+  const match = description.match(/Precios manuales cargados como .+$/);
+  return match?.[0] ?? "";
+}
+
 function movementPaymentLabel(movement: Movement) {
   if (isManualSaleCorrectionMovement(movement)) {
     const methodChange = movement.description?.match(/Metodo:\s*(.+?)\s*->\s*(.+?)\.?$/);
@@ -2063,6 +2199,8 @@ function filterMovements(
   filter: MovementFilter,
   search: string,
   customer?: Customer | null,
+  discountPercentage = 0,
+  roundDiscounts = false,
 ) {
   const normalizedSearch = normalizeSearch(search);
 
@@ -2081,6 +2219,7 @@ function filterMovements(
         movementPaymentLabel(movement),
         movement.paymentMethod,
         movement.description,
+        movementManualPriceComment(movement),
         movement.order ? `venta ${movement.order.id}` : "",
         movement.order?.items
           ?.map((item) =>
@@ -2097,6 +2236,12 @@ function filterMovements(
           )
           .join(" "),
         movementAmountLabel(movement),
+        movementAmountBreakdownLabel(
+          movement,
+          movements,
+          discountPercentage,
+          roundDiscounts,
+        ),
         balanceLabel(Number(movement.balanceAfter)),
       ]
         .filter(Boolean)
@@ -2791,7 +2936,7 @@ const emptyMovementsStyle: React.CSSProperties = {
 };
 const movementTableStyle: React.CSSProperties = {
   width: "100%",
-  minWidth: 1040,
+  minWidth: 1140,
   borderCollapse: "collapse",
   tableLayout: "fixed",
 };
@@ -2878,6 +3023,13 @@ const movementItemsStyle: React.CSSProperties = {
   marginTop: 4,
   color: "var(--account-text-muted)",
   fontSize: 11,
+};
+const manualPriceNoteStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: 6,
+  color: "var(--account-text-strong)",
+  fontSize: 11,
+  lineHeight: 1.35,
 };
 const fieldGroupStyle: React.CSSProperties = {
   display: "grid",

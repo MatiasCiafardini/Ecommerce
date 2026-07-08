@@ -29,7 +29,8 @@
   --theme-drawer-bg-start: #F5F1EA;
   --theme-drawer-bg-end: #BFD5CF;
   --theme-drawer-border: rgba(26, 26, 26, 0.12);
-  --product-card-height: 540px;
+  --product-card-height: 598px;
+  --product-card-media-height: 390px;
   --product-card-copy-min-height: 208px;
 }
 
@@ -250,7 +251,8 @@
 
 @media (max-width: 768px) {
   .theme-comovosyyo {
-    --product-card-height: 392px;
+    --product-card-height: 380px;
+    --product-card-media-height: 210px;
     --product-card-copy-min-height: 170px;
   }
 

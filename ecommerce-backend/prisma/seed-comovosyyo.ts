@@ -110,6 +110,13 @@ const storefrontConfig = {
           animationPreset: 'soft',
         },
       },
+      {
+        type: 'milashoes_institutional',
+        props: {
+          brandName: 'Como Vos y Yo',
+          animationPreset: 'soft',
+        },
+      },
     ],
   },
 } as const;

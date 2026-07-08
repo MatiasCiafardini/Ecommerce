@@ -710,6 +710,10 @@ button:disabled {
     filter: none !important;
   }
 
+  .about-location-map {
+    min-height: 220px !important;
+  }
+
   .layout-product-grid,
   .layout-auto-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;

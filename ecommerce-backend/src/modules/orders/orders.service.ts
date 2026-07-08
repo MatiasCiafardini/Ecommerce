@@ -11,6 +11,7 @@ import {
   calculateManualSaleDiscountAmount,
   resolveLabelNormalPrice,
   resolveStorePricingPolicy,
+  roundToNearestHundred,
   type StorePricingPolicy,
 } from '../../common/price-input-mode';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
@@ -35,6 +36,18 @@ type OrderItemData = {
 type ManualSaleDiscountInput = {
   discountType?: 'percentage' | 'fixed';
   discountValue?: number;
+};
+
+type ManualPriceMode = 'cash' | 'card';
+
+type ManualPriceChange = {
+  variantId: number;
+  productTitle: string;
+  quantity: number;
+  catalogPrice: number;
+  enteredPrice: number;
+  cardPrice: number;
+  cashPrice: number;
 };
 
 @Injectable()
@@ -199,6 +212,7 @@ export class OrdersService {
     }
 
     const pricingPolicy = await this.resolvePricingPolicy(storeId);
+    const manualPriceMode = data.manualPriceMode;
     const customerId = data.customerId
       ? await this.ensureCustomer(storeId, data.customerId)
       : await this.ensureManualSaleCustomer(storeId);
@@ -206,6 +220,7 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       let subtotal = 0;
       const orderItems: OrderItemData[] = [];
+      const manualPriceChanges: ManualPriceChange[] = [];
       const variantIds = data.items.map((item) => item.variantId);
       const shippingCost = Number(data.shippingCost ?? 0);
       const discount = this.resolveManualSaleDiscount({
@@ -220,6 +235,11 @@ export class OrdersService {
           },
         },
         include: {
+          product: {
+            select: {
+              title: true,
+            },
+          },
           inventories: {
             where: {
               storeId,
@@ -253,7 +273,27 @@ export class OrdersService {
           );
         }
 
-        const price = Number(item.price ?? variant.price);
+        const enteredPrice = this.roundCurrency(
+          Math.max(Number(item.enteredPrice ?? item.price ?? variant.price), 0),
+        );
+        const catalogPrice = Number(item.catalogPrice);
+        const hasManualPriceChange =
+          Number.isFinite(catalogPrice) &&
+          Math.abs(enteredPrice - this.roundCurrency(catalogPrice)) > 0.01;
+
+        if (hasManualPriceChange && currentAccountPayment && !manualPriceMode) {
+          throw new BadRequestException(
+            'Selecciona si los precios modificados manualmente son efectivo o tarjeta.',
+          );
+        }
+
+        const price = hasManualPriceChange && currentAccountPayment
+          ? this.resolveManualSaleBasePrice(
+              enteredPrice,
+              manualPriceMode as ManualPriceMode,
+              pricingPolicy,
+            )
+          : enteredPrice;
         subtotal += price * item.quantity;
 
         orderItems.push({
@@ -261,6 +301,18 @@ export class OrdersService {
           quantity: item.quantity,
           price,
         });
+
+        if (hasManualPriceChange && currentAccountPayment) {
+          manualPriceChanges.push({
+            variantId: item.variantId,
+            productTitle: variant.product?.title || `Variante #${item.variantId}`,
+            quantity: item.quantity,
+            catalogPrice: this.roundCurrency(catalogPrice),
+            enteredPrice,
+            cardPrice: price,
+            cashPrice: this.resolveManualSaleCashPrice(price, pricingPolicy),
+          });
+        }
 
         await this.inventoryLockService.reserveStockTx(
           tx,
@@ -354,6 +406,24 @@ export class OrdersService {
           .filter((payment) => this.isCurrentAccountPaymentMethod(payment.method))
           .reduce((sum, payment) => sum + payment.amount, 0),
       );
+      const manualPriceComment = this.buildManualPriceComment(
+        manualPriceChanges,
+        manualPriceMode,
+      );
+      const manualPriceMetadata = manualPriceChanges.length
+        ? {
+            manualPriceMode,
+            manualPriceChanges: manualPriceChanges.map((change) => ({
+              variantId: change.variantId,
+              productTitle: change.productTitle,
+              quantity: change.quantity,
+              catalogPrice: change.catalogPrice,
+              enteredPrice: change.enteredPrice,
+              cardPrice: change.cardPrice,
+              cashPrice: change.cashPrice,
+            })),
+          }
+        : {};
       const shippingMethod =
         data.shippingMethod?.trim() || 'Retiro en local';
       const customerFirstName =
@@ -426,6 +496,7 @@ export class OrdersService {
                   splitPaymentIndex: index + 1,
                   appliedCurrentAccountCreditAmount: index === 0 ? appliedCreditAmount : 0,
                   collectedAmount: payment.amount,
+                  ...manualPriceMetadata,
                 },
               };
             }),
@@ -522,7 +593,9 @@ export class OrdersService {
             type: 'SALE',
             amount: currentAccountAmount,
             paymentMethod: 'Cuenta corriente',
-            description: `Venta manual #${order.id}`,
+            description: [`Venta manual #${order.id}`, manualPriceComment]
+              .filter(Boolean)
+              .join('. '),
             createdByUserId,
             balanceAfter: nextBalance,
           },
@@ -543,6 +616,7 @@ export class OrdersService {
             currentAccount: currentAccountAmount > 0,
             splitPayment: paymentEntries.length > 1,
             hasNotes: Boolean(data.notes?.trim()),
+            ...manualPriceMetadata,
           },
         },
       });
@@ -2685,6 +2759,67 @@ export class OrdersService {
       items,
       pricingPolicy,
     );
+  }
+
+  private resolveManualSaleBasePrice(
+    enteredPrice: number,
+    manualPriceMode: ManualPriceMode,
+    pricingPolicy: Pick<StorePricingPolicy, 'cashInput' | 'manualSaleDiscountRounding'>,
+  ) {
+    const safePrice = this.roundCurrency(enteredPrice);
+    const multiplier = pricingPolicy.cashInput.enabled
+      ? pricingPolicy.cashInput.multiplier
+      : 1;
+
+    if (manualPriceMode !== 'cash' || multiplier <= 0 || multiplier >= 1) {
+      return safePrice;
+    }
+
+    const cardPrice = safePrice / multiplier;
+    return pricingPolicy.manualSaleDiscountRounding
+      ? roundToNearestHundred(cardPrice)
+      : this.roundCurrency(cardPrice);
+  }
+
+  private resolveManualSaleCashPrice(
+    cardPrice: number,
+    pricingPolicy: Pick<StorePricingPolicy, 'cashInput' | 'manualSaleDiscountRounding'>,
+  ) {
+    if (!pricingPolicy.cashInput.enabled) {
+      return this.roundCurrency(cardPrice);
+    }
+
+    const cashPrice = cardPrice * pricingPolicy.cashInput.multiplier;
+    return pricingPolicy.manualSaleDiscountRounding
+      ? this.roundCurrency(resolveLabelNormalPrice(cashPrice, { labelPriceRounding: true }))
+      : this.roundCurrency(cashPrice);
+  }
+
+  private buildManualPriceComment(
+    changes: ManualPriceChange[],
+    manualPriceMode?: ManualPriceMode,
+  ) {
+    if (!changes.length || !manualPriceMode) {
+      return '';
+    }
+
+    const modeLabel = manualPriceMode === 'cash' ? 'efectivo' : 'tarjeta';
+    const detail = changes
+      .map((change) => {
+        const enteredLabel =
+          manualPriceMode === 'cash'
+            ? `manual efectivo ${this.formatMoney(change.enteredPrice)}`
+            : `manual tarjeta ${this.formatMoney(change.enteredPrice)}`;
+        const equivalentLabel =
+          manualPriceMode === 'cash'
+            ? `tarjeta calculada ${this.formatMoney(change.cardPrice)}`
+            : `efectivo equivalente ${this.formatMoney(change.cashPrice)}`;
+
+        return `${change.productTitle} x${change.quantity}: catalogo ${this.formatMoney(change.catalogPrice)}, ${enteredLabel}, ${equivalentLabel}`;
+      })
+      .join('; ');
+
+    return `Precios manuales cargados como ${modeLabel}: ${detail}`;
   }
 
   private isCurrentAccountPaymentMethod(paymentMethod?: string | null) {

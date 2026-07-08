@@ -54,6 +54,9 @@ export const blockThemeOverrides: Record<
     },
     milashoes_institutional: {
       component: MilaShoesInstitutional,
+      defaultProps: {
+        brandName: "Mila Shoes",
+      },
     },
     product_grid: {
       defaultProps: {
@@ -70,6 +73,9 @@ export const blockThemeOverrides: Record<
     },
     milashoes_institutional: {
       component: MilaShoesInstitutional,
+      defaultProps: {
+        brandName: "Como Vos y Yo",
+      },
     },
     product_grid: {
       defaultProps: {

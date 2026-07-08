@@ -6,6 +6,12 @@ type AboutSection = {
   paragraphs: string[];
 };
 
+type StoreLocation = {
+  name: string;
+  address: string;
+  mapsUrl: string;
+};
+
 type AboutPageContent = {
   brandName: string;
   sections: AboutSection[];
@@ -14,9 +20,16 @@ type AboutPageContent = {
   locationText?: string;
   mapsUrl?: string;
   mapEmbedUrl?: string;
+  locations?: StoreLocation[];
 };
 
 const defaultMapQuery = encodeURIComponent("Buenos Aires, Argentina");
+
+const mapsSearchUrl = (query: string) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+
+const mapsQueryEmbedUrl = (query: string, zoom = 17) =>
+  `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=${zoom}&output=embed`;
 
 const ABOUT_PAGE_BY_STORE_ID: Record<number, AboutPageContent> = {
   3: {
@@ -60,6 +73,41 @@ const ABOUT_PAGE_BY_STORE_ID: Record<number, AboutPageContent> = {
       },
     ],
   },
+  7: {
+    brandName: "Como Vos y Yo",
+    sections: [
+      {
+        label: "Nuestra historia",
+        title: "Hace 20 años cerca de vos",
+        paragraphs: [
+          "Hace 20 años acompañamos a nuestros clientes ofreciendo jeans y básicos para todas las edades. Nos caracteriza la atención cercana, el trato de siempre y la dedicación en cada detalle, porque creemos que cada persona merece sentirse cómoda y bien atendida 💕",
+        ],
+      },
+    ],
+    locationTitle: "Vení a conocer nuestros locales",
+    locationLabel: "Encontranos",
+    locationText:
+      "Estamos en San Antonio de Areco, con dos locales sobre Alsina para que elijas el que te quede más cómodo.",
+    mapEmbedUrl: mapsQueryEmbedUrl(
+      "Como Vos y Yo Cuenta Conmigo Alsina San Antonio de Areco Buenos Aires Argentina",
+    ),
+    locations: [
+      {
+        name: "Como Vos y Yo",
+        address: "Alsina 289, San Antonio de Areco, Buenos Aires",
+        mapsUrl: mapsSearchUrl(
+          "Como Vos y Yo, Alsina 289, San Antonio de Areco, Buenos Aires, Argentina",
+        ),
+      },
+      {
+        name: "Cuenta Conmigo",
+        address: "Alsina 222, San Antonio de Areco, Buenos Aires",
+        mapsUrl: mapsSearchUrl(
+          "Cuenta Conmigo, Alsina 222, San Antonio de Areco, Buenos Aires, Argentina",
+        ),
+      },
+    ],
+  },
 };
 
 const FALLBACK_ABOUT_PAGE: AboutPageContent = {
@@ -88,7 +136,8 @@ function getAboutPageContent(storeId: number) {
 export default async function QuienesSomosPage() {
   const { storeId } = await getServerStoreContext();
   const content = getAboutPageContent(storeId);
-  const hasLocation = Boolean(content.mapEmbedUrl && content.mapsUrl);
+  const hasMultipleLocations = Boolean(content.locations?.length);
+  const hasLocation = hasMultipleLocations || Boolean(content.mapEmbedUrl && content.mapsUrl);
 
   return (
     <section
@@ -148,6 +197,7 @@ export default async function QuienesSomosPage() {
               padding: "clamp(22px, 3vw, 34px)",
               display: "grid",
               gap: 20,
+              alignContent: "start",
             }}
           >
             {content.sections.map((section) => (
@@ -203,89 +253,221 @@ export default async function QuienesSomosPage() {
                 borderRadius: 36,
                 border: "1px solid var(--border-soft)",
                 background: "var(--page-panel-bg)",
-                overflow: "hidden",
+                overflow: hasMultipleLocations ? "visible" : "hidden",
                 display: "grid",
               }}
             >
-              <div
-                style={{
-                  position: "relative",
-                  width: "100%",
-                  minHeight: 320,
-                  background: "var(--block-card-bg)",
-                }}
-              >
-                <iframe
-                  src={content.mapEmbedUrl!}
-                  title={`Ubicacion ${content.brandName}`}
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
+              {hasMultipleLocations ? (
+                <div
                   style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    border: 0,
+                    padding: "clamp(22px, 3vw, 30px)",
+                    display: "grid",
+                    gap: 20,
                   }}
-                />
-              </div>
+                >
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <span
+                      style={{
+                        textTransform: "uppercase",
+                        letterSpacing: "0.16em",
+                        fontSize: 12,
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {content.locationLabel}
+                    </span>
+                    <strong
+                      style={{
+                        color: "var(--text-strong)",
+                        fontSize: 24,
+                        lineHeight: 1.15,
+                      }}
+                    >
+                      {content.locationTitle}
+                    </strong>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "var(--text-muted)",
+                        lineHeight: 1.75,
+                      }}
+                    >
+                      {content.locationText}
+                    </p>
+                  </div>
 
-              <div
-                style={{
-                  padding: "22px 24px 26px",
-                  display: "grid",
-                  gap: 12,
-                }}
-              >
-                <span
-                  style={{
-                    textTransform: "uppercase",
-                    letterSpacing: "0.16em",
-                    fontSize: 12,
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  {content.locationLabel}
-                </span>
-                <strong
-                  style={{
-                    color: "var(--text-strong)",
-                    fontSize: 24,
-                    lineHeight: 1.15,
-                  }}
-                >
-                  {content.locationTitle}
-                </strong>
-                <p
-                  style={{
-                    margin: 0,
-                    color: "var(--text-muted)",
-                    lineHeight: 1.75,
-                  }}
-                >
-                  {content.locationText}
-                </p>
-                <a
-                  href={content.mapsUrl!}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="theme-button"
-                  style={{
-                    width: "fit-content",
-                    textDecoration: "none",
-                    padding: "13px 18px",
-                    borderRadius: 999,
-                    background: "var(--text-strong)",
-                    color: "var(--page-panel-bg)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.12em",
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
-                  Abrir en Google Maps
-                </a>
-              </div>
+                  <div
+                    className="about-location-map about-location-map--large"
+                    style={{
+                      position: "relative",
+                      minHeight: 300,
+                      borderRadius: 24,
+                      overflow: "hidden",
+                      background: "var(--block-card-bg)",
+                    }}
+                  >
+                    <iframe
+                      src={content.mapEmbedUrl!}
+                      title={`Ubicaciones ${content.brandName}`}
+                      loading="eager"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        width: "100%",
+                        height: "100%",
+                        border: 0,
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gap: 0 }}>
+                    {content.locations!.map((location, index) => (
+                      <section
+                        key={location.address}
+                        style={{
+                          display: "grid",
+                          gap: 8,
+                          padding:
+                            index === content.locations!.length - 1
+                              ? "18px 0 0"
+                              : "18px 0",
+                          borderTop: "1px solid var(--border-soft)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "grid",
+                            gap: 8,
+                            alignContent: "center",
+                            minWidth: 0,
+                          }}
+                        >
+                          <strong
+                            style={{
+                              color: "var(--text-strong)",
+                              fontSize: 20,
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {location.name}
+                          </strong>
+                          <p
+                            style={{
+                              margin: 0,
+                              color: "var(--text-muted)",
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {location.address}
+                          </p>
+                          <a
+                            href={location.mapsUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="theme-button"
+                            style={{
+                              width: "fit-content",
+                              textDecoration: "none",
+                              padding: "11px 15px",
+                              borderRadius: 999,
+                              background: "var(--text-strong)",
+                              color: "var(--page-panel-bg)",
+                              textTransform: "uppercase",
+                              fontSize: 12,
+                              fontWeight: 700,
+                            }}
+                          >
+                            Abrir en Google Maps
+                          </a>
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      position: "relative",
+                      width: "100%",
+                      minHeight: 320,
+                      background: "var(--block-card-bg)",
+                    }}
+                  >
+                    <iframe
+                      src={content.mapEmbedUrl!}
+                      title={`Ubicacion ${content.brandName}`}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        width: "100%",
+                        height: "100%",
+                        border: 0,
+                      }}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "22px 24px 26px",
+                      display: "grid",
+                      gap: 12,
+                    }}
+                  >
+                    <span
+                      style={{
+                        textTransform: "uppercase",
+                        letterSpacing: "0.16em",
+                        fontSize: 12,
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {content.locationLabel}
+                    </span>
+                    <strong
+                      style={{
+                        color: "var(--text-strong)",
+                        fontSize: 24,
+                        lineHeight: 1.15,
+                      }}
+                    >
+                      {content.locationTitle}
+                    </strong>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "var(--text-muted)",
+                        lineHeight: 1.75,
+                      }}
+                    >
+                      {content.locationText}
+                    </p>
+                    <a
+                      href={content.mapsUrl!}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="theme-button"
+                      style={{
+                        width: "fit-content",
+                        textDecoration: "none",
+                        padding: "13px 18px",
+                        borderRadius: 999,
+                        background: "var(--text-strong)",
+                        color: "var(--page-panel-bg)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.12em",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Abrir en Google Maps
+                    </a>
+                  </div>
+                </>
+              )}
             </aside>
           ) : null}
         </div>

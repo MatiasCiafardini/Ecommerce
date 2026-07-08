@@ -128,7 +128,7 @@ export function BrandedHeader({
     { href: "/quienes-somos", label: "Quienes somos" },
     { href: "/guia-de-talles", label: "Guia de talles" },
     { href: "/donde-encontrarnos", label: "Contacto" },
-  ];
+  ].filter((link) => themeName !== "comovosyyo" || link.label !== "Contacto");
 
   return (
     <>

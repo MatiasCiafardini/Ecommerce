@@ -40,6 +40,7 @@ type ManualSaleLine = {
   sku: string;
   quantity: number;
   price: string;
+  catalogPrice: number;
   available: number;
   imageUrl?: string | null;
 };
@@ -47,6 +48,15 @@ type ManualSaleLine = {
 type ManualSalePaymentLine = {
   method: string;
   amount: string;
+};
+
+type ManualPriceMode = "cash" | "card";
+
+type NormalizedManualSaleLine = ManualSaleLine & {
+  quantity: number;
+  unitPrice: number;
+  price: string;
+  lineTotal: number;
 };
 
 type ManualSaleVariant = NonNullable<ManualSaleProduct["variants"]>[number];
@@ -224,6 +234,7 @@ export default function AdminManualSalesSection({
   const [lines, setLines] = useState<ManualSaleLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [confirmSaleOpen, setConfirmSaleOpen] = useState(false);
+  const [manualPriceMode, setManualPriceMode] = useState<ManualPriceMode | null>(null);
   const [loading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState("");
@@ -392,7 +403,7 @@ export default function AdminManualSalesSection({
     () => resolveStorePricingPolicy({ storeId }),
     [storeId],
   );
-  const normalizedSaleLines = useMemo(
+  const normalizedSaleLines = useMemo<NormalizedManualSaleLine[]>(
     () =>
       lines.map((line) => {
         const unitPrice = parseManualSalePriceInput(line.price);
@@ -407,6 +418,43 @@ export default function AdminManualSalesSection({
         };
       }),
     [lines],
+  );
+  const manualPriceChanges = useMemo(
+    () =>
+      normalizedSaleLines
+        .filter((line) => hasManualLinePriceChange(line))
+        .map((line) => ({
+          variantId: line.variantId,
+          title: line.title,
+          variantLabel: line.variantLabel,
+          quantity: line.quantity,
+          catalogPrice: Number(line.catalogPrice ?? 0),
+          enteredPrice: line.unitPrice,
+        })),
+    [normalizedSaleLines],
+  );
+  const hasManualPriceChanges = manualPriceChanges.length > 0;
+  const selectedPaymentMethods = splitPayments.map((payment) => payment.method);
+  const currentAccountSelected = selectedPaymentMethods.includes("Cuenta corriente");
+  const requiresManualPriceMode = currentAccountSelected && hasManualPriceChanges;
+  const submissionSaleLines = useMemo(
+    () =>
+      normalizedSaleLines.map((line) =>
+        requiresManualPriceMode && manualPriceMode === "cash"
+          ? convertCashManualLineToCardLine(
+              line,
+              bankTransferDiscountPercentage,
+              pricingPolicy,
+            )
+          : line,
+      ),
+    [
+      bankTransferDiscountPercentage,
+      manualPriceMode,
+      normalizedSaleLines,
+      pricingPolicy,
+      requiresManualPriceMode,
+    ],
   );
   const subtotal = normalizedSaleLines.reduce(
     (total, line) => total + line.lineTotal,
@@ -429,7 +477,6 @@ export default function AdminManualSalesSection({
     method: payment.method,
     amount: roundCurrency(parseCurrencyInput(payment.amount)),
   }));
-  const selectedPaymentMethods = splitPayments.map((payment) => payment.method);
   const paymentMethodDiscountEligible = (method: string) =>
     method === "Efectivo" || method === "Transferencia";
   const paymentDiscountActive =
@@ -539,6 +586,50 @@ export default function AdminManualSalesSection({
         },
       ];
   const splitPaymentDifference = roundCurrency(amountToCollect - splitPaymentTotal);
+  const submissionAmounts = useMemo(
+    () =>
+      calculateManualSaleSubmissionAmounts({
+        lines: submissionSaleLines,
+        discountType,
+        safeDiscountValue,
+        pricingPolicy,
+        splitPaymentEnabled,
+        splitPayments,
+        paymentMethod,
+        applyPaymentDiscount,
+        bankTransferDiscountPercentage,
+        selectedAccountBalance,
+        useCurrentAccountCredit: Boolean(
+          useCurrentAccountCredit && selectedCurrentAccount,
+        ),
+      }),
+    [
+      applyPaymentDiscount,
+      bankTransferDiscountPercentage,
+      discountType,
+      paymentMethod,
+      pricingPolicy,
+      safeDiscountValue,
+      selectedAccountBalance,
+      selectedCurrentAccount,
+      splitPaymentEnabled,
+      splitPayments,
+      submissionSaleLines,
+      useCurrentAccountCredit,
+    ],
+  );
+  const confirmationAmountToCollect =
+    requiresManualPriceMode && manualPriceMode
+      ? submissionAmounts.amountToCollect
+      : amountToCollect;
+  const confirmationPayments =
+    requiresManualPriceMode && manualPriceMode
+      ? submissionAmounts.effectiveManualPayments
+      : effectiveManualPayments;
+  const confirmationSplitPaymentDifference =
+    requiresManualPriceMode && manualPriceMode
+      ? submissionAmounts.splitPaymentDifference
+      : splitPaymentDifference;
   const splitPaymentMethodKeys = normalizedSplitPayments.map((payment) =>
     payment.method.trim().toLowerCase(),
   );
@@ -547,7 +638,6 @@ export default function AdminManualSalesSection({
   const hasPaymentMethodDiscount = paymentMethodDiscountAmount > 0;
   const hasManualDiscount = manualDiscountAmount > 0;
   const hasDiscount = discountAmount > 0;
-  const currentAccountSelected = selectedPaymentMethods.includes("Cuenta corriente");
   const paymentSummaryTone =
     amountToCollect <= 0 && splitPaymentTotal <= 0
       ? "empty"
@@ -564,6 +654,40 @@ export default function AdminManualSalesSection({
       : paymentSummaryTone === "missing"
         ? `Falta pagar ${money(Math.abs(splitPaymentDifference))}`
         : `Excede por ${money(Math.abs(splitPaymentDifference))}`;
+  const manualPriceConfirmationMissing = requiresManualPriceMode && !manualPriceMode;
+  const confirmationPaymentMismatch =
+    splitPaymentEnabled &&
+    requiresManualPriceMode &&
+    Boolean(manualPriceMode) &&
+    Math.abs(confirmationSplitPaymentDifference) > 0.01;
+  const manualPriceComparisonRows = useMemo(
+    () =>
+      manualPriceChanges.map((change) => ({
+        ...change,
+        cardEquivalent:
+          manualPriceMode === "cash"
+            ? resolveManualCardEquivalent(
+                change.enteredPrice,
+                bankTransferDiscountPercentage,
+                pricingPolicy,
+              )
+            : change.enteredPrice,
+        cashEquivalent:
+          manualPriceMode === "card"
+            ? resolveManualCashEquivalent(
+                change.enteredPrice,
+                bankTransferDiscountPercentage,
+                pricingPolicy,
+              )
+            : change.enteredPrice,
+      })),
+    [
+      bankTransferDiscountPercentage,
+      manualPriceChanges,
+      manualPriceMode,
+      pricingPolicy,
+    ],
+  );
 
   useEffect(() => {
     if (splitPaymentEnabled) return;
@@ -574,6 +698,12 @@ export default function AdminManualSalesSection({
       return [{ method: firstPayment.method || paymentMethod, amount }];
     });
   }, [amountToCollect, paymentMethod, splitPaymentEnabled]);
+
+  useEffect(() => {
+    if (!requiresManualPriceMode && manualPriceMode) {
+      setManualPriceMode(null);
+    }
+  }, [manualPriceMode, requiresManualPriceMode]);
   const filteredCurrentAccounts = useMemo(() => {
     const normalized = customerQuery.trim().toLowerCase();
     if (!normalized) return currentAccounts.slice(0, 40);
@@ -667,6 +797,8 @@ export default function AdminManualSalesSection({
         );
       }
 
+      const catalogPrice = resolveManualSaleUnitPrice(variant.price, pricingPolicy);
+
       return [
         ...current,
         {
@@ -676,7 +808,8 @@ export default function AdminManualSalesSection({
           variantLabel: getVariantLabel(variant),
           sku: String(variant.sku ?? ""),
           quantity: 1,
-          price: String(resolveManualSaleUnitPrice(variant.price, pricingPolicy)),
+          price: String(catalogPrice),
+          catalogPrice,
           available,
           imageUrl: getProductImageUrl(product),
         },
@@ -791,6 +924,7 @@ export default function AdminManualSalesSection({
     setNotes("");
     setProductQuery("");
     setLines([]);
+    setManualPriceMode(null);
     setSelectedCatalogVariantId(null);
     setOpenPaymentMenuIndex(null);
     setSuccess("");
@@ -914,7 +1048,11 @@ export default function AdminManualSalesSection({
       return "Cada pago tiene que tener un importe mayor a cero.";
     }
 
-    if (splitPaymentEnabled && Math.abs(splitPaymentDifference) > 0.01) {
+    if (
+      splitPaymentEnabled &&
+      !requiresManualPriceMode &&
+      Math.abs(splitPaymentDifference) > 0.01
+    ) {
       return "La suma de los pagos tiene que coincidir con el total a cobrar.";
     }
 
@@ -969,12 +1107,34 @@ export default function AdminManualSalesSection({
       return;
     }
 
+    if (manualPriceConfirmationMissing) {
+      setError("Indica si los precios modificados fueron cargados como efectivo o tarjeta.");
+      setConfirmSaleOpen(true);
+      return;
+    }
+
+    if (confirmationPaymentMismatch) {
+      setError("Los importes de pago no coinciden con el total recalculado. Ajustalos antes de confirmar.");
+      setConfirmSaleOpen(true);
+      return;
+    }
+
     try {
       setSaving(true);
       setConfirmSaleOpen(false);
       setError("");
       setSuccess("");
 
+      const saleAmounts = requiresManualPriceMode
+        ? submissionAmounts
+        : {
+            discountAmount,
+            effectiveManualPayments,
+            appliedCurrentAccountCreditAmount,
+          };
+      const changedVariantIds = new Set(
+        manualPriceChanges.map((change) => change.variantId),
+      );
       const payload = {
         customerId: selectedCustomer?.id,
         customerFirstName: selectedCustomer
@@ -985,23 +1145,34 @@ export default function AdminManualSalesSection({
         customerPhone: selectedCustomer?.phone ?? undefined,
         shippingMethod: undefined,
         shippingCost: 0,
-        paymentMethod: effectiveManualPayments[0]?.method || paymentMethod.trim() || undefined,
+        paymentMethod:
+          saleAmounts.effectiveManualPayments[0]?.method ||
+          paymentMethod.trim() ||
+          undefined,
         payments: splitPaymentEnabled
-          ? effectiveManualPayments.map((payment) => ({
+          ? saleAmounts.effectiveManualPayments.map((payment) => ({
               method: payment.method,
               amount: payment.amount,
             }))
           : undefined,
         discountType: "fixed" as const,
-        discountValue: discountAmount,
-        appliedCurrentAccountCreditAmount: appliedCurrentAccountCreditAmount || undefined,
+        discountValue: saleAmounts.discountAmount,
+        appliedCurrentAccountCreditAmount:
+          saleAmounts.appliedCurrentAccountCreditAmount || undefined,
         paymentStatus: "approved" as const,
+        manualPriceMode: requiresManualPriceMode ? manualPriceMode : undefined,
         notes: notes.trim() || undefined,
         storeLocationId: storeLocationId ?? undefined,
         items: normalizedSaleLines.map((line) => ({
           variantId: line.variantId,
           quantity: line.quantity,
           price: line.unitPrice,
+          enteredPrice: changedVariantIds.has(line.variantId)
+            ? line.unitPrice
+            : undefined,
+          catalogPrice: changedVariantIds.has(line.variantId)
+            ? line.catalogPrice
+            : undefined,
         })),
       };
 
@@ -1020,7 +1191,9 @@ export default function AdminManualSalesSection({
           ? "La venta manual esta deshabilitada para esta tienda. Activala desde la configuracion de la tienda."
           : message.includes("Para vender en cuenta corriente")
             ? "Para vender en cuenta corriente, seleccioná o registrá un cliente."
-          : message || "No se pudo registrar la venta manual.",
+            : message.includes("precios modificados manualmente")
+              ? "Indica si los precios modificados fueron cargados como efectivo o tarjeta."
+              : message || "No se pudo registrar la venta manual.",
       );
     } finally {
       setSaving(false);
@@ -1715,7 +1888,7 @@ export default function AdminManualSalesSection({
               </div>
               <div className="manual-sale-confirm-total">
                 <span>{currentAccountSelected ? "Pendiente" : "Total a cobrar"}</span>
-                <strong>{money(amountToCollect)}</strong>
+                <strong>{money(confirmationAmountToCollect)}</strong>
               </div>
             </div>
 
@@ -1726,7 +1899,7 @@ export default function AdminManualSalesSection({
               <SummaryRow
                 label="Pago"
                 value={
-                  effectiveManualPayments
+                  confirmationPayments
                     .map((payment) => `${payment.method}: ${money(payment.amount)}`)
                     .join(" + ")
                 }
@@ -1755,9 +1928,92 @@ export default function AdminManualSalesSection({
               ) : null}
               <SummaryRow
                 label="Estado"
-                value={currentAccountSelected && amountToCollect > 0 ? "Pendiente de pago" : "Pagado"}
+                value={
+                  currentAccountSelected && confirmationAmountToCollect > 0
+                    ? "Pendiente de pago"
+                    : "Pagado"
+                }
               />
             </div>
+
+            {requiresManualPriceMode ? (
+              <section className="manual-sale-manual-price-review">
+                <div className="manual-sale-manual-price-heading">
+                  <div>
+                    <p className="manual-sale-eyebrow">Precios modificados</p>
+                    <strong>Como se cargaron estos importes?</strong>
+                  </div>
+                  <div className="manual-sale-manual-price-mode">
+                    <button
+                      type="button"
+                      onClick={() => setManualPriceMode("cash")}
+                      className={manualPriceMode === "cash" ? "is-active" : ""}
+                    >
+                      Efectivo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualPriceMode("card")}
+                      className={manualPriceMode === "card" ? "is-active" : ""}
+                    >
+                      Tarjeta
+                    </button>
+                  </div>
+                </div>
+
+                <div className="manual-sale-manual-price-lines">
+                  {manualPriceComparisonRows.map((change) => (
+                    <article key={change.variantId}>
+                      <div>
+                        <strong>{change.title}</strong>
+                        <span>
+                          {change.variantLabel} x{change.quantity}
+                        </span>
+                      </div>
+                      <div>
+                        <span>Catalogo</span>
+                        <strong>{money(change.catalogPrice)}</strong>
+                      </div>
+                      <div>
+                        <span>
+                          {manualPriceMode
+                            ? `Manual ${manualPriceMode === "card" ? "tarjeta" : "efectivo"}`
+                            : "Manual ingresado"}
+                        </span>
+                        <strong>{money(change.enteredPrice)}</strong>
+                      </div>
+                      {manualPriceMode ? (
+                        <div>
+                          <span>
+                            {manualPriceMode === "cash"
+                              ? "Tarjeta calculada"
+                              : "Efectivo equivalente"}
+                          </span>
+                          <strong>
+                            {money(
+                              manualPriceMode === "cash"
+                                ? change.cardEquivalent
+                                : change.cashEquivalent,
+                            )}
+                          </strong>
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+
+                {manualPriceConfirmationMissing ? (
+                  <p className="manual-sale-alert manual-sale-alert-error">
+                    Elegi si esos precios modificados son valores en efectivo o en tarjeta antes de confirmar.
+                  </p>
+                ) : null}
+                {confirmationPaymentMismatch ? (
+                  <p className="manual-sale-alert manual-sale-alert-error">
+                    El total recalculado es {money(confirmationAmountToCollect)} y los pagos cargados suman {money(splitPaymentTotal)}.
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
 
             <div className="manual-sale-confirm-lines">
               {normalizedSaleLines.map((line) => (
@@ -1781,7 +2037,11 @@ export default function AdminManualSalesSection({
               <button
                 type="button"
                 onClick={() => void handleCreateSale()}
-                disabled={saving}
+                disabled={
+                  saving ||
+                  manualPriceConfirmationMissing ||
+                  confirmationPaymentMismatch
+                }
                 className="manual-sale-button manual-sale-button-primary"
               >
                 {saving ? "Registrando..." : "Confirmar venta"}
@@ -3063,6 +3323,89 @@ export default function AdminManualSalesSection({
           font-size: 11px;
         }
 
+        .manual-sale-manual-price-review {
+          display: grid;
+          gap: 12px;
+          border-radius: 18px;
+          border: 1px solid rgba(31, 111, 91, 0.16);
+          background: rgba(221, 244, 232, 0.34);
+          padding: 14px;
+        }
+
+        .manual-sale-manual-price-heading {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .manual-sale-manual-price-heading .manual-sale-eyebrow {
+          margin: 0 0 5px;
+        }
+
+        .manual-sale-manual-price-heading strong {
+          color: var(--sale-text);
+          font-size: 15px;
+        }
+
+        .manual-sale-manual-price-mode {
+          display: inline-grid;
+          grid-template-columns: repeat(2, minmax(92px, 1fr));
+          gap: 6px;
+        }
+
+        .manual-sale-manual-price-mode button {
+          min-height: 38px;
+          border-radius: 12px;
+          border: 1px solid var(--sale-border);
+          background: #FFFFFF;
+          color: var(--sale-text);
+          cursor: pointer;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 850;
+        }
+
+        .manual-sale-manual-price-mode button.is-active {
+          border-color: var(--sale-primary);
+          background: var(--sale-primary);
+          color: #FFFFFF;
+        }
+
+        .manual-sale-manual-price-lines {
+          display: grid;
+          gap: 8px;
+        }
+
+        .manual-sale-manual-price-lines article {
+          display: grid;
+          grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(96px, 0.55fr));
+          gap: 10px;
+          align-items: start;
+          border-radius: 14px;
+          border: 1px solid var(--sale-border);
+          background: #FFFFFF;
+          padding: 11px 12px;
+        }
+
+        .manual-sale-manual-price-lines article > div {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .manual-sale-manual-price-lines span {
+          color: var(--sale-muted);
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+
+        .manual-sale-manual-price-lines strong {
+          color: var(--sale-text);
+          overflow-wrap: anywhere;
+        }
+
         .manual-sale-confirm-lines {
           display: grid;
           gap: 8px;
@@ -3190,6 +3533,15 @@ export default function AdminManualSalesSection({
           .manual-sale-confirm-header,
           .manual-sale-confirm-summary {
             grid-template-columns: 1fr;
+          }
+
+          .manual-sale-manual-price-heading,
+          .manual-sale-manual-price-lines article {
+            grid-template-columns: 1fr;
+          }
+
+          .manual-sale-manual-price-mode {
+            width: 100%;
           }
 
           .manual-sale-inactive-account-card {
@@ -3981,6 +4333,161 @@ function calculateDiscountOnRemainingBase(
   return Number(Math.min(Math.max(safeBase - discountedTotal, 0), safeBase).toFixed(2));
 }
 
+function calculateManualSaleSubmissionAmounts({
+  lines,
+  discountType,
+  safeDiscountValue,
+  pricingPolicy,
+  splitPaymentEnabled,
+  splitPayments,
+  paymentMethod,
+  applyPaymentDiscount,
+  bankTransferDiscountPercentage,
+  selectedAccountBalance,
+  useCurrentAccountCredit,
+}: {
+  lines: NormalizedManualSaleLine[];
+  discountType: "percentage" | "fixed";
+  safeDiscountValue: number;
+  pricingPolicy: { manualSaleDiscountRounding: boolean };
+  splitPaymentEnabled: boolean;
+  splitPayments: ManualSalePaymentLine[];
+  paymentMethod: string;
+  applyPaymentDiscount: boolean;
+  bankTransferDiscountPercentage: number;
+  selectedAccountBalance: number;
+  useCurrentAccountCredit: boolean;
+}) {
+  const subtotal = lines.reduce((total, line) => total + line.lineTotal, 0);
+  const manualDiscountAmountBeforePayment =
+    discountType === "percentage"
+      ? calculateDiscountOnRemainingBase(
+          subtotal,
+          safeDiscountValue,
+          pricingPolicy,
+        )
+      : Math.min(safeDiscountValue, subtotal);
+  const splitPaymentBaseTarget = Math.max(subtotal - manualDiscountAmountBeforePayment, 0);
+  const normalizedSplitPayments = splitPayments.map((payment) => ({
+    method: payment.method,
+    amount: roundCurrency(parseCurrencyInput(payment.amount)),
+  }));
+  const paymentDiscountActive =
+    applyPaymentDiscount && bankTransferDiscountPercentage > 0;
+  const effectivePaymentDiscountPercentage = paymentDiscountActive
+    ? bankTransferDiscountPercentage
+    : 0;
+  const splitPaymentTotal = roundCurrency(
+    normalizedSplitPayments.reduce((sum, payment) => sum + payment.amount, 0),
+  );
+  const splitPaymentBaseCovered = roundCurrency(
+    normalizedSplitPayments.reduce(
+      (sum, payment) =>
+        sum +
+        calculatePaymentBaseCovered(
+          payment.amount,
+          payment.method,
+          effectivePaymentDiscountPercentage,
+        ),
+      0,
+    ),
+  );
+  const splitPaymentBaseDifference = roundCurrency(
+    splitPaymentBaseTarget - splitPaymentBaseCovered,
+  );
+  const splitPaymentBaseComplete = splitPaymentBaseDifference <= 0.01;
+  const partialSplitPaymentDiscountAmount = roundCurrency(
+    normalizedSplitPayments
+      .filter((payment) => isDiscountedPaymentMethod(payment.method))
+      .reduce(
+        (sum, payment) =>
+          sum +
+          Math.max(
+            calculatePaymentBaseCovered(
+              payment.amount,
+              payment.method,
+              effectivePaymentDiscountPercentage,
+            ) - payment.amount,
+            0,
+          ),
+        0,
+      ),
+  );
+  const paymentMethodDiscountRatio = splitPaymentEnabled
+    ? splitPaymentBaseCovered > 0
+      ? 1
+      : 0
+    : isDiscountedPaymentMethod(splitPayments[0]?.method || paymentMethod)
+      ? 1
+      : 0;
+  const paymentMethodDiscountPercentage =
+    paymentDiscountActive && paymentMethodDiscountRatio > 0
+      ? effectivePaymentDiscountPercentage
+      : 0;
+  const fullPaymentMethodDiscountAmount =
+    paymentMethodDiscountPercentage > 0
+      ? calculateManualSaleDiscountAmount(
+          lines,
+          subtotal,
+          paymentMethodDiscountPercentage,
+          pricingPolicy,
+        )
+      : 0;
+  const paymentMethodDiscountAmount =
+    paymentMethodDiscountPercentage > 0
+      ? splitPaymentEnabled
+        ? Math.min(
+            splitPaymentBaseComplete
+              ? Math.max(splitPaymentBaseTarget - splitPaymentTotal, 0)
+              : partialSplitPaymentDiscountAmount,
+            subtotal,
+          )
+        : roundCurrency(fullPaymentMethodDiscountAmount * paymentMethodDiscountRatio)
+      : 0;
+  const manualDiscountBase = splitPaymentEnabled
+    ? subtotal
+    : Math.max(subtotal - paymentMethodDiscountAmount, 0);
+  const manualDiscountAmount = splitPaymentEnabled
+    ? manualDiscountAmountBeforePayment
+    : discountType === "percentage"
+      ? calculateDiscountOnRemainingBase(
+          manualDiscountBase,
+          safeDiscountValue,
+          pricingPolicy,
+        )
+      : Math.min(safeDiscountValue, manualDiscountBase);
+  const discountAmount = Math.min(
+    paymentMethodDiscountAmount + manualDiscountAmount,
+    subtotal,
+  );
+  const total = Math.max(subtotal - discountAmount, 0);
+  const availableCurrentAccountCredit = Math.max(-selectedAccountBalance, 0);
+  const appliedCurrentAccountCreditAmount = useCurrentAccountCredit
+    ? Math.min(availableCurrentAccountCredit, total)
+    : 0;
+  const amountToCollect = Math.max(total - appliedCurrentAccountCreditAmount, 0);
+  const effectiveManualPayments = splitPaymentEnabled
+    ? normalizedSplitPayments
+    : [
+        {
+          method: splitPayments[0]?.method || paymentMethod.trim() || "Efectivo",
+          amount: amountToCollect,
+        },
+      ];
+  const effectiveSplitPaymentTotal = splitPaymentEnabled
+    ? splitPaymentTotal
+    : amountToCollect;
+
+  return {
+    subtotal,
+    discountAmount,
+    appliedCurrentAccountCreditAmount,
+    amountToCollect,
+    effectiveManualPayments,
+    splitPaymentDifference: roundCurrency(amountToCollect - effectiveSplitPaymentTotal),
+  };
+}
+
 function getCustomerName(customer: ManualSaleCustomer) {
   return [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || customer.email || customer.phone || `Cliente #${customer.id}`;
 }
@@ -4041,6 +4548,59 @@ function getPaymentDiscountMultiplier(discountPercentage: number) {
     ? Math.min(Math.max(discountPercentage, 0), 100)
     : 0;
   return Math.max(1 - safePercentage / 100, 0);
+}
+
+function hasManualLinePriceChange(line: Pick<NormalizedManualSaleLine, "unitPrice" | "catalogPrice">) {
+  return Math.abs(line.unitPrice - Number(line.catalogPrice ?? 0)) > 0.01;
+}
+
+function resolveManualCardEquivalent(
+  cashPrice: number,
+  discountPercentage: number,
+  policy: { manualSaleDiscountRounding: boolean },
+) {
+  const multiplier = getPaymentDiscountMultiplier(discountPercentage);
+  if (multiplier <= 0 || multiplier >= 1) return roundCurrency(cashPrice);
+
+  const cardPrice = cashPrice / multiplier;
+  return policy.manualSaleDiscountRounding
+    ? roundToNearestHundred(cardPrice)
+    : roundCurrency(cardPrice);
+}
+
+function resolveManualCashEquivalent(
+  cardPrice: number,
+  discountPercentage: number,
+  policy: { manualSaleDiscountRounding: boolean },
+) {
+  const multiplier = getPaymentDiscountMultiplier(discountPercentage);
+  if (multiplier <= 0 || multiplier >= 1) return roundCurrency(cardPrice);
+
+  const cashPrice = cardPrice * multiplier;
+  return policy.manualSaleDiscountRounding
+    ? roundToNearestHundred(cashPrice)
+    : roundCurrency(cashPrice);
+}
+
+function convertCashManualLineToCardLine(
+  line: NormalizedManualSaleLine,
+  discountPercentage: number,
+  policy: { manualSaleDiscountRounding: boolean },
+) {
+  if (!hasManualLinePriceChange(line)) return line;
+
+  const unitPrice = resolveManualCardEquivalent(
+    line.unitPrice,
+    discountPercentage,
+    policy,
+  );
+
+  return {
+    ...line,
+    unitPrice,
+    price: String(unitPrice),
+    lineTotal: unitPrice * line.quantity,
+  };
 }
 
 function calculatePaymentBaseCovered(

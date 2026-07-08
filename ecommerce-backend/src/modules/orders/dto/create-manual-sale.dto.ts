@@ -23,6 +23,16 @@ export class CreateManualSaleItemDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  enteredPrice?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  catalogPrice?: number;
 }
 
 export class CreateManualSalePaymentDto {
@@ -104,6 +114,10 @@ export class CreateManualSaleDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsIn(['cash', 'card'])
+  manualPriceMode?: 'cash' | 'card';
 
   @IsArray()
   @ArrayMinSize(1)
