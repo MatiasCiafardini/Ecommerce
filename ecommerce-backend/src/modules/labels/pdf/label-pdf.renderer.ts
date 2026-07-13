@@ -537,7 +537,10 @@ export class LabelPdfRenderer {
     const skuSize = this.fontSize(template, 3.2);
     const hasVariant = options.showVariantName && Boolean(label.variantName);
     const barcodeHeight = mmToPt(this.cutPriceBarcodeHeightMm(template, true));
-    const barcodeTopOffset = hasVariant ? mmToPt(5.6) : mmToPt(2.8);
+    // Keep the barcode in the lower band of the compact label. Moving it up
+    // when a variant is present makes its bars cross the variant baseline on
+    // the 54 x 17 mm stock; reducing only its height is enough to make room.
+    const barcodeBottomOffset = mmToPt(2.8);
 
     if (options.priceMode !== 'none') {
       this.drawCutLine(page, dividerX, box.y, box.height);
@@ -574,7 +577,7 @@ export class LabelPdfRenderer {
       page,
       label.sku,
       contentX,
-      box.y + box.padding + barcodeTopOffset,
+      box.y + box.padding + barcodeBottomOffset,
       contentWidth,
       hasVariant ? barcodeHeight * 0.72 : barcodeHeight,
       template,
