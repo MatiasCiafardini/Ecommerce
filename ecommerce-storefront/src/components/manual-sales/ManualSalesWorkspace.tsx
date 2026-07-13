@@ -242,11 +242,6 @@ export default function ManualSalesWorkspace() {
   const saveEdit = async () => {
     if (!selectedOrder || !editDraft) return;
 
-    if (!editDraft.reason.trim()) {
-      setEditError("Carga el motivo interno de la correccion.");
-      return;
-    }
-
     setSavingEdit(true);
     setEditError("");
 
@@ -255,7 +250,7 @@ export default function ManualSalesWorkspace() {
         method: "PATCH",
         body: JSON.stringify({
           paymentMethod: editDraft.paymentMethod.trim() || undefined,
-          reason: editDraft.reason.trim(),
+          reason: editDraft.reason.trim() || undefined,
           discountType: editDraft.discountType,
           discountValue: Number(editDraft.discountValue || 0),
           items: editDraft.items.map((item) => ({
@@ -608,7 +603,7 @@ export default function ManualSalesWorkspace() {
                 </div>
 
                 <label style={{ display: "grid", gap: 8 }}>
-                  <p style={eyebrowStyle}>Motivo interno</p>
+                  <p style={eyebrowStyle}>Motivo interno (opcional)</p>
                   <textarea
                     value={editDraft.reason}
                     onChange={(event) =>
@@ -626,15 +621,26 @@ export default function ManualSalesWorkspace() {
                   />
                 </label>
 
-                <div style={{ display: "grid", gap: 12 }}>
+                <div style={editItemsTableWrapStyle}>
+                  <table style={editItemsTableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={editItemsThStyle}>Descripcion</th>
+                        <th style={editItemsThStyle}>Cantidad</th>
+                        <th style={editItemsThStyle}>Precio unitario ($)</th>
+                        <th style={editItemsThStyle}>Accion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                   {editDraft.items.map((item) => (
-                    <article key={item.orderItemId} style={editLineCardStyle}>
-                      <div style={{ display: "grid", gap: 4 }}>
-                        <strong style={{ color: "var(--text-strong)" }}>{item.title}</strong>
-                        <span style={metaStyle}>{item.variantLabel}</span>
-                      </div>
-
-                      <div style={editLineControlsStyle}>
+                    <tr key={item.orderItemId}>
+                      <td style={editItemsTdStyle}>
+                        <div style={{ display: "grid", gap: 4 }}>
+                          <strong style={{ color: "var(--text-strong)" }}>{item.title}</strong>
+                          <span style={metaStyle}>{item.variantLabel}</span>
+                        </div>
+                      </td>
+                      <td style={editItemsTdStyle}>
                         <div style={counterWrapStyle}>
                           <button
                             type="button"
@@ -662,8 +668,10 @@ export default function ManualSalesWorkspace() {
                             +
                           </button>
                         </div>
-
+                      </td>
+                      <td style={editItemsTdStyle}>
                         <input
+                          aria-label={`Precio unitario de ${item.title}`}
                           value={item.price}
                           onChange={(event) =>
                             updateDraftItem(item.orderItemId, (current) => ({
@@ -674,7 +682,8 @@ export default function ManualSalesWorkspace() {
                           inputMode="decimal"
                           style={priceFieldStyle}
                         />
-
+                      </td>
+                      <td style={editItemsTdStyle}>
                         <button
                           type="button"
                           onClick={() => removeDraftItem(item.orderItemId)}
@@ -687,9 +696,11 @@ export default function ManualSalesWorkspace() {
                         >
                           Quitar
                         </button>
-                      </div>
-                    </article>
+                      </td>
+                    </tr>
                   ))}
+                    </tbody>
+                  </table>
                 </div>
               </section>
             ) : (
@@ -996,21 +1007,10 @@ const detailLineCardStyle: React.CSSProperties = {
   alignItems: "center",
 };
 
-const editLineCardStyle: React.CSSProperties = {
-  borderRadius: 18,
-  border: "1px solid var(--border-soft)",
-  background: "var(--page-panel-strong-bg)",
-  padding: 14,
-  display: "grid",
-  gap: 14,
-};
-
-const editLineControlsStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 10,
-  flexWrap: "wrap",
-  alignItems: "center",
-};
+const editItemsTableWrapStyle: React.CSSProperties = { width: "100%", overflowX: "auto", border: "1px solid var(--border-soft)", borderRadius: 16 };
+const editItemsTableStyle: React.CSSProperties = { width: "100%", minWidth: 650, borderCollapse: "collapse", background: "var(--page-panel-strong-bg)" };
+const editItemsThStyle: React.CSSProperties = { padding: "11px 14px", textAlign: "left", borderBottom: "1px solid var(--border-soft)", color: "var(--text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" };
+const editItemsTdStyle: React.CSSProperties = { padding: 14, borderBottom: "1px solid var(--border-soft)", verticalAlign: "middle" };
 
 const editDiscountGridStyle: React.CSSProperties = {
   display: "grid",

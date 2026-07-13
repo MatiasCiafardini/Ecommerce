@@ -434,11 +434,7 @@ export class CurrentAccountsService {
     dto: UpdateCurrentAccountPaymentDto,
   ) {
     await this.ensureCorrectionAllowed(storeId, updatedByUserId);
-    const reason = dto.reason?.trim();
-
-    if (!reason) {
-      throw new BadRequestException('Correction reason is required');
-    }
+    const reason = dto.reason?.trim() || 'Sin motivo informado';
 
     return this.prisma.$transaction(async (tx) => {
       const movement = await tx.currentAccountMovement.findFirst({
@@ -533,11 +529,7 @@ export class CurrentAccountsService {
     dto: CancelCurrentAccountPaymentDto,
   ) {
     await this.ensureCorrectionAllowed(storeId, cancelledByUserId);
-    const reason = dto.reason?.trim();
-
-    if (!reason) {
-      throw new BadRequestException('Cancellation reason is required');
-    }
+    const reason = dto.reason?.trim() || 'Sin motivo informado';
 
     return this.prisma.$transaction(async (tx) => {
       const movement = await tx.currentAccountMovement.findFirst({

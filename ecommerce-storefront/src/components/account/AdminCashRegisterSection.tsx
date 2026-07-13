@@ -994,11 +994,6 @@ export function SalesHistoryModal({
   async function saveSaleEdit() {
     if (!editingSale || !editDraft) return;
 
-    if (!editDraft.reason.trim()) {
-      setEditError("Carga el motivo interno de la correccion.");
-      return;
-    }
-
     setSavingEdit(true);
     setEditError("");
 
@@ -1007,7 +1002,7 @@ export function SalesHistoryModal({
         method: "PATCH",
         body: JSON.stringify({
           paymentMethod: editDraft.paymentMethod,
-          reason: editDraft.reason.trim(),
+          reason: editDraft.reason.trim() || undefined,
           discountType: "fixed",
           discountValue: editDiscountAmount,
           items: editDraft.items.map((item) => ({
@@ -1085,7 +1080,7 @@ export function SalesHistoryModal({
               <div>
                 <p style={eyebrowStyle}>Correccion</p>
                 <h3 style={modalTitleStyle}>Editar venta #{editingSale.id}</h3>
-                <p style={copyStyle}>Actualiza el metodo, cantidades o precios y deja un motivo interno.</p>
+                <p style={copyStyle}>Actualiza el metodo, cantidades o precios. El motivo interno es opcional.</p>
               </div>
               <strong style={editSaleTotalStyle}>{money(editGrandTotal)}</strong>
             </div>
@@ -1138,7 +1133,7 @@ export function SalesHistoryModal({
             </div>
 
             <label style={fieldStyle}>
-              <span>Motivo interno</span>
+              <span>Motivo interno (opcional)</span>
               <textarea
                 value={editDraft.reason}
                 onChange={(event) =>
@@ -1152,13 +1147,26 @@ export function SalesHistoryModal({
             </label>
 
             <div style={editSaleItemsStyle}>
+              <table style={editSaleItemsTableStyle}>
+                <thead>
+                  <tr>
+                    <th style={editSaleItemsThStyle}>Descripcion</th>
+                    <th style={editSaleItemsThStyle}>Cantidad</th>
+                    <th style={editSaleItemsThStyle}>Precio unitario ($)</th>
+                    <th style={editSaleItemsThStyle}>Accion</th>
+                  </tr>
+                </thead>
+                <tbody>
               {editDraft.items.map((item) => (
-                <article key={item.orderItemId} style={editSaleItemStyle}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <span style={mutedStyle}>{item.variantLabel}</span>
-                  </div>
-                  <div style={editSaleControlsStyle}>
+                <tr key={item.orderItemId}>
+                  <td style={editSaleItemsTdStyle}>
+                    <div style={{ display: "grid", gap: 4 }}>
+                      <strong>{item.title}</strong>
+                      <span style={mutedStyle}>{item.variantLabel}</span>
+                    </div>
+                  </td>
+                  <td style={editSaleItemsTdStyle}>
+                    <div style={editSaleControlsStyle}>
                     <button
                       type="button"
                       onClick={() =>
@@ -1184,7 +1192,11 @@ export function SalesHistoryModal({
                     >
                       +
                     </button>
+                    </div>
+                  </td>
+                  <td style={editSaleItemsTdStyle}>
                     <input
+                      aria-label={`Precio unitario de ${item.title}`}
                       value={item.price}
                       onChange={(event) =>
                         updateEditItem(item.orderItemId, (current) => ({
@@ -1195,6 +1207,8 @@ export function SalesHistoryModal({
                       inputMode="decimal"
                       style={editSalePriceInputStyle}
                     />
+                  </td>
+                  <td style={editSaleItemsTdStyle}>
                     <button
                       type="button"
                       onClick={() => removeEditItem(item.orderItemId)}
@@ -1207,9 +1221,11 @@ export function SalesHistoryModal({
                     >
                       Quitar
                     </button>
-                  </div>
-                </article>
+                  </td>
+                </tr>
               ))}
+                </tbody>
+              </table>
             </div>
 
             {editError ? <p style={errorStyle}>{editError}</p> : null}
@@ -1570,8 +1586,10 @@ const editSalePanelStyle: React.CSSProperties = { display: "grid", gap: 16, bord
 const editSaleTotalStyle: React.CSSProperties = { color: "var(--account-text-strong)", fontSize: 24 };
 const editSaleDiscountToggleStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 10, color: "var(--account-text-strong)", fontWeight: 800 };
 const editSaleSummaryStyle: React.CSSProperties = { display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", border: "1px solid var(--account-item-border)", borderRadius: 12, background: "var(--account-item-bg)", padding: "10px 12px", color: "var(--account-text-muted)" };
-const editSaleItemsStyle: React.CSSProperties = { display: "grid", gap: 10 };
-const editSaleItemStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", border: "1px solid var(--account-item-border)", borderRadius: 14, background: "var(--account-item-bg)", padding: 12 };
+const editSaleItemsStyle: React.CSSProperties = { width: "100%", overflowX: "auto", border: "1px solid var(--account-item-border)", borderRadius: 14 };
+const editSaleItemsTableStyle: React.CSSProperties = { width: "100%", minWidth: 650, borderCollapse: "collapse", background: "var(--account-item-bg)" };
+const editSaleItemsThStyle: React.CSSProperties = { padding: "11px 12px", textAlign: "left", borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" };
+const editSaleItemsTdStyle: React.CSSProperties = { padding: 12, borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-strong)", verticalAlign: "middle" };
 const editSaleControlsStyle: React.CSSProperties = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" };
 const smallActionButtonStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 10, border: "1px solid var(--account-item-border)", background: "transparent", color: "var(--account-text-strong)", cursor: "pointer", fontWeight: 900 };
 const editSaleQtyStyle: React.CSSProperties = { minWidth: 24, textAlign: "center", fontWeight: 900 };

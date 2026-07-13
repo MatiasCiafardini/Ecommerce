@@ -26,8 +26,9 @@ export class UpdateManualSaleItemDto {
 }
 
 export class UpdateManualSaleDto {
+  @IsOptional()
   @IsString()
-  reason: string;
+  reason?: string;
 
   @IsOptional()
   @IsString()

@@ -653,11 +653,6 @@ export default function AdminCurrentAccountsSection({
       return;
     }
 
-    if (!editPaymentReason.trim()) {
-      setModalError("Carga el motivo de la correccion.");
-      return;
-    }
-
     setSavingPaymentEdit(true);
     setModalError("");
     try {
@@ -667,7 +662,7 @@ export default function AdminCurrentAccountsSection({
           amount,
           paymentMethod: editPaymentMethod,
           description: editPaymentDescription.trim() || undefined,
-          reason: editPaymentReason.trim(),
+          reason: editPaymentReason.trim() || undefined,
         }),
       });
       setEditPaymentMovement(null);
@@ -688,18 +683,13 @@ export default function AdminCurrentAccountsSection({
   const confirmCancelPayment = async () => {
     if (!cancelPaymentMovement || !selected) return;
 
-    if (!cancelPaymentReason.trim()) {
-      setModalError("Carga el motivo de la anulacion.");
-      return;
-    }
-
     setSavingPaymentCancel(true);
     setModalError("");
     try {
       await api(`/current-accounts/payments/${cancelPaymentMovement.id}/cancel`, {
         method: "POST",
         body: JSON.stringify({
-          reason: cancelPaymentReason.trim(),
+          reason: cancelPaymentReason.trim() || undefined,
         }),
       });
       setCancelPaymentMovement(null);
@@ -1367,7 +1357,7 @@ export default function AdminCurrentAccountsSection({
               />
             </label>
             <label style={fieldGroupStyle}>
-              <span>Motivo interno</span>
+              <span>Motivo interno (opcional)</span>
               <textarea
                 value={editPaymentReason}
                 onChange={(event) => setEditPaymentReason(event.target.value)}
@@ -1423,7 +1413,7 @@ export default function AdminCurrentAccountsSection({
               administrativo en el historial.
             </p>
             <label style={fieldGroupStyle}>
-              <span>Motivo interno</span>
+              <span>Motivo interno (opcional)</span>
               <textarea
                 value={cancelPaymentReason}
                 onChange={(event) => setCancelPaymentReason(event.target.value)}
@@ -1803,7 +1793,7 @@ export default function AdminCurrentAccountsSection({
               </div>
             </label>
             <label style={fieldGroupStyle}>
-              <span>Motivo</span>
+              <span>Motivo (opcional)</span>
               <textarea
                 value={balanceDescription}
                 onChange={(event) => setBalanceDescription(event.target.value)}

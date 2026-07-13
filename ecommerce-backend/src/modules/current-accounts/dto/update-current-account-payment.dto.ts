@@ -13,6 +13,7 @@ export class UpdateCurrentAccountPaymentDto {
   @IsString()
   description?: string;
 
+  @IsOptional()
   @IsString()
-  reason: string;
+  reason?: string;
 }

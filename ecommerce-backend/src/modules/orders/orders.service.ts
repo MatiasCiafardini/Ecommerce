@@ -634,11 +634,7 @@ export class OrdersService {
     await this.ensureManualSalesEnabled(storeId);
     await this.ensureManualCorrectionAllowed(storeId, createdByUserId);
     const pricingPolicy = await this.resolvePricingPolicy(storeId);
-    const correctionReason = data.reason?.trim();
-
-    if (!correctionReason) {
-      throw new BadRequestException('Correction reason is required');
-    }
+    const correctionReason = data.reason?.trim() || 'Sin motivo informado';
 
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
