@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 const steps = [
   { number: 1, label: "Carrito" },
   { number: 2, label: "Entrega" },
@@ -18,8 +20,25 @@ export default function CheckoutLayout({
   onStepSelect?: (step: number) => void;
   canNavigateToStep?: (step: number) => boolean;
 }) {
+  const previousStepRef = useRef(step);
   const currentStep = steps.find((item) => item.number === step) ?? steps[0];
   const progressPercent = Math.max(0, Math.min(100, ((step - 1) / (steps.length - 1)) * 100));
+
+  useEffect(() => {
+    if (previousStepRef.current === step) return;
+
+    previousStepRef.current = step;
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+      });
+    });
+  }, [step]);
 
   return (
     <main

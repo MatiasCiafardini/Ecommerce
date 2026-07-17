@@ -61,6 +61,7 @@ export default function CheckoutAddress({
   const [selected, setSelected] = useState<Address | null>(null);
   const [saving, setSaving] = useState(false);
   const [continuing, setContinuing] = useState(false);
+  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     firstName: initialContact?.firstName ?? user?.firstName ?? "",
@@ -99,6 +100,8 @@ export default function CheckoutAddress({
         setAddresses(data);
         if (data.length > 0) {
           setSelected(data[0]);
+        } else {
+          setShowNewAddressForm(true);
         }
       } catch {
         setAddresses([]);
@@ -170,6 +173,7 @@ export default function CheckoutAddress({
 
       setAddresses((prev) => [address, ...prev]);
       setSelected(address);
+      setShowNewAddressForm(false);
       setForm((prev) => ({ ...prev, phone, streetName: "", streetNumber: "", address2: "", zip: "" }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la direccion.");
@@ -332,6 +336,32 @@ export default function CheckoutAddress({
           alignSelf: "start",
         }}
       >
+        <button
+          type="button"
+          onClick={() => setShowNewAddressForm((current) => !current)}
+          aria-expanded={showNewAddressForm}
+          style={{
+            width: "100%",
+            border: showNewAddressForm
+              ? "1px solid var(--checkout-border)"
+              : "1px solid var(--checkout-border-strong)",
+            borderRadius: 18,
+            background: showNewAddressForm
+              ? "var(--checkout-card-alt-bg)"
+              : "var(--checkout-secondary-bg)",
+            color: showNewAddressForm
+              ? "var(--checkout-text-strong)"
+              : "var(--checkout-secondary-color)",
+            padding: "15px 18px",
+            cursor: "pointer",
+            fontWeight: 700,
+          }}
+        >
+          {showNewAddressForm ? "Cerrar nueva direccion" : "+ Cargar nueva direccion"}
+        </button>
+
+        {showNewAddressForm ? (
+          <>
         <div>
           <p
             style={{
@@ -453,6 +483,8 @@ export default function CheckoutAddress({
         >
           {saving ? "Guardando..." : "Agregar direccion"}
         </button>
+          </>
+        ) : null}
 
         {error ? (
           <p style={{ margin: 0, color: "var(--checkout-error-color, #b42318)", lineHeight: 1.6 }}>

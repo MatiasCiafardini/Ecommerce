@@ -257,6 +257,7 @@ export default function ProductView({
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showGalleryUi, setShowGalleryUi] = useState(false);
   const galleryHideTimeoutRef = useRef<number | null>(null);
+  const galleryTouchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const revealGalleryUi = () => {
     if (galleryHideTimeoutRef.current) {
@@ -483,6 +484,35 @@ export default function ProductView({
     );
   };
 
+  const handleGalleryTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    galleryTouchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+
+  const handleGalleryTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const start = galleryTouchStartRef.current;
+    const touch = event.changedTouches[0];
+    galleryTouchStartRef.current = null;
+
+    if (!start || !touch || productImages.length <= 1) return;
+
+    const horizontalDistance = touch.clientX - start.x;
+    const verticalDistance = touch.clientY - start.y;
+
+    if (
+      Math.abs(horizontalDistance) < 45 ||
+      Math.abs(horizontalDistance) <= Math.abs(verticalDistance)
+    ) {
+      return;
+    }
+
+    if (horizontalDistance < 0) {
+      goToNextImage();
+    } else {
+      goToPreviousImage();
+    }
+  };
+
   return (
     <section
       style={{
@@ -523,6 +553,11 @@ export default function ProductView({
               style={galleryFrameStyle}
               onMouseEnter={revealGalleryUi}
               onMouseLeave={scheduleGalleryUiHide}
+              onTouchStart={handleGalleryTouchStart}
+              onTouchEnd={handleGalleryTouchEnd}
+              onTouchCancel={() => {
+                galleryTouchStartRef.current = null;
+              }}
               onFocusCapture={revealGalleryUi}
               onBlurCapture={(event) => {
                 if (
@@ -625,7 +660,7 @@ export default function ProductView({
                   </div>
 
                   <div
-                    className="gallery-hover-ui gallery-hover-up"
+                    className="gallery-thumbnail-dock gallery-hover-ui gallery-hover-up"
                     style={thumbnailDockStyle}
                   >
                     {productImages.map((productImage, index) => {
@@ -1113,7 +1148,8 @@ export default function ProductView({
                                 }
                               }
                             }}
-                            className={available ? "theme-button" : undefined}
+                            className={`product-variant-chip${selected ? " is-selected" : ""}`}
+                            aria-pressed={selected}
                             style={variantChipStyle(selected, available)}
                           >
                             {size}
@@ -1167,7 +1203,8 @@ export default function ProductView({
                                 }
                               }
                             }}
-                            className={available ? "theme-button" : undefined}
+                            className={`product-variant-chip${selected ? " is-selected" : ""}`}
+                            aria-pressed={selected}
                             style={variantChipStyle(selected, available)}
                           >
                             {color}
@@ -1457,6 +1494,20 @@ export default function ProductView({
           overflow: hidden;
         }
 
+        .product-variant-chip {
+          background: transparent !important;
+          border-color: var(--border-soft) !important;
+          color: var(--text-strong) !important;
+        }
+
+        .product-variant-chip.is-selected,
+        .product-variant-chip.is-selected:hover {
+          background: #1a1a1a !important;
+          border-color: #1a1a1a !important;
+          color: #ffffff !important;
+          box-shadow: 0 6px 16px color-mix(in srgb, var(--text-strong) 22%, transparent) !important;
+        }
+
         @media (max-width: 768px) {
           .product-view-shell {
             padding: 34px 10px 52px !important;
@@ -1474,6 +1525,12 @@ export default function ProductView({
           .product-gallery-panel .gallery-frame {
             aspect-ratio: 4 / 5 !important;
             border-radius: 24px !important;
+            touch-action: pan-y;
+          }
+
+          .gallery-arrow-button,
+          .gallery-thumbnail-dock {
+            display: none !important;
           }
 
           .product-buy-panel {
@@ -1533,9 +1590,13 @@ const variantChipStyle = (
   background: !available
     ? "transparent"
     : selected
-      ? "var(--block-card-bg)"
+      ? "#1a1a1a"
       : "transparent",
-  color: !available ? "var(--text-muted)" : "var(--text-strong)",
+  color: !available
+    ? "var(--text-muted)"
+    : selected
+      ? "#ffffff"
+      : "var(--text-strong)",
   cursor: available ? "pointer" : "not-allowed",
   textTransform: "uppercase",
   letterSpacing: "0.12em",

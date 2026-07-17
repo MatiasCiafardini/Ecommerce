@@ -8,6 +8,17 @@ type Params = {
   search?: string;
 };
 
+const hasAvailableStock = (product: StoreProduct) =>
+  (product.variants ?? []).some((variant) =>
+    (variant.inventories ?? []).some(
+      (inventory) =>
+        Math.max(
+          Number(inventory.quantity ?? 0) - Number(inventory.reserved ?? 0),
+          0,
+        ) > 0,
+    ),
+  );
+
 function reportProductsFallback(args: {
   scope: "list" | "detail";
   target: string;
@@ -68,11 +79,13 @@ export async function getProducts(params?: Params): Promise<StoreProduct[]> {
     return [];
   }
 
+  const availableProducts = products.filter(hasAvailableStock);
+
   if (params?.limit) {
-    return products.slice(0, params.limit);
+    return availableProducts.slice(0, params.limit);
   }
 
-  return products;
+  return availableProducts;
 }
 export async function getProductBySlug(slug: string) {
   try {
