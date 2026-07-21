@@ -164,11 +164,20 @@ export default function AdminAccountingSection() {
               <option value="card" style={optionStyle}>
                 Tarjeta
               </option>
+              <option value="Débito" style={optionStyle}>
+                Débito (venta manual)
+              </option>
               <option value="bank_transfer" style={optionStyle}>
                 Transferencia
               </option>
               <option value="cash" style={optionStyle}>
                 Efectivo
+              </option>
+              <option value="Efectivo" style={optionStyle}>
+                Efectivo (venta manual)
+              </option>
+              <option value="Transferencia" style={optionStyle}>
+                Transferencia (venta manual)
               </option>
               <option value="manual" style={optionStyle}>
                 Manual
@@ -207,6 +216,7 @@ export default function AdminAccountingSection() {
               "Cuotas y detalle del estado del pago",
               "Cantidad y monto de reintegros",
               "Filtros por proveedor o metodo para separar conciliaciones",
+              "Detalle completo de pagos divididos",
             ].map((item) => (
               <div
                 key={item}

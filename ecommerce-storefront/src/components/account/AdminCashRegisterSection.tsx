@@ -13,6 +13,10 @@ import {
 import { getClientStoreId } from "@/lib/tenant/store-context";
 import { money } from "./order-utils";
 import type { ManualReturnDraft } from "@/components/manual-sales/ManualReturnsPanel";
+import {
+  ADMIN_PAYMENT_METHODS,
+  isDiscountedAdministrativePaymentMethod,
+} from "@/lib/manual-payment-methods";
 
 type CashRegisterMode = "automatic" | "manual";
 
@@ -85,6 +89,9 @@ export type ManualSaleHistoryOrder = {
     provider?: string | null;
     status: string;
     amount?: string | number;
+    metadata?: {
+      appliedCurrentAccountCreditAmount?: string | number | null;
+    } | null;
   }>;
   items?: Array<{
     id: number;
@@ -103,6 +110,8 @@ export type ManualSaleHistoryOrder = {
 type SaleEditDraft = {
   reason: string;
   paymentMethod: string;
+  payments: Array<{ method: string; amount: string }>;
+  appliedCurrentAccountCreditAmount: number;
   applyPaymentDiscount: boolean;
   items: Array<{
     orderItemId: number;
@@ -120,7 +129,7 @@ type StorePaymentConfig = {
   } | null;
 };
 
-const manualPaymentOptions = ["Efectivo", "Tarjeta", "Transferencia", "Cuenta corriente"];
+const manualPaymentOptions: string[] = [...ADMIN_PAYMENT_METHODS];
 
 export default function AdminCashRegisterSection({
   storeLocationId,
@@ -161,6 +170,7 @@ export default function AdminCashRegisterSection({
   const cashCardTotals = useMemo(
     () => ({
       efectivo: methodTotal(summary?.byMethod, ["Efectivo"]),
+      debito: methodTotal(summary?.byMethod, ["Débito", "Debito"]),
       transferencia: methodTotal(summary?.byMethod, ["Transferencia"]),
       tarjeta: methodTotal(summary?.byMethod, ["Tarjeta"]),
       cuentaCorriente: Number(summary?.accountAssignedTotal ?? 0),
@@ -489,6 +499,7 @@ export default function AdminCashRegisterSection({
         <>
           <div style={statsGridStyle}>
             <Stat label="Efectivo" value={cashCardMoney(cashCardTotals.efectivo)} />
+            <Stat label="Débito" value={cashCardMoney(cashCardTotals.debito)} />
             <Stat label="Transferencia" value={cashCardMoney(cashCardTotals.transferencia)} />
             <Stat label="Tarjeta" value={cashCardMoney(cashCardTotals.tarjeta)} />
             <Stat label="Cuenta corriente" value={cashCardMoney(cashCardTotals.cuentaCorriente)} />
@@ -917,8 +928,18 @@ export function SalesHistoryModal({
       0,
     );
   }, [editDraft]);
-  const editDiscountAmount =
-    editDraft?.applyPaymentDiscount && isDiscountedManualPaymentMethod(editDraft.paymentMethod)
+  const editPaymentTotal = (editDraft?.payments ?? []).reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
+  );
+  const editEligiblePaymentTotal = (editDraft?.payments ?? [])
+    .filter((payment) => isDiscountedManualPaymentMethod(payment.method))
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const editDiscountRatio = editPaymentTotal > 0
+    ? Math.min(Math.max(editEligiblePaymentTotal / editPaymentTotal, 0), 1)
+    : 0;
+  const editDiscountAmount = roundCashMoney(
+    editDraft?.applyPaymentDiscount && editDiscountRatio > 0
       ? calculateManualSaleDiscountAmount(
           editDraft.items.map((item) => ({
             price: Number(item.price || 0),
@@ -927,9 +948,14 @@ export function SalesHistoryModal({
           editSubtotal,
           paymentDiscountPercentage,
           pricingPolicy,
-        )
-      : 0;
+        ) * editDiscountRatio
+      : 0,
+  );
   const editGrandTotal = Math.max(editSubtotal - editDiscountAmount, 0);
+  const editAmountToCollect = Math.max(
+    editGrandTotal - Number(editDraft?.appliedCurrentAccountCreditAmount ?? 0),
+    0,
+  );
 
   function openSaleEdit(sale: ManualSaleHistoryOrder) {
     if (sale.status === "cancelled") {
@@ -961,6 +987,18 @@ export function SalesHistoryModal({
     setEditDraft({
       reason: "",
       paymentMethod: normalizeReturnPaymentMethod(salePaymentMethod(sale)),
+      appliedCurrentAccountCreditAmount: Math.max(
+        Number(sale.payments?.[0]?.metadata?.appliedCurrentAccountCreditAmount ?? 0),
+        0,
+      ),
+      payments: (sale.payments?.length ? sale.payments : [{ method: "Efectivo", amount: sale.total }]).map(
+        (payment) => ({
+          method: normalizeReturnPaymentMethod(
+            payment.method || ("provider" in payment ? payment.provider : null) || "Efectivo",
+          ),
+          amount: String(payment.amount ?? 0),
+        }),
+      ),
       applyPaymentDiscount: false,
       items,
     });
@@ -994,6 +1032,20 @@ export function SalesHistoryModal({
   async function saveSaleEdit() {
     if (!editingSale || !editDraft) return;
 
+    const payments = editDraft.payments.map((payment) => ({
+      method: payment.method,
+      amount: roundCashMoney(Number(payment.amount || 0)),
+    }));
+    const paymentsTotal = roundCashMoney(payments.reduce((sum, payment) => sum + payment.amount, 0));
+    if (new Set(payments.map((payment) => payment.method)).size !== payments.length) {
+      setEditError("No se puede repetir el mismo metodo en pagos divididos.");
+      return;
+    }
+    if (Math.abs(paymentsTotal - roundCashMoney(editAmountToCollect)) > 0.01) {
+      setEditError("La suma de los pagos debe coincidir con el total de la venta.");
+      return;
+    }
+
     setSavingEdit(true);
     setEditError("");
 
@@ -1002,6 +1054,7 @@ export function SalesHistoryModal({
         method: "PATCH",
         body: JSON.stringify({
           paymentMethod: editDraft.paymentMethod,
+          payments,
           reason: editDraft.reason.trim() || undefined,
           discountType: "fixed",
           discountValue: editDiscountAmount,
@@ -1085,27 +1138,34 @@ export function SalesHistoryModal({
               <strong style={editSaleTotalStyle}>{money(editGrandTotal)}</strong>
             </div>
 
-            <label style={fieldStyle}>
-              <span>Metodo de pago</span>
-              <select
-                value={editDraft.paymentMethod}
-                onChange={(event) =>
-                  setEditDraft((current) =>
-                    current ? { ...current, paymentMethod: event.target.value } : current,
-                  )
-                }
-                style={inputStyle}
-              >
-                {manualPaymentOptions.map((method) => (
-                  <option key={method} value={method}>
-                    {method}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div style={fieldStyle}>
+              <span>Pagos</span>
+              {editDraft.payments.map((payment, index) => (
+                <div key={`${index}-${payment.method}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(120px, 0.6fr) auto", gap: 8 }}>
+                  <select value={payment.method} onChange={(event) => setEditDraft((current) => current ? {
+                    ...current,
+                    paymentMethod: index === 0 ? event.target.value : current.paymentMethod,
+                    payments: current.payments.map((entry, paymentIndex) => paymentIndex === index ? { ...entry, method: event.target.value } : entry),
+                  } : current)} style={inputStyle}>
+                    {manualPaymentOptions.map((method) => <option key={method} value={method}>{method}</option>)}
+                  </select>
+                  <input value={payment.amount} inputMode="decimal" onChange={(event) => setEditDraft((current) => current ? {
+                    ...current,
+                    payments: current.payments.map((entry, paymentIndex) => paymentIndex === index ? { ...entry, amount: event.target.value } : entry),
+                  } : current)} style={inputStyle} />
+                  {editDraft.payments.length > 1 ? <button type="button" style={softButtonStyle} onClick={() => setEditDraft((current) => current ? { ...current, payments: current.payments.filter((_, paymentIndex) => paymentIndex !== index) } : current)}>Quitar</button> : null}
+                </div>
+              ))}
+              <button type="button" style={softButtonStyle} disabled={editDraft.payments.length >= manualPaymentOptions.length} onClick={() => setEditDraft((current) => {
+                if (!current) return current;
+                const used = new Set(current.payments.map((payment) => payment.method));
+                const method = manualPaymentOptions.find((item) => !used.has(item));
+                return method ? { ...current, payments: [...current.payments, { method, amount: "0" }] } : current;
+              })}>Agregar otro medio de pago</button>
+            </div>
 
             {paymentDiscountPercentage > 0 &&
-            isDiscountedManualPaymentMethod(editDraft.paymentMethod) ? (
+            editDraft.payments.some((payment) => isDiscountedManualPaymentMethod(payment.method)) ? (
               <label style={editSaleDiscountToggleStyle}>
                 <input
                   type="checkbox"
@@ -1119,7 +1179,7 @@ export function SalesHistoryModal({
                   }
                 />
                 <span>
-                  Aplicar descuento efectivo/transferencia ({paymentDiscountPercentage}%)
+                  Aplicar descuento efectivo/débito/transferencia ({paymentDiscountPercentage}%)
                 </span>
               </label>
             ) : null}
@@ -1305,7 +1365,7 @@ export function SalesHistoryModal({
                           ))}
                         </div>
                       </td>
-                      <td style={salesTdStyle}>{salePaymentMethod(sale)}</td>
+                      <td style={salesTdStyle}>{salePaymentSummary(sale)}</td>
                       <td style={salesTdStyle}>
                         <div style={salesActionsColumnStyle}>
                           <button type="button" onClick={() => generateReturnFromSale(sale)} style={primaryButtonStyle}>
@@ -1426,15 +1486,28 @@ function salePaymentMethod(sale: ManualSaleHistoryOrder) {
   return payment?.method?.trim() || payment?.provider || "Sin metodo";
 }
 
+function salePaymentSummary(sale: ManualSaleHistoryOrder) {
+  const payments = sale.payments ?? [];
+  if (!payments.length) return "Sin metodo";
+  return payments
+    .map((payment) => `${payment.method?.trim() || payment.provider || "Sin metodo"} ${money(payment.amount ?? 0)}`)
+    .join(" + ");
+}
+
 function normalizeReturnPaymentMethod(method: string) {
   if (method === "Cuenta corriente") return "Cuenta corriente";
+  if (method === "Débito" || method === "Debito") return "Débito";
   if (method === "Tarjeta") return "Tarjeta";
   if (method === "Transferencia") return "Transferencia";
   return "Efectivo";
 }
 
 function isDiscountedManualPaymentMethod(method: string) {
-  return method === "Efectivo" || method === "Transferencia";
+  return isDiscountedAdministrativePaymentMethod(method);
+}
+
+function roundCashMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function effectiveUnitPrices(

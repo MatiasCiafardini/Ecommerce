@@ -7,6 +7,7 @@ import AdminCurrentAccountsSection from "@/components/account/AdminCurrentAccoun
 import ManualReturnsPanel from "@/components/manual-sales/ManualReturnsPanel";
 import ThemeSelect from "@/components/ui/ThemeSelect";
 import { money, orderStatusLabel, paymentMethodLabel } from "@/components/account/order-utils";
+import { ADMIN_PAYMENT_METHODS } from "@/lib/manual-payment-methods";
 
 type ManualSaleOrder = {
   id: number;
@@ -29,6 +30,7 @@ type ManualSaleOrder = {
       origin?: string;
       discountType?: "percentage" | "fixed";
       discountValue?: number | string | null;
+      appliedCurrentAccountCreditAmount?: number | string | null;
     } | null;
   }>;
   items?: Array<{
@@ -50,6 +52,8 @@ type ManualSaleOrder = {
 type EditDraft = {
   reason: string;
   paymentMethod: string;
+  appliedCurrentAccountCreditAmount: number;
+  payments: Array<{ method: string; amount: string }>;
   discountType: "percentage" | "fixed";
   discountValue: string;
   items: Array<{
@@ -71,12 +75,7 @@ type ManualSaleCustomer = {
   source?: string | null;
 };
 
-const paymentOptions = [
-  { value: "Efectivo", label: "Efectivo" },
-  { value: "Tarjeta", label: "Tarjeta" },
-  { value: "Transferencia", label: "Transferencia" },
-  { value: "Cuenta corriente", label: "Cuenta corriente" },
-];
+const paymentOptions = ADMIN_PAYMENT_METHODS.map((value) => ({ value, label: value }));
 
 const isManualSaleOrder = (order: ManualSaleOrder) =>
   (order.payments ?? []).some(
@@ -162,6 +161,29 @@ export default function ManualSalesWorkspace() {
     );
     return subtotal - discountAmount + Number(selectedOrder.shippingCost ?? 0);
   }, [editDraft, selectedOrder]);
+  const draftAmountToCollect = Math.max(
+    draftTotal - Number(editDraft?.appliedCurrentAccountCreditAmount ?? 0),
+    0,
+  );
+
+  useEffect(() => {
+    if (modalMode !== "edit") return;
+    setEditDraft((current) => {
+      if (!current?.payments.length) return current;
+      const otherTotal = current.payments
+        .slice(0, -1)
+        .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      const nextAmount = String(roundMoney(Math.max(draftAmountToCollect - otherTotal, 0)));
+      const last = current.payments[current.payments.length - 1];
+      if (last.amount === nextAmount) return current;
+      return {
+        ...current,
+        payments: current.payments.map((payment, index) =>
+          index === current.payments.length - 1 ? { ...payment, amount: nextAmount } : payment,
+        ),
+      };
+    });
+  }, [draftAmountToCollect, modalMode]);
 
   const openDetails = (order: ManualSaleOrder) => {
     setSelectedOrder(order);
@@ -181,6 +203,11 @@ export default function ManualSalesWorkspace() {
     setEditDraft({
       reason: "",
       paymentMethod: getManualPaymentMethod(order),
+      appliedCurrentAccountCreditAmount: getAppliedCurrentAccountCreditAmount(order),
+      payments: getManualPayments(order).map((payment) => ({
+        method: payment.method,
+        amount: String(payment.amount),
+      })),
       discountType: getManualDiscountType(order),
       discountValue: String(getManualDiscountValue(order)),
       items: (order.items ?? []).map((item) => ({
@@ -242,6 +269,26 @@ export default function ManualSalesWorkspace() {
   const saveEdit = async () => {
     if (!selectedOrder || !editDraft) return;
 
+    const normalizedPayments = editDraft.payments.map((payment) => ({
+      method: payment.method,
+      amount: roundMoney(Number(payment.amount || 0)),
+    }));
+    const paymentTotal = roundMoney(
+      normalizedPayments.reduce((sum, payment) => sum + payment.amount, 0),
+    );
+    if (normalizedPayments.some((payment) => payment.amount < 0)) {
+      setEditError("Los importes de pago no pueden ser negativos.");
+      return;
+    }
+    if (new Set(normalizedPayments.map((payment) => payment.method)).size !== normalizedPayments.length) {
+      setEditError("No se puede repetir el mismo metodo en pagos divididos.");
+      return;
+    }
+    if (Math.abs(paymentTotal - roundMoney(draftAmountToCollect)) > 0.01) {
+      setEditError("La suma de los pagos debe coincidir con el total de la venta.");
+      return;
+    }
+
     setSavingEdit(true);
     setEditError("");
 
@@ -250,6 +297,7 @@ export default function ManualSalesWorkspace() {
         method: "PATCH",
         body: JSON.stringify({
           paymentMethod: editDraft.paymentMethod.trim() || undefined,
+          payments: normalizedPayments,
           reason: editDraft.reason.trim() || undefined,
           discountType: editDraft.discountType,
           discountValue: Number(editDraft.discountValue || 0),
@@ -447,7 +495,7 @@ export default function ManualSalesWorkspace() {
 
                         <div style={betweenStyle}>
                           <span style={metaStyle}>{orderStatusLabel(order.status)}</span>
-                          <span style={metaStyle}>{getManualPaymentMethod(order)}</span>
+                          <span style={metaStyle}>{describeOrderPayments(order)}</span>
                         </div>
 
                         <div style={actionsRowStyle}>
@@ -522,8 +570,8 @@ export default function ManualSalesWorkspace() {
                 label="Pago"
                 value={
                   modalMode === "edit" && editDraft
-                    ? editDraft.paymentMethod
-                    : getManualPaymentMethod(selectedOrder)
+                    ? describePayments(editDraft.payments)
+                    : describeOrderPayments(selectedOrder)
                 }
               />
               <InfoCard
@@ -541,18 +589,57 @@ export default function ManualSalesWorkspace() {
 
             {modalMode === "edit" && editDraft ? (
               <section style={{ display: "grid", gap: 14 }}>
-                <div style={{ display: "grid", gap: 8 }}>
-                  <p style={eyebrowStyle}>Metodo de pago</p>
-                  <ThemeSelect
-                    value={editDraft.paymentMethod}
-                    onChange={(value) =>
-                      setEditDraft((current) =>
-                        current ? { ...current, paymentMethod: value } : current,
-                      )
-                    }
-                    options={paymentOptions}
-                    placeholder="Seleccionar metodo"
-                  />
+                <div style={{ display: "grid", gap: 10 }}>
+                  <p style={eyebrowStyle}>Pagos</p>
+                  {editDraft.payments.map((payment, index) => (
+                    <div key={`${index}-${payment.method}`} style={editDiscountGridStyle}>
+                      <ThemeSelect
+                        value={payment.method}
+                        onChange={(value) => setEditDraft((current) => current ? {
+                          ...current,
+                          paymentMethod: index === 0 ? value : current.paymentMethod,
+                          payments: current.payments.map((entry, paymentIndex) =>
+                            paymentIndex === index ? { ...entry, method: value } : entry,
+                          ),
+                        } : current)}
+                        options={paymentOptions}
+                        placeholder="Seleccionar metodo"
+                      />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          value={payment.amount}
+                          onChange={(event) => setEditDraft((current) => current ? {
+                            ...current,
+                            payments: current.payments.map((entry, paymentIndex) =>
+                              paymentIndex === index ? { ...entry, amount: event.target.value } : entry,
+                            ),
+                          } : current)}
+                          inputMode="decimal"
+                          aria-label={`Importe pago ${index + 1}`}
+                          style={priceFieldStyle}
+                        />
+                        {editDraft.payments.length > 1 ? (
+                          <button type="button" style={ghostButtonStyle} onClick={() =>
+                            setEditDraft((current) => current ? {
+                              ...current,
+                              payments: current.payments.filter((_, paymentIndex) => paymentIndex !== index),
+                            } : current)
+                          }>Quitar</button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    style={secondaryButtonStyle}
+                    disabled={editDraft.payments.length >= ADMIN_PAYMENT_METHODS.length}
+                    onClick={() => setEditDraft((current) => {
+                      if (!current) return current;
+                      const used = new Set(current.payments.map((payment) => payment.method));
+                      const method = ADMIN_PAYMENT_METHODS.find((item) => !used.has(item));
+                      return method ? { ...current, payments: [...current.payments, { method, amount: "0" }] } : current;
+                    })}
+                  >Agregar otro medio de pago</button>
                 </div>
 
                 <div style={editDiscountGridStyle}>
@@ -876,8 +963,32 @@ function getDisplayName(order: ManualSaleOrder) {
 }
 
 function getManualPaymentMethod(order: ManualSaleOrder) {
-  const method = (order.payments ?? []).find((payment) => payment.provider === "manual")?.method;
+  const method = getManualPayments(order)[0]?.method;
   return paymentMethodLabel(method) || "Pago manual";
+}
+
+function getManualPayments(order: ManualSaleOrder) {
+  const payments = (order.payments ?? [])
+    .filter((payment) => payment.provider === "manual" || payment.metadata?.origin === "manual_sale")
+    .map((payment) => ({
+      method: payment.method?.trim() || "Efectivo",
+      amount: Number(payment.amount ?? 0),
+    }));
+  return payments.length ? payments : [{ method: "Efectivo", amount: Number(order.total ?? 0) }];
+}
+
+function describePayments(payments: Array<{ method: string; amount: string | number }>) {
+  return payments
+    .map((payment) => `${paymentMethodLabel(payment.method)} ${money(payment.amount)}`)
+    .join(" + ");
+}
+
+function describeOrderPayments(order: ManualSaleOrder) {
+  return describePayments(getManualPayments(order));
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function getManualDiscountType(order: ManualSaleOrder): "percentage" | "fixed" {
@@ -891,6 +1002,12 @@ function getManualDiscountValue(order: ManualSaleOrder) {
     ?.metadata?.discountValue;
   const numericValue = Number(rawValue ?? 0);
   return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function getAppliedCurrentAccountCreditAmount(order: ManualSaleOrder) {
+  const value = (order.payments ?? []).find((payment) => payment.provider === "manual")
+    ?.metadata?.appliedCurrentAccountCreditAmount;
+  return Math.max(Number(value ?? 0), 0);
 }
 
 function calculateDiscountAmount(

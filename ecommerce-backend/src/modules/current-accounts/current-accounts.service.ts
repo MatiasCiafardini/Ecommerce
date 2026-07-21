@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
 import { normalizeEmail } from '../../common/utils/email.util';
+import { isDiscountedAdministrativePaymentMethod } from '../../common/manual-payment-methods';
 import {
   resolveStorePricingPolicy,
   roundToNearestHundred,
@@ -740,8 +741,7 @@ export class CurrentAccountsService {
   ) {
     const safeAmount = roundCurrency(amount);
     const safeBalance = roundCurrency(Math.max(currentBalance, 0));
-    const eligibleMethod =
-      paymentMethod === 'Efectivo' || paymentMethod === 'Transferencia';
+    const eligibleMethod = isDiscountedAdministrativePaymentMethod(paymentMethod);
     const safePercentage = Math.min(Math.max(Number(discountPercentage) || 0, 0), 100);
 
     if (!eligibleMethod || safePercentage <= 0 || safePercentage >= 100) {
@@ -785,8 +785,7 @@ export class CurrentAccountsService {
     discountPercentage: number,
     roundDiscounts: boolean,
   ) {
-    const eligibleMethod =
-      paymentMethod === 'Efectivo' || paymentMethod === 'Transferencia';
+    const eligibleMethod = isDiscountedAdministrativePaymentMethod(paymentMethod);
     const safePercentage = Math.min(Math.max(Number(discountPercentage) || 0, 0), 100);
 
     if (!eligibleMethod || safePercentage <= 0 || safePercentage >= 100 || !roundDiscounts) {
@@ -978,7 +977,7 @@ export class CurrentAccountsService {
   }
 
   private isDiscountedCurrentAccountPayment(paymentMethod?: string | null) {
-    return paymentMethod === 'Efectivo' || paymentMethod === 'Transferencia';
+    return isDiscountedAdministrativePaymentMethod(paymentMethod);
   }
 
   private async ensureAutomaticCashRegisterSession(

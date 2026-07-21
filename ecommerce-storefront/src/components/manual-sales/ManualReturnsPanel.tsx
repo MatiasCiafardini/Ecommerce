@@ -11,6 +11,10 @@ import {
 } from "@/lib/pricing-policy";
 import { getClientStoreId } from "@/lib/tenant/store-context";
 import { money } from "@/components/account/order-utils";
+import {
+  ADMIN_PAYMENT_METHODS,
+  isDiscountedAdministrativePaymentMethod,
+} from "@/lib/manual-payment-methods";
 
 type Product = {
   id: number;
@@ -93,8 +97,8 @@ type StorePaymentConfig = {
   } | null;
 };
 
-const returnedPaymentMethods = ["Efectivo", "Tarjeta", "Transferencia", "Cuenta corriente"];
-const exchangePaymentMethods = ["Efectivo", "Tarjeta", "Transferencia", "Cuenta corriente"];
+const returnedPaymentMethods: string[] = [...ADMIN_PAYMENT_METHODS];
+const exchangePaymentMethods: string[] = [...ADMIN_PAYMENT_METHODS];
 const normalizeSearch = (value: string) => value.trim().toLowerCase();
 
 export default function ManualReturnsPanel({
@@ -947,7 +951,7 @@ function calculateReturnSideTotals(
     (sum, line) => sum + line.unitPrice * line.quantity,
     0,
   );
-  const shouldDiscount = paymentMethod === "Efectivo" || paymentMethod === "Transferencia";
+  const shouldDiscount = isDiscountedAdministrativePaymentMethod(paymentMethod);
   const discountAmount =
     shouldDiscount && discountPercentage > 0
       ? calculateManualSaleDiscountAmount(

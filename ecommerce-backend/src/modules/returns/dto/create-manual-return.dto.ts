@@ -11,6 +11,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { ADMIN_PAYMENT_METHODS } from '../../../common/manual-payment-methods';
 
 export class CreateManualReturnItemDto {
   @IsInt()
@@ -56,7 +57,7 @@ export class CreateManualReturnDto {
   customerPhone?: string;
 
   @IsOptional()
-  @IsIn(['Efectivo', 'Tarjeta', 'Transferencia', 'Mercado Pago', 'Cuenta corriente'])
+  @IsIn([...ADMIN_PAYMENT_METHODS, 'Debito', 'Mercado Pago'])
   settlementMethod?: string;
 
   @IsOptional()

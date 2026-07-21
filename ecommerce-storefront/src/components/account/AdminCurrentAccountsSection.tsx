@@ -14,6 +14,10 @@ import AdminManualSalesSection, {
   type ManualSaleCustomer,
 } from "./AdminManualSalesSection";
 import { money } from "./order-utils";
+import {
+  CURRENT_ACCOUNT_PAYMENT_METHODS,
+  isDiscountedAdministrativePaymentMethod,
+} from "@/lib/manual-payment-methods";
 
 type Customer = {
   id: number;
@@ -85,7 +89,7 @@ type MovementVariant = NonNullable<
   NonNullable<Movement["order"]>["items"]
 >[number]["variant"];
 
-const paymentMethods = ["Efectivo", "Tarjeta", "Transferencia", "Mercado Pago"];
+const paymentMethods: string[] = [...CURRENT_ACCOUNT_PAYMENT_METHODS];
 const movementFilterOptions: Array<{ value: MovementFilter; label: string }> = [
   { value: "all", label: "Todos" },
   { value: "sales", label: "Ventas" },
@@ -2326,8 +2330,7 @@ function calculatePaymentApplication(
     Number.isFinite(amount) ? Math.max(amount, 0) : 0,
   );
   const safeBalance = roundCurrency(Math.max(Number(balance || 0), 0));
-  const eligibleMethod =
-    paymentMethod === "Efectivo" || paymentMethod === "Transferencia";
+  const eligibleMethod = isDiscountedAdministrativePaymentMethod(paymentMethod);
   const safePercentage = Number.isFinite(discountPercentage)
     ? Math.min(Math.max(discountPercentage, 0), 100)
     : 0;
@@ -2441,7 +2444,7 @@ function resolveMovementCashEquivalent(
 }
 
 function isDiscountedCurrentAccountPayment(paymentMethod?: string | null) {
-  return paymentMethod === "Efectivo" || paymentMethod === "Transferencia";
+  return isDiscountedAdministrativePaymentMethod(paymentMethod);
 }
 
 function allocateCashAcrossBuckets(

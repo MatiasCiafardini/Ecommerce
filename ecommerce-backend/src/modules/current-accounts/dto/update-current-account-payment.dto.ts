@@ -1,4 +1,5 @@
 import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { CURRENT_ACCOUNT_PAYMENT_METHODS } from '../../../common/manual-payment-methods';
 
 export class UpdateCurrentAccountPaymentDto {
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -6,7 +7,7 @@ export class UpdateCurrentAccountPaymentDto {
   amount: number;
 
   @IsString()
-  @IsIn(['Efectivo', 'Tarjeta', 'Transferencia', 'Mercado Pago'])
+  @IsIn([...CURRENT_ACCOUNT_PAYMENT_METHODS, 'Debito'])
   paymentMethod: string;
 
   @IsOptional()

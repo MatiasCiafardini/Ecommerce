@@ -213,12 +213,14 @@ export const paymentMethodLabel = (method?: string | null) => {
     transferencia: "Transferencia",
     card: "Tarjeta",
     tarjeta: "Tarjeta",
+    debito: "Débito",
+    debit: "Débito",
+    debit_card: "Tarjeta de débito",
     "mercado pago": "Mercado Pago",
     mercadopago: "Mercado Pago",
     "cuenta corriente": "Cuenta corriente",
     current_account: "Cuenta corriente",
     credit_card: "Tarjeta de crédito",
-    debit_card: "Tarjeta de débito",
   };
 
   return labels[normalized] ?? method?.trim() ?? "";

@@ -10,6 +10,10 @@ import {
 } from "@/lib/pricing-policy";
 import { getClientStoreId } from "@/lib/tenant/store-context";
 import { resolveAssetUrl } from "@/lib/asset-url";
+import {
+  ADMIN_PAYMENT_METHODS,
+  isDiscountedAdministrativePaymentMethod,
+} from "@/lib/manual-payment-methods";
 import { money } from "./order-utils";
 
 type ManualSaleProduct = {
@@ -130,7 +134,7 @@ type StorePaymentConfig = {
 const paymentDiscountPercentageCache = new Map<string, number>();
 const paymentConfigRequests = new Map<string, Promise<number>>();
 
-const paymentOptions = ["Efectivo", "Tarjeta", "Transferencia", "Cuenta corriente"];
+const paymentOptions = [...ADMIN_PAYMENT_METHODS];
 const productSearchLimit = 80;
 
 const getAvailableStock = (inventories: ManualSaleVariant["inventories"]) =>
@@ -477,8 +481,7 @@ export default function AdminManualSalesSection({
     method: payment.method,
     amount: roundCurrency(parseCurrencyInput(payment.amount)),
   }));
-  const paymentMethodDiscountEligible = (method: string) =>
-    method === "Efectivo" || method === "Transferencia";
+  const paymentMethodDiscountEligible = isDiscountedAdministrativePaymentMethod;
   const paymentDiscountActive =
     applyPaymentDiscount && bankTransferDiscountPercentage > 0;
   const effectivePaymentDiscountPercentage = paymentDiscountActive
@@ -1796,7 +1799,7 @@ export default function AdminManualSalesSection({
                           onChange={(event) => setApplyPaymentDiscount(event.target.checked)}
                         />
                         <span>
-                          Utilizar descuento efectivo/transferencia ({bankTransferDiscountPercentage}%)
+                          Utilizar descuento efectivo/débito/transferencia ({bankTransferDiscountPercentage}%)
                         </span>
                       </label>
                     ) : null}
@@ -4540,7 +4543,7 @@ function roundCurrencyUpToHundred(value: number) {
 }
 
 function isDiscountedPaymentMethod(method: string) {
-  return method === "Efectivo" || method === "Transferencia";
+  return isDiscountedAdministrativePaymentMethod(method);
 }
 
 function getPaymentDiscountMultiplier(discountPercentage: number) {

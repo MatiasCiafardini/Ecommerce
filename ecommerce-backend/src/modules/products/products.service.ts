@@ -125,6 +125,7 @@ export class ProductsService {
       search?: string;
       categoryId?: string;
       status?: string;
+      imageStatus?: string;
       page?: string;
       pageSize?: string;
       includeMetrics?: string;
@@ -306,11 +307,13 @@ export class ProductsService {
       search?: string;
       categoryId?: string;
       status?: string;
+      imageStatus?: string;
     },
   ): Prisma.ProductWhereInput {
     const where = this.buildFindAllWhere(storeId, query.search);
     const categoryId = Number(query.categoryId);
     const status = query.status?.trim();
+    const imageStatus = query.imageStatus?.trim();
     const andConditions = Array.isArray(where.AND)
       ? [...where.AND]
       : where.AND
@@ -337,6 +340,12 @@ export class ProductsService {
       where.published = false;
     } else if (status === 'without-stock') {
       andConditions.push(this.buildWithoutStockWhere(storeId));
+    }
+
+    if (imageStatus === 'with-images') {
+      where.images = { some: {} };
+    } else if (imageStatus === 'without-images') {
+      where.images = { none: {} };
     }
 
     if (andConditions.length > 0) {

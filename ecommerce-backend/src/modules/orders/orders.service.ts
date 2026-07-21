@@ -15,6 +15,7 @@ import {
   type StorePricingPolicy,
 } from '../../common/price-input-mode';
 import { SimplePdfDocument } from '../../common/utils/pdf-document';
+import { normalizeAdministrativePaymentMethod } from '../../common/manual-payment-methods';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateManualSaleDto } from './dto/create-manual-sale.dto';
 import { UpdateManualSaleDto } from './dto/update-manual-sale.dto';
@@ -381,7 +382,7 @@ export class OrdersService {
             },
           ];
       const paymentMethodKeys = paymentEntries.map((payment) =>
-        payment.method.trim().toLowerCase(),
+        normalizeAdministrativePaymentMethod(payment.method),
       );
       const uniquePaymentMethodKeys = new Set(paymentMethodKeys);
 
@@ -664,18 +665,12 @@ export class OrdersService {
         (payment) => payment.provider === 'manual',
       );
       const manualPayment = manualPayments[0];
-
-      if (manualPayments.length > 1) {
-        throw new BadRequestException(
-          'Las ventas con pago dividido no se pueden editar desde este formulario.',
-        );
-      }
-
-      const nextPaymentMethod = data.paymentMethod?.trim() || manualPayment?.method || 'Efectivo';
-      const nextCurrentAccountPayment = this.isCurrentAccountPaymentMethod(nextPaymentMethod);
       const previousCurrentAccountAmount = this.roundCurrency(
         manualPayments
-          .filter((payment) => this.isCurrentAccountPaymentMetadata(payment.metadata))
+          .filter((payment) =>
+            this.isCurrentAccountPaymentMethod(payment.method) ||
+            this.isCurrentAccountPaymentMetadata(payment.metadata),
+          )
           .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
       );
       const behavesAsPending =
@@ -917,13 +912,128 @@ export class OrdersService {
         subtotal - discountAmount + Number(order.shippingCost ?? 0),
         0,
       );
-      const nextCurrentAccountAmount = nextCurrentAccountPayment ? total : 0;
+      const manualPaymentMetadata = manualPayment?.metadata as Record<string, unknown> | null;
+      const appliedCurrentAccountCreditAmount = this.roundCurrency(
+        Math.max(Number(manualPaymentMetadata?.appliedCurrentAccountCreditAmount ?? 0), 0),
+      );
+      if (appliedCurrentAccountCreditAmount - total > 0.01) {
+        throw new BadRequestException(
+          'El nuevo total no puede ser menor que el saldo a favor aplicado originalmente.',
+        );
+      }
+      const amountToCollect = this.roundCurrency(
+        Math.max(total - appliedCurrentAccountCreditAmount, 0),
+      );
+      const paymentEntries = data.payments?.length
+        ? data.payments.map((payment) => ({
+            method: payment.method?.trim() || 'Efectivo',
+            amount: this.roundCurrency(Math.max(Number(payment.amount ?? 0), 0)),
+          }))
+        : [{
+            method: data.paymentMethod?.trim() || manualPayment?.method || 'Efectivo',
+            amount: amountToCollect,
+          }];
+      const paymentMethodKeys = paymentEntries.map((payment) =>
+        normalizeAdministrativePaymentMethod(payment.method),
+      );
+
+      if (new Set(paymentMethodKeys).size !== paymentMethodKeys.length) {
+        throw new BadRequestException(
+          'No se puede repetir el mismo metodo en pagos divididos.',
+        );
+      }
+
+      const paymentEntriesTotal = this.roundCurrency(
+        paymentEntries.reduce((sum, payment) => sum + payment.amount, 0),
+      );
+
+      if (Math.abs(paymentEntriesTotal - amountToCollect) > 0.01) {
+        throw new BadRequestException(
+          'La suma de los pagos debe coincidir con el total a cobrar.',
+        );
+      }
+
+      const nextCurrentAccountAmount = this.roundCurrency(
+        paymentEntries
+          .filter((payment) => this.isCurrentAccountPaymentMethod(payment.method))
+          .reduce((sum, payment) => sum + payment.amount, 0),
+      );
+      const nextCurrentAccountPayment = nextCurrentAccountAmount > 0;
+      const nextPaymentMethod = paymentEntries.map((payment) => payment.method).join(' + ');
+
+      if (
+        nextCurrentAccountPayment &&
+        (
+          order.customerEmailSnapshot?.startsWith(`manual-sale@store-${storeId}.local`) ||
+          order.customer?.email?.startsWith(`manual-sale@store-${storeId}.local`)
+        )
+      ) {
+        throw new BadRequestException(
+          'Para vender en cuenta corriente, selecciona o registra un cliente.',
+        );
+      }
       const previousTotal = Number(order.total);
       const nextOrderStatus = nextCurrentAccountPayment
         ? OrderStatus.pending
         : total > 0
           ? OrderStatus.paid
           : OrderStatus.paid;
+
+      for (let index = 0; index < paymentEntries.length; index += 1) {
+        const entry = paymentEntries[index];
+        const existingPayment = manualPayments[index];
+        const entryCurrentAccount = this.isCurrentAccountPaymentMethod(entry.method);
+        const metadata = {
+          ...((existingPayment?.metadata ?? manualPayment?.metadata) as Record<string, unknown> | null),
+          origin: 'manual_sale',
+          discountType: discount.type,
+          discountValue: discount.value,
+          currentAccount: entryCurrentAccount,
+          splitPayment: paymentEntries.length > 1,
+          splitPaymentIndex: index + 1,
+          appliedCurrentAccountCreditAmount:
+            index === 0 ? appliedCurrentAccountCreditAmount : 0,
+          reclassifiedAt: new Date().toISOString(),
+          reclassifiedByUserId: createdByUserId ?? null,
+          correctionReason,
+        };
+
+        if (existingPayment) {
+          await tx.payment.update({
+            where: { id: existingPayment.id },
+            data: {
+              amount: entry.amount,
+              method: entry.method,
+              status: entryCurrentAccount ? 'pending' : 'approved',
+              metadata,
+            },
+          });
+        } else {
+          await tx.payment.create({
+            data: {
+              storeId,
+              storeLocationId: order.storeLocationId,
+              cashRegisterId: order.cashRegisterId,
+              orderId: order.id,
+              provider: 'manual',
+              method: entry.method,
+              status: entryCurrentAccount ? 'pending' : 'approved',
+              amount: entry.amount,
+              reference: manualPayment?.reference ?? null,
+              notes: manualPayment?.notes ?? null,
+              metadata,
+            },
+          });
+        }
+      }
+
+      if (manualPayments.length > paymentEntries.length) {
+        await tx.payment.deleteMany({
+          where: {
+            id: { in: manualPayments.slice(paymentEntries.length).map((payment) => payment.id) },
+          },
+        });
+      }
 
       const updated = await tx.order.update({
         where: {
@@ -933,29 +1043,6 @@ export class OrdersService {
           subtotal,
           discountAmount,
           total,
-          payments: manualPayment
-            ? {
-                update: {
-                  where: {
-                    id: manualPayment.id,
-                  },
-                  data: {
-                    amount: total,
-                    method: nextPaymentMethod,
-                    status: nextCurrentAccountPayment ? 'pending' : 'approved',
-                    metadata: {
-                      ...(manualPayment.metadata as Record<string, unknown> | null),
-                      discountType: discount.type,
-                      discountValue: discount.value,
-                      currentAccount: nextCurrentAccountPayment,
-                      reclassifiedAt: new Date().toISOString(),
-                      reclassifiedByUserId: createdByUserId ?? null,
-                      correctionReason,
-                    },
-                  },
-                },
-              }
-            : undefined,
           status: nextOrderStatus,
         },
         include: this.orderInclude(),
@@ -1031,8 +1118,13 @@ export class OrdersService {
           metadata: {
             previousTotal,
             nextTotal: total,
-            previousPaymentMethod: manualPayment?.method ?? null,
+            previousPaymentMethod: manualPayments.map((payment) => payment.method).join(' + ') || null,
             nextPaymentMethod,
+            previousPayments: manualPayments.map((payment) => ({
+              method: payment.method,
+              amount: Number(payment.amount),
+            })),
+            nextPayments: paymentEntries,
             previousCurrentAccountAmount,
             nextCurrentAccountAmount,
             currentAccountDelta,
@@ -1967,6 +2059,7 @@ export class OrdersService {
       'Fecha ultimo refund',
       'Proveedor envio',
       'Metodo envio',
+      'Detalle pagos',
     ];
 
     const lines = orders.map((order) => {
@@ -2032,6 +2125,9 @@ export class OrdersService {
         this.toCsvDate(lastRefund?.createdAt ?? null),
         order.shippingProvider ?? '',
         order.shippingMethod ?? '',
+        order.payments
+          .map((payment) => `${payment.method ?? payment.provider}: ${this.toMoneyValue(payment.amount)}`)
+          .join(' + '),
       ]
         .map((value) => this.escapeCsv(value))
         .join(csvDelimiter);

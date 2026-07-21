@@ -1036,6 +1036,7 @@ export default function AdminProductsSection({
   const [productQuery, setProductQuery] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("all");
   const [productStatusFilter, setProductStatusFilter] = useState<"all" | "published" | "draft" | "without-stock">("all");
+  const [productImageFilter, setProductImageFilter] = useState<"all" | "with-images" | "without-images">("all");
   const [productSortKey, setProductSortKey] = useState<ProductSortKey>("product");
   const [productSortDirection, setProductSortDirection] = useState<SortDirection>("asc");
   const [optionQuery, setOptionQuery] = useState("");
@@ -1220,6 +1221,10 @@ export default function AdminProductsSection({
       params.set("status", productStatusFilter);
     }
 
+    if (productImageFilter !== "all") {
+      params.set("imageStatus", productImageFilter);
+    }
+
     return params.toString();
   };
 
@@ -1274,7 +1279,7 @@ export default function AdminProductsSection({
     }, productQuery.trim() ? 280 : 0);
 
     return () => window.clearTimeout(timeout);
-  }, [productCategoryFilter, productPage, productQuery, productStatusFilter]);
+  }, [productCategoryFilter, productImageFilter, productPage, productQuery, productStatusFilter]);
 
   useEffect(() => {
     if (activeTab !== "catalog") {
@@ -4483,6 +4488,19 @@ export default function AdminProductsSection({
           <option value="published">Publicado</option>
           <option value="draft">Inventario</option>
           <option value="without-stock">Sin stock</option>
+        </select>
+        <select
+          value={productImageFilter}
+          onChange={(event) => {
+            setProductPage(1);
+            setProductImageFilter(event.target.value as typeof productImageFilter);
+          }}
+          style={responsiveSelectStyle}
+          aria-label="Filtrar productos por imágenes"
+        >
+          <option value="all">Todas las imágenes</option>
+          <option value="with-images">Tienen imágenes</option>
+          <option value="without-images">Sin imágenes</option>
         </select>
         {canManageCatalog ? (
           <button type="button" onClick={startNewProduct} style={primaryButtonStyle}>+ Crear nuevo producto</button>

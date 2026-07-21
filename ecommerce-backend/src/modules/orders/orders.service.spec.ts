@@ -38,6 +38,11 @@ describe('OrdersService manual sale edits', () => {
         delete: jest.fn(),
         create: jest.fn(),
       },
+      payment: {
+        update: jest.fn(),
+        create: jest.fn(),
+        deleteMany: jest.fn(),
+      },
       currentAccount: {
         findFirst: jest.fn(),
         update: jest.fn(),
@@ -214,7 +219,7 @@ describe('OrdersService manual sale edits', () => {
     });
   });
 
-  it('rejects editing manual sales that have split payments', async () => {
+  it('converts an existing split payment into a single payment', async () => {
     const { service, tx } = createService();
     const order = manualSaleOrder({
       payments: [
@@ -238,6 +243,12 @@ describe('OrdersService manual sale edits', () => {
     });
 
     tx.order.findFirst.mockResolvedValue(order);
+    tx.inventory.findUnique.mockResolvedValue({ quantity: 10, reserved: 0 });
+    tx.order.update.mockResolvedValue({
+      ...order,
+      status: OrderStatus.paid,
+      payments: [{ ...order.payments[0], amount: 1000 }],
+    });
 
     await expect(
       service.updateManualSale(
@@ -250,11 +261,63 @@ describe('OrdersService manual sale edits', () => {
         storeId,
         userId,
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).resolves.toMatchObject({ id: order.id });
 
-    expect(tx.inventory.update).not.toHaveBeenCalled();
-    expect(tx.order.update).not.toHaveBeenCalled();
+    expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 501 },
+      data: expect.objectContaining({ method: 'Efectivo', amount: 1000 }),
+    }));
+    expect(tx.payment.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: [502] } },
+    });
+    expect(tx.order.update).toHaveBeenCalled();
     expect(tx.currentAccountMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('converts a single payment into a split payment containing debit', async () => {
+    const { service, tx } = createService();
+    const order = manualSaleOrder({
+      status: OrderStatus.paid,
+      customerEmailSnapshot: 'cliente@example.com',
+      payments: [{
+        id: 501,
+        provider: 'manual',
+        method: 'Efectivo',
+        status: 'approved',
+        amount: 1000,
+        metadata: { origin: 'manual_sale', currentAccount: false },
+      }],
+    });
+    tx.order.findFirst.mockResolvedValue(order);
+    tx.inventory.findUnique.mockResolvedValue({ quantity: 10, reserved: 0 });
+    tx.order.update.mockResolvedValue({ ...order, payments: [] });
+
+    await service.updateManualSale(
+      order.id,
+      {
+        reason: 'Pago dividido corregido',
+        payments: [
+          { method: 'Débito', amount: 400 },
+          { method: 'Transferencia', amount: 600 },
+        ],
+        items: [{ orderItemId: 801, quantity: 1, price: 1000 }],
+      },
+      storeId,
+      userId,
+    );
+
+    expect(tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 501 },
+      data: expect.objectContaining({ method: 'Débito', amount: 400 }),
+    }));
+    expect(tx.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderId: order.id,
+        method: 'Transferencia',
+        amount: 600,
+        status: 'approved',
+      }),
+    });
   });
 
   it('converts an edited cash price to the card/base price before sending it to current account', async () => {
