@@ -219,21 +219,26 @@ export default function HeroCarousel({
                     zIndex: 0,
                   }}
                 >
-                  <Image
-                    className="theme-hero-carousel-image"
-                    src={slideImage}
-                    alt=""
-                    fill
-                    priority={isInitialSlide}
-                    sizes="100vw"
-                    draggable={false}
-                    style={{
-                      objectFit: "cover",
-                      objectPosition: "var(--hero-carousel-image-position, center)",
-                      userSelect: "none",
-                      pointerEvents: "none",
-                    }}
-                  />
+                  <picture>
+                    {slideResponsiveImage ? (
+                      <source media="(max-width: 768px)" srcSet={slideResponsiveImage} />
+                    ) : null}
+                    <Image
+                      className="theme-hero-carousel-image"
+                      src={slideImage}
+                      alt=""
+                      fill
+                      priority={isInitialSlide}
+                      sizes="100vw"
+                      draggable={false}
+                      style={{
+                        objectFit: "cover",
+                        objectPosition: "var(--hero-carousel-image-position, center)",
+                        userSelect: "none",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </picture>
                 </div>
 
                 <div
