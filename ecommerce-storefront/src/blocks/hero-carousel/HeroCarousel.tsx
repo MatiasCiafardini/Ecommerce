@@ -556,10 +556,6 @@ export default function HeroCarousel({
             min-height: 0 !important;
           }
 
-          .theme-hero-carousel-image--responsive {
-            object-fit: contain !important;
-            object-position: center center !important;
-          }
         }
       `}</style>
     </section>

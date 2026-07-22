@@ -272,4 +272,11 @@
     --hero-carousel-overlay: transparent;
     --hero-carousel-image-position: center;
   }
+
+  .theme-comovosyyo
+    .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+    .theme-hero-carousel-image--responsive {
+    object-fit: contain !important;
+    object-position: center center !important;
+  }
 }
