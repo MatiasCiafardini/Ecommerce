@@ -227,7 +227,7 @@ export default function HeroCarousel({
                       <source media="(max-width: 768px)" srcSet={slideResponsiveImage} />
                     ) : null}
                     <Image
-                      className="theme-hero-carousel-image"
+                      className={`theme-hero-carousel-image${slideResponsiveImage ? " theme-hero-carousel-image--responsive" : ""}`}
                       src={slideImage}
                       alt=""
                       fill
@@ -554,6 +554,11 @@ export default function HeroCarousel({
             .theme-hero-carousel-content {
             height: 100%;
             min-height: 0 !important;
+          }
+
+          .theme-hero-carousel-image--responsive {
+            object-fit: contain !important;
+            object-position: center center !important;
           }
         }
       `}</style>

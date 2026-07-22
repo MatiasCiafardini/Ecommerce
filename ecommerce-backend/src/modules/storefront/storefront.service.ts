@@ -716,6 +716,15 @@ export class StorefrontService {
       where: {
         storeId,
         deletedAt: null,
+        products: {
+          some: {
+            product: {
+              storeId,
+              published: true,
+              deletedAt: null,
+            },
+          },
+        },
       },
     });
   }

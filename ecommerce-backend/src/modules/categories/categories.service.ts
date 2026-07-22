@@ -92,11 +92,11 @@ export class CategoriesService {
         name: nextName,
         slug,
         description:
-          dto.description !== undefined ? dto.description.trim() || null : current.description,
+          dto.description !== undefined ? dto.description?.trim() || null : current.description,
         status: dto.status ?? current.status,
         parentId: nextParentId ?? null,
         imageUrl:
-          dto.imageUrl !== undefined ? dto.imageUrl.trim() || null : current.imageUrl,
+          dto.imageUrl !== undefined ? dto.imageUrl?.trim() || null : current.imageUrl,
       },
     });
   }

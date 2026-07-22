@@ -10,7 +10,7 @@ export class UpdateCategoryDto {
   @ApiPropertyOptional({ example: 'Prendas livianas para todos los dias' })
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   @ApiPropertyOptional({ example: 'active', enum: ['active', 'hidden'] })
   @IsOptional()
@@ -25,5 +25,5 @@ export class UpdateCategoryDto {
   @ApiPropertyOptional({ example: '/uploads/category.jpg' })
   @IsOptional()
   @IsString()
-  imageUrl?: string;
+  imageUrl?: string | null;
 }
