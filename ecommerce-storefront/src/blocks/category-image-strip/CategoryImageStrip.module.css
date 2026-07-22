@@ -1,0 +1,20 @@
+.grid {
+  grid-template-columns: repeat(var(--category-strip-columns), minmax(0, 1fr));
+}
+
+.item {
+  height: 500px;
+  min-height: 500px;
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .item {
+    aspect-ratio: 1 / 1;
+    height: auto;
+    min-height: 0;
+  }
+}

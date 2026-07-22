@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { resolveAssetUrl } from "@/lib/asset-url";
+import styles from "./CategoryImageStrip.module.css";
 
 type CategoryImageStripItem = {
   title?: string;
@@ -59,9 +60,10 @@ export default function CategoryImageStrip({ items }: Props) {
       }}
     >
       <div
+        className={styles.grid}
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${Math.max(1, resolvedItems.length)}, minmax(0, 1fr))`,
+          ["--category-strip-columns" as string]: Math.max(1, resolvedItems.length),
           gap: 0,
           width: "100%",
         }}
@@ -75,12 +77,11 @@ export default function CategoryImageStrip({ items }: Props) {
               key={`${item.title}-${index}`}
               href={href}
               aria-label={`Ir al catalogo filtrado por ${item.title}`}
+              className={styles.item}
               style={{
                 position: "relative",
                 display: "block",
                 width: "100%",
-                height: 500,
-                minHeight: 500,
                 overflow: "hidden",
                 textDecoration: "none",
                 lineHeight: 0,

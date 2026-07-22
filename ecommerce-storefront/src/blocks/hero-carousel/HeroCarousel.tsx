@@ -56,6 +56,7 @@ export default function HeroCarousel({
   showContentCard = true,
 }: Props) {
   const safeSlides = slides.length > 0 ? slides : defaultSlides;
+  const hasResponsiveImages = safeSlides.some((slide) => Boolean(slide.responsiveImage));
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [virtualIndex, setVirtualIndex] = useState(safeSlides.length > 1 ? 1 : 0);
@@ -161,6 +162,7 @@ export default function HeroCarousel({
     >
       <div
         className="theme-hero-carousel"
+        data-has-responsive-images={hasResponsiveImages ? "true" : "false"}
         style={{
           position: "relative",
           minHeight: "clamp(460px, 62vh, 600px)",
@@ -202,6 +204,7 @@ export default function HeroCarousel({
 
             return (
               <div
+                className="theme-hero-carousel-slide"
                 key={`${slide.title}-${index}`}
                 aria-hidden={logicalIndex !== activeIndex}
                 style={{
@@ -534,6 +537,23 @@ export default function HeroCarousel({
 
           .theme-hero-carousel-track[data-transition-enabled="false"] {
             transition: none !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .theme-hero-carousel[data-has-responsive-images="true"] {
+            aspect-ratio: 3 / 4;
+            min-height: 0 !important;
+          }
+
+          .theme-hero-carousel[data-has-responsive-images="true"]
+            .theme-hero-carousel-track,
+          .theme-hero-carousel[data-has-responsive-images="true"]
+            .theme-hero-carousel-slide,
+          .theme-hero-carousel[data-has-responsive-images="true"]
+            .theme-hero-carousel-content {
+            height: 100%;
+            min-height: 0 !important;
           }
         }
       `}</style>
