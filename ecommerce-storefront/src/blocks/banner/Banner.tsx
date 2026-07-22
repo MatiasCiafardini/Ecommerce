@@ -18,6 +18,7 @@ export default function Banner({
 
   return (
     <section
+      className="theme-block-section theme-block-section--banner theme-banner"
       style={{
         background: image
           ? `linear-gradient(90deg, color-mix(in srgb, ${resolvedBackground} 74%, transparent), color-mix(in srgb, ${resolvedBackground} 56%, var(--paper-muted))), url(${image}) center/cover`

@@ -219,6 +219,10 @@
   background: linear-gradient(180deg, #BFD5CF 0%, #F5F1EA 100%) !important;
 }
 
+.theme-comovosyyo .theme-banner {
+  padding: 12px 20px !important;
+}
+
 .theme-comovosyyo
   .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
   .theme-hero-carousel {
