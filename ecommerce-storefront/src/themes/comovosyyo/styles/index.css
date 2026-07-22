@@ -276,7 +276,28 @@
   .theme-comovosyyo
     .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
     .theme-hero-carousel-image--responsive {
-    object-fit: contain !important;
+    object-fit: cover !important;
     object-position: center center !important;
+  }
+
+  .theme-comovosyyo
+    .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+    .theme-hero-carousel {
+    aspect-ratio: auto !important;
+    height: 400px !important;
+    min-height: 400px !important;
+  }
+
+  .theme-comovosyyo
+    .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+    .theme-hero-carousel-track,
+  .theme-comovosyyo
+    .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+    .theme-hero-carousel-slide,
+  .theme-comovosyyo
+    .theme-block-section--hero-carousel[data-hero-carousel-variant="editorial"]
+    .theme-hero-carousel-content {
+    height: 400px !important;
+    min-height: 400px !important;
   }
 }
