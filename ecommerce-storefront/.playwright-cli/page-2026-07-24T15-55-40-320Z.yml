@@ -1,0 +1,316 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+      - generic [ref=e7]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+    - banner [ref=e9]:
+      - generic [ref=e10]:
+        - button "Menu" [ref=e12] [cursor=pointer]
+        - link "Ir al inicio" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img "Como Vos y Yo" [ref=e14]
+        - generic [ref=e15]:
+          - button "Abrir buscador" [ref=e16] [cursor=pointer]
+          - link "Carrito" [ref=e20] [cursor=pointer]:
+            - /url: /cart
+    - main [ref=e25]:
+      - generic [ref=e26]:
+        - main [ref=e27]:
+          - generic [ref=e29]:
+            - generic [ref=e30]:
+              - heading "Catalogo" [level=1] [ref=e31]
+              - paragraph [ref=e32]: Seleccion completa de prendas urbanas con siluetas relajadas, tonos neutros y basicos listos para la calle.
+            - generic [ref=e33]:
+              - generic [ref=e34]:
+                - generic [ref=e35]:
+                  - generic [ref=e36]: Inicio
+                  - generic [ref=e37]: /
+                  - strong [ref=e38]: Catalogo
+                - generic [ref=e39]:
+                  - generic [ref=e40]:
+                    - button "Filtros (1)" [ref=e41] [cursor=pointer]
+                    - paragraph [ref=e42]: 20 productos encontrados
+                  - generic [ref=e43]:
+                    - paragraph [ref=e44]: Precio entre $91.800,00 y $116.500,00
+                    - combobox "Ordenar catalogo" [ref=e45]:
+                      - option "Recomendados" [selected]
+                      - 'option "Precio: menor a mayor"'
+                      - 'option "Precio: mayor a menor"'
+              - generic [ref=e46]:
+                - complementary:
+                  - generic:
+                    - strong: Refina tu seleccion
+                    - button "Limpiar"
+                  - generic:
+                    - checkbox "Solo mostrar productos con stock" [checked]
+                    - text: Solo mostrar productos con stock
+                  - generic:
+                    - paragraph: Rango de precio
+                    - generic:
+                      - textbox "Min": "91800"
+                      - textbox "Max": "116500"
+                  - generic:
+                    - paragraph: Categorias
+                    - generic:
+                      - button "Jeans"
+                  - generic:
+                    - paragraph: Talles
+                    - generic:
+                      - button "26"
+                      - button "30"
+                      - button "S"
+                      - button "L"
+                      - button "34"
+                      - button "M"
+                      - button "32"
+                      - button "28"
+                      - button "XS"
+                      - button "36"
+                      - button "24"
+                      - button "m"
+                      - button "XL"
+                  - generic:
+                    - paragraph: Ancho cintura
+                  - generic:
+                    - paragraph: Color
+                    - generic:
+                      - button "Chocolate"
+                      - button "Gris"
+                      - button "Militar"
+                      - button "Vison"
+                  - generic:
+                    - paragraph: Estacion
+                  - generic:
+                    - paragraph: Talle
+                    - generic:
+                      - button "L"
+                      - button "M"
+                      - button "S"
+                      - button "XL"
+                  - generic:
+                    - paragraph: Test
+                  - generic:
+                    - paragraph: Textura
+                    - generic:
+                      - button "Elastisado"
+                      - button "Semi elastizado"
+                      - button "Tela rigida"
+                - generic [ref=e48]:
+                  - link [ref=e49] [cursor=pointer]:
+                    - /url: /product/jean-straight-blue
+                    - generic [ref=e50]:
+                      - img "Jean straight blue"
+                    - generic [ref=e51]:
+                      - heading "Jean straight blue" [level=3] [ref=e52]
+                      - generic [ref=e53]:
+                        - paragraph [ref=e54]: $91.800,00
+                        - paragraph [ref=e55]: $78.000,00 con transferencia
+                  - link [ref=e56] [cursor=pointer]:
+                    - /url: /product/jean-barrel-grey
+                    - generic [ref=e57]:
+                      - img "Jean Barrel Grey"
+                    - generic [ref=e58]:
+                      - heading "Jean barrel grey" [level=3] [ref=e59]
+                      - generic [ref=e60]:
+                        - paragraph [ref=e61]: $105.800,00
+                        - paragraph [ref=e62]: $89.900,00 con transferencia
+                  - link [ref=e63] [cursor=pointer]:
+                    - /url: /product/jean-straight-blue-tiro-medio
+                    - generic [ref=e64]:
+                      - img "Jean straight blue tiro medio"
+                    - generic [ref=e65]:
+                      - heading "Jean straight blue tiro medio" [level=3] [ref=e66]
+                      - generic [ref=e67]:
+                        - paragraph [ref=e68]: $108.100,00
+                        - paragraph [ref=e69]: $91.900,00 con transferencia
+                  - link [ref=e70] [cursor=pointer]:
+                    - /url: /product/jean-ballon-grey
+                    - generic [ref=e71]:
+                      - img "Jean ballon grey"
+                    - generic [ref=e72]:
+                      - heading "Jean ballon grey" [level=3] [ref=e73]
+                      - generic [ref=e74]:
+                        - paragraph [ref=e75]: $105.800,00
+                        - paragraph [ref=e76]: $89.900,00 con transferencia
+                  - link [ref=e77] [cursor=pointer]:
+                    - /url: /product/jean-straight-blue-normal
+                    - generic [ref=e78]:
+                      - img "Jean straight blue normal"
+                    - generic [ref=e79]:
+                      - heading "Jean straight blue normal" [level=3] [ref=e80]
+                      - generic [ref=e81]:
+                        - paragraph [ref=e82]: $105.800,00
+                        - paragraph [ref=e83]: $89.900,00 con transferencia
+                  - link [ref=e84] [cursor=pointer]:
+                    - /url: /product/jean-oxford-blue-medio
+                    - generic [ref=e85]:
+                      - img "Jean Oxford blue medio"
+                    - generic [ref=e86]:
+                      - heading "Jean oxford blue medio" [level=3] [ref=e87]
+                      - generic [ref=e88]:
+                        - paragraph [ref=e89]: $115.200,00
+                        - paragraph [ref=e90]: $97.900,00 con transferencia
+                  - link [ref=e91] [cursor=pointer]:
+                    - /url: /product/jean-carrot-blue
+                    - generic [ref=e92]:
+                      - img "Jean carrot blue"
+                    - generic [ref=e93]:
+                      - heading "Jean carrot blue" [level=3] [ref=e94]
+                      - generic [ref=e95]:
+                        - paragraph [ref=e96]: $94.000,00
+                        - paragraph [ref=e97]: $79.900,00 con transferencia
+                  - link [ref=e98] [cursor=pointer]:
+                    - /url: /product/jean-straight-crop-medio
+                    - generic [ref=e99]:
+                      - img "Jean straight crop medio"
+                    - generic [ref=e100]:
+                      - heading "Jean straight crop medio" [level=3] [ref=e101]
+                      - generic [ref=e102]:
+                        - paragraph [ref=e103]: $98.800,00
+                        - paragraph [ref=e104]: $84.000,00 con transferencia
+                  - link [ref=e105] [cursor=pointer]:
+                    - /url: /product/jean-oxford-light-blue
+                    - generic [ref=e106]:
+                      - img "Jean oxford light blue"
+                    - generic [ref=e107]:
+                      - heading "Jean oxford light blue" [level=3] [ref=e108]
+                      - generic [ref=e109]:
+                        - paragraph [ref=e110]: $105.800,00
+                        - paragraph [ref=e111]: $89.900,00 con transferencia
+                  - link [ref=e112] [cursor=pointer]:
+                    - /url: /product/jean-oxford-elastizado
+                    - generic [ref=e113]:
+                      - img "Jean Oxford elastizado"
+                    - generic [ref=e114]:
+                      - heading "Jean oxford elastizado" [level=3] [ref=e115]
+                      - generic [ref=e116]:
+                        - paragraph [ref=e117]: $108.100,00
+                        - paragraph [ref=e118]: $91.900,00 con transferencia
+                  - link [ref=e119] [cursor=pointer]:
+                    - /url: /product/jean-bootcut-black-grey
+                    - generic [ref=e120]:
+                      - img "Jean bootcut black grey"
+                    - generic [ref=e121]:
+                      - heading "Jean bootcut black grey" [level=3] [ref=e122]
+                      - generic [ref=e123]:
+                        - paragraph [ref=e124]: $108.100,00
+                        - paragraph [ref=e125]: $91.900,00 con transferencia
+                  - link [ref=e126] [cursor=pointer]:
+                    - /url: /product/jean-barrel
+                    - generic [ref=e127]:
+                      - img "Jean Barrel"
+                    - generic [ref=e128]:
+                      - heading "Jean barrel" [level=3] [ref=e129]
+                      - generic [ref=e130]:
+                        - paragraph [ref=e131]: $105.800,00
+                        - paragraph [ref=e132]: $89.900,00 con transferencia
+                  - link [ref=e133] [cursor=pointer]:
+                    - /url: /product/jean-baggy-vison
+                    - generic [ref=e134]:
+                      - img "Jean baggy vison"
+                    - generic [ref=e135]:
+                      - heading "Jean baggy vison" [level=3] [ref=e136]
+                      - generic [ref=e137]:
+                        - paragraph [ref=e138]: $105.800,00
+                        - paragraph [ref=e139]: $89.900,00 con transferencia
+                  - link [ref=e140] [cursor=pointer]:
+                    - /url: /product/jean-relax-uva
+                    - generic [ref=e141]:
+                      - img "Jean relax uva"
+                    - generic [ref=e142]:
+                      - heading "Jean relax uva" [level=3] [ref=e143]
+                      - generic [ref=e144]:
+                        - paragraph [ref=e145]: $105.800,00
+                        - paragraph [ref=e146]: $89.900,00 con transferencia
+                  - link [ref=e147] [cursor=pointer]:
+                    - /url: /product/jean-relax-chocolate
+                    - generic [ref=e148]:
+                      - img "Jean relax chocolate"
+                    - generic [ref=e149]:
+                      - heading "Jean relax chocolate" [level=3] [ref=e150]
+                      - generic [ref=e151]:
+                        - paragraph [ref=e152]: $105.800,00
+                        - paragraph [ref=e153]: $89.900,00 con transferencia
+                  - link [ref=e154] [cursor=pointer]:
+                    - /url: /product/jean-relax-verde
+                    - generic [ref=e155]:
+                      - img "Jean relax verde"
+                    - generic [ref=e156]:
+                      - heading "Jean relax verde" [level=3] [ref=e157]
+                      - generic [ref=e158]:
+                        - paragraph [ref=e159]: $103.100,00
+                        - paragraph [ref=e160]: $87.600,00 con transferencia
+                  - link [ref=e161] [cursor=pointer]:
+                    - /url: /product/jean-straight-negro
+                    - generic [ref=e162]:
+                      - img "Jean straight negro"
+                    - generic [ref=e163]:
+                      - heading "Jean straight negro" [level=3] [ref=e164]
+                      - generic [ref=e165]:
+                        - paragraph [ref=e166]: $108.100,00
+                        - paragraph [ref=e167]: $91.900,00 con transferencia
+                  - link [ref=e168] [cursor=pointer]:
+                    - /url: /product/jean-straight-matizado
+                    - generic [ref=e169]:
+                      - img "Jean straight matizado"
+                    - generic [ref=e170]:
+                      - heading "Jean straight matizado" [level=3] [ref=e171]
+                      - generic [ref=e172]:
+                        - paragraph [ref=e173]: $116.500,00
+                        - paragraph [ref=e174]: $99.000,00 con transferencia
+                  - link [ref=e175] [cursor=pointer]:
+                    - /url: /product/jean-stright-print-chocolate
+                    - generic [ref=e176]:
+                      - img "Jean stright print chocolate"
+                    - generic [ref=e177]:
+                      - heading "Jean stright print chocolate" [level=3] [ref=e178]
+                      - generic [ref=e179]:
+                        - paragraph [ref=e180]: $105.800,00
+                        - paragraph [ref=e181]: $89.900,00 con transferencia
+                  - link [ref=e182] [cursor=pointer]:
+                    - /url: /product/jean-wide-matizado
+                    - generic [ref=e183]:
+                      - img "Jean wide matizado"
+                    - generic [ref=e184]:
+                      - heading "Jean wide matizado" [level=3] [ref=e185]
+                      - generic [ref=e186]:
+                        - paragraph [ref=e187]: $115.200,00
+                        - paragraph [ref=e188]: $97.900,00 con transferencia
+        - link "Contactar por WhatsApp" [ref=e189] [cursor=pointer]:
+          - /url: https://wa.me/5492326494545?text=Hola!%20Quiero%20hacer%20una%20consulta%20sobre%20Como%20Vos%20y%20Yo.
+    - contentinfo [ref=e192]:
+      - generic [ref=e193]:
+        - generic [ref=e194]:
+          - generic [ref=e195]: Como Vos y Yo
+          - heading "Como Vos y Yo" [level=3] [ref=e196]
+          - paragraph [ref=e197]: Moda femenina elegante, limpia y actual para una boutique minimalista con mirada premium.
+        - generic [ref=e198]:
+          - heading "Comprar" [level=4] [ref=e199]
+          - generic [ref=e200]:
+            - link "Coleccion completa" [ref=e201] [cursor=pointer]:
+              - /url: /product
+            - link "Remeras" [ref=e202] [cursor=pointer]:
+              - /url: /category/remeras
+            - link "Camisas" [ref=e203] [cursor=pointer]:
+              - /url: /category/camisas
+            - link "Vestidos" [ref=e204] [cursor=pointer]:
+              - /url: /category/vestidos
+        - generic [ref=e205]:
+          - heading "Cuenta" [level=4] [ref=e206]
+          - generic [ref=e207]:
+            - link "Mi cuenta" [ref=e208] [cursor=pointer]:
+              - /url: /account
+            - link "Carrito" [ref=e209] [cursor=pointer]:
+              - /url: /cart
+            - link "Checkout" [ref=e210] [cursor=pointer]:
+              - /url: /checkout
+        - generic [ref=e211]:
+          - heading "Contacto" [level=4] [ref=e212]
+          - generic [ref=e213]:
+            - link "hola@comovosyyo.com" [ref=e214] [cursor=pointer]:
+              - /url: mailto:hola@comovosyyo.com
+            - link "Instagram" [ref=e215] [cursor=pointer]:
+              - /url: https://www.instagram.com/comovosyyo_
+            - link "WhatsApp" [ref=e216] [cursor=pointer]:
+              - /url: https://wa.me/5492326494545
+  - button "Open Next.js Dev Tools" [ref=e222] [cursor=pointer]

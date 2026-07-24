@@ -184,6 +184,7 @@ export default function ProductCard({
         {showOutOfStockOverlay ? (
           <div
             aria-label="Sin stock"
+            className="product-card-stock-overlay"
             style={{
               position: "absolute",
               inset: 0,
@@ -195,6 +196,7 @@ export default function ProductCard({
             }}
           >
             <span
+              className="product-card-stock-label"
               style={{
                 padding: "10px 18px",
                 border: "1px solid rgba(42, 34, 29, 0.55)",
