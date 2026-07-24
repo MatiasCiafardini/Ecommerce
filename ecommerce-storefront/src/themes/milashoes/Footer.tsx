@@ -63,7 +63,11 @@ export function BrandedFooter({
         </div>
 
         {columns.map((column) => (
-          <div key={column.title} className="theme-footer-column">
+          <div
+            key={column.title}
+            className="theme-footer-column"
+            data-footer-column={column.title.trim().toLowerCase()}
+          >
             <h4 style={{ margin: "0 0 14px", color: "var(--theme-colors-text-strong)" }}>
               {column.title}
             </h4>

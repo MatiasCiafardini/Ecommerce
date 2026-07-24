@@ -2,7 +2,7 @@ import "./(store)/globals.css";
 import "@/shared/styles/base.css";
 import { AuthProvider } from "@/context/auth-context";
 import { CartProvider } from "@/context/cart-context";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
+import { Cormorant_Garamond, Lato, Manrope } from "next/font/google";
 import Script from "next/script";
 
 const displayFont = Cormorant_Garamond({
@@ -17,6 +17,14 @@ const bodyFont = Manrope({
   subsets: ["latin", "latin-ext"],
   variable: "--font-body",
   weight: ["400", "500", "600", "700"],
+  display: "swap",
+  preload: true,
+});
+
+const comovosyyoFont = Lato({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-comovosyyo",
+  weight: ["300", "400", "700", "900"],
   display: "swap",
   preload: true,
 });
@@ -53,7 +61,9 @@ export default function RootLayout({
           />
         ) : null}
       </head>
-      <body className={`${displayFont.variable} ${bodyFont.variable}`}>
+      <body
+        className={`${displayFont.variable} ${bodyFont.variable} ${comovosyyoFont.variable}`}
+      >
         <AuthProvider>
           <CartProvider>{children}</CartProvider>
         </AuthProvider>

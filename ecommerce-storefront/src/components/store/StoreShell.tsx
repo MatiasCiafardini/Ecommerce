@@ -57,6 +57,7 @@ function WhatsAppFloatingButton({
 
   return (
     <a
+      className="store-whatsapp-floating"
       href={`https://wa.me/${phone}?text=${encodedMessage}`}
       target="_blank"
       rel="noreferrer"

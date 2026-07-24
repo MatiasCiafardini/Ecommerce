@@ -1,5 +1,7 @@
 import { PUBLIC_REVALIDATE, apiFetch } from "./api-client";
 import { StoreProduct } from "@/types/store";
+import { hasAvailableStock } from "@/lib/product-stock";
+import { getServerStoreContext } from "@/lib/tenant/server-store-context";
 
 type Params = {
   category?: string;
@@ -7,17 +9,6 @@ type Params = {
   productIds?: number[];
   search?: string;
 };
-
-const hasAvailableStock = (product: StoreProduct) =>
-  (product.variants ?? []).some((variant) =>
-    (variant.inventories ?? []).some(
-      (inventory) =>
-        Math.max(
-          Number(inventory.quantity ?? 0) - Number(inventory.reserved ?? 0),
-          0,
-        ) > 0,
-    ),
-  );
 
 function reportProductsFallback(args: {
   scope: "list" | "detail";
@@ -79,13 +70,15 @@ export async function getProducts(params?: Params): Promise<StoreProduct[]> {
     return [];
   }
 
-  const availableProducts = products.filter(hasAvailableStock);
+  const { storeId } = await getServerStoreContext();
+  const visibleProducts =
+    storeId === 7 ? products : products.filter(hasAvailableStock);
 
   if (params?.limit) {
-    return availableProducts.slice(0, params.limit);
+    return visibleProducts.slice(0, params.limit);
   }
 
-  return availableProducts;
+  return visibleProducts;
 }
 export async function getProductBySlug(slug: string) {
   try {

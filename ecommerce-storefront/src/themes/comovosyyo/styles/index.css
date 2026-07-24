@@ -1,4 +1,7 @@
 .theme-comovosyyo {
+  --font-body: var(--font-comovosyyo, "Lato", Arial, sans-serif);
+  --font-display: var(--font-comovosyyo, "Lato", Arial, sans-serif);
+  --font-sans: var(--font-comovosyyo, "Lato", Arial, sans-serif);
   --page-shell-bg: #F5F1EA;
   --store-shell-bg: #F5F1EA;
   --page-panel-bg: #F5F1EA;
@@ -7,7 +10,7 @@
   --block-panel-bg: #BFD5CF;
   --testimonial-card-bg: #F5F1EA;
   --testimonial-card-featured-bg: #BFD5CF;
-  --newsletter-shell-bg: #BFD5CF;
+  --newsletter-shell-bg: #F5F1EA;
   --newsletter-input-bg: #F5F1EA;
   --product-media-fallback: #BFD5CF;
   --muted-field-bg: #F5F1EA;
@@ -32,6 +35,7 @@
   --product-card-height: 598px;
   --product-card-media-height: 390px;
   --product-card-copy-min-height: 208px;
+  font-family: var(--font-comovosyyo, "Lato", Arial, sans-serif);
 }
 
 .theme-comovosyyo {
@@ -76,12 +80,25 @@
 }
 
 .theme-comovosyyo .product-card-title {
-  font-size: 1.55rem !important;
-  line-height: 1.14;
+  color: #756F68 !important;
+  font-size: 1.22rem !important;
+  font-weight: 400 !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
 }
 
 .theme-comovosyyo .product-card-price {
-  font-size: 1.16rem !important;
+  color: #3E3935 !important;
+  font-size: 1.08rem !important;
+}
+
+.theme-comovosyyo .product-card-transfer-price,
+.theme-comovosyyo .product-card-installment-price {
+  color: #8A837C !important;
+  font-size: 0.92rem !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
 }
 
 .theme-comovosyyo .theme-footer-brand h3,
@@ -131,9 +148,206 @@
 }
 
 .theme-comovosyyo .product-card-media,
-.theme-comovosyyo .theme-block-section--testimonials,
-.theme-comovosyyo .theme-block-section--newsletter {
+.theme-comovosyyo .theme-block-section--testimonials {
   background: #BFD5CF;
+}
+
+.theme-comovosyyo .product-card-media img {
+  object-fit: cover !important;
+}
+
+.theme-comovosyyo .product-gallery-panel {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.theme-comovosyyo .product-gallery-panel .gallery-frame {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.theme-comovosyyo .product-buy-panel,
+.theme-comovosyyo .product-info-panel {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.theme-comovosyyo .product-buy-panel {
+  padding: 24px 30px 18px !important;
+  gap: 18px !important;
+}
+
+.theme-comovosyyo .product-info-panel {
+  padding: 0 30px 24px !important;
+  gap: 0 !important;
+}
+
+.theme-comovosyyo .product-add-to-cart {
+  width: 100% !important;
+  min-height: 60px;
+  margin-top: 8px;
+  padding: 18px 28px !important;
+  justify-content: center;
+  font-size: 1rem !important;
+}
+
+.theme-comovosyyo .product-transfer-price {
+  width: fit-content;
+  margin-top: 4px !important;
+  padding: 11px 16px;
+  border: 1px solid color-mix(in srgb, #73B5A5 36%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, #73B5A5 16%, transparent);
+  color: #3E3935 !important;
+  font-size: 1.18rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+
+.theme-comovosyyo .product-detail-accordion > button {
+  padding: 15px 0 !important;
+  font-size: 0.82rem !important;
+  letter-spacing: 0.1em !important;
+}
+
+.theme-comovosyyo .product-detail-accordion {
+  border-right: 0 !important;
+  border-left: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.theme-comovosyyo .product-detail-column.is-comovosyyo {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  align-self: start;
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.theme-comovosyyo .product-view-title {
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.theme-comovosyyo
+  .product-detail-column.is-comovosyyo
+  .product-buy-panel,
+.theme-comovosyyo
+  .product-detail-column.is-comovosyyo
+  .product-info-panel {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+.theme-comovosyyo .product-detail-accordion summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 0;
+  color: var(--text-strong);
+  cursor: pointer;
+  list-style: none;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.theme-comovosyyo .product-detail-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.theme-comovosyyo .product-detail-accordion summary::after {
+  content: "+";
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.theme-comovosyyo .product-detail-accordion[open] summary::after {
+  content: "−";
+}
+
+.theme-comovosyyo .product-detail-accordion__content {
+  padding: 2px 0 18px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.theme-comovosyyo .product-composition-summary {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.theme-comovosyyo .product-composition-summary strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-strong);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.theme-comovosyyo .product-composition-summary p {
+  margin: 0;
+}
+
+.theme-comovosyyo .theme-block-section--newsletter {
+  padding: 48px 20px !important;
+  background: #F5F1EA !important;
+}
+
+.theme-comovosyyo .theme-newsletter-shell {
+  max-width: 760px !important;
+  padding: 20px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #F5F1EA !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+.theme-comovosyyo .theme-newsletter-decoration {
+  display: none;
+}
+
+.theme-comovosyyo .theme-newsletter-title {
+  margin: 0 0 10px !important;
+  font-size: clamp(1.3rem, 2vw, 1.7rem) !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.04em !important;
+}
+
+.theme-comovosyyo .theme-newsletter-subtitle {
+  max-width: 560px;
+  margin: 0 auto 18px !important;
+  font-size: 0.98rem !important;
+  line-height: 1.55 !important;
+}
+
+.theme-comovosyyo .theme-newsletter-form {
+  margin-top: 0 !important;
+  gap: 8px !important;
+}
+
+.theme-comovosyyo .theme-newsletter-input {
+  min-width: min(280px, 100%) !important;
+  padding: 12px 16px !important;
+  background: #FFFFFF !important;
 }
 
 .theme-comovosyyo .theme-button {
@@ -262,12 +476,146 @@
   }
 
   .theme-comovosyyo .product-card-title {
-    font-size: 1.18rem !important;
+    font-size: 1.05rem !important;
   }
 
-  .theme-comovosyyo .product-card-price,
-  .theme-comovosyyo .product-card-kicker {
+  .theme-comovosyyo .product-card-media img {
+    object-fit: cover !important;
+    scale: 1.08;
+  }
+
+  .theme-comovosyyo
+    .product-gallery-panel.product-gallery-panel
+    .gallery-frame.gallery-frame {
+    border-radius: 0 !important;
+  }
+
+  .theme-comovosyyo .product-detail-column.is-comovosyyo {
+    display: flex;
+    order: 2;
+    grid-column: auto;
+    grid-row: auto;
+    width: 100%;
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .theme-comovosyyo .product-buy-panel {
+    padding: 22px 12px 16px !important;
+  }
+
+  .theme-comovosyyo .product-info-panel {
+    padding: 0 12px 22px !important;
+  }
+
+  .theme-comovosyyo .product-add-to-cart {
+    min-height: 56px;
+    margin-top: 10px;
+  }
+
+  .theme-comovosyyo .store-whatsapp-floating {
+    right: max(12px, env(safe-area-inset-right)) !important;
+    bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  .theme-comovosyyo .store-whatsapp-floating svg {
+    width: 25px;
+    height: 25px;
+  }
+
+  .theme-comovosyyo .product-card-price {
     font-size: 0.96rem !important;
+  }
+
+  .theme-comovosyyo .product-card-transfer-price,
+  .theme-comovosyyo .product-card-installment-price,
+  .theme-comovosyyo .product-card-kicker {
+    font-size: 0.82rem !important;
+  }
+
+  .theme-comovosyyo .theme-block-section--newsletter {
+    padding: 36px 18px !important;
+  }
+
+  .theme-comovosyyo .theme-newsletter-shell {
+    padding: 12px 0 !important;
+  }
+
+  .theme-comovosyyo .theme-newsletter-title {
+    font-size: 1.25rem !important;
+  }
+
+  .theme-comovosyyo .theme-newsletter-form {
+    display: grid !important;
+    grid-template-columns: 1fr;
+  }
+
+  .theme-comovosyyo .theme-newsletter-input,
+  .theme-comovosyyo .theme-newsletter-form .theme-button {
+    width: 100%;
+  }
+
+  .theme-comovosyyo .theme-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 24px 20px !important;
+    padding: 34px 20px 76px !important;
+  }
+
+  .theme-comovosyyo .theme-footer-brand {
+    grid-column: 1 / -1;
+    gap: 8px !important;
+  }
+
+  .theme-comovosyyo .theme-footer-brand p {
+    max-width: 360px !important;
+    font-size: 0.92rem !important;
+    line-height: 1.5 !important;
+  }
+
+  .theme-comovosyyo .theme-footer-column {
+    min-width: 0;
+  }
+
+  .theme-comovosyyo .theme-footer-column h4 {
+    margin-bottom: 12px !important;
+    font-size: 1.05rem !important;
+  }
+
+  .theme-comovosyyo .theme-footer-column a {
+    display: block;
+    font-size: 0.94rem !important;
+    line-height: 1.45 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .theme-comovosyyo
+    .theme-footer-column[data-footer-column="contacto"] {
+    grid-column: 1 / -1;
+    padding-top: 20px;
+    border-top: 1px solid rgba(26, 26, 26, 0.12);
+  }
+
+  .theme-comovosyyo
+    .theme-footer-column[data-footer-column="contacto"]
+    > div {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 20px !important;
+  }
+
+  .theme-comovosyyo
+    .theme-footer-column[data-footer-column="contacto"]
+    a {
+    width: auto;
+  }
+
+  .theme-comovosyyo
+    .theme-footer-column[data-footer-column="contacto"]
+    a:first-child {
+    grid-column: 1 / -1;
   }
 
   .theme-comovosyyo
@@ -303,5 +651,20 @@
     .theme-hero-carousel-content {
     height: 400px !important;
     min-height: 400px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .theme-comovosyyo .theme-footer-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .theme-comovosyyo .theme-footer-brand {
+    grid-column: auto;
+  }
+
+  .theme-comovosyyo
+    .theme-footer-column[data-footer-column="contacto"] {
+    grid-column: auto;
   }
 }

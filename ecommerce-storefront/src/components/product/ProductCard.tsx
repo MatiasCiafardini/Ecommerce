@@ -5,6 +5,7 @@ import { resolveAssetUrl } from "@/lib/asset-url";
 import { formatCurrency, roundCurrency } from "@/lib/currency";
 import { getCatalogImageTransform } from "@/lib/product-image-layout";
 import { isGiftCardProduct } from "@/lib/product-kind";
+import { hasAvailableStock } from "@/lib/product-stock";
 import {
   resolveLabelNormalPrice,
   resolveStorePricingPolicy,
@@ -26,6 +27,9 @@ export default function ProductCard({
     product.images && product.images.length > 0
       ? resolveAssetUrl(product.images[0].url)
       : null;
+  const showOutOfStockOverlay = storeId === 7 && !hasAvailableStock(product);
+  const displayTitle =
+    storeId === 7 ? toSentenceCase(product.title) : product.title;
 
   const fallbackPrice = Number(
     product.variants?.[0]?.price ?? product.price ?? 0,
@@ -56,7 +60,7 @@ export default function ProductCard({
             ),
           )
       : null;
-  const showInstallments = storeId !== 3;
+  const showInstallments = storeId !== 3 && storeId !== 7;
   const installmentPrice =
     showInstallments && displayPrice > 0
       ? pricingPolicy.labelPriceRounding
@@ -176,6 +180,37 @@ export default function ProductCard({
             Product placeholder
           </span>
         )}
+
+        {showOutOfStockOverlay ? (
+          <div
+            aria-label="Sin stock"
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 3,
+              display: "grid",
+              placeItems: "center",
+              background: "rgba(255, 255, 255, 0.68)",
+              pointerEvents: "none",
+            }}
+          >
+            <span
+              style={{
+                padding: "10px 18px",
+                border: "1px solid rgba(42, 34, 29, 0.55)",
+                background: "rgba(255, 255, 255, 0.82)",
+                color: "var(--text-strong, #2a221d)",
+                fontSize: 13,
+                fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+              }}
+            >
+              Sin stock
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -205,7 +240,7 @@ export default function ProductCard({
             WebkitLineClamp: "unset",
           }}
         >
-          {product.title}
+          {displayTitle}
         </h3>
 
         {displayPrice > 0 ? (
@@ -254,7 +289,7 @@ export default function ProductCard({
             )}
             {transferPrice !== null ? (
               <p
-                className="product-card-price"
+                className="product-card-price product-card-transfer-price"
                 style={{
                   margin: 0,
                   color: "var(--text-strong)",
@@ -268,6 +303,7 @@ export default function ProductCard({
             ) : null}
             {installmentPrice !== null ? (
               <p
+                className="product-card-installment-price"
                 style={{
                   margin: 0,
                   color: "var(--text-muted)",
@@ -291,4 +327,14 @@ export default function ProductCard({
       </div>
     </Link>
   );
+}
+
+function toSentenceCase(value: string) {
+  const normalized = value.trim().toLocaleLowerCase("es-AR");
+
+  if (!normalized) {
+    return value;
+  }
+
+  return normalized.charAt(0).toLocaleUpperCase("es-AR") + normalized.slice(1);
 }

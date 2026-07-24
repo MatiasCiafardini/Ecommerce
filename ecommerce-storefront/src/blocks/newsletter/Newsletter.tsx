@@ -31,7 +31,7 @@ export default function Newsletter({
         }}
       >
         <div
-          className="theme-ambient-pan"
+          className="theme-ambient-pan theme-newsletter-decoration"
           style={{
             position: "absolute",
             inset: 0,
@@ -43,6 +43,7 @@ export default function Newsletter({
 
         <div style={{ position: "relative" }}>
           <h2
+            className="theme-newsletter-title"
             style={{
               fontSize: "clamp(1.8rem, 3vw, 3rem)",
               textTransform: "uppercase",
@@ -52,11 +53,15 @@ export default function Newsletter({
           >
             {title}
           </h2>
-          <p style={{ color: "var(--text-muted)", marginBottom: 24, lineHeight: 1.8 }}>
+          <p
+            className="theme-newsletter-subtitle"
+            style={{ color: "var(--text-muted)", marginBottom: 24, lineHeight: 1.8 }}
+          >
             {subtitle}
           </p>
 
           <div
+            className="theme-newsletter-form"
             style={{
               marginTop: "20px",
               display: "flex",
@@ -66,6 +71,7 @@ export default function Newsletter({
             }}
           >
             <input
+              className="theme-newsletter-input"
               placeholder="Tu email"
               style={{
                 padding: "14px 16px",

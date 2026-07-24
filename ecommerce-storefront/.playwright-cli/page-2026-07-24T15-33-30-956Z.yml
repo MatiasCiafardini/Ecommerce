@@ -1,0 +1,263 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+      - generic [ref=e7]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+    - banner [ref=e9]:
+      - generic [ref=e10]:
+        - button "Menu" [ref=e12] [cursor=pointer]
+        - link "Ir al inicio" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img "Como Vos y Yo" [ref=e14]
+        - generic [ref=e15]:
+          - button "Abrir buscador" [ref=e16] [cursor=pointer]
+          - link "Carrito" [ref=e20] [cursor=pointer]:
+            - /url: /cart
+    - main [ref=e25]:
+      - generic [ref=e26]:
+        - main [ref=e27]:
+          - generic [ref=e28]:
+            - generic [ref=e49]:
+              - button "Ver banner 1" [pressed] [ref=e50] [cursor=pointer]
+              - button "Ver banner 2" [ref=e52] [cursor=pointer]
+            - heading "Coleccion capsula con envios a todo el pais y cambios simples" [level=2] [ref=e56]
+            - generic [ref=e59]:
+              - heading "Destacados de la tienda" [level=2] [ref=e60]
+              - generic [ref=e61]:
+                - link [ref=e63] [cursor=pointer]:
+                  - /url: /product/jean-straight-blue
+                  - generic [ref=e64]:
+                    - img "Jean straight blue"
+                  - generic [ref=e65]:
+                    - heading "Jean straight blue" [level=3] [ref=e66]
+                    - generic [ref=e67]:
+                      - paragraph [ref=e68]: $91.800,00
+                      - paragraph [ref=e69]: $78.000,00 con transferencia
+                - link [ref=e71] [cursor=pointer]:
+                  - /url: /product/jean-barrel-grey
+                  - generic [ref=e72]:
+                    - img "Jean Barrel Grey"
+                  - generic [ref=e73]:
+                    - heading "Jean barrel grey" [level=3] [ref=e74]
+                    - generic [ref=e75]:
+                      - paragraph [ref=e76]: $105.800,00
+                      - paragraph [ref=e77]: $89.900,00 con transferencia
+                - link [ref=e79] [cursor=pointer]:
+                  - /url: /product/jean-straight-blue-tiro-medio
+                  - generic [ref=e80]:
+                    - img "Jean straight blue tiro medio"
+                  - generic [ref=e81]:
+                    - heading "Jean straight blue tiro medio" [level=3] [ref=e82]
+                    - generic [ref=e83]:
+                      - paragraph [ref=e84]: $108.100,00
+                      - paragraph [ref=e85]: $91.900,00 con transferencia
+                - link [ref=e87] [cursor=pointer]:
+                  - /url: /product/jean-ballon-grey
+                  - generic [ref=e88]:
+                    - img "Jean ballon grey"
+                  - generic [ref=e89]:
+                    - heading "Jean ballon grey" [level=3] [ref=e90]
+                    - generic [ref=e91]:
+                      - paragraph [ref=e92]: $105.800,00
+                      - paragraph [ref=e93]: $89.900,00 con transferencia
+            - generic [ref=e96]:
+              - link "Ir al catalogo filtrado por Remeras" [ref=e97] [cursor=pointer]:
+                - /url: /product?categories=remeras
+                - img "Remeras" [ref=e98]
+                - generic [ref=e100]: Remeras
+              - link "Ir al catalogo filtrado por Camisas" [ref=e102] [cursor=pointer]:
+                - /url: /product?categories=camisas
+                - img "Camisas" [ref=e103]
+                - generic [ref=e105]: Camisas
+              - link "Ir al catalogo filtrado por Vestidos" [ref=e107] [cursor=pointer]:
+                - /url: /product?categories=vestidos
+                - img "Vestidos" [ref=e108]
+                - generic [ref=e110]: Vestidos
+            - generic [ref=e115]:
+              - link [ref=e117] [cursor=pointer]:
+                - /url: /product/jean-straight-blue
+                - generic [ref=e118]:
+                  - img "Jean straight blue"
+                - generic [ref=e119]:
+                  - heading "Jean straight blue" [level=3] [ref=e120]
+                  - generic [ref=e121]:
+                    - paragraph [ref=e122]: $91.800,00
+                    - paragraph [ref=e123]: $78.000,00 con transferencia
+              - link [ref=e125] [cursor=pointer]:
+                - /url: /product/jean-barrel-grey
+                - generic [ref=e126]:
+                  - img "Jean Barrel Grey"
+                - generic [ref=e127]:
+                  - heading "Jean barrel grey" [level=3] [ref=e128]
+                  - generic [ref=e129]:
+                    - paragraph [ref=e130]: $105.800,00
+                    - paragraph [ref=e131]: $89.900,00 con transferencia
+              - link [ref=e133] [cursor=pointer]:
+                - /url: /product/jean-straight-blue-tiro-medio
+                - generic [ref=e134]:
+                  - img "Jean straight blue tiro medio"
+                - generic [ref=e135]:
+                  - heading "Jean straight blue tiro medio" [level=3] [ref=e136]
+                  - generic [ref=e137]:
+                    - paragraph [ref=e138]: $108.100,00
+                    - paragraph [ref=e139]: $91.900,00 con transferencia
+              - link [ref=e141] [cursor=pointer]:
+                - /url: /product/jean-ballon-grey
+                - generic [ref=e142]:
+                  - img "Jean ballon grey"
+                - generic [ref=e143]:
+                  - heading "Jean ballon grey" [level=3] [ref=e144]
+                  - generic [ref=e145]:
+                    - paragraph [ref=e146]: $105.800,00
+                    - paragraph [ref=e147]: $89.900,00 con transferencia
+              - link [ref=e149] [cursor=pointer]:
+                - /url: /product/jean-straight-blue-normal
+                - generic [ref=e150]:
+                  - img "Jean straight blue normal"
+                - generic [ref=e151]:
+                  - heading "Jean straight blue normal" [level=3] [ref=e152]
+                  - generic [ref=e153]:
+                    - paragraph [ref=e154]: $105.800,00
+                    - paragraph [ref=e155]: $89.900,00 con transferencia
+              - link [ref=e157] [cursor=pointer]:
+                - /url: /product/jean-oxford-blue-medio
+                - generic [ref=e158]:
+                  - img "Jean Oxford blue medio"
+                - generic [ref=e159]:
+                  - heading "Jean oxford blue medio" [level=3] [ref=e160]
+                  - generic [ref=e161]:
+                    - paragraph [ref=e162]: $115.200,00
+                    - paragraph [ref=e163]: $97.900,00 con transferencia
+              - link [ref=e165] [cursor=pointer]:
+                - /url: /product/jean-carrot-blue
+                - generic [ref=e166]:
+                  - img "Jean carrot blue"
+                - generic [ref=e167]:
+                  - heading "Jean carrot blue" [level=3] [ref=e168]
+                  - generic [ref=e169]:
+                    - paragraph [ref=e170]: $94.000,00
+                    - paragraph [ref=e171]: $79.900,00 con transferencia
+              - link [ref=e173] [cursor=pointer]:
+                - /url: /product/jean-straight-crop-medio
+                - generic [ref=e174]:
+                  - img "Jean straight crop medio"
+                - generic [ref=e175]:
+                  - heading "Jean straight crop medio" [level=3] [ref=e176]
+                  - generic [ref=e177]:
+                    - paragraph [ref=e178]: $98.800,00
+                    - paragraph [ref=e179]: $84.000,00 con transferencia
+            - generic [ref=e183]:
+              - heading "Recibi novedades de Como Vos y Yo" [level=2] [ref=e184]
+              - paragraph [ref=e185]: Suscribite para conocer nuevos ingresos, restocks y propuestas de temporada.
+              - generic [ref=e186]:
+                - textbox "Tu email" [ref=e187]
+                - button "Suscribirme" [ref=e188]
+            - region "Preguntas frecuentes de Como Vos y Yo" [ref=e190]:
+              - article [ref=e192]:
+                - generic [ref=e193]:
+                  - generic [ref=e194]: Ayuda
+                  - heading "Preguntas frecuentes" [level=2] [ref=e195]
+                - generic [ref=e196]:
+                  - generic [ref=e197]:
+                    - button "Hacen envios?" [ref=e198] [cursor=pointer]:
+                      - generic [ref=e200]: +
+                    - region "Hacen envios?":
+                      - paragraph [ref=e202]: Si, hacemos envios a todo el pais.
+                  - generic [ref=e203]:
+                    - button "Cual es el costo de envio?" [ref=e204] [cursor=pointer]:
+                      - generic [ref=e206]: +
+                    - region "Cual es el costo de envio?":
+                      - paragraph [ref=e208]: El costo de envio se calcula al momento de realizar la compra. Solo tenes que ingresar tu codigo postal y el sistema te mostrara las opciones disponibles, ya sea a domicilio o a sucursal.
+                  - generic [ref=e209]:
+                    - button "Como sigo mi envio?" [ref=e210] [cursor=pointer]:
+                      - generic [ref=e212]: +
+                    - region "Como sigo mi envio?":
+                      - paragraph [ref=e214]: Una vez realizada la compra, vas a recibir la confirmacion por mail. Cuando el pedido sea despachado, te enviaremos un nuevo mail con el codigo de seguimiento para que puedas consultar el estado de tu envio.
+                  - generic [ref=e215]:
+                    - button "Cuanto tarda mi pedido?" [ref=e216] [cursor=pointer]:
+                      - generic [ref=e218]: +
+                    - region "Cuanto tarda mi pedido?":
+                      - paragraph [ref=e220]: Una vez despachado, los envios al interior del pais suelen demorar entre 3 y 6 dias habiles. Para AMBA o CABA, el plazo aproximado es de 72 horas habiles.
+                  - generic [ref=e221]:
+                    - button "Cuales son los medios de pago?" [ref=e222] [cursor=pointer]:
+                      - generic [ref=e224]: +
+                    - region "Cuales son los medios de pago?":
+                      - paragraph [ref=e226]: Aceptamos tarjetas y transferencia bancaria. Si elegis transferencia, la web te indicara el total a abonar y recibiras por mail los datos necesarios para realizar el pago.
+                  - generic [ref=e227]:
+                    - button "Puedo retirar mi pedido?" [ref=e228] [cursor=pointer]:
+                      - generic [ref=e230]: +
+                    - region "Puedo retirar mi pedido?":
+                      - paragraph [ref=e232]: Si. Podes retirar tu pedido coordinando previamente con nosotros por WhatsApp. Una vez abonado y preparado el pedido, nos contactaremos para coordinar dia y horario de retiro.
+                  - generic [ref=e233]:
+                    - button "Puedo devolver un producto y solicitar el reintegro del dinero?" [ref=e234] [cursor=pointer]:
+                      - generic [ref=e236]: +
+                    - region "Puedo devolver un producto y solicitar el reintegro del dinero?":
+                      - paragraph [ref=e238]: No. No realizamos reembolsos. Solo aceptamos cambios dentro de los 10 dias habiles posteriores a la recepcion del pedido.
+                  - generic [ref=e239]:
+                    - button "Cuanto tiempo tengo para solicitar un cambio?" [ref=e240] [cursor=pointer]:
+                      - generic [ref=e242]: +
+                    - region "Cuanto tiempo tengo para solicitar un cambio?":
+                      - paragraph [ref=e244]: Contas con 10 dias habiles desde que recibis tu compra para solicitar el cambio.
+                  - generic [ref=e245]:
+                    - button "Quien paga el envio del cambio?" [ref=e246] [cursor=pointer]:
+                      - generic [ref=e248]: +
+                    - region "Quien paga el envio del cambio?":
+                      - paragraph [ref=e250]: Los costos de envio de la devolucion y del nuevo envio corren por cuenta del cliente.
+                  - generic [ref=e251]:
+                    - button "En que casos puedo solicitar un cambio?" [ref=e252] [cursor=pointer]:
+                      - generic [ref=e254]: +
+                    - region "En que casos puedo solicitar un cambio?":
+                      - paragraph [ref=e256]: Realizamos cambios unicamente si hubo un error en el talle, el color o si el producto recibido es diferente al que compraste.
+                  - generic [ref=e257]:
+                    - button "Que sucede despues de que solicito un cambio?" [ref=e258] [cursor=pointer]:
+                      - generic [ref=e260]: +
+                    - region "Que sucede despues de que solicito un cambio?":
+                      - paragraph [ref=e262]: Una vez aprobado, procesaremos el cambio y enviaremos el nuevo articulo.
+                  - generic [ref=e263]:
+                    - button "Cuanto demora en llegar el producto de cambio?" [ref=e264] [cursor=pointer]:
+                      - generic [ref=e266]: +
+                    - region "Cuanto demora en llegar el producto de cambio?":
+                      - paragraph [ref=e268]: El tiempo de entrega puede variar segun la ubicacion del cliente y el servicio de envio.
+                  - generic [ref=e269]:
+                    - button "Como solicito un cambio?" [ref=e270] [cursor=pointer]:
+                      - generic [ref=e272]: +
+                    - region "Como solicito un cambio?":
+                      - paragraph [ref=e274]: Comunicate con nosotros indicando tu numero de pedido y el motivo del cambio. Te guiaremos con los pasos a seguir.
+        - link "Contactar por WhatsApp" [ref=e275] [cursor=pointer]:
+          - /url: https://wa.me/5492326494545?text=Hola!%20Quiero%20hacer%20una%20consulta%20sobre%20Como%20Vos%20y%20Yo.
+    - contentinfo [ref=e278]:
+      - generic [ref=e279]:
+        - generic [ref=e280]:
+          - generic [ref=e281]: Como Vos y Yo
+          - heading "Como Vos y Yo" [level=3] [ref=e282]
+          - paragraph [ref=e283]: Moda femenina elegante, limpia y actual para una boutique minimalista con mirada premium.
+        - generic [ref=e284]:
+          - heading "Comprar" [level=4] [ref=e285]
+          - generic [ref=e286]:
+            - link "Coleccion completa" [ref=e287] [cursor=pointer]:
+              - /url: /product
+            - link "Remeras" [ref=e288] [cursor=pointer]:
+              - /url: /category/remeras
+            - link "Camisas" [ref=e289] [cursor=pointer]:
+              - /url: /category/camisas
+            - link "Vestidos" [ref=e290] [cursor=pointer]:
+              - /url: /category/vestidos
+        - generic [ref=e291]:
+          - heading "Cuenta" [level=4] [ref=e292]
+          - generic [ref=e293]:
+            - link "Mi cuenta" [ref=e294] [cursor=pointer]:
+              - /url: /account
+            - link "Carrito" [ref=e295] [cursor=pointer]:
+              - /url: /cart
+            - link "Checkout" [ref=e296] [cursor=pointer]:
+              - /url: /checkout
+        - generic [ref=e297]:
+          - heading "Contacto" [level=4] [ref=e298]
+          - generic [ref=e299]:
+            - link "hola@comovosyyo.com" [ref=e300] [cursor=pointer]:
+              - /url: mailto:hola@comovosyyo.com
+            - link "Instagram" [ref=e301] [cursor=pointer]:
+              - /url: https://www.instagram.com/comovosyyo_
+            - link "WhatsApp" [ref=e302] [cursor=pointer]:
+              - /url: https://wa.me/5492326494545
+  - button "Open Next.js Dev Tools" [ref=e308] [cursor=pointer]

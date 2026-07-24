@@ -161,9 +161,7 @@ export default function MilaShoesInstitutional({
 }: {
   brandName?: string;
 }) {
-  const [isFaqOpen, setIsFaqOpen] = useState(false);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const faqListId = "milashoes-faq-list";
   const faqItems = resolveFaqItems(brandName);
 
   return (
@@ -172,31 +170,12 @@ export default function MilaShoesInstitutional({
         <article className="milashoes-faq">
           <div className="milashoes-info-card__header milashoes-faq__header">
             <span className="milashoes-info-card__eyebrow">Ayuda</span>
-            <button
-              type="button"
-              className="milashoes-faq__title-button"
-              aria-expanded={isFaqOpen}
-              aria-controls={faqListId}
-              onClick={() => {
-                setIsFaqOpen((current) => !current);
-                setOpenIndex(null);
-              }}
-            >
-              <span>Preguntas frecuentes</span>
-              <span className="milashoes-faq__icon" aria-hidden="true">
-                {isFaqOpen ? "-" : "+"}
-              </span>
-            </button>
+            <h2>Preguntas frecuentes</h2>
           </div>
 
-          <div
-            id={faqListId}
-            className="milashoes-faq__list"
-            data-open={isFaqOpen ? "true" : "false"}
-            aria-hidden={!isFaqOpen}
-          >
+          <div className="milashoes-faq__list">
             {faqItems.map((item, index) => {
-              const isOpen = isFaqOpen && openIndex === index;
+              const isOpen = openIndex === index;
               const panelId = `milashoes-faq-panel-${index}`;
               const buttonId = `milashoes-faq-button-${index}`;
 
@@ -208,7 +187,6 @@ export default function MilaShoesInstitutional({
                     className="milashoes-faq__button"
                     aria-expanded={isOpen}
                     aria-controls={panelId}
-                    tabIndex={isFaqOpen ? 0 : -1}
                     onClick={() => setOpenIndex(isOpen ? null : index)}
                   >
                     <span>{item.question}</span>

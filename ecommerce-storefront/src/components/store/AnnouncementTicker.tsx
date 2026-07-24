@@ -72,13 +72,19 @@ export default function AnnouncementTicker({
         }
 
         .announcement-ticker-track {
-          animation: announcementTickerScroll 24s linear infinite;
+          animation: announcementTickerScroll 48s linear infinite;
           will-change: transform;
+        }
+
+        @media (max-width: 768px) {
+          .announcement-ticker-track {
+            animation-duration: 72s;
+          }
         }
 
         @media (prefers-reduced-motion: reduce) {
           .announcement-ticker-track {
-            animation: announcementTickerScroll 24s linear infinite !important;
+            animation-duration: 72s !important;
           }
         }
 

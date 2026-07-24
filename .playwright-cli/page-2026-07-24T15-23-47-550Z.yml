@@ -1,0 +1,134 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - generic [ref=f3e4]:
+      - generic [ref=f3e5]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+      - generic [ref=f3e7]: ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES / ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES
+    - banner [ref=f3e9]:
+      - generic [ref=f3e10]:
+        - button "Menu" [ref=f3e12] [cursor=pointer]
+        - link "Ir al inicio" [ref=f3e13] [cursor=pointer]:
+          - /url: /
+          - img "Como Vos y Yo" [ref=f3e14]
+        - generic [ref=f3e15]:
+          - button "Abrir buscador" [ref=f3e16] [cursor=pointer]
+          - link "Carrito" [ref=f3e20] [cursor=pointer]:
+            - /url: /cart
+    - main [ref=f3e25]:
+      - generic [ref=f3e26]:
+        - main [ref=f3e27]:
+          - generic [ref=f3e29]:
+            - generic [ref=f3e30]:
+              - generic [ref=f3e31]:
+                - generic [ref=f3e32]:
+                  - img "Jean ballon grey" [ref=f3e33]
+                  - button "Ver imagen anterior" [ref=f3e34] [cursor=pointer]
+                  - button "Ver imagen siguiente" [ref=f3e38] [cursor=pointer]
+                  - generic [ref=f3e42]: 1 / 3
+                - generic "Vistas del producto" [ref=f3e43]:
+                  - button "Ver imagen 1" [ref=f3e44] [cursor=pointer]:
+                    - img "Jean ballon grey vista 1" [ref=f3e45]
+                  - button "Ver imagen 2" [ref=f3e46] [cursor=pointer]:
+                    - img "Jean ballon grey vista 2" [ref=f3e47]
+                  - button "Ver imagen 3" [ref=f3e48] [cursor=pointer]:
+                    - img "Jean ballon grey vista 3" [ref=f3e49]
+              - generic [ref=f3e50]:
+                - generic [ref=f3e51]:
+                  - button "Tabla de talles" [ref=f3e53] [cursor=pointer]:
+                    - generic [ref=f3e55]: +
+                  - button "Informacion del producto" [ref=f3e57] [cursor=pointer]:
+                    - generic [ref=f3e59]: +
+                  - group [ref=f3e60]:
+                    - generic "Textura" [ref=f3e61]
+                - generic [ref=f3e62]:
+                  - generic [ref=f3e63]:
+                    - paragraph [ref=f3e64]: Jeans
+                    - heading "Jean ballon grey" [level=1] [ref=f3e66]
+                    - paragraph [ref=f3e67]: "Talle seleccionado: L"
+                    - generic [ref=f3e68]:
+                      - paragraph [ref=f3e69]: $105.800,00
+                      - paragraph [ref=f3e70]: $89.900,00 con transferencia
+                  - generic [ref=f3e72]:
+                    - paragraph [ref=f3e73]: Selecciona talle
+                    - generic [ref=f3e74]:
+                      - button "L" [pressed] [ref=f3e75] [cursor=pointer]
+                      - button "M" [ref=f3e76] [cursor=pointer]
+                  - button "Agregar al carrito" [ref=f3e77] [cursor=pointer]
+            - generic [ref=f3e78]:
+              - generic [ref=f3e79]:
+                - generic [ref=f3e80]: Productos relacionados
+                - heading "Mas piezas para completar el look" [level=2] [ref=f3e81]
+              - generic [ref=f3e82]:
+                - link [ref=f3e83] [cursor=pointer]:
+                  - /url: /product/jean-relax-chocolate
+                  - generic [ref=f3e84]:
+                    - img "Jean relax chocolate"
+                  - generic [ref=f3e85]:
+                    - heading "Jean relax chocolate" [level=3] [ref=f3e86]
+                    - generic [ref=f3e87]:
+                      - paragraph [ref=f3e88]: $105.800,00
+                      - paragraph [ref=f3e89]: $89.900,00 con transferencia
+                - link [ref=f3e90] [cursor=pointer]:
+                  - /url: /product/jean-straight-blue-normal
+                  - generic [ref=f3e91]:
+                    - img "Jean straight blue normal"
+                  - generic [ref=f3e92]:
+                    - heading "Jean straight blue normal" [level=3] [ref=f3e93]
+                    - generic [ref=f3e94]:
+                      - paragraph [ref=f3e95]: $105.800,00
+                      - paragraph [ref=f3e96]: $89.900,00 con transferencia
+                - link [ref=f3e97] [cursor=pointer]:
+                  - /url: /product/jean-oxford-blue-medio
+                  - generic [ref=f3e98]:
+                    - img "Jean Oxford blue medio"
+                  - generic [ref=f3e99]:
+                    - heading "Jean oxford blue medio" [level=3] [ref=f3e100]
+                    - generic [ref=f3e101]:
+                      - paragraph [ref=f3e102]: $115.200,00
+                      - paragraph [ref=f3e103]: $97.900,00 con transferencia
+                - link [ref=f3e104] [cursor=pointer]:
+                  - /url: /product/jean-baggy-vison
+                  - generic [ref=f3e105]:
+                    - img "Jean baggy vison"
+                  - generic [ref=f3e106]:
+                    - heading "Jean baggy vison" [level=3] [ref=f3e107]
+                    - generic [ref=f3e108]:
+                      - paragraph [ref=f3e109]: $105.800,00
+                      - paragraph [ref=f3e110]: $89.900,00 con transferencia
+        - link "Contactar por WhatsApp" [ref=f3e111] [cursor=pointer]:
+          - /url: https://wa.me/5492326494545?text=Hola!%20Quiero%20hacer%20una%20consulta%20sobre%20Como%20Vos%20y%20Yo.
+    - contentinfo [ref=f3e114]:
+      - generic [ref=f3e115]:
+        - generic [ref=f3e116]:
+          - generic [ref=f3e117]: Como Vos y Yo
+          - heading "Como Vos y Yo" [level=3] [ref=f3e118]
+          - paragraph [ref=f3e119]: Moda femenina elegante, limpia y actual para una boutique minimalista con mirada premium.
+        - generic [ref=f3e120]:
+          - heading "Comprar" [level=4] [ref=f3e121]
+          - generic [ref=f3e122]:
+            - link "Coleccion completa" [ref=f3e123] [cursor=pointer]:
+              - /url: /product
+            - link "Remeras" [ref=f3e124] [cursor=pointer]:
+              - /url: /category/remeras
+            - link "Camisas" [ref=f3e125] [cursor=pointer]:
+              - /url: /category/camisas
+            - link "Vestidos" [ref=f3e126] [cursor=pointer]:
+              - /url: /category/vestidos
+        - generic [ref=f3e127]:
+          - heading "Cuenta" [level=4] [ref=f3e128]
+          - generic [ref=f3e129]:
+            - link "Mi cuenta" [ref=f3e130] [cursor=pointer]:
+              - /url: /account
+            - link "Carrito" [ref=f3e131] [cursor=pointer]:
+              - /url: /cart
+            - link "Checkout" [ref=f3e132] [cursor=pointer]:
+              - /url: /checkout
+        - generic [ref=f3e133]:
+          - heading "Contacto" [level=4] [ref=f3e134]
+          - generic [ref=f3e135]:
+            - link "hola@comovosyyo.com" [ref=f3e136] [cursor=pointer]:
+              - /url: mailto:hola@comovosyyo.com
+            - link "Instagram" [ref=f3e137] [cursor=pointer]:
+              - /url: https://www.instagram.com/comovosyyo_
+            - link "WhatsApp" [ref=f3e138] [cursor=pointer]:
+              - /url: https://wa.me/5492326494545
+  - button "Open Next.js Dev Tools" [ref=f3e144] [cursor=pointer]

@@ -26,13 +26,6 @@ type Props = {
   bankTransferDiscountPercentage?: number;
 };
 
-const getDefaultOptionValues = (options: StoreProductOption[]) =>
-  Object.fromEntries(
-    options
-      .filter((option) => option.values.length > 0)
-      .map((option) => [option.id, option.values[0].value]),
-  );
-
 const parseMeasureValue = (value?: number | string | null) => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -94,12 +87,6 @@ const formatWeightMeasure = ({
   }
 
   return null;
-};
-
-const formatVariantTitle = (variant?: StoreVariant | null) => {
-  if (!variant) return "Variante principal";
-  const parts = [variant.Size, variant.Color].filter(Boolean);
-  return parts.length > 0 ? parts.join(" - ") : "Variante principal";
 };
 
 const compareSizes = (left: string, right: string) =>
@@ -220,6 +207,31 @@ export default function ProductView({
       }),
     [dynamicOptions],
   );
+  const compactCompositionOption = useMemo(() => {
+    if (storeId !== 7) return null;
+
+    const matchingOption = informationalOptions.find((option) => {
+      const normalizedName = option.name
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      return ["textura", "composicion", "composicion y textura"].includes(
+        normalizedName,
+      );
+    });
+
+    return matchingOption && matchingOption.values.length <= 2
+      ? matchingOption
+      : null;
+  }, [informationalOptions, storeId]);
+  const visibleInformationalOptions = useMemo(
+    () =>
+      informationalOptions.filter(
+        (option) => option.id !== compactCompositionOption?.id,
+      ),
+    [compactCompositionOption, informationalOptions],
+  );
   const primaryCategoryName = product.categories?.[0]?.category?.name ?? null;
   const isFootwearProduct = product.categories?.some(({ category }) =>
     ["calzado", "zapatilla", "zapatillas"].some((keyword) =>
@@ -243,12 +255,8 @@ export default function ProductView({
       colorOptions[0] ??
       null,
   );
-  const [selectedOptionValues, setSelectedOptionValues] = useState<
-    Record<number, string>
-  >(() => getDefaultOptionValues(dynamicOptions));
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
-  const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [addStatus, setAddStatus] = useState<"idle" | "loading" | "added">(
     "idle",
   );
@@ -354,7 +362,7 @@ export default function ProductView({
             ),
           )
       : null;
-  const showInstallments = storeId !== 3;
+  const showInstallments = storeId !== 3 && storeId !== 7;
   const installmentPrice =
     showInstallments && currentFinalPrice > 0
       ? pricingPolicy.labelPriceRounding
@@ -658,47 +666,54 @@ export default function ProductView({
                   >
                     {selectedImageIndex + 1} / {productImages.length}
                   </div>
-
-                  <div
-                    className="gallery-thumbnail-dock gallery-hover-ui gallery-hover-up"
-                    style={thumbnailDockStyle}
-                  >
-                    {productImages.map((productImage, index) => {
-                      const isActive = index === selectedImageIndex;
-
-                      return (
-                        <button
-                          key={`${product.slug}-${productImage.url}-${index}`}
-                          type="button"
-                          onClick={() => setSelectedImageIndex(index)}
-                          aria-label={`Ver imagen ${index + 1}`}
-                          style={{
-                            ...thumbnailButtonStyle(isActive),
-                            position: "relative",
-                          }}
-                        >
-                          <Image
-                            src={
-                              resolveAssetUrl(productImage.url) ??
-                              productImage.url
-                            }
-                            alt={`${product.title} vista ${index + 1}`}
-                            fill
-                            sizes="88px"
-                            style={{
-                              ...thumbnailImageStyle,
-                              ...getProductImageTransform(productImage),
-                            }}
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
                 </>
               ) : null}
             </div>
+
+            {productImages.length > 1 ? (
+              <div
+                className="gallery-thumbnail-dock"
+                style={thumbnailDockStyle}
+                aria-label="Vistas del producto"
+              >
+                {productImages.map((productImage, index) => {
+                  const isActive = index === selectedImageIndex;
+
+                  return (
+                    <button
+                      key={`${product.slug}-${productImage.url}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedImageIndex(index)}
+                      aria-label={`Ver imagen ${index + 1}`}
+                      aria-current={isActive ? "true" : undefined}
+                      style={{
+                        ...thumbnailButtonStyle(isActive),
+                        position: "relative",
+                      }}
+                    >
+                      <Image
+                        src={
+                          resolveAssetUrl(productImage.url) ??
+                          productImage.url
+                        }
+                        alt={`${product.title} vista ${index + 1}`}
+                        fill
+                        sizes="88px"
+                        style={{
+                          ...thumbnailImageStyle,
+                          ...getProductImageTransform(productImage),
+                        }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
+          <div
+            className={`product-detail-column${storeId === 7 ? " is-comovosyyo" : ""}`}
+          >
           <div
             className="product-info-panel"
             style={{
@@ -712,6 +727,7 @@ export default function ProductView({
           >
             {hasSizeGuide ? (
               <div
+                className="product-detail-accordion"
                 style={{
                   borderRadius: 22,
                   border: "1px solid var(--border-soft)",
@@ -762,149 +778,103 @@ export default function ProductView({
               </div>
             ) : null}
 
-            <div>
-              <p
-                style={{
-                  margin: "0 0 10px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.16em",
-                  fontSize: 12,
-                  color: "var(--text-muted)",
-                }}
+            {storeId === 7 ? (
+            <div className="product-detail-accordion">
+              <button
+                type="button"
+                onClick={() => setShowFullDescription((current) => !current)}
+                aria-expanded={showFullDescription}
+                style={sizeGuideToggleStyle}
               >
-                Informacion del producto
-              </p>
-              <p
-                className={
-                  canCollapseDescription && !showFullDescription
-                    ? "product-description-text is-collapsed"
-                    : "product-description-text"
-                }
-                style={{
-                  margin: 0,
-                  color: "var(--text-muted)",
-                  lineHeight: 1.8,
-                }}
-              >
-                {descriptionText}
-              </p>
-              {canCollapseDescription ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowFullDescription((current) => !current)
-                  }
-                  style={descriptionToggleStyle}
-                >
-                  {showFullDescription ? "Ver menos" : "Ver mas..."}
-                </button>
-              ) : null}
-            </div>
-
-            {informationalOptions.length > 0 ? (
-              <div
-                style={{
-                  display: "grid",
-                  gap: 14,
-                  paddingTop: 4,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setShowMoreOptions((current) => !current)}
-                  style={{
-                    width: "fit-content",
-                    padding: "12px 16px",
-                    borderRadius: 999,
-                    border: "1px solid var(--border-soft)",
-                    background: "transparent",
-                    color: "var(--text-strong)",
-                    cursor: "pointer",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.12em",
-                    fontSize: 12,
-                  }}
-                >
-                  {showMoreOptions ? "Ver menos" : "Ver mas..."}
-                </button>
-
-                {showMoreOptions ? (
-                  <div
+                <span>Informacion del producto</span>
+                <span aria-hidden="true">{showFullDescription ? "-" : "+"}</span>
+              </button>
+              {showFullDescription ? (
+                <div className="product-detail-accordion__content">
+                  <p
                     style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(220px, 1fr))",
-                      gap: 14,
+                      margin: 0,
+                      color: "var(--text-muted)",
+                      lineHeight: 1.65,
                     }}
                   >
-                    {informationalOptions.map((option) => (
-                      <div
-                        key={option.id}
-                        style={{
-                          borderRadius: 22,
-                          border: "1px solid var(--border-soft)",
-                          background: "var(--block-card-bg)",
-                          padding: 18,
-                          display: "grid",
-                          gap: 12,
-                        }}
-                      >
-                        <p
-                          style={{
-                            margin: 0,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.16em",
-                            fontSize: 11,
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          {option.name}
-                        </p>
-                        <div
-                          style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
-                        >
-                          {option.values.map((value) => {
-                            const selected =
-                              selectedOptionValues[option.id] === value.value;
-
-                            return (
-                              <button
-                                key={value.id}
-                                type="button"
-                                onClick={() =>
-                                  setSelectedOptionValues((current) => ({
-                                    ...current,
-                                    [option.id]: value.value,
-                                  }))
-                                }
-                                className="theme-button"
-                                style={{
-                                  padding: "10px 12px",
-                                  borderRadius: 999,
-                                  border: selected
-                                    ? "1px solid var(--text-strong)"
-                                    : "1px solid var(--border-soft)",
-                                  background: selected
-                                    ? "var(--block-card-bg)"
-                                    : "transparent",
-                                  color: "var(--text-strong)",
-                                  cursor: "pointer",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.1em",
-                                  fontSize: 11,
-                                }}
-                              >
-                                {value.value}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                    {descriptionText}
+                  </p>
+                  {compactCompositionOption ? (
+                    <div className="product-composition-summary">
+                      <strong>Composición y textura</strong>
+                      {compactCompositionOption.values.map((value) => (
+                        <p key={value.id}>{value.value}</p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            ) : (
+              <div>
+                <p
+                  style={{
+                    margin: "0 0 10px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.16em",
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  Informacion del producto
+                </p>
+                <p
+                  className={
+                    canCollapseDescription && !showFullDescription
+                      ? "product-description-text is-collapsed"
+                      : "product-description-text"
+                  }
+                  style={{
+                    margin: 0,
+                    color: "var(--text-muted)",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {descriptionText}
+                </p>
+                {canCollapseDescription ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowFullDescription((current) => !current)}
+                    style={descriptionToggleStyle}
+                  >
+                    {showFullDescription ? "Ver menos" : "Ver mas..."}
+                  </button>
                 ) : null}
               </div>
-            ) : null}
+            )}
+
+            {visibleInformationalOptions.map((option) => {
+              const normalizedOptionName = option.name
+                .trim()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+              const optionLabel = [
+                "textura",
+                "composicion",
+                "composicion y textura",
+              ].includes(normalizedOptionName)
+                ? "Composición y textura"
+                : option.name;
+
+              return (
+              <details className="product-detail-accordion" key={option.id}>
+                <summary>{optionLabel}</summary>
+                <div className="product-detail-accordion__content">
+                  {option.values.map((value) => (
+                    <p key={value.id}>{value.value}</p>
+                  ))}
+                </div>
+              </details>
+              );
+            })}
           </div>
 
           <div
@@ -966,8 +936,16 @@ export default function ProductView({
                 }}
               >
                 <h1
+                  className="product-view-title"
                   style={{
-                    fontSize: "clamp(2.2rem, 4.4vw, 4.5rem)",
+                    fontSize:
+                      storeId === 7
+                        ? product.title.length > 38
+                          ? "clamp(1.85rem, 2.8vw, 2.85rem)"
+                          : product.title.length > 25
+                            ? "clamp(2rem, 3.2vw, 3.25rem)"
+                            : "clamp(2.1rem, 3.55vw, 3.65rem)"
+                        : "clamp(2.2rem, 4.4vw, 4.5rem)",
                     lineHeight: 0.95,
                     margin: 0,
                     letterSpacing: isMiMaria ? "-0.04em" : "-0.05em",
@@ -990,19 +968,19 @@ export default function ProductView({
                 ) : null}
               </div>
 
-              <p
-                style={{
-                  margin: "0 0 14px",
-                  color: hasStock ? "var(--text-muted)" : "var(--text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.16em",
-                  fontSize: 12,
-                }}
-              >
-                {hasStock
-                  ? `Variante activa: ${formatVariantTitle(selectedVariant)}`
-                  : "Sin stock disponible"}
-              </p>
+              {!hasStock ? (
+                <p
+                  style={{
+                    margin: "0 0 14px",
+                    color: "var(--text-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.16em",
+                    fontSize: 12,
+                  }}
+                >
+                  Sin stock disponible
+                </p>
+              ) : null}
 
               <div style={{ display: "grid", gap: 8 }}>
                 {activePricing?.hasActivePromotion ? (
@@ -1065,6 +1043,7 @@ export default function ProductView({
                 </p>
                 {transferPrice !== null ? (
                   <p
+                    className="product-transfer-price"
                     style={{
                       margin: 0,
                       color: "var(--text-strong)",
@@ -1116,7 +1095,7 @@ export default function ProductView({
                         color: "var(--text-muted)",
                       }}
                     >
-                      Selecciona talle
+                      Seleccioná talle{selectedSize ? ` · ${selectedSize}` : ""}
                     </p>
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       {sizeOptions.map((size) => {
@@ -1226,7 +1205,7 @@ export default function ProductView({
                 addStatus === "loading"
               }
               onClick={() => void handleAddToCart()}
-              className={canAddSelectedVariant ? "theme-button" : undefined}
+              className={`product-add-to-cart${canAddSelectedVariant ? " theme-button" : ""}`}
               style={{
                 padding: "16px 24px",
                 background: canAddSelectedVariant
@@ -1282,6 +1261,7 @@ export default function ProductView({
                 {cartMessage}
               </p>
             ) : null}
+          </div>
           </div>
         </div>
 
@@ -1418,6 +1398,29 @@ export default function ProductView({
           grid-row: 1;
         }
 
+        .product-detail-column {
+          display: contents;
+        }
+
+        .product-detail-column.is-comovosyyo {
+          grid-column: 2;
+          grid-row: 1;
+          display: flex;
+          flex-direction: column-reverse;
+          align-self: start;
+          position: sticky;
+          top: 24px;
+          max-height: calc(100vh - 48px);
+          overflow-y: auto;
+          scrollbar-width: thin;
+        }
+
+        .product-detail-column.is-comovosyyo .product-buy-panel,
+        .product-detail-column.is-comovosyyo .product-info-panel {
+          grid-column: auto;
+          grid-row: auto;
+        }
+
         .product-buy-panel {
           grid-column: 2;
           grid-row: 1;
@@ -1494,6 +1497,59 @@ export default function ProductView({
           overflow: hidden;
         }
 
+        .product-detail-accordion {
+          border-top: 1px solid var(--border-soft);
+          background: transparent;
+        }
+
+        .product-detail-accordion:last-child {
+          border-bottom: 1px solid var(--border-soft);
+        }
+
+        .product-detail-accordion summary {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 15px 0;
+          color: var(--text-strong);
+          cursor: pointer;
+          list-style: none;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .product-detail-accordion summary::-webkit-details-marker {
+          display: none;
+        }
+
+        .product-detail-accordion summary::after {
+          content: "+";
+          font-size: 18px;
+          font-weight: 400;
+        }
+
+        .product-detail-accordion[open] summary::after {
+          content: "−";
+        }
+
+        .product-detail-accordion__content {
+          padding: 2px 0 18px;
+          color: var(--text-muted);
+          font-size: 15px;
+          line-height: 1.65;
+        }
+
+        .product-detail-accordion__content p {
+          margin: 0;
+        }
+
+        .product-detail-accordion__content p + p {
+          margin-top: 8px;
+        }
+
         .product-variant-chip {
           background: transparent !important;
           border-color: var(--border-soft) !important;
@@ -1522,23 +1578,38 @@ export default function ProductView({
             border-radius: 28px !important;
           }
 
+          .product-detail-column.is-comovosyyo {
+            display: flex;
+            order: 2;
+            grid-column: auto;
+            grid-row: auto;
+            width: 100%;
+            position: static;
+            max-height: none;
+            overflow: visible;
+          }
+
           .product-gallery-panel .gallery-frame {
             aspect-ratio: 4 / 5 !important;
             border-radius: 24px !important;
             touch-action: pan-y;
           }
 
-          .gallery-arrow-button,
-          .gallery-thumbnail-dock {
+          .gallery-arrow-button {
             display: none !important;
           }
 
+          .gallery-thumbnail-dock {
+            padding: 10px 2px 2px !important;
+            gap: 8px !important;
+          }
+
           .product-buy-panel {
-            order: 2;
+            order: initial;
           }
 
           .product-info-panel {
-            order: 3;
+            order: initial;
           }
 
           .product-buy-panel,
@@ -1769,16 +1840,10 @@ const galleryCounterStyle: React.CSSProperties = {
 };
 
 const thumbnailDockStyle: React.CSSProperties = {
-  position: "absolute",
-  left: 16,
-  right: 16,
-  bottom: 16,
   display: "flex",
   gap: 10,
-  padding: 10,
-  borderRadius: 24,
-  background: "color-mix(in srgb, var(--page-panel-bg) 88%, transparent)",
-  backdropFilter: "blur(8px)",
+  padding: "12px 2px 0",
+  background: "transparent",
   overflowX: "auto",
   scrollbarWidth: "none",
 };
