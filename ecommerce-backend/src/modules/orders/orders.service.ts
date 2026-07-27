@@ -661,6 +661,18 @@ export class OrdersService {
         );
       }
 
+      if (order.cashRegisterId) {
+        const correctionSession = await tx.cashRegisterSession.findUnique({
+          where: { id: order.cashRegisterId },
+          select: { closedAt: true },
+        });
+        if (correctionSession?.closedAt) {
+          throw new BadRequestException(
+            'La venta no se puede editar porque la caja asociada ya esta cerrada.',
+          );
+        }
+      }
+
       const manualPayments = order.payments.filter(
         (payment) => payment.provider === 'manual',
       );
@@ -3377,6 +3389,12 @@ export class OrdersService {
         },
       },
       payments: true,
+      cashRegister: {
+        select: {
+          id: true,
+          closedAt: true,
+        },
+      },
       returns: {
         include: {
           items: true,

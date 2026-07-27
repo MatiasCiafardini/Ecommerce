@@ -14,6 +14,7 @@ import { ReviewReturnDto } from './dto/review-return.dto';
 import { ReceiveReturnDto } from './dto/receive-return.dto';
 import { ShipReturnDto } from './dto/ship-return.dto';
 import { CreateManualReturnDto } from './dto/create-manual-return.dto';
+import { UpdateManualReturnDto } from './dto/update-manual-return.dto';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { AdminNotificationMailService } from '../notifications/admin-notification-mail.service';
 import { privateUploadsDir, uploadsDir } from '../../common/uploads';
@@ -36,7 +37,7 @@ export class ReturnsService {
   ) {
     const location = await this.resolveUserLocation(storeId, userId, requestedStoreLocationId);
 
-    return this.prisma.manualReturn.findMany({
+    const rows = await this.prisma.manualReturn.findMany({
       where: {
         storeId,
         ...(location ? { storeLocationId: location.id } : {}),
@@ -44,6 +45,24 @@ export class ReturnsService {
       include: this.manualReturnInclude(),
       orderBy: { createdAt: 'desc' },
       take: 80,
+    });
+    const sessions = await this.prisma.cashRegisterSession.findMany({
+      where: { storeId, ...(location ? { storeLocationId: location.id } : {}) },
+      select: { id: true, storeLocationId: true, openedAt: true, closedAt: true },
+      orderBy: { openedAt: 'desc' },
+    });
+    return rows.map((entry) => {
+      const inferredSession = entry.cashRegister ?? sessions.find((session) =>
+        session.storeLocationId === entry.storeLocationId &&
+        session.openedAt <= entry.createdAt &&
+        (!session.closedAt || session.closedAt >= entry.createdAt),
+      );
+      return {
+        ...entry,
+        correctionLocked: entry.cashRegisterId
+          ? Boolean(entry.cashRegister?.closedAt)
+          : !inferredSession || Boolean(inferredSession.closedAt),
+      };
     });
   }
 
@@ -201,10 +220,12 @@ export class ReturnsService {
         data: {
           storeId,
           storeLocationId: manualReturnStoreLocationId,
-          cashRegisterId:
-            differenceAmount > 0 && settlementMethod !== 'Cuenta corriente'
-              ? cashContext.cashRegisterId
-              : null,
+          cashRegisterId: cashContext.cashRegisterId,
+          customerId: customer?.id ?? null,
+          currentAccountId: account?.id ?? null,
+          returnedPaymentMethod: dto.returnedPaymentMethod?.trim() || null,
+          returnedDiscountApplied: dto.returnedDiscountApplied !== false,
+          exchangeDiscountApplied: dto.exchangeDiscountApplied !== false,
           settlementMethod,
           customerName:
             dto.customerName?.trim() ||
@@ -252,7 +273,205 @@ export class ReturnsService {
         });
       }
 
+      await tx.manualReturnEvent?.create({
+        data: {
+          storeId,
+          manualReturnId: manualReturn.id,
+          type: 'manual_return.created',
+          message: dto.notes?.trim() || null,
+          actorId: createdByUserId,
+          metadata: {
+            totalReturned,
+            totalExchange,
+            differenceAmount,
+            settlementMethod,
+          },
+        },
+      });
+
       return manualReturn;
+    });
+  }
+
+  async updateManualReturn(
+    storeId: number,
+    userId: number | undefined,
+    manualReturnId: number,
+    dto: UpdateManualReturnDto,
+  ) {
+    await this.ensureManualReturnCorrectionAllowed(storeId, userId);
+    const reason = dto.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException('Indica el motivo de la correccion.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.manualReturn.findFirst({
+        where: { id: manualReturnId, storeId },
+        include: {
+          items: true,
+          cashRegister: { select: { id: true, closedAt: true } },
+          currentAccount: true,
+        },
+      });
+
+      if (!existing) {
+        throw new NotFoundException('Manual return not found');
+      }
+      if (existing.cashRegister?.closedAt) {
+        throw new BadRequestException(
+          'La devolucion no se puede editar porque la caja asociada ya esta cerrada.',
+        );
+      }
+      if (!existing.cashRegisterId && existing.storeLocationId) {
+        const historicalSession = await tx.cashRegisterSession.findFirst({
+          where: {
+            storeId,
+            storeLocationId: existing.storeLocationId,
+            openedAt: { lte: existing.createdAt },
+            OR: [{ closedAt: null }, { closedAt: { gte: existing.createdAt } }],
+          },
+          orderBy: { openedAt: 'desc' },
+        });
+        if (historicalSession?.closedAt) {
+          throw new BadRequestException(
+            'La devolucion no se puede editar porque la caja asociada ya esta cerrada.',
+          );
+        }
+        if (!historicalSession) {
+          throw new BadRequestException(
+            'La devolucion no se puede editar porque no se puede verificar una caja abierta asociada.',
+          );
+        }
+      }
+
+      const returnedItems = dto.returnedItems ?? [];
+      const exchangeItems = dto.exchangeItems ?? [];
+      const variantIds = [...new Set([...existing.items.map((item) => item.variantId), ...returnedItems.map((item) => item.variantId), ...exchangeItems.map((item) => item.variantId)])];
+      const variants = await tx.productVariant.findMany({
+        where: { id: { in: variantIds }, product: { storeId } },
+        include: { product: true, inventories: { where: { storeId } } },
+      });
+      const variantsById = new Map(variants.map((variant) => [variant.id, variant]));
+      if (variantsById.size !== variantIds.length) {
+        throw new BadRequestException('Uno o mas productos no pertenecen a esta tienda.');
+      }
+
+      const normalize = (item: { variantId: number; quantity: number; price?: number }) => {
+        if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+          throw new BadRequestException('Quantity must be greater than zero');
+        }
+        const variant = variantsById.get(item.variantId)!;
+        const price = this.roundMoney(Number(item.price ?? variant.price));
+        if (!Number.isFinite(price) || price < 0) {
+          throw new BadRequestException('Price must be zero or greater');
+        }
+        return { variantId: item.variantId, quantity: item.quantity, price };
+      };
+      const nextReturned = returnedItems.map(normalize);
+      const nextExchange = exchangeItems.map(normalize);
+      const stockEffect = (items: Array<{ variantId: number; quantity: number }>, sign: number) => {
+        const result = new Map<number, number>();
+        for (const item of items) result.set(item.variantId, (result.get(item.variantId) ?? 0) + item.quantity * sign);
+        return result;
+      };
+      const previousEffect = stockEffect(existing.items.filter((item) => item.kind === 'returned'), 1);
+      for (const [variantId, amount] of stockEffect(existing.items.filter((item) => item.kind === 'exchange'), -1)) {
+        previousEffect.set(variantId, (previousEffect.get(variantId) ?? 0) + amount);
+      }
+      const nextEffect = stockEffect(nextReturned, 1);
+      for (const [variantId, amount] of stockEffect(nextExchange, -1)) {
+        nextEffect.set(variantId, (nextEffect.get(variantId) ?? 0) + amount);
+      }
+
+      for (const variantId of variantIds) {
+        const delta = (nextEffect.get(variantId) ?? 0) - (previousEffect.get(variantId) ?? 0);
+        if (!delta) continue;
+        const inventory = await tx.inventory.findUnique({
+          where: { storeId_variantId: { storeId, variantId } },
+        });
+        if (delta < 0 && (!inventory || inventory.quantity - inventory.reserved < Math.abs(delta))) {
+          throw new BadRequestException(`Not enough stock for variant ${variantId}`);
+        }
+        await tx.inventory.upsert({
+          where: { storeId_variantId: { storeId, variantId } },
+          create: { storeId, variantId, quantity: delta, reserved: 0 },
+          update: { quantity: delta > 0 ? { increment: delta } : { decrement: Math.abs(delta) } },
+        });
+      }
+
+      const totalReturned = this.roundMoney(nextReturned.reduce((sum, item) => sum + item.price * item.quantity, 0));
+      const totalExchange = this.roundMoney(nextExchange.reduce((sum, item) => sum + item.price * item.quantity, 0));
+      const differenceAmount = this.roundMoney(totalExchange - totalReturned);
+      const settlementMethod = dto.settlementMethod?.trim() || (differenceAmount > 0 ? existing.settlementMethod || 'Efectivo' : 'Cuenta corriente');
+      const previousAccountImpact = this.manualReturnAccountImpact(Number(existing.differenceAmount), existing.settlementMethod);
+      const nextAccountImpact = this.manualReturnAccountImpact(differenceAmount, settlementMethod);
+      const accountDelta = this.roundMoney(nextAccountImpact - previousAccountImpact);
+
+      if (accountDelta !== 0) {
+        const account = existing.currentAccount;
+        if (!account) {
+          throw new BadRequestException('La correccion requiere la cuenta corriente original.');
+        }
+        const nextBalance = this.roundMoney(Number(account.balance) + accountDelta);
+        await tx.currentAccount.update({
+          where: { id: account.id },
+          data: { balance: nextBalance, lastMovementAt: new Date() },
+        });
+        await tx.currentAccountMovement.create({
+          data: {
+            storeId,
+            storeLocationId: existing.storeLocationId,
+            accountId: account.id,
+            customerId: existing.customerId ?? account.customerId,
+            manualReturnId,
+            type: accountDelta > 0 ? 'ADJUSTMENT_POSITIVE' : 'ADJUSTMENT_NEGATIVE',
+            amount: accountDelta,
+            paymentMethod: 'Cuenta corriente',
+            description: `Correccion de devolucion/cambio manual #${manualReturnId}: ${reason}`,
+            createdByUserId: userId,
+            balanceAfter: nextBalance,
+          },
+        });
+      }
+
+      await tx.manualReturnItem.deleteMany({ where: { manualReturnId } });
+      const updated = await tx.manualReturn.update({
+        where: { id: manualReturnId },
+        data: {
+          customerName: dto.customerName?.trim() || existing.customerName,
+          returnedPaymentMethod: dto.returnedPaymentMethod?.trim() || existing.returnedPaymentMethod,
+          returnedDiscountApplied: dto.returnedDiscountApplied,
+          exchangeDiscountApplied: dto.exchangeDiscountApplied,
+          settlementMethod,
+          notes: dto.notes?.trim() || null,
+          totalReturned,
+          totalExchange,
+          differenceAmount,
+          items: {
+            create: [
+              ...nextReturned.map((item) => ({ ...item, storeId, kind: 'returned' })),
+              ...nextExchange.map((item) => ({ ...item, storeId, kind: 'exchange' })),
+            ],
+          },
+        },
+        include: this.manualReturnInclude(),
+      });
+      await tx.manualReturnEvent.create({
+        data: {
+          storeId,
+          manualReturnId,
+          type: 'manual_return.corrected',
+          message: reason,
+          actorId: userId,
+          metadata: {
+            previous: this.manualReturnSnapshot(existing),
+            next: this.manualReturnSnapshot(updated),
+            accountDelta,
+          },
+        },
+      });
+      return updated;
     });
   }
 
@@ -842,6 +1061,18 @@ export class ReturnsService {
 
   private manualReturnInclude() {
     return {
+      cashRegister: {
+        select: {
+          id: true,
+          closedAt: true,
+        },
+      },
+      events: {
+        orderBy: {
+          createdAt: 'desc' as const,
+        },
+        take: 20,
+      },
       items: {
         include: {
           variant: {
@@ -858,6 +1089,45 @@ export class ReturnsService {
           id: 'asc' as const,
         },
       },
+    };
+  }
+
+  private async ensureManualReturnCorrectionAllowed(storeId: number, userId?: number) {
+    if (!userId) {
+      throw new ForbiddenException('Only ADMIN and OWNER can correct manual returns');
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, storeId },
+      select: { role: true },
+    });
+    if (!['ADMIN', 'OWNER', 'SUPER_ADMIN'].includes(String(user?.role))) {
+      throw new ForbiddenException('Only ADMIN and OWNER can correct manual returns');
+    }
+  }
+
+  private manualReturnAccountImpact(differenceAmount: number, settlementMethod?: string | null) {
+    if (differenceAmount < 0) return differenceAmount;
+    if (differenceAmount > 0 && settlementMethod === 'Cuenta corriente') return differenceAmount;
+    return 0;
+  }
+
+  private manualReturnSnapshot(entry: any) {
+    return {
+      customerName: entry.customerName ?? null,
+      returnedPaymentMethod: entry.returnedPaymentMethod ?? null,
+      returnedDiscountApplied: entry.returnedDiscountApplied ?? true,
+      exchangeDiscountApplied: entry.exchangeDiscountApplied ?? true,
+      settlementMethod: entry.settlementMethod ?? null,
+      notes: entry.notes ?? null,
+      totalReturned: Number(entry.totalReturned ?? 0),
+      totalExchange: Number(entry.totalExchange ?? 0),
+      differenceAmount: Number(entry.differenceAmount ?? 0),
+      items: (entry.items ?? []).map((item: any) => ({
+        variantId: item.variantId,
+        kind: item.kind,
+        quantity: item.quantity,
+        price: Number(item.price),
+      })),
     };
   }
 
@@ -1125,6 +1395,7 @@ export class ReturnsService {
           amount: creditAmount,
           paymentMethod: 'Saldo a favor',
           description,
+          manualReturnId: input.manualReturnId,
           createdByUserId: input.createdByUserId,
           balanceAfter: nextBalance,
         },
@@ -1157,6 +1428,7 @@ export class ReturnsService {
         amount: chargeAmount,
         paymentMethod: 'Cuenta corriente',
         description,
+        manualReturnId: input.manualReturnId,
         createdByUserId: input.createdByUserId,
         balanceAfter: chargeBalance,
       },
@@ -1185,6 +1457,7 @@ export class ReturnsService {
         amount: -chargeAmount,
         paymentMethod: input.settlementMethod,
         description: `${description} - diferencia abonada`,
+        manualReturnId: input.manualReturnId,
         createdByUserId: input.createdByUserId,
         balanceAfter: previousBalance,
       },

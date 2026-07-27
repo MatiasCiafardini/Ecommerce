@@ -2,69 +2,27 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
-  IsEmail,
+  IsBoolean,
   IsIn,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
-  Min,
   ValidateNested,
 } from 'class-validator';
 import { ADMIN_PAYMENT_METHODS } from '../../../common/manual-payment-methods';
+import { CreateManualReturnItemDto } from './create-manual-return.dto';
 
-export class CreateManualReturnItemDto {
-  @IsInt()
-  variantId: number;
-
-  @IsInt()
-  @Min(1)
-  quantity: number;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  price?: number;
-}
-
-export class CreateManualReturnDto {
-  @IsOptional()
-  @IsInt()
-  storeLocationId?: number;
-
-  @IsOptional()
-  @IsInt()
-  customerId?: number;
+export class UpdateManualReturnDto {
+  @IsString()
+  reason: string;
 
   @IsOptional()
   @IsString()
   customerName?: string;
 
   @IsOptional()
-  @IsString()
-  customerFirstName?: string;
-
-  @IsOptional()
-  @IsString()
-  customerLastName?: string;
-
-  @IsOptional()
-  @IsEmail()
-  customerEmail?: string;
-
-  @IsOptional()
-  @IsString()
-  customerPhone?: string;
-
-  @IsOptional()
-  @IsString()
+  @IsIn([...ADMIN_PAYMENT_METHODS, 'Debito', 'Mercado Pago'])
   returnedPaymentMethod?: string;
-
-  @IsOptional()
-  returnedDiscountApplied?: boolean;
-
-  @IsOptional()
-  exchangeDiscountApplied?: boolean;
 
   @IsOptional()
   @IsIn([...ADMIN_PAYMENT_METHODS, 'Debito', 'Mercado Pago'])
@@ -73,6 +31,12 @@ export class CreateManualReturnDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsBoolean()
+  returnedDiscountApplied: boolean;
+
+  @IsBoolean()
+  exchangeDiscountApplied: boolean;
 
   @IsArray()
   @ArrayMinSize(1)

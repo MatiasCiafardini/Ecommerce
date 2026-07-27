@@ -553,6 +553,7 @@ function ManualSalesDashboard({
 
           {salesHistoryOpen ? (
             <SalesHistoryModal
+              storeLocationId={storeLocationId}
               salesHistory={sales}
               salesSearch={salesHistorySearch}
               salesLoading={salesHistoryLoading}

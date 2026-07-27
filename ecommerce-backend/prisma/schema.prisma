@@ -50,21 +50,21 @@ model Store {
 }
 
 model StoreLocation {
-  id                   Int                   @id @default(autoincrement())
-  storeId              Int
-  name                 String
-  address              String?
-  active               Boolean               @default(true)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  store                Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  users                User[]
-  orders               Order[]
-  payments             Payment[]
-  currentAccounts      CurrentAccount[]
-  cashRegisterSessions CashRegisterSession[]
+  id                      Int                      @id @default(autoincrement())
+  storeId                 Int
+  name                    String
+  address                 String?
+  active                  Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  store                   Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  users                   User[]
+  orders                  Order[]
+  payments                Payment[]
+  currentAccounts         CurrentAccount[]
+  cashRegisterSessions    CashRegisterSession[]
   currentAccountMovements CurrentAccountMovement[]
-  manualReturns        ManualReturn[]
+  manualReturns           ManualReturn[]
 
   @@unique([storeId, name])
   @@index([storeId, active])
@@ -366,6 +366,7 @@ model User {
   store                   Store                    @relation(fields: [storeId], references: [id])
   storeLocation           StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
   currentAccountMovements CurrentAccountMovement[]
+  manualReturnEvents      ManualReturnEvent[]
 
   @@unique([storeId, email])
   @@index([storeId])
@@ -394,6 +395,7 @@ model Customer {
   store                   Store                    @relation(fields: [storeId], references: [id])
   addresses               CustomerAddress[]
   orders                  Order[]
+  manualReturns           ManualReturn[]
 
   @@unique([storeId, email])
   @@unique([storeId, googleId])
@@ -454,29 +456,29 @@ model CartItem {
 }
 
 model Payment {
-  id             Int       @id @default(autoincrement())
-  storeId        Int
+  id              Int                  @id @default(autoincrement())
+  storeId         Int
   storeLocationId Int?
-  cashRegisterId Int?
-  orderId        Int
-  provider       String
-  status         String
-  amount         Decimal   @db.Decimal(10, 2)
-  externalId     String?
-  createdAt      DateTime  @default(now())
-  idempotencyKey String?
-  method         String?
-  reference      String?
-  proofUrl       String?
-  proofFilename  String?
-  notes          String?
-  metadata       Json?
-  reviewedAt     DateTime?
-  updatedAt      DateTime  @updatedAt
-  order          Order     @relation(fields: [orderId], references: [id])
-  store          Store     @relation(fields: [storeId], references: [id])
-  storeLocation  StoreLocation? @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
-  cashRegister   CashRegisterSession? @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
+  cashRegisterId  Int?
+  orderId         Int
+  provider        String
+  status          String
+  amount          Decimal              @db.Decimal(10, 2)
+  externalId      String?
+  createdAt       DateTime             @default(now())
+  idempotencyKey  String?
+  method          String?
+  reference       String?
+  proofUrl        String?
+  proofFilename   String?
+  notes           String?
+  metadata        Json?
+  reviewedAt      DateTime?
+  updatedAt       DateTime             @updatedAt
+  order           Order                @relation(fields: [orderId], references: [id])
+  store           Store                @relation(fields: [storeId], references: [id])
+  storeLocation   StoreLocation?       @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  cashRegister    CashRegisterSession? @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
 
   @@unique([storeId, idempotencyKey])
   @@index([orderId])
@@ -485,19 +487,20 @@ model Payment {
 }
 
 model CurrentAccount {
-  id             Int                      @id @default(autoincrement())
-  storeId        Int
+  id              Int                      @id @default(autoincrement())
+  storeId         Int
   storeLocationId Int?
-  customerId     Int
-  balance        Decimal                  @default(0) @db.Decimal(10, 2)
-  lastMovementAt DateTime?
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-  deletedAt      DateTime?
-  store          Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  storeLocation  StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
-  customer       Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  movements      CurrentAccountMovement[]
+  customerId      Int
+  balance         Decimal                  @default(0) @db.Decimal(10, 2)
+  lastMovementAt  DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  deletedAt       DateTime?
+  store           Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeLocation   StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  customer        Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  movements       CurrentAccountMovement[]
+  manualReturns   ManualReturn[]
 
   @@unique([storeId, storeLocationId, customerId])
   @@index([storeId, balance])
@@ -513,6 +516,7 @@ model CurrentAccountMovement {
   accountId              Int
   customerId             Int
   orderId                Int?
+  manualReturnId         Int?
   cashRegisterId         Int?
   type                   CurrentAccountMovementType
   amount                 Decimal                    @db.Decimal(10, 2)
@@ -530,6 +534,7 @@ model CurrentAccountMovement {
   account                CurrentAccount             @relation(fields: [accountId], references: [id], onDelete: Cascade)
   customer               Customer                   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   order                  Order?                     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  manualReturn           ManualReturn?              @relation(fields: [manualReturnId], references: [id], onDelete: SetNull)
   createdByUser          User?                      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   cashRegister           CashRegisterSession?       @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
 
@@ -537,6 +542,7 @@ model CurrentAccountMovement {
   @@index([storeId, storeLocationId])
   @@index([storeId, type])
   @@index([orderId])
+  @@index([manualReturnId])
   @@index([cashRegisterId])
   @@index([accountId, createdAt])
   @@index([cancelledAt])
@@ -544,30 +550,30 @@ model CurrentAccountMovement {
 }
 
 model CashRegisterSession {
-  id               Int       @id @default(autoincrement())
-  storeId          Int
-  storeLocationId  Int?
-  mode             String    @default("automatic")
-  businessDate     DateTime?
-  openingAmount    Decimal   @default(0) @db.Decimal(10, 2)
-  expectedAmount   Decimal?  @db.Decimal(10, 2)
-  closingAmount    Decimal?  @db.Decimal(10, 2)
-  receivedAmount   Decimal?  @db.Decimal(10, 2)
-  differenceAmount Decimal?  @db.Decimal(10, 2)
-  openedAt         DateTime  @default(now())
-  closedAt         DateTime?
-  openedByUserId   Int?
-  closedByUserId   Int?
-  notes            String?
-  summary          Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  store            Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  storeLocation    StoreLocation? @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
-  orders           Order[]
-  payments         Payment[]
+  id                      Int                      @id @default(autoincrement())
+  storeId                 Int
+  storeLocationId         Int?
+  mode                    String                   @default("automatic")
+  businessDate            DateTime?
+  openingAmount           Decimal                  @default(0) @db.Decimal(10, 2)
+  expectedAmount          Decimal?                 @db.Decimal(10, 2)
+  closingAmount           Decimal?                 @db.Decimal(10, 2)
+  receivedAmount          Decimal?                 @db.Decimal(10, 2)
+  differenceAmount        Decimal?                 @db.Decimal(10, 2)
+  openedAt                DateTime                 @default(now())
+  closedAt                DateTime?
+  openedByUserId          Int?
+  closedByUserId          Int?
+  notes                   String?
+  summary                 Json?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  store                   Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeLocation           StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  orders                  Order[]
+  payments                Payment[]
   currentAccountMovements CurrentAccountMovement[]
-  manualReturns    ManualReturn[]
+  manualReturns           ManualReturn[]
 
   @@index([storeId, mode, openedAt])
   @@index([storeId, storeLocationId, mode, openedAt])
@@ -700,26 +706,53 @@ model ReturnItem {
 }
 
 model ManualReturn {
-  id               Int                @id @default(autoincrement())
-  storeId          Int
-  storeLocationId  Int?
-  cashRegisterId   Int?
-  customerName     String?
-  settlementMethod String?
-  notes            String?
-  totalReturned    Decimal            @default(0) @db.Decimal(10, 2)
-  totalExchange    Decimal            @default(0) @db.Decimal(10, 2)
-  differenceAmount Decimal            @default(0) @db.Decimal(10, 2)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  store            Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  storeLocation    StoreLocation?     @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
-  cashRegister     CashRegisterSession? @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
-  items            ManualReturnItem[]
+  id                      Int                      @id @default(autoincrement())
+  storeId                 Int
+  storeLocationId         Int?
+  cashRegisterId          Int?
+  customerId              Int?
+  currentAccountId        Int?
+  customerName            String?
+  returnedPaymentMethod   String?
+  returnedDiscountApplied Boolean                  @default(true)
+  exchangeDiscountApplied Boolean                  @default(true)
+  settlementMethod        String?
+  notes                   String?
+  totalReturned           Decimal                  @default(0) @db.Decimal(10, 2)
+  totalExchange           Decimal                  @default(0) @db.Decimal(10, 2)
+  differenceAmount        Decimal                  @default(0) @db.Decimal(10, 2)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  store                   Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeLocation           StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  cashRegister            CashRegisterSession?     @relation(fields: [cashRegisterId], references: [id], onDelete: SetNull)
+  customer                Customer?                @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  currentAccount          CurrentAccount?          @relation(fields: [currentAccountId], references: [id], onDelete: SetNull)
+  items                   ManualReturnItem[]
+  events                  ManualReturnEvent[]
+  accountMovements        CurrentAccountMovement[]
 
   @@index([storeId, createdAt])
   @@index([storeId, storeLocationId])
   @@index([cashRegisterId])
+  @@index([customerId])
+  @@index([currentAccountId])
+}
+
+model ManualReturnEvent {
+  id             Int          @id @default(autoincrement())
+  storeId        Int
+  manualReturnId Int
+  type           String
+  message        String?
+  actorId        Int?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  manualReturn   ManualReturn @relation(fields: [manualReturnId], references: [id], onDelete: Cascade)
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([manualReturnId, createdAt])
 }
 
 model ManualReturnItem {

@@ -62,6 +62,13 @@ type ManualReturn = {
   totalExchange: string | number;
   differenceAmount: string | number;
   createdAt: string;
+  returnedPaymentMethod?: string | null;
+  returnedDiscountApplied?: boolean;
+  exchangeDiscountApplied?: boolean;
+  settlementMethod?: string | null;
+  cashRegister?: { id: number; closedAt?: string | null } | null;
+  currentAccountId?: number | null;
+  correctionLocked?: boolean;
   items?: Array<{
     id: number;
     kind: "returned" | "exchange" | string;
@@ -132,6 +139,10 @@ export default function ManualReturnsPanel({
   });
   const [returnedPaymentMethod, setReturnedPaymentMethod] = useState("Efectivo");
   const [exchangePaymentMethod, setExchangePaymentMethod] = useState("Efectivo");
+  const [returnedDiscountApplied, setReturnedDiscountApplied] = useState(true);
+  const [exchangeDiscountApplied, setExchangeDiscountApplied] = useState(true);
+  const [editingReturn, setEditingReturn] = useState<ManualReturn | null>(null);
+  const [correctionReason, setCorrectionReason] = useState("");
   const [bankTransferDiscountPercentage, setBankTransferDiscountPercentage] = useState(0);
   const [storeId, setStoreId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
@@ -247,8 +258,9 @@ export default function ManualReturnsPanel({
         returnedPaymentMethod,
         bankTransferDiscountPercentage,
         pricingPolicy,
+        returnedDiscountApplied,
       ),
-    [bankTransferDiscountPercentage, pricingPolicy, returnedLines, returnedPaymentMethod],
+    [bankTransferDiscountPercentage, pricingPolicy, returnedDiscountApplied, returnedLines, returnedPaymentMethod],
   );
   const exchangeTotals = useMemo(
     () =>
@@ -257,8 +269,9 @@ export default function ManualReturnsPanel({
         exchangePaymentMethod,
         bankTransferDiscountPercentage,
         pricingPolicy,
+        exchangeDiscountApplied,
       ),
-    [bankTransferDiscountPercentage, exchangeLines, exchangePaymentMethod, pricingPolicy],
+    [bankTransferDiscountPercentage, exchangeDiscountApplied, exchangeLines, exchangePaymentMethod, pricingPolicy],
   );
   const totalReturned = returnedTotals.total;
   const totalExchange = exchangeTotals.total;
@@ -270,12 +283,12 @@ export default function ManualReturnsPanel({
       return;
     }
 
-    if (difference < 0 && !selectedAccount) {
+    if (difference < 0 && !selectedAccount && !editingReturn?.currentAccountId) {
       setError("Para dejar saldo a favor, selecciona o crea una cuenta corriente.");
       return;
     }
 
-    if (difference > 0 && exchangePaymentMethod === "Cuenta corriente" && !selectedAccount) {
+    if (difference > 0 && exchangePaymentMethod === "Cuenta corriente" && !selectedAccount && !editingReturn?.currentAccountId) {
       setError("Para mandar la diferencia a cuenta corriente, selecciona o crea una cuenta corriente.");
       return;
     }
@@ -284,24 +297,38 @@ export default function ManualReturnsPanel({
     setError("");
     setSuccess("");
     try {
-      const created = (await api("/returns/manual", {
-        method: "POST",
+      if (editingReturn && !correctionReason.trim()) {
+        setError("Indica el motivo de la correccion.");
+        return;
+      }
+      const created = (await api(editingReturn ? `/returns/manual/${editingReturn.id}` : "/returns/manual", {
+        method: editingReturn ? "PATCH" : "POST",
         body: JSON.stringify({
           customerId: selectedAccount?.customerId,
           customerName: customerName.trim() || undefined,
           storeLocationId: storeLocationId ?? undefined,
           settlementMethod: difference > 0 ? exchangePaymentMethod : "Cuenta corriente",
+          returnedPaymentMethod,
+          returnedDiscountApplied,
+          exchangeDiscountApplied,
+          reason: editingReturn ? correctionReason.trim() : undefined,
           notes: notes.trim() || undefined,
           returnedItems: returnedLines.map((line) => toPayloadItem(line, returnedTotals.unitPrices[line.variantId])),
           exchangeItems: exchangeLines.map((line) => toPayloadItem(line, exchangeTotals.unitPrices[line.variantId])),
         }),
       })) as ManualReturn;
-      setHistory((current) => [created, ...current]);
+      setHistory((current) => editingReturn
+        ? current.map((entry) => entry.id === created.id ? created : entry)
+        : [created, ...current]);
       setCustomerName("");
       setSelectedAccount(null);
       setAccountRows([]);
       setReturnedPaymentMethod("Efectivo");
       setExchangePaymentMethod("Efectivo");
+      setReturnedDiscountApplied(true);
+      setExchangeDiscountApplied(true);
+      setEditingReturn(null);
+      setCorrectionReason("");
       setNotes("");
       setReturnedQuery("");
       setExchangeQuery("");
@@ -315,6 +342,37 @@ export default function ManualReturnsPanel({
     } finally {
       setSaving(false);
     }
+  };
+
+  const openReturnEdit = (entry: ManualReturn) => {
+    if (entry.correctionLocked || entry.cashRegister?.closedAt) {
+      setError("La devolucion no se puede editar porque la caja asociada ya esta cerrada.");
+      return;
+    }
+    const toLine = (item: NonNullable<ManualReturn["items"]>[number]): Line => ({
+      variantId: item.variant?.id ?? 0,
+      title: item.variant?.product?.title || "Producto",
+      variantLabel: getVariantLabel(item.variant),
+      sku: item.variant?.sku || "",
+      quantity: item.quantity,
+      price: String(item.price),
+      unitPrice: Number(item.price),
+      available: item.variant ? getAvailable(item.variant) : 0,
+      paidPriceLocked: true,
+    });
+    setEditingReturn(entry);
+    setCustomerName(entry.customerName ?? "");
+    setSelectedAccount(null);
+    setReturnedPaymentMethod(entry.returnedPaymentMethod || "Efectivo");
+    setExchangePaymentMethod(entry.settlementMethod || "Efectivo");
+    setReturnedDiscountApplied(entry.returnedDiscountApplied !== false);
+    setExchangeDiscountApplied(entry.exchangeDiscountApplied !== false);
+    setReturnedLines((entry.items ?? []).filter((item) => item.kind === "returned").map(toLine));
+    setExchangeLines((entry.items ?? []).filter((item) => item.kind === "exchange").map(toLine));
+    setNotes(entry.notes ?? "");
+    setCorrectionReason("");
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const openCreateAccount = () => {
@@ -433,6 +491,7 @@ export default function ManualReturnsPanel({
             onChange={setReturnedPaymentMethod}
             options={returnedPaymentMethods}
           />
+          <DiscountToggle checked={returnedDiscountApplied} onChange={setReturnedDiscountApplied} percentage={bankTransferDiscountPercentage} />
           <ProductPicker
             query={returnedQuery}
             setQuery={setReturnedQuery}
@@ -475,6 +534,7 @@ export default function ManualReturnsPanel({
             onChange={setExchangePaymentMethod}
             options={exchangePaymentMethods}
           />
+          <DiscountToggle checked={exchangeDiscountApplied} onChange={setExchangeDiscountApplied} percentage={bankTransferDiscountPercentage} />
           <ProductPicker
             query={exchangeQuery}
             setQuery={setExchangeQuery}
@@ -556,18 +616,25 @@ export default function ManualReturnsPanel({
           placeholder="Agregar observaciones de la devolucion..."
           style={notesInputStyle}
         />
+        {editingReturn ? (
+          <label style={fieldGroupStyle}>
+            <span>Motivo de la correccion</span>
+            <textarea value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder="Ej: se corrigio el precio cargado" style={{ ...inputStyle, minHeight: 72, resize: "vertical" }} />
+          </label>
+        ) : null}
         <button
           type="button"
           onClick={() => void createReturn()}
           disabled={
             saving ||
             returnedLines.length === 0 ||
-            ((difference < 0 || (difference > 0 && exchangePaymentMethod === "Cuenta corriente")) && !selectedAccount)
+            ((difference < 0 || (difference > 0 && exchangePaymentMethod === "Cuenta corriente")) && !selectedAccount && !editingReturn?.currentAccountId)
           }
           style={primaryButtonStyle}
         >
-          {saving ? "Registrando..." : "⇄ Registrar devolucion/cambio"}
+          {saving ? "Guardando..." : editingReturn ? "Guardar cambios" : "Registrar devolucion/cambio"}
         </button>
+        {editingReturn ? <button type="button" onClick={() => { setEditingReturn(null); setCorrectionReason(""); }} style={ghostButtonStyle}>Cancelar edicion</button> : null}
       </div>
 
       {createAccountOpen ? (
@@ -645,6 +712,9 @@ export default function ManualReturnsPanel({
                 </div>
                 <div style={historyAmountStyle(Number(entry.differenceAmount))}>
                   {returnDifferenceLabel(Number(entry.differenceAmount))}
+                  <button type="button" onClick={() => openReturnEdit(entry)} disabled={Boolean(entry.correctionLocked || entry.cashRegister?.closedAt)} style={{ ...miniButtonStyle, marginTop: 8, opacity: entry.correctionLocked || entry.cashRegister?.closedAt ? 0.5 : 1 }}>
+                    {entry.correctionLocked || entry.cashRegister?.closedAt ? "Caja cerrada" : "Editar devolucion"}
+                  </button>
                 </div>
               </article>
             ))}
@@ -746,6 +816,15 @@ function PaymentSelector({
   );
 }
 
+function DiscountToggle({ checked, onChange, percentage }: { checked: boolean; onChange: (value: boolean) => void; percentage: number }) {
+  return (
+    <label style={{ display: "flex", gap: 9, alignItems: "center", fontWeight: 700, fontSize: 13 }}>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <span>Utilizar descuento por transferencia / efectivo{percentage > 0 ? ` (${percentage}%)` : ""}</span>
+    </label>
+  );
+}
+
 function LineList({
   lines,
   setLines,
@@ -767,6 +846,9 @@ function LineList({
 
   return (
     <div style={lineListStyle}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(180px,1fr) 92px 120px 130px 42px", gap: 10, padding: "0 12px", fontSize: 12, fontWeight: 800, color: returnMuted }}>
+        <span>Producto</span><span>Cantidad</span><span>Precio venta</span><span>Precio total</span><span>Accion</span>
+      </div>
       {lines.map((line) => (
         <article key={line.variantId} style={lineStyle}>
           <div>
@@ -789,7 +871,7 @@ function LineList({
               aria-label="Precio"
             />
           </div>
-          <strong>{money(unitPrices[line.variantId] ?? Number(line.price || 0))}</strong>
+          <strong>{money((unitPrices[line.variantId] ?? Number(line.price || 0)) * line.quantity)}</strong>
           <button type="button" onClick={() => setLines((current) => current.filter((item) => item.variantId !== line.variantId))} style={removeLineButtonStyle}>
             ×
           </button>
@@ -936,6 +1018,7 @@ function calculateReturnSideTotals(
   paymentMethod: string,
   discountPercentage: number,
   pricingPolicy: StorePricingPolicy,
+  discountEnabled = true,
 ) {
   const normalizedLines = lines.map((line) => {
     const unitPrice = resolveManualSaleUnitPrice(line.price, pricingPolicy);
@@ -951,7 +1034,7 @@ function calculateReturnSideTotals(
     (sum, line) => sum + line.unitPrice * line.quantity,
     0,
   );
-  const shouldDiscount = isDiscountedAdministrativePaymentMethod(paymentMethod);
+  const shouldDiscount = discountEnabled && isDiscountedAdministrativePaymentMethod(paymentMethod);
   const discountAmount =
     shouldDiscount && discountPercentage > 0
       ? calculateManualSaleDiscountAmount(
@@ -1126,8 +1209,8 @@ const searchInputStyle: React.CSSProperties = { width: "100%", border: 0, outlin
 const pickerListStyle: React.CSSProperties = { display: "grid", gap: 8, maxHeight: 250, overflow: "auto", alignContent: "start" };
 const pickerButtonStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", textAlign: "left", border: `1px solid ${returnBorder}`, borderRadius: 14, background: returnSurface, color: returnText, padding: 12, cursor: "pointer", transition: "transform 160ms ease, box-shadow 160ms ease" };
 const lineListStyle: React.CSSProperties = { display: "grid", gap: 10 };
-const lineStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto auto", gap: 10, alignItems: "center", border: `1px solid ${returnBorder}`, borderRadius: 16, background: returnSurface, padding: 12 };
-const lineControlsStyle: React.CSSProperties = { display: "flex", gap: 8, alignItems: "center" };
+const lineStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(180px, 1fr) 222px 130px 42px", gap: 10, alignItems: "center", border: `1px solid ${returnBorder}`, borderRadius: 16, background: returnSurface, padding: 12 };
+const lineControlsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "92px 120px", gap: 10, alignItems: "center" };
 const removeLineButtonStyle: React.CSSProperties = { width: 36, height: 36, borderRadius: 999, border: `1px solid ${returnBorder}`, background: returnSurface, color: returnMuted, cursor: "pointer", fontWeight: 900 };
 const sideTotalStyle: React.CSSProperties = { minHeight: 46, border: `1px solid rgba(31,111,91,.14)`, borderRadius: 14, background: "rgba(221,244,232,.34)", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", color: returnMuted, padding: "10px 14px" };
 const subtotalStyle: React.CSSProperties = { color: returnPrimary, justifySelf: "end" };

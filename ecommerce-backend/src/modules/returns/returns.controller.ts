@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Post,
+  Patch,
   Body,
   Param,
   Get,
@@ -24,6 +25,7 @@ import { ReviewReturnDto } from './dto/review-return.dto';
 import { ReceiveReturnDto } from './dto/receive-return.dto';
 import { ShipReturnDto } from './dto/ship-return.dto';
 import { CreateManualReturnDto } from './dto/create-manual-return.dto';
+import { UpdateManualReturnDto } from './dto/update-manual-return.dto';
 
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -132,6 +134,21 @@ export class ReturnsController {
       req.storeId,
       req.user?.sub,
       parseOptionalId(storeLocationId),
+    );
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Patch('manual/:id')
+  updateManual(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: UpdateManualReturnDto,
+  ) {
+    return this.returnsService.updateManualReturn(
+      req.storeId,
+      req.user?.sub,
+      Number(id),
+      dto,
     );
   }
 

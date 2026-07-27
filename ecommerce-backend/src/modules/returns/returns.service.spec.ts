@@ -626,4 +626,31 @@ describe('ReturnsService', () => {
       }),
     });
   });
+
+  it('rejects editing a manual return after its cash register was closed', async () => {
+    (prisma as any).user = {
+      findFirst: jest.fn().mockResolvedValue({ role: 'ADMIN' }),
+    };
+    const tx = {
+      manualReturn: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 21,
+          storeId: 3,
+          cashRegister: { id: 77, closedAt: new Date('2026-07-27T12:00:00Z') },
+          items: [],
+        }),
+      },
+    };
+    prisma.$transaction.mockImplementation(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(service.updateManualReturn(3, 9, 21, {
+      reason: 'Precio incorrecto',
+      returnedDiscountApplied: true,
+      exchangeDiscountApplied: true,
+      returnedItems: [{ variantId: 801, quantity: 1, price: 50 }],
+      exchangeItems: [],
+    })).rejects.toThrow('caja asociada ya esta cerrada');
+  });
 });

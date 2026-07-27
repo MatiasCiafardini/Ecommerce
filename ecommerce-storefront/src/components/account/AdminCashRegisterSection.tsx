@@ -74,6 +74,7 @@ export type ManualSaleHistoryOrder = {
   subtotal?: string | number;
   discountAmount?: string | number | null;
   total: string | number;
+  cashRegister?: { id: number; closedAt?: string | null } | null;
   customerFirstNameSnapshot?: string | null;
   customerLastNameSnapshot?: string | null;
   customerEmailSnapshot?: string | null;
@@ -95,6 +96,31 @@ export type ManualSaleHistoryOrder = {
   }>;
   items?: Array<{
     id: number;
+    quantity: number;
+    price: string | number;
+    variant?: {
+      id: number;
+      sku?: string | null;
+      Size?: string | null;
+      Color?: string | null;
+      product?: { title: string } | null;
+    } | null;
+  }>;
+};
+
+type ManualReturnHistoryEntry = {
+  id: number;
+  createdAt: string;
+  customerName?: string | null;
+  totalReturned: string | number;
+  totalExchange: string | number;
+  differenceAmount: string | number;
+  settlementMethod?: string | null;
+  cashRegister?: { closedAt?: string | null } | null;
+  correctionLocked?: boolean;
+  items?: Array<{
+    id: number;
+    kind: string;
     quantity: number;
     price: string | number;
     variant?: {
@@ -678,6 +704,7 @@ export default function AdminCashRegisterSection({
 
       {salesHistoryOpen ? (
         <SalesHistoryModal
+          storeLocationId={storeLocationId}
           salesHistory={salesHistory}
           salesSearch={salesSearch}
           salesLoading={salesLoading}
@@ -842,6 +869,7 @@ function RangeSummaryPanel({
 }
 
 export function SalesHistoryModal({
+  storeLocationId,
   salesHistory,
   salesSearch,
   salesLoading,
@@ -851,6 +879,7 @@ export function SalesHistoryModal({
   onGenerateReturn,
   onError,
 }: {
+  storeLocationId?: number | null;
   salesHistory: ManualSaleHistoryOrder[];
   salesSearch: string;
   salesLoading: boolean;
@@ -865,6 +894,8 @@ export function SalesHistoryModal({
   const [editError, setEditError] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [paymentDiscountPercentage, setPaymentDiscountPercentage] = useState(0);
+  const [returnHistory, setReturnHistory] = useState<ManualReturnHistoryEntry[]>([]);
+  const [historyType, setHistoryType] = useState<"all" | "sales" | "returns">("all");
   const pricingPolicy = useMemo(() => {
     try {
       return resolveStorePricingPolicy({ storeId: getClientStoreId() });
@@ -896,6 +927,11 @@ export function SalesHistoryModal({
       active = false;
     };
   }, []);
+  useEffect(() => {
+    api(withStoreLocationQuery("/returns/manual", storeLocationId))
+      .then((rows) => setReturnHistory(Array.isArray(rows) ? rows as ManualReturnHistoryEntry[] : []))
+      .catch(() => setReturnHistory([]));
+  }, [storeLocationId, salesHistory]);
   const filteredSalesHistory = useMemo(() => {
     const normalized = salesSearch.trim().toLowerCase();
     const activeSales = salesHistory.filter((sale) => sale.status !== "cancelled");
@@ -920,6 +956,15 @@ export function SalesHistoryModal({
         .includes(normalized),
     ).slice(0, 80);
   }, [salesHistory, salesSearch]);
+  const filteredReturnHistory = useMemo(() => {
+    const normalized = salesSearch.trim().toLowerCase();
+    return returnHistory.filter((entry) => !normalized || [
+      String(entry.id),
+      entry.customerName,
+      entry.settlementMethod,
+      ...(entry.items ?? []).flatMap((item) => [item.variant?.product?.title, item.variant?.sku, item.variant?.Size, item.variant?.Color]),
+    ].filter(Boolean).join(" ").toLowerCase().includes(normalized));
+  }, [returnHistory, salesSearch]);
 
   const editSubtotal = useMemo(() => {
     if (!editDraft) return 0;
@@ -958,6 +1003,12 @@ export function SalesHistoryModal({
   );
 
   function openSaleEdit(sale: ManualSaleHistoryOrder) {
+    if (sale.cashRegister?.closedAt) {
+      const message = "La venta no se puede editar porque la caja asociada ya esta cerrada.";
+      setEditError(message);
+      onError?.(message);
+      return;
+    }
     if (sale.status === "cancelled") {
       const message = "Las ventas canceladas no se pueden editar.";
       setEditError(message);
@@ -1115,8 +1166,8 @@ export function SalesHistoryModal({
         <header style={modalHeaderStyle}>
           <div>
             <p style={eyebrowStyle}>Historial</p>
-            <h3 style={modalTitleStyle}>Ventas para devoluciones</h3>
-            <p style={copyStyle}>Busca una venta para ver productos, precios pagados y generar la devolucion con esos valores.</p>
+            <h3 style={modalTitleStyle}>Historial de ventas y devoluciones</h3>
+            <p style={copyStyle}>Consulta todas las operaciones y filtra por tipo.</p>
           </div>
           <div style={actionsStyle}>
             <button type="button" onClick={() => void onRefresh()} style={softButtonStyle} disabled={salesLoading}>
@@ -1321,11 +1372,16 @@ export function SalesHistoryModal({
           style={inputStyle}
           autoFocus
         />
+        <div style={tabsStyle}>
+          {([["all", "Todos"], ["sales", "Ventas"], ["returns", "Devoluciones/cambios"]] as const).map(([value, label]) => (
+            <button key={value} type="button" onClick={() => setHistoryType(value)} style={tabButtonStyle(historyType === value)}>{label}</button>
+          ))}
+        </div>
         {salesLoading ? <State label="Cargando ventas..." /> : null}
-        {!salesLoading && filteredSalesHistory.length === 0 ? (
+        {!salesLoading && (historyType === "sales" ? filteredSalesHistory.length === 0 : historyType === "returns" ? filteredReturnHistory.length === 0 : filteredSalesHistory.length + filteredReturnHistory.length === 0) ? (
           <State label="No hay ventas para la busqueda." />
         ) : null}
-        {!salesLoading && filteredSalesHistory.length > 0 ? (
+        {!salesLoading && (historyType !== "returns" ? filteredSalesHistory.length : 0) + (historyType !== "sales" ? filteredReturnHistory.length : 0) > 0 ? (
           <div style={salesTableWrapStyle}>
             <table style={salesTableStyle}>
               <thead>
@@ -1339,7 +1395,7 @@ export function SalesHistoryModal({
                 </tr>
               </thead>
               <tbody>
-                {filteredSalesHistory.map((sale) => {
+                {historyType !== "returns" ? filteredSalesHistory.map((sale) => {
                   const unitPrices = effectiveUnitPrices(sale, pricingPolicy);
 
                   return (
@@ -1374,20 +1430,30 @@ export function SalesHistoryModal({
                           <button
                             type="button"
                             onClick={() => openSaleEdit(sale)}
-                            disabled={sale.status === "cancelled"}
+                            disabled={sale.status === "cancelled" || Boolean(sale.cashRegister?.closedAt)}
                             style={{
                               ...softButtonStyle,
-                              opacity: sale.status === "cancelled" ? 0.45 : 1,
-                              cursor: sale.status === "cancelled" ? "not-allowed" : "pointer",
+                              opacity: sale.status === "cancelled" || sale.cashRegister?.closedAt ? 0.45 : 1,
+                              cursor: sale.status === "cancelled" || sale.cashRegister?.closedAt ? "not-allowed" : "pointer",
                             }}
                           >
-                            Editar venta
+                            {sale.cashRegister?.closedAt ? "Caja cerrada" : "Editar venta"}
                           </button>
                         </div>
                       </td>
                     </tr>
                   );
-                })}
+                }) : null}
+                {historyType !== "sales" ? filteredReturnHistory.map((entry) => (
+                  <tr key={`return-${entry.id}`}>
+                    <td style={salesTdStyle}><strong>Devolucion #{entry.id}</strong><span style={mutedStyle}>{formatDate(entry.createdAt)}</span></td>
+                    <td style={salesTdStyle}>{entry.customerName || "Cliente sin identificar"}</td>
+                    <td style={salesTdStyle}><div style={saleItemsStyle}>{(entry.items ?? []).map((item) => <span key={item.id}>{item.kind === "exchange" ? "Se lleva" : "Devuelve"}: {item.variant?.product?.title || "Producto"} x{item.quantity}</span>)}</div></td>
+                    <td style={salesTdStyle}>{money(Number(entry.totalReturned))} / {money(Number(entry.totalExchange))}</td>
+                    <td style={salesTdStyle}>{entry.settlementMethod || "Sin diferencia"}</td>
+                    <td style={salesTdStyle}><span style={mutedStyle}>{entry.correctionLocked || entry.cashRegister?.closedAt ? "Caja cerrada" : "Editable desde Devoluciones"}</span></td>
+                  </tr>
+                )) : null}
               </tbody>
             </table>
           </div>
