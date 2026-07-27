@@ -13,6 +13,10 @@ import { ADMIN_PAYMENT_METHODS } from '../../../common/manual-payment-methods';
 import { CreateManualReturnItemDto } from './create-manual-return.dto';
 
 export class UpdateManualReturnDto {
+  @IsOptional()
+  @IsInt()
+  storeLocationId?: number;
+
   @IsString()
   reason: string;
 

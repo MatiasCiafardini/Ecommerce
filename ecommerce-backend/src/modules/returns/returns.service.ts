@@ -318,6 +318,15 @@ export class ReturnsService {
       if (!existing) {
         throw new NotFoundException('Manual return not found');
       }
+      if (
+        dto.storeLocationId &&
+        existing.storeLocationId &&
+        dto.storeLocationId !== existing.storeLocationId
+      ) {
+        throw new BadRequestException(
+          'La devolucion no se puede mover a otro local durante una correccion.',
+        );
+      }
       if (existing.cashRegister?.closedAt) {
         throw new BadRequestException(
           'La devolucion no se puede editar porque la caja asociada ya esta cerrada.',
