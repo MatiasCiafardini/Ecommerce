@@ -330,6 +330,8 @@ export class CashRegisterService {
         where: {
           storeId: session.storeId,
           type: 'PAYMENT',
+          cancelledAt: null,
+          cancellationMovementId: null,
           OR: [
             { cashRegisterId: session.id },
             {
@@ -523,6 +525,8 @@ export class CashRegisterService {
           storeId,
           storeLocationId: storeLocationId ?? undefined,
           type: 'PAYMENT',
+          cancelledAt: null,
+          cancellationMovementId: null,
           createdAt: {
             gte: start,
             lt: end,
