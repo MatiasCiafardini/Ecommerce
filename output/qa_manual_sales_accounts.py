@@ -150,13 +150,13 @@ def create_current_account_sale(page: Page):
 def open_sales_history_from_cash(page: Page):
     open_top_tab(page, "Caja")
     page.get_by_role("button", name="Historial de ventas").click()
-    expect(page.get_by_text("Ventas para devoluciones")).to_be_visible(timeout=20_000)
+    expect(page.get_by_text("Historial de ventas y devoluciones")).to_be_visible(timeout=20_000)
 
 
 def open_sales_history_from_dashboard(page: Page):
     open_top_tab(page, "Inicio")
     page.get_by_role("button", name=re.compile("Historial de ventas")).click()
-    expect(page.get_by_text("Ventas para devoluciones")).to_be_visible(timeout=20_000)
+    expect(page.get_by_text("Historial de ventas y devoluciones")).to_be_visible(timeout=20_000)
 
 
 def edit_sale_in_open_history(page: Page, sale_id: int, price: int, method: str, reason: str) -> str:
@@ -168,16 +168,21 @@ def edit_sale_in_open_history(page: Page, sale_id: int, price: int, method: str,
     expect(page.get_by_text(f"Editar venta #{sale_id}")).to_be_visible(timeout=15_000)
     page.locator("select").last.select_option(method)
     page.wait_for_timeout(500)
-    discount_toggle = page.get_by_text("Aplicar descuento efectivo/transferencia")
+    discount_toggle = page.get_by_role("checkbox", name=re.compile("Aplicar descuento"))
     if method in ("Efectivo", "Transferencia"):
         expect(discount_toggle).to_be_visible(timeout=10_000)
-        checkbox = page.locator('input[type="checkbox"]').last
-        expect(checkbox).to_be_checked(timeout=10_000)
+        if not discount_toggle.is_checked():
+            discount_toggle.check()
     else:
         expect(discount_toggle).to_have_count(0, timeout=10_000)
         expect(page.get_by_text("Descuento $0,00")).to_be_visible(timeout=10_000)
     page.locator('textarea[placeholder="Ej: se cargo mal el precio"]').fill(reason)
-    page.locator('input[inputmode="decimal"]').first.fill(str(price))
+    decimal_inputs = page.locator('input[inputmode="decimal"]')
+    decimal_inputs.last.fill(str(price))
+    page.wait_for_timeout(300)
+    displayed_total = page.get_by_text(re.compile(r"^Total \$")).last.inner_text()
+    normalized_total = displayed_total.split("$")[-1].replace(".", "").replace(",", ".")
+    decimal_inputs.first.fill(normalized_total)
     with page.expect_response(lambda r: f"/api/proxy/orders/manual/{sale_id}" in r.url and r.request.method == "PATCH", timeout=60_000) as resp:
         page.get_by_role("button", name="Guardar cambios").click()
     response = resp.value
@@ -302,7 +307,7 @@ def open_current_account_detail(page: Page):
 
 
 def register_current_account_payment(page: Page, amount: int, note: str):
-    page.get_by_role("button", name="Registrar pago").nth(1).click(force=True)
+    page.get_by_role("button", name="Registrar pago").last.click(force=True)
     expect(page.get_by_text("Monto entregado")).to_be_visible(timeout=15_000)
     fill_last_visible_text_input(page, str(amount))
     page.locator("select").last.select_option("Tarjeta")

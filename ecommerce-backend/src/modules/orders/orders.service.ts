@@ -975,10 +975,7 @@ export class OrdersService {
 
       if (
         nextCurrentAccountPayment &&
-        (
-          order.customerEmailSnapshot?.startsWith(`manual-sale@store-${storeId}.local`) ||
-          order.customer?.email?.startsWith(`manual-sale@store-${storeId}.local`)
-        )
+        order.customer?.email?.startsWith(`manual-sale@store-${storeId}.local`)
       ) {
         throw new BadRequestException(
           'Para vender en cuenta corriente, selecciona o registra un cliente.',

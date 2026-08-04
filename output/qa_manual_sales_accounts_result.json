@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-06-24 11:24:08",
+  "timestamp": "2026-08-04 13:14:48",
   "context": {
-    "cash_sale_id": 92,
-    "account_sale_id": 93,
-    "edited_cash_sale_id": 92,
-    "edited_account_sale_id": 93,
+    "cash_sale_id": 120,
+    "account_sale_id": 121,
+    "edited_cash_sale_id": 120,
+    "edited_account_sale_id": 121,
     "payment_update_status": 200,
     "payment_cancel_status": 201,
     "card_discount_after_edit": 0.0,
@@ -25,37 +25,37 @@
     {
       "name": "Crear venta manual efectivo",
       "status": "OK",
-      "detail": "venta efectivo #92 creada con Jean relax chocolate"
+      "detail": "venta efectivo #120 creada con JEAN-BAGGY-MILITAR-M"
     },
     {
       "name": "Crear venta a cuenta corriente",
       "status": "OK",
-      "detail": "venta cuenta corriente #93 creada con Jean relax uva"
+      "detail": "venta cuenta corriente #121 creada con JEAN-BAGGY-MILITAR-M"
     },
     {
       "name": "Editar venta desde Caja > Historial de ventas",
       "status": "OK",
-      "detail": "venta #92 editada a Tarjeta con precio 99000"
+      "detail": "venta #120 editada a Tarjeta con precio 99000"
     },
     {
       "name": "Verificar Tarjeta sin descuento",
       "status": "OK",
-      "detail": "venta #92 Tarjeta sin descuento"
+      "detail": "venta #120 Tarjeta sin descuento"
     },
     {
       "name": "Editar venta Tarjeta > Efectivo con descuento",
       "status": "OK",
-      "detail": "venta #92 editada a Efectivo con precio 99000; descuento aplicado 14800.0"
+      "detail": "venta #120 editada a Efectivo con precio 99000; descuento aplicado 14800.0"
     },
     {
       "name": "Editar venta Efectivo > Transferencia con descuento",
       "status": "OK",
-      "detail": "venta #92 editada a Transferencia con precio 99000; descuento transferencia 14800.0"
+      "detail": "venta #120 editada a Transferencia con precio 99000; descuento transferencia 14800.0"
     },
     {
       "name": "Editar venta desde Inicio > Historial de ventas",
       "status": "OK",
-      "detail": "venta #93 editada a Cuenta corriente con precio 88000"
+      "detail": "venta #121 editada a Cuenta corriente con precio 88000"
     },
     {
       "name": "Registrar y editar pago en historial de cuenta corriente",
@@ -70,7 +70,7 @@
     {
       "name": "Verificacion final de historiales",
       "status": "OK",
-      "detail": "ventas visibles: #92, #93; descuento efectivo 14800.0; pagos PATCH 200, cancel 201"
+      "detail": "ventas visibles: #120, #121; descuento efectivo 14800.0; pagos PATCH 200, cancel 201"
     }
   ]
 }

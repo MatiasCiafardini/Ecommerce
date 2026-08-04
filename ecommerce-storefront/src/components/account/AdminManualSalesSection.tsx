@@ -116,7 +116,6 @@ type NewCustomerPayload = {
   phone?: string;
   document?: string;
   notes?: string;
-  source: "current_account";
   address?: {
     address1?: string;
     city?: string;
@@ -1234,7 +1233,6 @@ export default function AdminManualSalesSection({
       phone: newCustomerPhone.trim() || undefined,
       document: newCustomerDocument.trim() || undefined,
       notes: newCustomerNotes.trim() || undefined,
-      source: "current_account",
       address: [
         newCustomerAddress,
         newCustomerCity,
@@ -1275,12 +1273,15 @@ export default function AdminManualSalesSection({
   };
 
   const createCustomerFromPayload = async (customerPayload: NewCustomerPayload) => {
-    const created = (await api("/customers", {
+    const createdAccount = (await api("/current-accounts", {
       method: "POST",
-      body: JSON.stringify(customerPayload),
-    })) as ManualSaleCustomer;
+      body: JSON.stringify({
+        ...customerPayload,
+        storeLocationId: storeLocationId ?? undefined,
+      }),
+    })) as CurrentAccountLookup;
     clearNewCustomerFields();
-    selectCustomer(created);
+    selectCustomer(createdAccount.customer, createdAccount);
     await loadCustomers();
   };
 
@@ -1307,7 +1308,7 @@ export default function AdminManualSalesSection({
       setInactiveAccountPrompt(null);
       setPendingCustomerPayload(null);
       clearNewCustomerFields();
-      selectCustomer(reactivated.customer);
+      selectCustomer(reactivated.customer, reactivated);
       await loadCustomers();
     } catch (err) {
       setCustomerModalError(getErrorMessage(err, "No pudimos reactivar la cuenta corriente."));
