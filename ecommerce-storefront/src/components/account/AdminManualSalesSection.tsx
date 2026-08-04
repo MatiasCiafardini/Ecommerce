@@ -320,6 +320,7 @@ export default function AdminManualSalesSection({
   };
 
   const applySplitPaymentMethod = (index: number, method: string) => {
+    setOpenPaymentMenuIndex(null);
     setSplitPayments((current) => {
       const currentMethod = current[index]?.method || paymentMethod;
       const duplicateIndex = current.findIndex(
@@ -340,7 +341,6 @@ export default function AdminManualSalesSection({
     if (method === "Cuenta corriente" && !selectedCurrentAccount) {
       setCustomerModalOpen(true);
     }
-    setOpenPaymentMenuIndex(null);
   };
 
   useEffect(() => {
@@ -1752,7 +1752,11 @@ export default function AdminManualSalesSection({
                                         role="option"
                                         aria-selected={payment.method === option}
                                         className={payment.method === option ? "is-selected" : ""}
-                                        onClick={() => applySplitPaymentMethod(index, option)}
+                                        onClick={(event) => {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          applySplitPaymentMethod(index, option);
+                                        }}
                                       >
                                         {option}
                                       </button>
