@@ -74,7 +74,13 @@ export type ManualSaleHistoryOrder = {
   subtotal?: string | number;
   discountAmount?: string | number | null;
   total: string | number;
-  cashRegister?: { id: number; closedAt?: string | null } | null;
+  cashRegister?: {
+    id: number;
+    mode?: CashRegisterMode;
+    businessDate?: string | null;
+    openedAt?: string | null;
+    closedAt?: string | null;
+  } | null;
   customerFirstNameSnapshot?: string | null;
   customerLastNameSnapshot?: string | null;
   customerEmailSnapshot?: string | null;
@@ -704,12 +710,15 @@ export default function AdminCashRegisterSection({
 
       {salesHistoryOpen ? (
         <SalesHistoryModal
+          canCorrectSales={Boolean(user && ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(user.role ?? ""))}
           storeLocationId={storeLocationId}
           salesHistory={salesHistory}
           salesSearch={salesSearch}
           salesLoading={salesLoading}
           onSearchChange={setSalesSearch}
-          onRefresh={loadSalesHistory}
+          onRefresh={async () => {
+            await Promise.all([loadSalesHistory(), loadCurrent()]);
+          }}
           onClose={() => setSalesHistoryOpen(false)}
           onGenerateReturn={onGenerateReturn}
           onError={setError}
@@ -869,6 +878,7 @@ function RangeSummaryPanel({
 }
 
 export function SalesHistoryModal({
+  canCorrectSales,
   storeLocationId,
   salesHistory,
   salesSearch,
@@ -879,6 +889,7 @@ export function SalesHistoryModal({
   onGenerateReturn,
   onError,
 }: {
+  canCorrectSales: boolean;
   storeLocationId?: number | null;
   salesHistory: ManualSaleHistoryOrder[];
   salesSearch: string;
@@ -893,9 +904,13 @@ export function SalesHistoryModal({
   const [editDraft, setEditDraft] = useState<SaleEditDraft | null>(null);
   const [editError, setEditError] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [voidingSale, setVoidingSale] = useState<ManualSaleHistoryOrder | null>(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidError, setVoidError] = useState("");
+  const [savingVoid, setSavingVoid] = useState(false);
   const [paymentDiscountPercentage, setPaymentDiscountPercentage] = useState(0);
   const [returnHistory, setReturnHistory] = useState<ManualReturnHistoryEntry[]>([]);
-  const [historyType, setHistoryType] = useState<"all" | "sales" | "returns">("all");
+  const [historyType, setHistoryType] = useState<"all" | "sales" | "cancelled" | "returns">("all");
   const pricingPolicy = useMemo(() => {
     try {
       return resolveStorePricingPolicy({ storeId: getClientStoreId() });
@@ -934,11 +949,9 @@ export function SalesHistoryModal({
   }, [storeLocationId, salesHistory]);
   const filteredSalesHistory = useMemo(() => {
     const normalized = salesSearch.trim().toLowerCase();
-    const activeSales = salesHistory.filter((sale) => sale.status !== "cancelled");
+    if (!normalized) return salesHistory.slice(0, 80);
 
-    if (!normalized) return activeSales.slice(0, 80);
-
-    return activeSales.filter((sale) =>
+    return salesHistory.filter((sale) =>
       [
         String(sale.id),
         saleCustomerName(sale),
@@ -956,6 +969,16 @@ export function SalesHistoryModal({
         .includes(normalized),
     ).slice(0, 80);
   }, [salesHistory, salesSearch]);
+  const displayedSales = useMemo(
+    () => filteredSalesHistory.filter((sale) =>
+      historyType === "cancelled"
+        ? sale.status === "cancelled"
+        : historyType === "sales"
+          ? sale.status !== "cancelled"
+          : true,
+    ),
+    [filteredSalesHistory, historyType],
+  );
   const filteredReturnHistory = useMemo(() => {
     const normalized = salesSearch.trim().toLowerCase();
     return returnHistory.filter((entry) => !normalized || [
@@ -1003,8 +1026,8 @@ export function SalesHistoryModal({
   );
 
   function openSaleEdit(sale: ManualSaleHistoryOrder) {
-    if (sale.cashRegister?.closedAt) {
-      const message = "La venta no se puede editar porque la caja asociada ya esta cerrada.";
+    if (!isSaleCorrectableToday(sale)) {
+      const message = "Solo se pueden editar ventas de la caja abierta del dia actual.";
       setEditError(message);
       onError?.(message);
       return;
@@ -1123,6 +1146,37 @@ export function SalesHistoryModal({
       setEditError(getErrorMessage(err, "No se pudo actualizar la venta manual."));
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  function openSaleVoid(sale: ManualSaleHistoryOrder) {
+    setVoidingSale(sale);
+    setVoidReason("");
+    setVoidError("");
+  }
+
+  async function confirmSaleVoid() {
+    if (!voidingSale) return;
+    const reason = voidReason.trim();
+    if (reason.length < 3) {
+      setVoidError("Indica un motivo de al menos 3 caracteres.");
+      return;
+    }
+
+    setSavingVoid(true);
+    setVoidError("");
+    try {
+      await api(`/orders/manual/${voidingSale.id}/cancel`, {
+        method: "PATCH",
+        body: JSON.stringify({ reason }),
+      });
+      await onRefresh();
+      setVoidingSale(null);
+      setVoidReason("");
+    } catch (err) {
+      setVoidError(getErrorMessage(err, "No se pudo anular la venta."));
+    } finally {
+      setSavingVoid(false);
     }
   }
 
@@ -1373,15 +1427,15 @@ export function SalesHistoryModal({
           autoFocus
         />
         <div style={tabsStyle}>
-          {([["all", "Todos"], ["sales", "Ventas"], ["returns", "Devoluciones/cambios"]] as const).map(([value, label]) => (
+          {([["all", "Todos"], ["sales", "Ventas"], ["cancelled", "Anuladas"], ["returns", "Devoluciones/cambios"]] as const).map(([value, label]) => (
             <button key={value} type="button" onClick={() => setHistoryType(value)} style={tabButtonStyle(historyType === value)}>{label}</button>
           ))}
         </div>
         {salesLoading ? <State label="Cargando ventas..." /> : null}
-        {!salesLoading && (historyType === "sales" ? filteredSalesHistory.length === 0 : historyType === "returns" ? filteredReturnHistory.length === 0 : filteredSalesHistory.length + filteredReturnHistory.length === 0) ? (
+        {!salesLoading && (historyType === "returns" ? filteredReturnHistory.length === 0 : historyType === "all" ? displayedSales.length + filteredReturnHistory.length === 0 : displayedSales.length === 0) ? (
           <State label="No hay ventas para la busqueda." />
         ) : null}
-        {!salesLoading && (historyType !== "returns" ? filteredSalesHistory.length : 0) + (historyType !== "sales" ? filteredReturnHistory.length : 0) > 0 ? (
+        {!salesLoading && (historyType !== "returns" ? displayedSales.length : 0) + (["all", "returns"].includes(historyType) ? filteredReturnHistory.length : 0) > 0 ? (
           <div style={salesTableWrapStyle}>
             <table style={salesTableStyle}>
               <thead>
@@ -1395,7 +1449,7 @@ export function SalesHistoryModal({
                 </tr>
               </thead>
               <tbody>
-                {historyType !== "returns" ? filteredSalesHistory.map((sale) => {
+                {historyType !== "returns" ? displayedSales.map((sale) => {
                   const unitPrices = effectiveUnitPrices(sale, pricingPolicy);
 
                   return (
@@ -1403,6 +1457,7 @@ export function SalesHistoryModal({
                       <td style={salesTdStyle}>
                         <strong>#{sale.id}</strong>
                         <span style={mutedStyle}>{formatDate(sale.createdAt)}</span>
+                        {sale.status === "cancelled" ? <span style={cancelledBadgeStyle}>Anulada</span> : null}
                       </td>
                       <td style={salesTdStyle}>{saleCustomerName(sale)}</td>
                       <td style={salesTdStyle}>
@@ -1424,27 +1479,41 @@ export function SalesHistoryModal({
                       <td style={salesTdStyle}>{salePaymentSummary(sale)}</td>
                       <td style={salesTdStyle}>
                         <div style={salesActionsColumnStyle}>
-                          <button type="button" onClick={() => generateReturnFromSale(sale)} style={primaryButtonStyle}>
+                          <button type="button" onClick={() => generateReturnFromSale(sale)} style={primaryButtonStyle} disabled={sale.status === "cancelled"}>
                             Generar devolucion
                           </button>
+                          {canCorrectSales && sale.status !== "cancelled" ? (
+                            <button
+                              type="button"
+                              onClick={() => openSaleVoid(sale)}
+                              disabled={!isSaleCorrectableToday(sale)}
+                              style={{
+                                ...dangerButtonStyle,
+                                opacity: isSaleCorrectableToday(sale) ? 1 : 0.45,
+                                cursor: isSaleCorrectableToday(sale) ? "pointer" : "not-allowed",
+                              }}
+                            >
+                              Anular venta
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => openSaleEdit(sale)}
-                            disabled={sale.status === "cancelled" || Boolean(sale.cashRegister?.closedAt)}
+                            disabled={!isSaleCorrectableToday(sale)}
                             style={{
                               ...softButtonStyle,
-                              opacity: sale.status === "cancelled" || sale.cashRegister?.closedAt ? 0.45 : 1,
-                              cursor: sale.status === "cancelled" || sale.cashRegister?.closedAt ? "not-allowed" : "pointer",
+                              opacity: isSaleCorrectableToday(sale) ? 1 : 0.45,
+                              cursor: isSaleCorrectableToday(sale) ? "pointer" : "not-allowed",
                             }}
                           >
-                            {sale.cashRegister?.closedAt ? "Caja cerrada" : "Editar venta"}
+                            {isSaleCorrectableToday(sale) ? "Editar venta" : "Fuera de plazo"}
                           </button>
                         </div>
                       </td>
                     </tr>
                   );
                 }) : null}
-                {historyType !== "sales" ? filteredReturnHistory.map((entry) => (
+                {["all", "returns"].includes(historyType) ? filteredReturnHistory.map((entry) => (
                   <tr key={`return-${entry.id}`}>
                     <td style={salesTdStyle}><strong>Devolucion #{entry.id}</strong><span style={mutedStyle}>{formatDate(entry.createdAt)}</span></td>
                     <td style={salesTdStyle}>{entry.customerName || "Cliente sin identificar"}</td>
@@ -1460,6 +1529,26 @@ export function SalesHistoryModal({
         ) : null}
           </>
         )}
+        {voidingSale ? (
+          <div style={modalOverlayStyle} onClick={() => !savingVoid && setVoidingSale(null)}>
+            <section style={confirmVoidModalStyle} onClick={(event) => event.stopPropagation()} aria-labelledby="void-sale-title">
+              <div>
+                <p style={eyebrowStyle}>Anular venta</p>
+                <h3 id="void-sale-title" style={modalTitleStyle}>Venta #{voidingSale.id}</h3>
+                <p style={copyStyle}>Dejara de sumar en la caja y se restituira el stock. El registro permanecera en el historial.</p>
+              </div>
+              <label style={fieldStyle}>
+                <span>Motivo obligatorio</span>
+                <textarea value={voidReason} onChange={(event) => setVoidReason(event.target.value)} placeholder="Ej: venta cargada por duplicado" style={{ ...inputStyle, minHeight: 90, resize: "vertical" }} autoFocus />
+              </label>
+              {voidError ? <p style={errorStyle}>{voidError}</p> : null}
+              <div style={actionsStyle}>
+                <button type="button" onClick={() => setVoidingSale(null)} disabled={savingVoid} style={softButtonStyle}>Volver</button>
+                <button type="button" onClick={() => void confirmSaleVoid()} disabled={savingVoid || voidReason.trim().length < 3} style={dangerButtonStyle}>{savingVoid ? "Anulando..." : "Confirmar anulacion"}</button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1468,6 +1557,26 @@ export function SalesHistoryModal({
 function formatDate(value?: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function isSaleCorrectableToday(sale: ManualSaleHistoryOrder) {
+  if (sale.status === "cancelled" || sale.cashRegister?.closedAt) return false;
+  const sessionDate = sale.cashRegister?.mode === "automatic"
+    ? sale.cashRegister.businessDate
+    : sale.cashRegister?.openedAt;
+
+  return isBuenosAiresToday(sale.createdAt) && isBuenosAiresToday(sessionDate);
+}
+
+function isBuenosAiresToday(value?: string | null) {
+  if (!value) return false;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(new Date(value)) === formatter.format(new Date());
 }
 
 function escapeHtml(value: string) {
@@ -1703,11 +1812,13 @@ const movementListStyle: React.CSSProperties = { display: "grid", gap: 10 };
 const movementStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, padding: 14, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-surface-bg)" };
 const primaryButtonStyle: React.CSSProperties = { border: 0, borderRadius: 12, background: "var(--account-item-bg-active)", color: "var(--account-text-strong)", padding: "10px 14px", cursor: "pointer", fontWeight: 800 };
 const softButtonStyle: React.CSSProperties = { border: "1px solid var(--account-item-border)", borderRadius: 12, background: "transparent", color: "var(--account-text-strong)", padding: "10px 14px", cursor: "pointer", fontWeight: 700 };
+const dangerButtonStyle: React.CSSProperties = { border: "1px solid var(--admin-danger-border)", borderRadius: 12, background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)", padding: "10px 14px", cursor: "pointer", fontWeight: 800 };
 const errorStyle: React.CSSProperties = { margin: 0, padding: 14, borderRadius: 14, border: "1px solid var(--admin-danger-border)", background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)" };
 const successStyle: React.CSSProperties = { margin: 0, padding: 14, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg-active)", color: "var(--account-text-strong)" };
 const stateStyle: React.CSSProperties = { padding: 22, borderRadius: 16, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)", color: "var(--account-text-muted)" };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 120, background: "var(--admin-overlay-bg, rgba(0,0,0,.42))", display: "grid", placeItems: "center", padding: 16 };
 const modalStyle: React.CSSProperties = { width: "min(760px, 100%)", maxHeight: "min(760px, calc(100vh - 32px))", overflow: "auto", borderRadius: 20, border: "1px solid var(--account-item-border)", background: "var(--account-sidebar-bg)", padding: 20, display: "grid", gap: 16, boxShadow: "var(--admin-modal-shadow)" };
+const confirmVoidModalStyle: React.CSSProperties = { ...modalStyle, width: "min(520px, 100%)" };
 const wideModalStyle: React.CSSProperties = { ...modalStyle, width: "min(1180px, 100%)" };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" };
 const tabsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, padding: 4, borderRadius: 14, border: "1px solid var(--account-item-border)", background: "var(--account-item-bg)" };
@@ -1721,6 +1832,7 @@ const salesThStyle: React.CSSProperties = { padding: "12px 14px", textAlign: "le
 const salesTdStyle: React.CSSProperties = { padding: 14, borderBottom: "1px solid var(--account-item-border)", color: "var(--account-text-strong)", verticalAlign: "top" };
 const saleItemsStyle: React.CSSProperties = { display: "grid", gap: 6, color: "var(--account-text-muted)", minWidth: 0 };
 const salesActionsColumnStyle: React.CSSProperties = { display: "grid", gap: 8, minWidth: 154 };
+const cancelledBadgeStyle: React.CSSProperties = { display: "inline-block", width: "fit-content", marginTop: 6, padding: "3px 7px", borderRadius: 6, border: "1px solid var(--admin-danger-border)", background: "var(--admin-danger-bg)", color: "var(--admin-danger-color)", fontSize: 11, fontWeight: 800 };
 const editSalePanelStyle: React.CSSProperties = { display: "grid", gap: 16, border: "1px solid var(--account-item-border)", borderRadius: 16, background: "var(--account-surface-bg)", padding: 16 };
 const editSaleTotalStyle: React.CSSProperties = { color: "var(--account-text-strong)", fontSize: 24 };
 const editSaleDiscountToggleStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 10, color: "var(--account-text-strong)", fontWeight: 800 };

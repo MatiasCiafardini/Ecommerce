@@ -258,18 +258,54 @@ export class CurrentAccountsService {
       throw new NotFoundException('Current account not found');
     }
 
-    if (!location) {
-      return account;
-    }
-
     if (
+      location &&
       account.storeLocationId !== location.id &&
       !account.movements.some((movement) => movement.storeLocationId === location.id)
     ) {
       throw new NotFoundException('Current account not found for this location');
     }
 
-    return this.withLocalBalance(account, location.id);
+    const customerSales = await this.prisma.order.findMany({
+      where: {
+        storeId,
+        customerId,
+        ...(location ? { storeLocationId: location.id } : {}),
+        payments: { some: { provider: 'manual' } },
+        currentAccountMovements: {
+          none: { accountId: account.id },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        payments: {
+          where: { provider: 'manual' },
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            status: true,
+          },
+        },
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: {
+                  select: { title: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const localizedAccount = location
+      ? await this.withLocalBalance(account, location.id)
+      : account;
+
+    return { ...localizedAccount, customerSales };
   }
 
   async findInactiveByPhone(storeId: number, phone: string) {

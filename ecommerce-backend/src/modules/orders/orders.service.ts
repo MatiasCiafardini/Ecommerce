@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
@@ -251,6 +252,56 @@ export class OrdersService {
 
       const variantsMap = new Map(variants.map((variant) => [variant.id, variant]));
 
+      const trialItemIds = [...new Set(data.trialItemIds ?? [])];
+      const trialItems = trialItemIds.length
+        ? await tx.productTrialItem.findMany({
+            where: {
+              id: { in: trialItemIds },
+              storeId,
+              status: 'pending',
+              trial: {
+                customerId,
+                storeLocationId: cashContext.storeLocationId,
+                account: { deletedAt: null },
+              },
+            },
+          })
+        : [];
+
+      if (trialItems.length !== trialItemIds.length) {
+        throw new BadRequestException(
+          'Una o mas prendas a prueba ya fueron resueltas o no pertenecen al cliente.',
+        );
+      }
+
+      const trialQuantityByVariant = new Map<number, number>();
+      for (const trialItem of trialItems) {
+        trialQuantityByVariant.set(
+          trialItem.variantId,
+          (trialQuantityByVariant.get(trialItem.variantId) ?? 0) + 1,
+        );
+      }
+
+      if (trialItems.length) {
+        const requestedQuantityByVariant = new Map<number, number>();
+        for (const item of data.items) {
+          requestedQuantityByVariant.set(
+            item.variantId,
+            (requestedQuantityByVariant.get(item.variantId) ?? 0) + item.quantity,
+          );
+        }
+        const matchesTrialSelection =
+          requestedQuantityByVariant.size === trialQuantityByVariant.size &&
+          [...requestedQuantityByVariant].every(
+            ([variantId, quantity]) => trialQuantityByVariant.get(variantId) === quantity,
+          );
+        if (!matchesTrialSelection) {
+          throw new BadRequestException(
+            'Las prendas de la venta no coinciden con la seleccion a prueba.',
+          );
+        }
+      }
+
       for (const item of data.items) {
         const variant = variantsMap.get(item.variantId);
 
@@ -268,7 +319,8 @@ export class OrdersService {
 
         const available = inventory.quantity - inventory.reserved;
 
-        if (available < item.quantity) {
+        const reservedByTrial = trialQuantityByVariant.get(item.variantId) ?? 0;
+        if (reservedByTrial === 0 && available < item.quantity) {
           throw new BadRequestException(
             `Not enough stock for variant ${item.variantId}`,
           );
@@ -315,12 +367,14 @@ export class OrdersService {
           });
         }
 
-        await this.inventoryLockService.reserveStockTx(
-          tx,
-          storeId,
-          item.variantId,
-          item.quantity,
-        );
+        if (reservedByTrial === 0) {
+          await this.inventoryLockService.reserveStockTx(
+            tx,
+            storeId,
+            item.variantId,
+            item.quantity,
+          );
+        }
       }
 
       const discountAmount = this.calculateManualSaleDiscountAmount(
@@ -517,6 +571,46 @@ export class OrdersService {
         }
       }
 
+      if (trialItems.length) {
+        const now = new Date();
+        const claimed = await tx.productTrialItem.updateMany({
+          where: { id: { in: trialItemIds }, status: 'pending' },
+          data: {
+            status: 'sold',
+            orderId: order.id,
+            resolvedAt: now,
+            resolvedByUserId: createdByUserId,
+          },
+        });
+        if (claimed.count !== trialItemIds.length) {
+          throw new ConflictException('Una de las prendas ya fue resuelta.');
+        }
+
+        for (const trialId of [...new Set(trialItems.map((item) => item.trialId))]) {
+          const eventItemIds = trialItems
+            .filter((item) => item.trialId === trialId)
+            .map((item) => item.id);
+          await tx.productTrialEvent.create({
+            data: {
+              storeId,
+              trialId,
+              type: 'trial.items_sold',
+              actorId: createdByUserId,
+              metadata: { itemIds: eventItemIds, orderId: order.id },
+            },
+          });
+          const pending = await tx.productTrialItem.count({
+            where: { trialId, status: 'pending' },
+          });
+          if (pending === 0) {
+            await tx.productTrial.update({
+              where: { id: trialId },
+              data: { status: 'completed', completedAt: now },
+            });
+          }
+        }
+      }
+
       if (appliedCreditAmount > 0 && selectedCurrentAccount) {
         const previousCreditBalance = Number(selectedCurrentAccount.balance);
         const nextCreditBalance = this.roundCurrency(previousCreditBalance + appliedCreditAmount);
@@ -661,17 +755,7 @@ export class OrdersService {
         );
       }
 
-      if (order.cashRegisterId) {
-        const correctionSession = await tx.cashRegisterSession.findUnique({
-          where: { id: order.cashRegisterId },
-          select: { closedAt: true },
-        });
-        if (correctionSession?.closedAt) {
-          throw new BadRequestException(
-            'La venta no se puede editar porque la caja asociada ya esta cerrada.',
-          );
-        }
-      }
+      await this.ensureManualSaleBelongsToOpenCurrentCash(tx, order);
 
       const manualPayments = order.payments.filter(
         (payment) => payment.provider === 'manual',
@@ -1163,6 +1247,7 @@ export class OrdersService {
     orderId: number,
     storeId: number,
     createdByUserId?: number,
+    reason?: string,
   ) {
     await this.ensureManualSalesEnabled(storeId);
     await this.ensureManualCorrectionAllowed(storeId, createdByUserId);
@@ -1189,6 +1274,32 @@ export class OrdersService {
         return this.withCancellationRequests(order);
       }
 
+      await this.ensureManualSaleBelongsToOpenCurrentCash(tx, order);
+
+      if (order.returns.length > 0 || order.refunds.length > 0) {
+        throw new BadRequestException(
+          'La venta no se puede anular porque ya tiene devoluciones o reintegros asociados.',
+        );
+      }
+
+      const cancellationReason = reason?.trim();
+      if (!cancellationReason || cancellationReason.length < 3) {
+        throw new BadRequestException('Indica el motivo de la anulacion.');
+      }
+
+      const claimed = await tx.order.updateMany({
+        where: {
+          id: order.id,
+          storeId,
+          status: { not: OrderStatus.cancelled },
+        },
+        data: { status: OrderStatus.cancelled },
+      });
+
+      if (claimed.count !== 1) {
+        throw new ConflictException('La venta ya fue anulada por otro usuario.');
+      }
+
       const manualPayment = order.payments.find(
         (payment) => payment.provider === 'manual',
       );
@@ -1198,6 +1309,21 @@ export class OrdersService {
         order.payments
           .filter((payment) => this.isCurrentAccountPaymentMetadata(payment.metadata))
           .reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
+      );
+      const appliedCurrentAccountCreditAmount = this.roundCurrency(
+        order.payments.reduce((sum, payment) => {
+          const metadata = payment.metadata as Record<string, unknown> | null;
+          return (
+            sum +
+            Math.max(
+              Number(metadata?.appliedCurrentAccountCreditAmount ?? 0),
+              0,
+            )
+          );
+        }, 0),
+      );
+      const currentAccountReversalAmount = this.roundCurrency(
+        currentAccountPaymentAmount + appliedCurrentAccountCreditAmount,
       );
       const behavesAsPending =
         !currentAccountPayment &&
@@ -1252,7 +1378,7 @@ export class OrdersService {
         include: this.orderInclude(),
       });
 
-      if (currentAccountPayment) {
+      if (currentAccountReversalAmount > 0) {
         const account = await tx.currentAccount.findFirst({
           where: {
             storeId,
@@ -1263,7 +1389,7 @@ export class OrdersService {
 
         if (account) {
           const nextBalance = this.roundCurrency(
-            Number(account.balance) - currentAccountPaymentAmount,
+            Number(account.balance) - currentAccountReversalAmount,
           );
 
           await tx.currentAccount.update({
@@ -1282,9 +1408,9 @@ export class OrdersService {
               customerId: order.customerId,
               orderId: order.id,
               type: 'ADJUSTMENT_NEGATIVE',
-              amount: -currentAccountPaymentAmount,
+              amount: -currentAccountReversalAmount,
               paymentMethod: 'Cuenta corriente',
-              description: `Anulacion de venta manual #${order.id}`,
+              description: `Anulacion de venta manual #${order.id}: ${cancellationReason}`,
               createdByUserId,
               balanceAfter: nextBalance,
             },
@@ -1300,13 +1426,18 @@ export class OrdersService {
           title: 'Venta manual cancelada',
           message: 'La venta manual fue cancelada y el stock fue restituido.',
           actorType: 'admin',
+          actorId: createdByUserId,
           metadata: {
+            reason: cancellationReason,
             previousStatus: order.status,
             paymentStatus: manualPayment?.status ?? null,
             restoredItems: order.items.map((item) => ({
               variantId: item.variantId,
               quantity: item.quantity,
             })),
+            currentAccountPaymentAmount,
+            appliedCurrentAccountCreditAmount,
+            currentAccountReversalAmount,
           },
         },
       });
@@ -1342,6 +1473,52 @@ export class OrdersService {
 
     if (!['ADMIN', 'OWNER', 'SUPER_ADMIN'].includes(String(user?.role))) {
       throw new ForbiddenException('Only ADMIN and OWNER can correct manual sales');
+    }
+  }
+
+  private async ensureManualSaleBelongsToOpenCurrentCash(tx: any, order: any) {
+    const { start, end } = this.getBuenosAiresDayRange(new Date());
+    const createdAt = new Date(order.createdAt);
+
+    if (createdAt < start || createdAt >= end) {
+      throw new BadRequestException(
+        'Solo se pueden corregir ventas registradas en la caja del dia actual.',
+      );
+    }
+
+    if (!order.cashRegisterId) {
+      throw new BadRequestException('La venta no tiene una caja asociada.');
+    }
+
+    const session = await tx.cashRegisterSession.findFirst({
+      where: {
+        id: order.cashRegisterId,
+        storeId: order.storeId,
+      },
+      select: {
+        mode: true,
+        businessDate: true,
+        openedAt: true,
+        closedAt: true,
+      },
+    });
+
+    if (!session || session.closedAt) {
+      throw new BadRequestException(
+        'La venta no se puede corregir porque la caja asociada esta cerrada.',
+      );
+    }
+
+    const sessionDate = new Date(
+      session.mode === 'automatic' && session.businessDate
+        ? session.businessDate
+        : session.openedAt,
+    );
+
+    if (sessionDate < start || sessionDate >= end) {
+      throw new BadRequestException(
+        'Solo se pueden corregir ventas de la caja abierta del dia actual.',
+      );
     }
   }
 
@@ -3389,6 +3566,9 @@ export class OrdersService {
       cashRegister: {
         select: {
           id: true,
+          mode: true,
+          businessDate: true,
+          openedAt: true,
           closedAt: true,
         },
       },

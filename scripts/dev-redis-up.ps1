@@ -41,5 +41,5 @@ if ($existing -eq $containerName) {
   return
 }
 
-docker run -d --name $containerName -p "$redisPort:6379" redis:7-alpine *> $null
+docker run -d --name $containerName -p "${redisPort}:6379" redis:7-alpine *> $null
 Write-Host "Redis local iniciado en puerto $redisPort."

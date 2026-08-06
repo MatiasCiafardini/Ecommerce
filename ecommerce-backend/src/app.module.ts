@@ -30,6 +30,7 @@ import { LabelsModule } from './modules/labels/labels.module';
 import { CurrentAccountsModule } from './modules/current-accounts/current-accounts.module';
 import { CashRegisterModule } from './modules/cash-register/cash-register.module';
 import { StoreLocationsModule } from './modules/store-locations/store-locations.module';
+import { ProductTrialsModule } from './modules/product-trials/product-trials.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 import { CustomerAddressesModule } from './modules/customers/customer-addresses/customer-addresses.module';
@@ -83,6 +84,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CurrentAccountsModule,
     CashRegisterModule,
     StoreLocationsModule,
+    ProductTrialsModule,
     PrismaModule,
   ],
 })

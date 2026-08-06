@@ -119,6 +119,12 @@ export class CreateManualSaleDto {
   @IsIn(['cash', 'card'])
   manualPriceMode?: 'cash' | 'card';
 
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsInt({ each: true })
+  trialItemIds?: number[];
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

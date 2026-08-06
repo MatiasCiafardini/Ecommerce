@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "@/lib/api";
+import { resolveAssetUrl } from "@/lib/asset-url";
 import { useAuth } from "@/context/auth-context";
 import {
   money,
@@ -51,6 +52,29 @@ const operationalPendingStatuses = new Set([
 ]);
 
 type ManualSalesTab = "dashboard" | "sale" | "current-accounts" | "returns" | "cash-register";
+
+type PendingTrialItem = {
+  id: number;
+  price: string | number;
+  trial: {
+    id: number;
+    createdAt: string;
+    account: { id: number };
+    customer: {
+      id: number;
+      firstName?: string | null;
+      lastName?: string | null;
+      phone?: string | null;
+      email?: string | null;
+    };
+  };
+  variant: {
+    sku?: string | null;
+    Size?: string | null;
+    Color?: string | null;
+    product: { title: string; images?: Array<{ url?: string | null }> };
+  };
+};
 
 type ManualCashSummary = {
   openingAmount: number;
@@ -197,9 +221,15 @@ function AdminManualSalesWorkspace({
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ManualSalesTab>(initialTab);
   const [initialSaleCustomer, setInitialSaleCustomer] = useState<ManualSaleCustomer | null>(null);
+  const [trialAccountId, setTrialAccountId] = useState<number | null>(null);
   const [initialReturnDraft, setInitialReturnDraft] = useState<ManualReturnDraft | null>(null);
   const [locations, setLocations] = useState<StoreLocation[]>([]);
-  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(user?.storeLocationId ?? null);
+  const locationPreferenceKey = `admin-selected-location:${user?.storeId ?? "store"}:${user?.id ?? "user"}`;
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return user?.storeLocationId ?? null;
+    const rememberedLocationId = Number(window.localStorage.getItem(locationPreferenceKey));
+    return rememberedLocationId > 0 ? rememberedLocationId : user?.storeLocationId ?? null;
+  });
   const canSelectLocation = user?.role === "ADMIN" || user?.role === "OWNER" || user?.role === "SUPER_ADMIN";
   useEffect(() => {
     let mounted = true;
@@ -210,7 +240,13 @@ function AdminManualSalesWorkspace({
         if (!mounted) return;
         const activeLocations = (payload.locations ?? []).filter((location) => location.active);
         setLocations(activeLocations);
-        setSelectedLocationId((current) => current ?? user?.storeLocationId ?? activeLocations[0]?.id ?? null);
+        const storedLocationId = Number(window.localStorage.getItem(locationPreferenceKey));
+        const rememberedLocation = activeLocations.find(
+          (location) => location.id === storedLocationId,
+        );
+        setSelectedLocationId(
+          rememberedLocation?.id ?? user?.storeLocationId ?? activeLocations[0]?.id ?? null,
+        );
       } catch {
         if (mounted) {
           setLocations([]);
@@ -232,7 +268,16 @@ function AdminManualSalesWorkspace({
     return () => {
       mounted = false;
     };
-  }, [canSelectLocation, user?.storeLocationId]);
+  }, [canSelectLocation, locationPreferenceKey, user?.storeLocationId]);
+
+  const selectLocation = (locationId: number | null) => {
+    setSelectedLocationId(locationId);
+    if (locationId) {
+      window.localStorage.setItem(locationPreferenceKey, String(locationId));
+    } else {
+      window.localStorage.removeItem(locationPreferenceKey);
+    }
+  };
 
   const startCurrentAccountSale = (customer: ManualSaleCustomer) => {
     setInitialSaleCustomer({ ...customer, source: "current_account" });
@@ -242,6 +287,11 @@ function AdminManualSalesWorkspace({
   const startManualReturn = (draft: ManualReturnDraft) => {
     setInitialReturnDraft(draft);
     setActiveTab("returns");
+  };
+
+  const managePendingTrial = (accountId: number) => {
+    setTrialAccountId(accountId);
+    setActiveTab("current-accounts");
   };
 
   return (
@@ -295,7 +345,7 @@ function AdminManualSalesWorkspace({
               <span>Local</span>
               <select
                 value={selectedLocationId ?? ""}
-                onChange={(event) => setSelectedLocationId(Number(event.target.value) || null)}
+                onChange={(event) => selectLocation(Number(event.target.value) || null)}
                 style={manualSalesLocationSelectStyle}
               >
                 {locations.map((location) => (
@@ -313,10 +363,8 @@ function AdminManualSalesWorkspace({
         {activeTab === "dashboard" ? (
           <ManualSalesDashboard
             storeLocationId={selectedLocationId}
-            onOpenSale={() => setActiveTab("sale")}
             onOpenCash={() => setActiveTab("cash-register")}
-            onOpenReturns={() => setActiveTab("returns")}
-            onOpenAccounts={() => setActiveTab("current-accounts")}
+            onManageTrial={managePendingTrial}
             onGenerateReturn={startManualReturn}
           />
         ) : null}
@@ -328,7 +376,12 @@ function AdminManualSalesWorkspace({
           />
         ) : null}
         {activeTab === "current-accounts" ? (
-          <AdminCurrentAccountsSection storeLocationId={selectedLocationId} onRegisterSale={startCurrentAccountSale} />
+          <AdminCurrentAccountsSection
+            storeLocationId={selectedLocationId}
+            onRegisterSale={startCurrentAccountSale}
+            initialAccountId={trialAccountId}
+            initialMode="trials"
+          />
         ) : null}
         {activeTab === "returns" ? (
           <ManualReturnsPanel storeLocationId={selectedLocationId} initialDraft={initialReturnDraft} />
@@ -343,19 +396,16 @@ function AdminManualSalesWorkspace({
 
 function ManualSalesDashboard({
   storeLocationId,
-  onOpenSale,
   onOpenCash,
-  onOpenReturns,
-  onOpenAccounts,
+  onManageTrial,
   onGenerateReturn,
 }: {
   storeLocationId?: number | null;
-  onOpenSale: () => void;
   onOpenCash: () => void;
-  onOpenReturns: () => void;
-  onOpenAccounts: () => void;
+  onManageTrial: (accountId: number) => void;
   onGenerateReturn?: (draft: ManualReturnDraft) => void;
 }) {
+  const { user } = useAuth();
   const [cash, setCash] = useState<ManualCashPayload | null>(null);
   const [sales, setSales] = useState<ManualDashboardSale[]>([]);
   const [returns, setReturns] = useState<ManualDashboardReturn[]>([]);
@@ -366,6 +416,9 @@ function ManualSalesDashboard({
   const [salesHistoryOpen, setSalesHistoryOpen] = useState(false);
   const [salesHistorySearch, setSalesHistorySearch] = useState("");
   const [salesHistoryLoading, setSalesHistoryLoading] = useState(false);
+  const [pendingTrialsOpen, setPendingTrialsOpen] = useState(false);
+  const [pendingTrials, setPendingTrials] = useState<PendingTrialItem[]>([]);
+  const [pendingTrialsLoading, setPendingTrialsLoading] = useState(false);
   const [createAccountError, setCreateAccountError] = useState("");
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountForm, setAccountForm] = useState<CurrentAccountCreateForm>({
@@ -448,6 +501,22 @@ function ManualSalesDashboard({
     void loadSalesHistory();
   };
 
+  const openPendingTrials = async () => {
+    setPendingTrialsOpen(true);
+    setPendingTrialsLoading(true);
+    setError("");
+    try {
+      const payload = await api(
+        manualStoreLocationPath("/product-trials/pending", storeLocationId),
+      );
+      setPendingTrials(Array.isArray(payload) ? payload : []);
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudieron cargar las prendas pendientes."));
+    } finally {
+      setPendingTrialsLoading(false);
+    }
+  };
+
   const createCurrentAccount = async () => {
     if (!accountForm.firstName.trim() && !accountForm.lastName.trim()) {
       setCreateAccountError("Carga el nombre o apellido del cliente.");
@@ -511,7 +580,7 @@ function ManualSalesDashboard({
               ) : null}
             </div>
             <div style={dashboardQuickActionsStyle}>
-              <QuickActionButton icon={<TagIcon />} title="Registrar venta" description="Nueva venta rapida" onClick={onOpenSale} />
+              <QuickActionButton icon={<TagIcon />} title="Prendas pendientes" description="Ver entregas a clientes" onClick={() => void openPendingTrials()} />
               <QuickActionButton icon={<PersonAddIcon />} title="Crear cuenta corriente" description="Nuevo cliente" onClick={openCreateAccount} />
               <QuickActionButton icon={<ClockIcon />} title="Historial de ventas" description="Ver ventas realizadas" onClick={openSalesHistory} />
             </div>
@@ -553,6 +622,7 @@ function ManualSalesDashboard({
 
           {salesHistoryOpen ? (
             <SalesHistoryModal
+              canCorrectSales={Boolean(user && ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(user.role ?? ""))}
               storeLocationId={storeLocationId}
               salesHistory={sales}
               salesSearch={salesHistorySearch}
@@ -562,6 +632,18 @@ function ManualSalesDashboard({
               onClose={() => setSalesHistoryOpen(false)}
               onGenerateReturn={onGenerateReturn}
               onError={setError}
+            />
+          ) : null}
+
+          {pendingTrialsOpen ? (
+            <PendingTrialsModal
+              items={pendingTrials}
+              loading={pendingTrialsLoading}
+              onClose={() => setPendingTrialsOpen(false)}
+              onManage={(accountId) => {
+                setPendingTrialsOpen(false);
+                onManageTrial(accountId);
+              }}
             />
           ) : null}
         </>
@@ -617,6 +699,97 @@ function QuickActionButton({
       <ArrowRightIcon />
     </button>
   );
+}
+
+function PendingTrialsModal({
+  items,
+  loading,
+  onClose,
+  onManage,
+}: {
+  items: PendingTrialItem[];
+  loading: boolean;
+  onClose: () => void;
+  onManage: (accountId: number) => void;
+}) {
+  const groups = useMemo(() => {
+    const grouped = new Map<number, PendingTrialItem[]>();
+    for (const item of items) {
+      const current = grouped.get(item.trial.account.id) ?? [];
+      current.push(item);
+      grouped.set(item.trial.account.id, current);
+    }
+    return [...grouped.values()];
+  }, [items]);
+
+  return (
+    <div style={modalOverlayStyle} onClick={onClose}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="Prendas pendientes"
+        style={pendingTrialsModalStyle}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div style={betweenStyle}>
+          <div>
+            <p style={manualSalesSectionKickerStyle}>Prendas a prueba</p>
+            <h3 style={dashboardSectionTitleStyle}>Pendientes de clientes</h3>
+          </div>
+          <button type="button" aria-label="Cerrar" style={pendingTrialsCloseStyle} onClick={onClose}>×</button>
+        </div>
+
+        {loading ? <StateCard label="Cargando prendas pendientes..." /> : null}
+        {!loading && !groups.length ? <StateCard label="No hay prendas pendientes de devolucion o venta." /> : null}
+
+        {!loading && groups.length ? (
+          <div style={pendingTrialsListStyle}>
+            {groups.map((group) => {
+              const first = group[0];
+              const customer = first.trial.customer;
+              const name = [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email || `Cliente #${customer.id}`;
+              return (
+                <article key={first.trial.account.id} style={pendingTrialGroupStyle}>
+                  <div style={pendingTrialHeaderStyle}>
+                    <div>
+                      <strong>{name}</strong>
+                      <small>{customer.phone || customer.email || `Cliente #${customer.id}`} · {group.length} {group.length === 1 ? "prenda" : "prendas"}</small>
+                    </div>
+                    <button type="button" style={primaryButtonStyle} onClick={() => onManage(first.trial.account.id)}>
+                      Gestionar
+                    </button>
+                  </div>
+                  <div style={pendingTrialItemsStyle}>
+                    {group.map((item) => {
+                      const imageUrl = resolveAssetUrl(item.variant.product.images?.[0]?.url);
+                      const variant = [item.variant.Size, item.variant.Color, item.variant.sku].filter(Boolean).join(" · ");
+                      return (
+                        <div key={item.id} style={pendingTrialItemStyle}>
+                          {imageUrl ? <img src={imageUrl} alt="" style={pendingTrialImageStyle} /> : <span style={pendingTrialImageFallbackStyle}><TagIcon /></span>}
+                          <div style={pendingTrialProductStyle}>
+                            <strong>{item.variant.product.title}</strong>
+                            <small>{variant || "Sin variante"}</small>
+                          </div>
+                          <div style={pendingTrialMetaStyle}>
+                            <strong>{money(Number(item.price))}</strong>
+                            <small>Desde {formatDashboardDate(item.trial.createdAt)}</small>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function formatDashboardDate(value: string) {
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short" }).format(new Date(value));
 }
 
 function BoutiqueIcon({ children }: { children: React.ReactNode }) {
@@ -2894,6 +3067,63 @@ const modalCardStyle: React.CSSProperties = {
   display: "grid",
   gap: 20,
 };
+const pendingTrialsModalStyle: React.CSSProperties = {
+  ...modalCardStyle,
+  width: "min(920px, 94vw)",
+  maxHeight: "88dvh",
+  borderRadius: 16,
+  padding: 20,
+  gap: 16,
+};
+const pendingTrialsCloseStyle: React.CSSProperties = {
+  width: 38,
+  height: 38,
+  borderRadius: "50%",
+  border: "1px solid var(--checkout-border)",
+  background: "transparent",
+  color: boutiquePalette.text,
+  cursor: "pointer",
+  fontSize: 22,
+};
+const pendingTrialsListStyle: React.CSSProperties = { display: "grid", gap: 12 };
+const pendingTrialGroupStyle: React.CSSProperties = {
+  border: `1px solid ${boutiquePalette.line}`,
+  borderRadius: 8,
+  overflow: "hidden",
+  background: "#FFFFFF",
+};
+const pendingTrialHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 16,
+  padding: "14px 16px",
+  background: "#F7FAF8",
+};
+const pendingTrialItemsStyle: React.CSSProperties = { display: "grid" };
+const pendingTrialItemStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "52px minmax(0, 1fr) auto",
+  alignItems: "center",
+  gap: 12,
+  padding: "10px 16px",
+  borderTop: `1px solid ${boutiquePalette.line}`,
+};
+const pendingTrialImageStyle: React.CSSProperties = {
+  width: 52,
+  height: 52,
+  objectFit: "cover",
+  borderRadius: 6,
+};
+const pendingTrialImageFallbackStyle: React.CSSProperties = {
+  ...pendingTrialImageStyle,
+  display: "grid",
+  placeItems: "center",
+  background: "#E8F4EE",
+  color: boutiquePalette.greenDark,
+};
+const pendingTrialProductStyle: React.CSSProperties = { display: "grid", gap: 3, minWidth: 0 };
+const pendingTrialMetaStyle: React.CSSProperties = { display: "grid", gap: 3, textAlign: "right" };
 const attributeModalStyle: React.CSSProperties = {
   ...modalCardStyle,
   width: "min(100%, 980px)",

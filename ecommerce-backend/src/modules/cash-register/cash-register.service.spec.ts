@@ -35,6 +35,15 @@ describe('CashRegisterService', () => {
         }),
       }),
     );
+    expect(prisma.currentAccountMovement.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          type: 'SALE',
+          order: { status: { not: 'cancelled' } },
+        }),
+      }),
+    );
     expect(summary.expectedAmount).toBe(0);
   });
 
@@ -66,6 +75,15 @@ describe('CashRegisterService', () => {
           type: 'PAYMENT',
           cancelledAt: null,
           cancellationMovementId: null,
+        }),
+      }),
+    );
+    expect(prisma.currentAccountMovement.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          type: 'SALE',
+          order: { status: { not: 'cancelled' } },
         }),
       }),
     );

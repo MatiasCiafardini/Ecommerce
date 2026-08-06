@@ -12,7 +12,9 @@ import { getClientStoreId } from "@/lib/tenant/store-context";
 import { useAuth } from "@/context/auth-context";
 import AdminManualSalesSection, {
   type ManualSaleCustomer,
+  type TrialSaleItem,
 } from "./AdminManualSalesSection";
+import ProductTrialsPanel from "./ProductTrialsPanel";
 import { money } from "./order-utils";
 import {
   CURRENT_ACCOUNT_PAYMENT_METHODS,
@@ -46,6 +48,12 @@ type Movement = {
     total: string | number;
     status: string;
     createdAt: string;
+    payments?: Array<{
+      id: number;
+      amount: string | number;
+      method?: string | null;
+      status: string;
+    }>;
     items?: Array<{
       id: number;
       quantity: number;
@@ -68,6 +76,7 @@ type CurrentAccount = {
   lastMovementAt?: string | null;
   customer: Customer;
   movements?: Movement[];
+  customerSales?: NonNullable<Movement["order"]>[];
 };
 
 export type CurrentAccountCreateForm = {
@@ -83,7 +92,7 @@ export type CurrentAccountCreateForm = {
 };
 
 type FilterStatus = "debt" | "credit" | "paid" | "all";
-type DetailMode = "history" | "sale" | "payment";
+type DetailMode = "history" | "sale" | "payment" | "trials" | "trial-sale";
 type MovementFilter = "all" | "sales" | "payments" | "corrections" | "cancellations";
 type MovementVariant = NonNullable<
   NonNullable<Movement["order"]>["items"]
@@ -100,9 +109,13 @@ const movementFilterOptions: Array<{ value: MovementFilter; label: string }> = [
 
 export default function AdminCurrentAccountsSection({
   storeLocationId,
+  initialAccountId,
+  initialMode = "history",
 }: {
   storeLocationId?: number | null;
   onRegisterSale?: (customer: Customer) => void;
+  initialAccountId?: number | null;
+  initialMode?: DetailMode;
 }) {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<CurrentAccount[]>([]);
@@ -174,6 +187,8 @@ export default function AdminCurrentAccountsSection({
     notes: "",
   });
   const [savingCreate, setSavingCreate] = useState(false);
+  const [trialSaleItems, setTrialSaleItems] = useState<TrialSaleItem[]>([]);
+  const openedInitialAccountRef = useRef<number | null>(null);
 
   const loadAccounts = async () => {
     setLoading(true);
@@ -335,10 +350,32 @@ export default function AdminCurrentAccountsSection({
     () => getCancelledPaymentIds(selected?.movements ?? []),
     [selected?.movements],
   );
+  const historyMovements = useMemo(() => {
+    const accountMovements = selected?.movements ?? [];
+    const saleActivities: Movement[] = (selected?.customerSales ?? []).map(
+      (order) => ({
+        id: -order.id,
+        type: "CUSTOMER_SALE",
+        amount: order.total,
+        paymentMethod:
+          order.payments?.map((payment) => payment.method).filter(Boolean).join(" + ") ||
+          "-",
+        description: `Venta #${order.id} asociada al cliente`,
+        createdAt: order.createdAt,
+        balanceAfter: selected?.balance ?? 0,
+        order,
+      }),
+    );
+
+    return [...accountMovements, ...saleActivities].sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    );
+  }, [selected?.balance, selected?.customerSales, selected?.movements]);
   const visibleMovements = useMemo(
     () =>
       filterMovements(
-        selected?.movements ?? [],
+        historyMovements,
         movementFilter,
         movementSearch,
         selected?.customer,
@@ -351,7 +388,7 @@ export default function AdminCurrentAccountsSection({
       movementSearch,
       pricingPolicy.manualSaleDiscountRounding,
       selected?.customer,
-      selected?.movements,
+      historyMovements,
     ],
   );
   const selectedSaleCustomer = useMemo(
@@ -393,6 +430,22 @@ export default function AdminCurrentAccountsSection({
       setDetailLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!initialAccountId || loading || openedInitialAccountRef.current === initialAccountId) return;
+    const account = accounts.find((entry) => entry.id === initialAccountId);
+    if (!account) return;
+    openedInitialAccountRef.current = initialAccountId;
+    setSelected(account);
+    setDetailMode(initialMode);
+    setDetailLoading(true);
+    void api(currentAccountCustomerPath(account.customerId, storeLocationId))
+      .then((detail) => setSelected(detail as CurrentAccount))
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : "No se pudo cargar el detalle."),
+      )
+      .finally(() => setDetailLoading(false));
+  }, [accounts, initialAccountId, initialMode, loading, storeLocationId]);
 
   const openEdit = (account: CurrentAccount) => {
     setEditAccount(account);
@@ -976,6 +1029,13 @@ export default function AdminCurrentAccountsSection({
               </button>
               <button
                 type="button"
+                onClick={() => setDetailMode("trials")}
+                style={detailModeButtonStyle(detailMode === "trials" || detailMode === "trial-sale")}
+              >
+                Prendas a prueba
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setPaymentCustomer(selected);
                   setPaymentAmount(
@@ -1023,6 +1083,7 @@ export default function AdminCurrentAccountsSection({
                 Dar de baja
               </button>
             </div>
+            <div style={detailBodyStyle}>
             {detailMode === "sale" ? (
               <div style={embeddedSaleStyle}>
                 <AdminManualSalesSection
@@ -1034,6 +1095,35 @@ export default function AdminCurrentAccountsSection({
                   onSaleRegistered={async () => {
                     await refreshSelectedAccount();
                     setDetailMode("history");
+                  }}
+                />
+              </div>
+            ) : detailMode === "trials" ? (
+              <div style={embeddedSaleStyle}>
+                <ProductTrialsPanel
+                  accountId={selected.id}
+                  onSell={(items) => {
+                    setTrialSaleItems(items);
+                    setDetailMode("trial-sale");
+                  }}
+                />
+              </div>
+            ) : detailMode === "trial-sale" ? (
+              <div style={embeddedSaleStyle}>
+                <button type="button" onClick={() => setDetailMode("trials")} style={softButtonStyle}>
+                  Volver a prendas
+                </button>
+                <AdminManualSalesSection
+                  storeLocationId={storeLocationId}
+                  initialCustomer={selectedSaleCustomer}
+                  initialCurrentAccount={selected}
+                  initialPaymentMethod="Cuenta corriente"
+                  initialTrialItems={trialSaleItems}
+                  lockCustomer
+                  onSaleRegistered={async () => {
+                    await refreshSelectedAccount();
+                    setTrialSaleItems([]);
+                    setDetailMode("trials");
                   }}
                 />
               </div>
@@ -1189,7 +1279,7 @@ export default function AdminCurrentAccountsSection({
                       const paymentCancelled = cancelledPaymentIds.has(movement.id);
                       const amountBreakdown = movementAmountBreakdown(
                         movement,
-                        selected.movements ?? [],
+                        historyMovements,
                         cashDiscountPercentage,
                         pricingPolicy.manualSaleDiscountRounding,
                       );
@@ -1241,7 +1331,9 @@ export default function AdminCurrentAccountsSection({
                             <strong>{amountBreakdown.card}</strong>
                           </td>
                           <td style={movementTdRightStyle}>
-                            {balanceLabel(Number(movement.balanceAfter))}
+                            {movement.type === "CUSTOMER_SALE"
+                              ? "Sin cambio"
+                              : balanceLabel(Number(movement.balanceAfter))}
                           </td>
                           <td style={movementActionsTdStyle}>
                             {movement.type === "PAYMENT" ? (
@@ -1302,6 +1394,7 @@ export default function AdminCurrentAccountsSection({
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       ) : null}
@@ -2000,6 +2093,9 @@ function variantLabel(variant?: MovementVariant) {
 
 function movementLabel(movement: Movement, paymentCancelled = false) {
   if (paymentCancelled) return "Pago anulado";
+  if (movement.type === "CUSTOMER_SALE") {
+    return movement.order?.status === "cancelled" ? "Venta anulada" : "Venta";
+  }
   if (isPaymentCorrectionMovement(movement)) return "Correccion de pago";
   if (isPaymentCancellationMovement(movement)) return "Anulacion de pago";
   if (isManualSaleCorrectionMovement(movement)) return "Correccion de venta";
@@ -2072,6 +2168,28 @@ function movementAmountBreakdown(
   discountPercentage: number,
   roundDiscounts: boolean,
 ) {
+  if (movement.type === "CUSTOMER_SALE" && movement.order?.payments?.length) {
+    const approvedPayments = movement.order.payments.filter(
+      (payment) => payment.status !== "cancelled" && payment.status !== "rejected",
+    );
+    const cash = approvedPayments
+      .filter((payment) =>
+        isDiscountedAdministrativePaymentMethod(payment.method),
+      )
+      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const card = approvedPayments
+      .filter(
+        (payment) =>
+          !isDiscountedAdministrativePaymentMethod(payment.method),
+      )
+      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+
+    return {
+      cash: cash > 0 ? money(cash) : "-",
+      card: card > 0 ? money(card) : "-",
+    };
+  }
+
   if (isPaymentCorrectionMovement(movement)) {
     return { cash: "Sin importe", card: "Sin importe" };
   }
@@ -2837,8 +2955,19 @@ const modalStyle: React.CSSProperties = {
 };
 const detailModalStyle: React.CSSProperties = {
   ...modalStyle,
-  width: "min(1180px, 100%)",
-  maxHeight: "min(880px, calc(100vh - 32px))",
+  width: "min(1480px, 96vw)",
+  height: "94dvh",
+  maxHeight: "94dvh",
+  boxSizing: "border-box",
+  padding: "20px 18px 18px",
+  gap: 12,
+  gridTemplateRows: "auto auto minmax(0, 1fr)",
+  overflow: "hidden",
+};
+const detailBodyStyle: React.CSSProperties = {
+  minHeight: 0,
+  overflow: "auto",
+  paddingRight: 2,
 };
 const modalCloseButtonStyle: React.CSSProperties = {
   position: "absolute",
@@ -2861,7 +2990,7 @@ const modalHeaderStyle: React.CSSProperties = {
   gridTemplateColumns: "minmax(0, 1fr) auto",
   gap: 18,
   alignItems: "stretch",
-  padding: 16,
+  padding: 12,
   borderRadius: 18,
   border: "1px solid var(--account-item-border)",
   background: "var(--account-item-bg)",

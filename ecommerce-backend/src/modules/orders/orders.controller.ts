@@ -14,6 +14,7 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateManualSaleDto } from './dto/create-manual-sale.dto';
 import { UpdateManualSaleDto } from './dto/update-manual-sale.dto';
+import { VoidManualSaleDto } from './dto/void-manual-sale.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { ReviewCancellationRequestDto } from './dto/review-cancellation-request.dto';
 import { ExportAccountingDto } from './dto/export-accounting.dto';
@@ -40,8 +41,17 @@ export class OrdersController {
   }
 
   @Patch('manual/:id/cancel')
-  cancelManual(@Param('id') id: string, @Req() req) {
-    return this.ordersService.cancelManualSale(Number(id), req.storeId, req.user?.sub);
+  cancelManual(
+    @Param('id') id: string,
+    @Body() dto: VoidManualSaleDto,
+    @Req() req,
+  ) {
+    return this.ordersService.cancelManualSale(
+      Number(id),
+      req.storeId,
+      req.user?.sub,
+      dto.reason,
+    );
   }
 
   @Patch('manual/:id')

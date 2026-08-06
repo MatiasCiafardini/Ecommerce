@@ -49,6 +49,17 @@ type ManualSaleLine = {
   imageUrl?: string | null;
 };
 
+export type TrialSaleItem = {
+  id: number;
+  variantId: number;
+  productId: number;
+  title: string;
+  variantLabel: string;
+  sku: string;
+  price: number;
+  imageUrl?: string | null;
+};
+
 type ManualSalePaymentLine = {
   method: string;
   amount: string;
@@ -190,6 +201,7 @@ export default function AdminManualSalesSection({
   initialCustomer,
   initialCurrentAccount,
   initialPaymentMethod,
+  initialTrialItems,
   lockCustomer = false,
 }: {
   storeLocationId?: number | null;
@@ -197,6 +209,7 @@ export default function AdminManualSalesSection({
   initialCustomer?: ManualSaleCustomer | null;
   initialCurrentAccount?: CurrentAccountLookup | null;
   initialPaymentMethod?: string;
+  initialTrialItems?: TrialSaleItem[];
   lockCustomer?: boolean;
 }) {
   const [products, setProducts] = useState<ManualSaleProduct[]>([]);
@@ -269,6 +282,34 @@ export default function AdminManualSalesSection({
     setShowNewCustomerForm(false);
     window.requestAnimationFrame(() => searchInputRef.current?.focus());
   }, [initialCustomer, initialCurrentAccount, initialPaymentMethod]);
+
+  useEffect(() => {
+    if (!initialTrialItems?.length) return;
+    const grouped = new Map<number, ManualSaleLine>();
+    for (const item of initialTrialItems) {
+      const existing = grouped.get(item.variantId);
+      if (existing) {
+        existing.quantity += 1;
+        continue;
+      }
+      grouped.set(item.variantId, {
+        variantId: item.variantId,
+        productId: item.productId,
+        title: item.title,
+        variantLabel: item.variantLabel,
+        sku: item.sku,
+        quantity: 1,
+        price: String(item.price),
+        catalogPrice: item.price,
+        available: 1,
+        imageUrl: item.imageUrl,
+      });
+    }
+    setLines([...grouped.values()].map((line) => ({
+      ...line,
+      available: line.quantity,
+    })));
+  }, [initialTrialItems]);
 
   const searchProducts = async (query: string, signal?: AbortSignal) => {
     const normalizedQuery = normalizeScannerSkuInput(query).trim();
@@ -1138,6 +1179,7 @@ export default function AdminManualSalesSection({
         manualPriceChanges.map((change) => change.variantId),
       );
       const payload = {
+        trialItemIds: initialTrialItems?.map((item) => item.id),
         customerId: selectedCustomer?.id,
         customerFirstName: selectedCustomer
           ? selectedCustomer.firstName || getCustomerName(selectedCustomer)

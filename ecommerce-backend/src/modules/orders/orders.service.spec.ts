@@ -24,7 +24,16 @@ describe('OrdersService manual sale edits', () => {
       order: {
         findFirst: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         create: jest.fn(),
+      },
+      cashRegisterSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          mode: 'automatic',
+          businessDate: new Date(),
+          openedAt: new Date(),
+          closedAt: null,
+        }),
       },
       productVariant: {
         findMany: jest.fn(),
@@ -124,6 +133,8 @@ describe('OrdersService manual sale edits', () => {
       shippingCost: 0,
       discountAmount: 0,
       total: 1000,
+      createdAt: new Date(),
+      cashRegisterId: 500,
       status: OrderStatus.pending,
       payments: [
         {
@@ -155,6 +166,8 @@ describe('OrdersService manual sale edits', () => {
         },
       ],
       cancellationRequest: null,
+      returns: [],
+      refunds: [],
       ...overrides,
     };
   }
@@ -739,5 +752,105 @@ describe('OrdersService manual sale edits', () => {
       include: expect.any(Object),
     });
     expect(tx.currentAccountMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects editing a manual sale from a previous Buenos Aires day', async () => {
+    const { service, tx } = createService();
+    const order = manualSaleOrder({
+      createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+    });
+    tx.order.findFirst.mockResolvedValue(order);
+
+    await expect(
+      service.updateManualSale(order.id, {}, storeId, userId),
+    ).rejects.toThrow('Solo se pueden corregir ventas registradas en la caja del dia actual.');
+
+    expect(tx.inventory.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects editing when the associated cash register is closed', async () => {
+    const { service, tx } = createService();
+    const order = manualSaleOrder();
+    tx.order.findFirst.mockResolvedValue(order);
+    tx.cashRegisterSession.findFirst.mockResolvedValue({
+      mode: 'automatic',
+      businessDate: new Date(),
+      openedAt: new Date(),
+      closedAt: new Date(),
+    });
+
+    await expect(
+      service.updateManualSale(order.id, {}, storeId, userId),
+    ).rejects.toThrow('La venta no se puede corregir porque la caja asociada esta cerrada.');
+  });
+
+  it('rejects manual-sale corrections from staff users', async () => {
+    const { service, prisma, tx } = createService();
+    prisma.user.findFirst.mockResolvedValue({ role: 'STAFF' });
+    tx.order.findFirst.mockResolvedValue(manualSaleOrder());
+
+    await expect(
+      service.updateManualSale(100, {}, storeId, userId),
+    ).rejects.toThrow('Only ADMIN and OWNER can correct manual sales');
+
+    expect(tx.order.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('voids a current-account sale and restores both debt and applied credit', async () => {
+    const { service, tx } = createService();
+    const order = manualSaleOrder({
+      payments: [
+        {
+          id: 501,
+          provider: 'manual',
+          method: 'Cuenta corriente',
+          status: 'pending',
+          amount: 1000,
+          metadata: {
+            origin: 'manual_sale',
+            currentAccount: true,
+            appliedCurrentAccountCreditAmount: 200,
+          },
+        },
+      ],
+    });
+    tx.order.findFirst.mockResolvedValue(order);
+    tx.order.update.mockResolvedValue({
+      ...order,
+      status: OrderStatus.cancelled,
+      payments: [{ ...order.payments[0], status: 'cancelled' }],
+    });
+    tx.currentAccount.findFirst.mockResolvedValue({ id: 70, balance: 1000 });
+
+    await expect(
+      service.cancelManualSale(order.id, storeId, userId, 'Venta duplicada'),
+    ).resolves.toMatchObject({ id: order.id, status: OrderStatus.cancelled });
+
+    expect(tx.order.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: OrderStatus.cancelled },
+    }));
+    expect(tx.inventory.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { quantity: { increment: 1 } },
+    }));
+    expect(tx.currentAccount.update).toHaveBeenCalledWith({
+      where: { id: 70 },
+      data: { balance: -200, lastMovementAt: expect.any(Date) },
+    });
+    expect(tx.currentAccountMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderId: order.id,
+        amount: -1200,
+        createdByUserId: userId,
+      }),
+    });
+    expect(tx.orderEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorId: userId,
+        metadata: expect.objectContaining({
+          reason: 'Venta duplicada',
+          currentAccountReversalAmount: 1200,
+        }),
+      }),
+    });
   });
 });

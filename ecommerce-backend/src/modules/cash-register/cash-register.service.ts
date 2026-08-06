@@ -360,6 +360,7 @@ export class CashRegisterService {
         where: {
           storeId: session.storeId,
           type: 'SALE',
+          order: { status: { not: 'cancelled' } },
           OR: [
             { cashRegisterId: session.id },
             {
@@ -548,6 +549,7 @@ export class CashRegisterService {
           storeId,
           storeLocationId: storeLocationId ?? undefined,
           type: 'SALE',
+          order: { status: { not: 'cancelled' } },
           createdAt: {
             gte: start,
             lt: end,

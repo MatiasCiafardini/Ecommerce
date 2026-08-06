@@ -584,6 +584,7 @@ export class StorefrontService {
     const products = await this.prisma.product.findMany({
       where,
       include: this.productInclude(storeId),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
 
     return this.productPricingService.attachPricingToProducts(storeId, products);
@@ -739,6 +740,7 @@ export class StorefrontService {
     const products = await this.prisma.product.findMany({
       where,
       include: this.productInclude(storeId),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
 
     return this.productPricingService.attachPricingToProducts(storeId, products);

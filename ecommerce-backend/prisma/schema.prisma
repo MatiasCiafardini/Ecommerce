@@ -35,6 +35,9 @@ model Store {
   payments                       Payment[]
   products                       Product[]
   productOptions                 ProductOption[]
+  productTrials                  ProductTrial[]
+  productTrialItems              ProductTrialItem[]
+  productTrialEvents             ProductTrialEvent[]
   refunds                        Refund[]
   returns                        Return[]
   manualReturns                  ManualReturn[]
@@ -65,6 +68,7 @@ model StoreLocation {
   cashRegisterSessions    CashRegisterSession[]
   currentAccountMovements CurrentAccountMovement[]
   manualReturns           ManualReturn[]
+  productTrials           ProductTrial[]
 
   @@unique([storeId, name])
   @@index([storeId, active])
@@ -165,6 +169,7 @@ model ProductVariant {
   inventories       Inventory[]
   manualReturnItems ManualReturnItem[]
   orderItems        OrderItem[]
+  productTrialItems ProductTrialItem[]
   product           Product            @relation(fields: [productId], references: [id])
 
   @@index([productId, deletedAt])
@@ -310,6 +315,7 @@ model Order {
   refunds                     Refund[]
   returns                     Return[]
   shipment                    Shipment?
+  productTrialItems           ProductTrialItem[]
 
   @@unique([storeId, idempotencyKey])
   @@index([storeId])
@@ -366,6 +372,7 @@ model User {
   store                   Store                    @relation(fields: [storeId], references: [id])
   storeLocation           StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
   currentAccountMovements CurrentAccountMovement[]
+  productTrials           ProductTrial[]
   manualReturnEvents      ManualReturnEvent[]
 
   @@unique([storeId, email])
@@ -396,6 +403,7 @@ model Customer {
   addresses               CustomerAddress[]
   orders                  Order[]
   manualReturns           ManualReturn[]
+  productTrials           ProductTrial[]
 
   @@unique([storeId, email])
   @@unique([storeId, googleId])
@@ -501,6 +509,7 @@ model CurrentAccount {
   customer        Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
   movements       CurrentAccountMovement[]
   manualReturns   ManualReturn[]
+  productTrials   ProductTrial[]
 
   @@unique([storeId, storeLocationId, customerId])
   @@index([storeId, balance])
@@ -547,6 +556,68 @@ model CurrentAccountMovement {
   @@index([accountId, createdAt])
   @@index([cancelledAt])
   @@index([cancellationMovementId])
+}
+
+model ProductTrial {
+  id              Int                 @id @default(autoincrement())
+  storeId         Int
+  storeLocationId Int?
+  accountId       Int
+  customerId      Int
+  status          String              @default("open")
+  notes           String?
+  createdByUserId Int?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  completedAt     DateTime?
+  store           Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeLocation   StoreLocation?      @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  account         CurrentAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  customer        Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdByUser   User?               @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items           ProductTrialItem[]
+  events          ProductTrialEvent[]
+
+  @@index([storeId, storeLocationId, status])
+  @@index([accountId, createdAt])
+  @@index([customerId])
+}
+
+model ProductTrialItem {
+  id               Int            @id @default(autoincrement())
+  storeId          Int
+  trialId          Int
+  variantId        Int
+  orderId          Int?
+  status           String         @default("pending")
+  price            Decimal        @db.Decimal(10, 2)
+  resolvedAt       DateTime?
+  resolvedByUserId Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  store            Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  trial            ProductTrial   @relation(fields: [trialId], references: [id], onDelete: Cascade)
+  variant          ProductVariant @relation(fields: [variantId], references: [id])
+  order            Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([trialId, status])
+  @@index([storeId, variantId, status])
+  @@index([orderId])
+}
+
+model ProductTrialEvent {
+  id        Int          @id @default(autoincrement())
+  storeId   Int
+  trialId   Int
+  type      String
+  actorId   Int?
+  metadata  Json?
+  createdAt DateTime     @default(now())
+  store     Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  trial     ProductTrial @relation(fields: [trialId], references: [id], onDelete: Cascade)
+
+  @@index([trialId, createdAt])
+  @@index([storeId, type])
 }
 
 model CashRegisterSession {
