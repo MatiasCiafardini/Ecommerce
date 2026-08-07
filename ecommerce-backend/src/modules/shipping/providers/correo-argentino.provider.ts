@@ -87,14 +87,11 @@ export class CorreoArgentinoProvider implements ShippingProvider {
         this.logRequest('POST', this.url(config.apiBaseUrl, '/rates'), payload);
 
         try {
-          const response = await axios.post(
-            this.url(config.apiBaseUrl, '/rates'),
+          const response = await this.postMiCorreoWithTokenRefresh(
+            config,
+            '/rates',
             payload,
-            {
-              ...this.miCorreoAuth(token),
-              timeout: 20_000,
-              validateStatus: (status) => status >= 200 && status < 300,
-            },
+            token,
           );
 
           this.logResponse(
@@ -941,7 +938,7 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     );
   }
 
-  private async getAccessToken(config: RuntimeConfig) {
+  private async getAccessToken(config: RuntimeConfig, forceRefresh = false) {
     if (!config.apiUsername || !config.apiPassword) {
       throw new ServiceUnavailableException(
         'Correo Argentino MiCorreo requires apiUsername/apiPassword.',
@@ -949,7 +946,7 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     }
 
     const cacheKey = `${config.apiBaseUrl}|${config.apiUsername}|${config.apiPassword}`;
-    const cached = this.tokenCache.get(cacheKey);
+    const cached = forceRefresh ? undefined : this.tokenCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
 
     const tokenUrl = this.url(config.apiBaseUrl, '/token');
@@ -1031,9 +1028,37 @@ export class CorreoArgentinoProvider implements ShippingProvider {
 
     this.tokenCache.set(cacheKey, {
       token,
-      expiresAt: this.expiration(parsed.expires as string | undefined),
+      expiresAt: this.expiration(token, parsed.expires as string | undefined),
     });
     return token;
+  }
+
+  private async postMiCorreoWithTokenRefresh(
+    config: RuntimeConfig,
+    path: string,
+    payload: unknown,
+    token: string,
+  ) {
+    const request = (accessToken: string) =>
+      axios.post(this.url(config.apiBaseUrl, path), payload, {
+        ...this.miCorreoAuth(accessToken),
+        timeout: 20_000,
+        validateStatus: (status) => status >= 200 && status < 300,
+      });
+
+    try {
+      return await request(token);
+    } catch (error) {
+      if (!axios.isAxiosError(error) || error.response?.status !== 401) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `Correo Argentino ${path} returned HTTP 401; refreshing token and retrying once`,
+      );
+      const refreshedToken = await this.getAccessToken(config, true);
+      return request(refreshedToken);
+    }
   }
 
   private async getCustomerId(config: RuntimeConfig, token: string) {
@@ -1799,12 +1824,28 @@ export class CorreoArgentinoProvider implements ShippingProvider {
     };
   }
 
-  private expiration(value?: string) {
-    if (!value?.trim()) return Date.now() + 4 * 60 * 60 * 1000;
-    const parsed = Date.parse(`${value.trim().replace(' ', 'T')}-03:00`);
-    return Number.isNaN(parsed)
-      ? Date.now() + 4 * 60 * 60 * 1000
-      : parsed;
+  private expiration(token: string, value?: string) {
+    try {
+      const payload = JSON.parse(
+        Buffer.from(token.split('.')[1], 'base64url').toString('utf8'),
+      ) as { exp?: unknown };
+      const exp = Number(payload.exp);
+      if (Number.isFinite(exp) && exp > 0) return exp * 1000;
+    } catch {
+      // Some environments may return an opaque token instead of a JWT.
+    }
+
+    const text = value?.trim();
+    if (text) {
+      const direct = Date.parse(text);
+      if (!Number.isNaN(direct)) return direct;
+
+      const argentinaTime = Date.parse(`${text.replace(' ', 'T')}-03:00`);
+      if (!Number.isNaN(argentinaTime)) return argentinaTime;
+    }
+
+    // Keep opaque tokens briefly so an unparseable expiry cannot break checkout.
+    return Date.now() + 15 * 60 * 1000;
   }
 
   private json(value?: string) {
