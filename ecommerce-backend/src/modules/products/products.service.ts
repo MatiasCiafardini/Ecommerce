@@ -53,6 +53,7 @@ export class ProductsService {
       const product = await tx.product.create({
         data: {
           title,
+          brand: normalizeNullableDisplayText(data.brand),
           description: data.description,
           slug,
           published: data.published ?? false,
@@ -401,6 +402,7 @@ export class ProductsService {
   ) {
     const payload: {
       title?: string;
+      brand?: string | null;
       description?: string | null;
       published?: boolean;
       slug?: string;
@@ -425,6 +427,10 @@ export class ProductsService {
 
     if (data.description !== undefined) {
       payload.description = data.description ?? null;
+    }
+
+    if (data.brand !== undefined) {
+      payload.brand = normalizeNullableDisplayText(data.brand);
     }
 
     if (data.published !== undefined) {
@@ -543,8 +549,9 @@ export class ProductsService {
     const product = await this.prisma.$transaction(async (tx) => {
       const before = productId ? await this.findById(tx, productId, storeId) : null;
       const product = productId
-        ? await this.updateProductRecord(tx, productId, storeId, {
+          ? await this.updateProductRecord(tx, productId, storeId, {
             title: normalizedTitle,
+            brand: data.brand,
             description: data.description,
             published: data.published,
             weightGrams: data.weightGrams,
@@ -553,8 +560,9 @@ export class ProductsService {
             packageLengthCm: data.packageLengthCm,
             packagingTemplateId: data.packagingTemplateId,
           })
-        : await this.createProductRecord(tx, storeId, {
+          : await this.createProductRecord(tx, storeId, {
             title: normalizedTitle,
+            brand: data.brand,
             description: data.description,
             published: data.published,
             weightGrams: data.weightGrams,
@@ -932,6 +940,7 @@ export class ProductsService {
     storeId: number,
     data: {
       title: string;
+      brand?: string | null;
       description?: string | null;
       published?: boolean;
       weightGrams?: number | null;
@@ -946,6 +955,7 @@ export class ProductsService {
     return tx.product.create({
       data: {
         title: data.title,
+        brand: normalizeNullableDisplayText(data.brand),
         description: data.description?.trim() ? data.description.trim() : null,
         slug,
         published: data.published ?? false,
@@ -965,6 +975,7 @@ export class ProductsService {
     storeId: number,
     data: {
       title: string;
+      brand?: string | null;
       description?: string | null;
       published?: boolean;
       weightGrams?: number | null;
@@ -998,6 +1009,7 @@ export class ProductsService {
       },
       data: {
         title: data.title,
+        brand: normalizeNullableDisplayText(data.brand),
         description: data.description?.trim() ? data.description.trim() : null,
         slug,
         published: data.published ?? false,

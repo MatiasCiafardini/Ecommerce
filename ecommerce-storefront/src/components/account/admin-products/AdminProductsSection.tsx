@@ -20,6 +20,7 @@ import { money } from "../order-utils";
 export type Product = {
   id: number;
   title: string;
+  brand?: string | null;
   slug: string;
   published: boolean;
   description?: string | null;
@@ -1066,6 +1067,7 @@ export default function AdminProductsSection({
     useState<PendingVariantSwitchState | null>(null);
   const [form, setForm] = useState({
     title: "",
+    brand: "",
     description: "",
     published: false,
     weightGrams: "",
@@ -1469,6 +1471,7 @@ export default function AdminProductsSection({
     setEditingProductId(null);
     setForm({
       title: "",
+      brand: "",
       description: "",
       published: false,
       weightGrams: "",
@@ -2776,6 +2779,7 @@ export default function AdminProductsSection({
         setRegenerateSkusOnNextSave(false);
         setForm({
           title: product.title,
+          brand: product.brand ?? "",
           description: product.description ?? "",
           published: product.published,
           weightGrams: String(product.weightGrams ?? ""),
@@ -2889,6 +2893,7 @@ export default function AdminProductsSection({
         setRegenerateSkusOnNextSave(true);
         setForm({
           title: `Copia de ${product.title}`,
+          brand: product.brand ?? "",
           description: product.description ?? "",
           published: false,
           weightGrams: String(product.weightGrams ?? ""),
@@ -3363,6 +3368,7 @@ export default function AdminProductsSection({
     publishedOverride = form.published,
   ) => ({
     title: form.title.trim(),
+    brand: form.brand.trim() || null,
     description: form.description.trim() || null,
     published: publishedOverride,
     weightGrams: form.weightGrams.trim() ? Number(form.weightGrams) : null,
@@ -3400,6 +3406,7 @@ export default function AdminProductsSection({
   const buildDraftProductPayload = useCallback(
     () => ({
       title: form.title.trim(),
+      brand: form.brand.trim() || undefined,
       description: form.description.trim() || undefined,
       published: form.published,
       weightGrams: form.weightGrams.trim() ? Number(form.weightGrams) : undefined,
@@ -3967,6 +3974,12 @@ export default function AdminProductsSection({
               value={form.title}
               onChange={(event) => handleProductTitleChange(event.target.value)}
               placeholder="Nombre del producto"
+              style={largeFieldStyle}
+            />
+            <input
+              value={form.brand}
+              onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))}
+              placeholder="Marca (por ejemplo, Nike)"
               style={largeFieldStyle}
             />
             <textarea
@@ -4752,6 +4765,12 @@ export default function AdminProductsSection({
                 value={form.title}
                 onChange={(event) => handleProductTitleChange(event.target.value)}
                 placeholder="Nombre del producto"
+                style={fieldStyle}
+              />
+              <input
+                value={form.brand}
+                onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))}
+                placeholder="Marca"
                 style={fieldStyle}
               />
               <textarea

@@ -6,6 +6,11 @@ export class CreateProductDto {
   @IsString()
   title: string;
 
+  @ApiPropertyOptional({ example: 'Nike' })
+  @IsOptional()
+  @IsString()
+  brand?: string | null;
+
   @ApiProperty({ example: 'Zapatillas deportivas' })
   @IsOptional()
   @IsString()

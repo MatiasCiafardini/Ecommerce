@@ -82,6 +82,22 @@ export class OrdersController {
     );
   }
 
+  @Get('manual/analytics')
+  getManualSalesAnalytics(
+    @Req() req,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('storeLocationId') storeLocationId?: string,
+    @Query('brand') brand?: string,
+  ) {
+    return this.ordersService.getManualSalesAnalytics(req.storeId, req.user?.sub, {
+      from,
+      to,
+      storeLocationId: parseOptionalId(storeLocationId),
+      brand,
+    });
+  }
+
   @Get('accounting/export')
   async exportAccounting(
     @Query() query: ExportAccountingDto,

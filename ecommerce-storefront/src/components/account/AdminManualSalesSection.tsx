@@ -1544,10 +1544,6 @@ export default function AdminManualSalesSection({
               {lines.length > 0 ? (
                 <div className="manual-sale-lines">
                   {lines.map((line) => {
-                    const normalizedLine = normalizedSaleLines.find(
-                      (entry) => entry.variantId === line.variantId,
-                    );
-
                     return (
                       <article key={line.variantId} className="manual-sale-line">
                         <div className="manual-sale-line-top">
@@ -1597,20 +1593,20 @@ export default function AdminManualSalesSection({
                               +
                             </button>
                           </div>
-                          <input
-                            inputMode="decimal"
-                            value={line.price}
-                            onChange={(event) =>
-                              updateLine(line.variantId, {
-                                price: sanitizeManualSalePriceInput(event.target.value),
-                              })
-                            }
-                            className="manual-sale-field"
-                            aria-label={`Precio de ${line.title}`}
-                          />
-                          <strong className="manual-sale-line-total">
-                            {money(normalizedLine?.lineTotal ?? 0)}
-                          </strong>
+                          <label className="manual-sale-line-price">
+                            <span>Importe de la prenda</span>
+                            <input
+                              inputMode="decimal"
+                              value={line.price}
+                              onChange={(event) =>
+                                updateLine(line.variantId, {
+                                  price: sanitizeManualSalePriceInput(event.target.value),
+                                })
+                              }
+                              className="manual-sale-field"
+                              aria-label={`Importe de la prenda ${line.title}`}
+                            />
+                          </label>
                         </div>
                       </article>
                     );
@@ -2565,9 +2561,19 @@ export default function AdminManualSalesSection({
 
         .manual-sale-line-controls {
           display: grid;
-          grid-template-columns: 124px minmax(0, 1fr) auto;
+          grid-template-columns: 124px minmax(0, 1fr);
           gap: 8px;
-          align-items: center;
+          align-items: end;
+        }
+
+        .manual-sale-line-price {
+          display: grid;
+          min-width: 0;
+        }
+
+        .manual-sale-line-price > span {
+          color: var(--text-muted);
+          white-space: nowrap;
         }
 
         .manual-sale-qty {
@@ -3917,7 +3923,7 @@ export default function AdminManualSalesSection({
         }
 
         .manual-sale-line-controls {
-          grid-template-columns: 112px minmax(0, 1fr) auto;
+          grid-template-columns: 112px minmax(0, 1fr);
           gap: 10px;
           padding-left: 64px;
         }

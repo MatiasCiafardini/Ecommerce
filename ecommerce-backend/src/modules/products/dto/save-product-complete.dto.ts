@@ -90,6 +90,11 @@ export class SaveProductCompleteDto {
   @IsString()
   title: string;
 
+  @ApiPropertyOptional({ example: 'Nike' })
+  @IsOptional()
+  @IsString()
+  brand?: string | null;
+
   @ApiPropertyOptional({ example: 'Zapatillas deportivas' })
   @IsOptional()
   @IsString()

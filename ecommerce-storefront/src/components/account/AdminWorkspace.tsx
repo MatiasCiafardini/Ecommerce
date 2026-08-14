@@ -17,6 +17,7 @@ import AdminCustomersSection, { type Customer } from "./admin-customers/AdminCus
 import AdminCurrentAccountsSection, { CurrentAccountCreateModal, type CurrentAccountCreateForm } from "./AdminCurrentAccountsSection";
 import AdminCashRegisterSection, { SalesHistoryModal } from "./AdminCashRegisterSection";
 import AdminManualSalesSection, { type ManualSaleCustomer } from "./AdminManualSalesSection";
+import ManualSalesAnalytics from "./ManualSalesAnalytics";
 import ManualReturnsPanel, { type ManualReturnDraft } from "@/components/manual-sales/ManualReturnsPanel";
 import AdminAccountingSection from "./admin-accounting/AdminAccountingSection";
 import AdminOrdersPanelSection from "./admin-orders/AdminOrdersPanelSection";
@@ -51,7 +52,7 @@ const operationalPendingStatuses = new Set([
   "packed",
 ]);
 
-type ManualSalesTab = "dashboard" | "sale" | "current-accounts" | "returns" | "cash-register";
+type ManualSalesTab = "dashboard" | "sale" | "current-accounts" | "returns" | "cash-register" | "analytics";
 
 type PendingTrialItem = {
   id: number;
@@ -324,6 +325,7 @@ function AdminManualSalesWorkspace({
               ["current-accounts", "Cuentas corrientes"],
               ["cash-register", "Caja"],
               ["returns", "Devoluciones"],
+              ["analytics", "Estadísticas"],
             ].map(([tab, label]) => (
               <button
                 key={tab}
@@ -388,6 +390,9 @@ function AdminManualSalesWorkspace({
         ) : null}
         {activeTab === "cash-register" ? (
           <AdminCashRegisterSection storeLocationId={selectedLocationId} onGenerateReturn={startManualReturn} />
+        ) : null}
+        {activeTab === "analytics" ? (
+          <ManualSalesAnalytics storeLocationId={selectedLocationId} />
         ) : null}
       </div>
     </section>

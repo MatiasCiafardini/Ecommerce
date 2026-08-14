@@ -2164,6 +2164,130 @@ export class OrdersService {
     }).then((orders) => this.withCancellationRequestsList(orders));
   }
 
+  async getManualSalesAnalytics(
+    storeId: number,
+    userId: number | undefined,
+    query: { from?: string; to?: string; storeLocationId?: number; brand?: string },
+  ) {
+    const location = await this.resolveUserLocation(storeId, userId, query.storeLocationId);
+    const from = query.from ? new Date(query.from) : new Date(Date.now() - 29 * 86400000);
+    const to = query.to ? new Date(query.to) : new Date();
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+      throw new BadRequestException('El rango de fechas no es valido');
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        storeId,
+        status: { not: OrderStatus.cancelled },
+        createdAt: { gte: from, lte: to },
+        ...(location ? { storeLocationId: location.id } : {}),
+        payments: { some: { provider: 'manual' } },
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        subtotal: true,
+        discountAmount: true,
+        items: { select: {
+          quantity: true, returnedQuantity: true, price: true,
+          variant: { select: {
+            id: true, sku: true,
+            product: { select: { id: true, title: true, brand: true } },
+            inventories: {
+              where: { storeId, ...(location ? { storeLocationId: location.id } : {}) },
+              select: { quantity: true, reserved: true },
+            },
+          } },
+        } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    type Aggregate = { name: string; units: number; revenue: number; returns: number; stock: number };
+    const brands = new Map<string, Aggregate>();
+    const products = new Map<string, Aggregate & { productId: number; sku: string; brand: string }>();
+    const timeline = new Map<string, { date: string; units: number; revenue: number; sales: number }>();
+    const brandStockVariants = new Set<string>();
+    let units = 0;
+    let returnedUnits = 0;
+    let revenue = 0;
+    let sales = 0;
+
+    for (const order of orders) {
+      const subtotal = Number(order.subtotal);
+      const netFactor = subtotal > 0 ? Math.max(subtotal - Number(order.discountAmount), 0) / subtotal : 1;
+      const date = order.createdAt.toISOString().slice(0, 10);
+      const day = timeline.get(date) ?? { date, units: 0, revenue: 0, sales: 0 };
+      let orderMatches = false;
+      for (const item of order.items) {
+        const product = item.variant.product;
+        const brand = product.brand?.trim() || 'Sin marca';
+        if (query.brand && query.brand !== brand) continue;
+        orderMatches = true;
+        const netUnits = Math.max(item.quantity - item.returnedQuantity, 0);
+        const itemRevenue = netUnits * Number(item.price) * netFactor;
+        const stock = item.variant.inventories.reduce(
+          (sum, inventory) => sum + Math.max(inventory.quantity - inventory.reserved, 0), 0,
+        );
+        units += netUnits;
+        returnedUnits += item.returnedQuantity;
+        revenue += itemRevenue;
+        day.units += netUnits;
+        day.revenue += itemRevenue;
+
+        const brandRow = brands.get(brand) ?? { name: brand, units: 0, revenue: 0, returns: 0, stock: 0 };
+        brandRow.units += netUnits;
+        brandRow.revenue += itemRevenue;
+        brandRow.returns += item.returnedQuantity;
+        const brandStockKey = `${brand}:${item.variant.id}`;
+        if (!brandStockVariants.has(brandStockKey)) {
+          brandRow.stock += stock;
+          brandStockVariants.add(brandStockKey);
+        }
+        brands.set(brand, brandRow);
+
+        const key = String(item.variant.id);
+        const productRow = products.get(key) ?? {
+          name: product.title, productId: product.id, sku: item.variant.sku,
+          brand, units: 0, revenue: 0, returns: 0, stock,
+        };
+        productRow.units += netUnits;
+        productRow.revenue += itemRevenue;
+        productRow.returns += item.returnedQuantity;
+        products.set(key, productRow);
+      }
+      if (orderMatches) {
+        sales += 1;
+        day.sales += 1;
+        timeline.set(date, day);
+      }
+    }
+
+    const decorate = <T extends Aggregate>(row: T) => ({
+      ...row,
+      revenue: this.roundCurrency(row.revenue),
+      share: revenue > 0 ? this.roundCurrency(row.revenue * 100 / revenue) : 0,
+      sellThrough: row.units + row.stock > 0
+        ? this.roundCurrency(row.units * 100 / (row.units + row.stock)) : 0,
+    });
+    const brandRows = [...brands.values()].map(decorate).sort((a, b) => b.revenue - a.revenue);
+    const productRows = [...products.values()].map(decorate).sort((a, b) => b.units - a.units).slice(0, 50);
+
+    return {
+      summary: {
+        revenue: this.roundCurrency(revenue), units, returnedUnits, sales,
+        averageTicket: sales ? this.roundCurrency(revenue / sales) : 0,
+        returnRate: units + returnedUnits > 0
+          ? this.roundCurrency(returnedUnits * 100 / (units + returnedUnits)) : 0,
+      },
+      brands: brandRows,
+      products: productRows,
+      timeline: [...timeline.values()].map((day) => ({ ...day, revenue: this.roundCurrency(day.revenue) })),
+      availableBrands: [...new Set(brandRows.map((row) => row.name))].sort(),
+    };
+  }
+
   async exportAccountingCsv(storeId: number, query: ExportAccountingDto) {
     const csvDelimiter = ';';
     const orders = await this.prisma.order.findMany({

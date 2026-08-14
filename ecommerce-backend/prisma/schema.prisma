@@ -110,6 +110,7 @@ model ProductCategory {
 model Product {
   id                  Int                  @id @default(autoincrement())
   title               String
+  brand               String?
   description         String?
   storeId             Int
   weightGrams         Float?
@@ -131,6 +132,7 @@ model Product {
 
   @@unique([slug, storeId])
   @@index([storeId, published])
+  @@index([storeId, brand])
 }
 
 model ProductImage {
