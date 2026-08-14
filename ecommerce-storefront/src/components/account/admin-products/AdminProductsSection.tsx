@@ -47,7 +47,11 @@ export type Product = {
     inventories?: Array<{ quantity?: number | null }>;
   }>;
   categories?: Array<{ category: { id: number; name: string } }>;
-  optionValues?: Array<{ value?: string; productOptionId?: number }>;
+  optionValues?: Array<{
+    value?: string | null;
+    productOptionId?: number;
+    productOption?: { name?: string | null };
+  }>;
 };
 
 type ProductPriceInputSettings = {
@@ -80,6 +84,7 @@ type ProductCatalogResponse = {
   pageSize: number;
   totalPages: number;
   metrics: ProductCatalogMetrics;
+  availableBrands?: string[];
 };
 
 export type Category = {
@@ -719,7 +724,7 @@ type ProductAdminTab =
   | "options"
   | "variant-options"
   | "categories";
-type ProductSortKey = "product" | "category" | "variants" | "stock" | "status" | "price" | "images";
+type ProductSortKey = "product" | "brand" | "category" | "variants" | "stock" | "status" | "price" | "images";
 type SortDirection = "asc" | "desc";
 
 function useViewportFlags() {
@@ -835,6 +840,16 @@ function getProductCategoryNames(product: Product) {
   return (product.categories ?? []).map((entry) => entry.category.name);
 }
 
+function getProductBrandNames(product: Product) {
+  return (product.optionValues ?? [])
+    .filter((entry) => {
+      const name = entry.productOption?.name?.trim().toLocaleLowerCase("es") ?? "";
+      return name === "marca" || name === "marcas";
+    })
+    .map((entry) => entry.value?.trim() ?? "")
+    .filter(Boolean);
+}
+
 function productSortValue(
   product: Product,
   key: ProductSortKey,
@@ -843,6 +858,8 @@ function productSortValue(
   switch (key) {
     case "category":
       return getProductCategoryNames(product).join(", ");
+    case "brand":
+      return getProductBrandNames(product).join(", ");
     case "variants":
       return product.variants?.length ?? 0;
     case "stock":
@@ -1038,6 +1055,8 @@ export default function AdminProductsSection({
   const [productCategoryFilter, setProductCategoryFilter] = useState("all");
   const [productStatusFilter, setProductStatusFilter] = useState<"all" | "published" | "draft" | "without-stock">("all");
   const [productImageFilter, setProductImageFilter] = useState<"all" | "with-images" | "without-images">("all");
+  const [productBrandFilter, setProductBrandFilter] = useState("all");
+  const [availableProductBrands, setAvailableProductBrands] = useState<string[]>([]);
   const [productSortKey, setProductSortKey] = useState<ProductSortKey>("product");
   const [productSortDirection, setProductSortDirection] = useState<SortDirection>("asc");
   const [optionQuery, setOptionQuery] = useState("");
@@ -1227,6 +1246,10 @@ export default function AdminProductsSection({
       params.set("imageStatus", productImageFilter);
     }
 
+    if (productBrandFilter !== "all") {
+      params.set("brand", productBrandFilter);
+    }
+
     return params.toString();
   };
 
@@ -1251,6 +1274,7 @@ export default function AdminProductsSection({
       setProductPage(Number(catalog.page ?? page));
       setProductTotal(Number(catalog.total ?? nextProducts.length));
       setProductTotalPages(Math.max(1, Number(catalog.totalPages ?? 1)));
+      setAvailableProductBrands(Array.isArray(catalog.availableBrands) ? catalog.availableBrands : []);
       if (catalog.metrics) {
         setProductMetrics({
           total: Number(catalog.metrics.total ?? nextProducts.length),
@@ -1281,7 +1305,7 @@ export default function AdminProductsSection({
     }, productQuery.trim() ? 280 : 0);
 
     return () => window.clearTimeout(timeout);
-  }, [productCategoryFilter, productImageFilter, productPage, productQuery, productStatusFilter]);
+  }, [productBrandFilter, productCategoryFilter, productImageFilter, productPage, productQuery, productStatusFilter]);
 
   useEffect(() => {
     if (activeTab !== "catalog") {
@@ -4509,6 +4533,21 @@ export default function AdminProductsSection({
           <option value="with-images">Tienen imágenes</option>
           <option value="without-images">Sin imágenes</option>
         </select>
+        <select
+          value={productBrandFilter}
+          onChange={(event) => {
+            setProductPage(1);
+            setProductBrandFilter(event.target.value);
+          }}
+          style={responsiveSelectStyle}
+          aria-label="Filtrar productos por marca"
+        >
+          <option value="all">Todas las marcas</option>
+          <option value="__without_brand__">Sin marca</option>
+          {availableProductBrands.map((brandName) => (
+            <option key={brandName} value={brandName}>{brandName}</option>
+          ))}
+        </select>
         {canManageCatalog ? (
           <button type="button" onClick={startNewProduct} style={primaryButtonStyle}>+ Crear nuevo producto</button>
         ) : null}
@@ -4525,6 +4564,7 @@ export default function AdminProductsSection({
             <tr>
               <SortableProductTh sortKey="images" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Imagen</SortableProductTh>
               <SortableProductTh sortKey="product" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Producto</SortableProductTh>
+              <SortableProductTh sortKey="brand" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Marca</SortableProductTh>
               <SortableProductTh sortKey="category" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Categoria</SortableProductTh>
               <SortableProductTh sortKey="variants" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Variantes</SortableProductTh>
               <SortableProductTh sortKey="stock" activeKey={productSortKey} direction={productSortDirection} onSort={changeProductSort}>Stock total</SortableProductTh>
@@ -4535,10 +4575,10 @@ export default function AdminProductsSection({
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={canManageCatalog ? 8 : 7} style={tdStyle}>Cargando catalogo...</td></tr>
+              <tr><td colSpan={canManageCatalog ? 9 : 8} style={tdStyle}>Cargando catalogo...</td></tr>
             ) : filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan={canManageCatalog ? 8 : 7} style={tdStyle}>
+                <td colSpan={canManageCatalog ? 9 : 8} style={tdStyle}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                     <span>No hay productos para mostrar.</span>
                     <button type="button" onClick={() => void loadData()} style={ghostButtonStyle}>
@@ -4575,6 +4615,15 @@ export default function AdminProductsSection({
                 <td style={tdStyle}>
                   <strong style={{ color: "var(--account-text-strong)" }}>{product.title}</strong>
                   <span style={metaStyle}>/{product.slug}</span>
+                </td>
+                <td style={tdStyle}>
+                  {getProductBrandNames(product).length > 0 ? (
+                    <div style={brandTagsStyle}>
+                      {getProductBrandNames(product).map((brandName) => (
+                        <span key={brandName} style={brandTagStyle}>{brandName}</span>
+                      ))}
+                    </div>
+                  ) : <span style={metaStyle}>Sin marca</span>}
                 </td>
                 <td style={tdStyle}>{getProductCategoryNames(product).join(", ") || "Sin categoria"}</td>
                 <td style={tdStyle}>{product.variants?.length ?? 0}</td>
@@ -8191,6 +8240,24 @@ const toastStyle: React.CSSProperties = {
 const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
+};
+
+const brandTagsStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 5,
+};
+
+const brandTagStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  borderRadius: 999,
+  padding: "4px 8px",
+  background: "rgba(94, 156, 141, 0.13)",
+  color: "#286657",
+  fontSize: 11,
+  fontWeight: 700,
+  whiteSpace: "nowrap",
 };
 const thStyle: React.CSSProperties = {
   textAlign: "left",

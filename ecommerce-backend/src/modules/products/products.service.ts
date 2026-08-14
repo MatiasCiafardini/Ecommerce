@@ -127,6 +127,7 @@ export class ProductsService {
       categoryId?: string;
       status?: string;
       imageStatus?: string;
+      brand?: string;
       page?: string;
       pageSize?: string;
       includeMetrics?: string;
@@ -140,7 +141,7 @@ export class ProductsService {
       ? this.getCatalogMetrics(storeId)
       : Promise.resolve(null);
 
-    const [items, total, metrics] =
+    const [items, total, metrics, availableBrandValues] =
       await Promise.all([
         this.prisma.product.findMany({
           where,
@@ -160,6 +161,22 @@ export class ProductsService {
             packageWidthCm: true,
             packageLengthCm: true,
             packagingTemplateId: true,
+            optionValues: {
+              where: {
+                productOption: {
+                  storeId,
+                  OR: [
+                    { name: { equals: 'Marca', mode: 'insensitive' } },
+                    { name: { equals: 'Marcas', mode: 'insensitive' } },
+                  ],
+                },
+              },
+              orderBy: { value: 'asc' },
+              select: {
+                value: true,
+                productOption: { select: { name: true } },
+              },
+            },
             images: {
               orderBy: [{ position: 'asc' }, { id: 'asc' }],
               take: 1,
@@ -209,6 +226,20 @@ export class ProductsService {
         }),
         this.prisma.product.count({ where }),
         metricsPromise,
+        this.prisma.productOptionValue.findMany({
+          where: {
+            productOption: {
+              storeId,
+              OR: [
+                { name: { equals: 'Marca', mode: 'insensitive' } },
+                { name: { equals: 'Marcas', mode: 'insensitive' } },
+              ],
+            },
+          },
+          distinct: ['value'],
+          orderBy: { value: 'asc' },
+          select: { value: true },
+        }),
       ]);
     return {
       items,
@@ -216,6 +247,7 @@ export class ProductsService {
       page,
       pageSize,
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      availableBrands: availableBrandValues.map((entry) => entry.value),
       ...(metrics
         ? {
             metrics,
@@ -309,12 +341,14 @@ export class ProductsService {
       categoryId?: string;
       status?: string;
       imageStatus?: string;
+      brand?: string;
     },
   ): Prisma.ProductWhereInput {
     const where = this.buildFindAllWhere(storeId, query.search);
     const categoryId = Number(query.categoryId);
     const status = query.status?.trim();
     const imageStatus = query.imageStatus?.trim();
+    const brand = query.brand?.trim();
     const andConditions = Array.isArray(where.AND)
       ? [...where.AND]
       : where.AND
@@ -347,6 +381,29 @@ export class ProductsService {
       where.images = { some: {} };
     } else if (imageStatus === 'without-images') {
       where.images = { none: {} };
+    }
+
+    const brandOptionWhere = {
+      storeId,
+      OR: [
+        { name: { equals: 'Marca', mode: 'insensitive' as const } },
+        { name: { equals: 'Marcas', mode: 'insensitive' as const } },
+      ],
+    };
+
+    if (brand === '__without_brand__') {
+      andConditions.push({
+        optionValues: { none: { productOption: brandOptionWhere } },
+      });
+    } else if (brand) {
+      andConditions.push({
+        optionValues: {
+          some: {
+            value: { equals: brand, mode: 'insensitive' },
+            productOption: brandOptionWhere,
+          },
+        },
+      });
     }
 
     if (andConditions.length > 0) {
