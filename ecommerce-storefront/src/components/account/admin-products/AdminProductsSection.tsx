@@ -3976,12 +3976,6 @@ export default function AdminProductsSection({
               placeholder="Nombre del producto"
               style={largeFieldStyle}
             />
-            <input
-              value={form.brand}
-              onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))}
-              placeholder="Marca (por ejemplo, Nike)"
-              style={largeFieldStyle}
-            />
             <textarea
               value={form.description}
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
@@ -4765,12 +4759,6 @@ export default function AdminProductsSection({
                 value={form.title}
                 onChange={(event) => handleProductTitleChange(event.target.value)}
                 placeholder="Nombre del producto"
-                style={fieldStyle}
-              />
-              <input
-                value={form.brand}
-                onChange={(event) => setForm((current) => ({ ...current, brand: event.target.value }))}
-                placeholder="Marca"
                 style={fieldStyle}
               />
               <textarea

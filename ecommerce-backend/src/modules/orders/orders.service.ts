@@ -2193,9 +2193,21 @@ export class OrdersService {
           quantity: true, returnedQuantity: true, price: true,
           variant: { select: {
             id: true, sku: true,
-            product: { select: { id: true, title: true, brand: true } },
+            product: { select: {
+              id: true,
+              title: true,
+              brand: true,
+              optionValues: {
+                where: { productOption: { storeId } },
+                orderBy: { createdAt: 'asc' },
+                select: {
+                  value: true,
+                  productOption: { select: { name: true } },
+                },
+              },
+            } },
             inventories: {
-              where: { storeId, ...(location ? { storeLocationId: location.id } : {}) },
+              where: { storeId },
               select: { quantity: true, reserved: true },
             },
           } },
@@ -2222,7 +2234,15 @@ export class OrdersService {
       let orderMatches = false;
       for (const item of order.items) {
         const product = item.variant.product;
-        const brand = product.brand?.trim() || 'Sin marca';
+        const brandAttribute = product.optionValues.find((optionValue) => {
+          const optionName = optionValue.productOption.name
+            .trim()
+            .toLocaleLowerCase('es')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+          return optionName === 'marca' || optionName === 'marcas';
+        });
+        const brand = brandAttribute?.value.trim() || product.brand?.trim() || 'Sin marca';
         if (query.brand && query.brand !== brand) continue;
         orderMatches = true;
         const netUnits = Math.max(item.quantity - item.returnedQuantity, 0);

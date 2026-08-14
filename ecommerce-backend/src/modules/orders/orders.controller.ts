@@ -82,7 +82,7 @@ export class OrdersController {
     );
   }
 
-  @Get('manual/analytics')
+  @Get('manual/statistics')
   getManualSalesAnalytics(
     @Req() req,
     @Query('from') from?: string,

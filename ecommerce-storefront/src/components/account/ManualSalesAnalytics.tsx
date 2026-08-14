@@ -47,7 +47,7 @@ export default function ManualSalesAnalytics({ storeLocationId }: { storeLocatio
     if (brand) params.set("brand", brand);
     setLoading(true);
     setError("");
-    void api(`/orders/manual/analytics?${params}`).then((result) => {
+    void api(`/orders/manual/statistics?${params}`).then((result) => {
       if (mounted) setData(result as AnalyticsPayload);
     }).catch((reason) => {
       if (mounted) setError(getErrorMessage(reason, "No pudimos cargar las estadísticas."));
