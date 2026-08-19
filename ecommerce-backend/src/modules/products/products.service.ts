@@ -11,6 +11,11 @@ import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
 import { generateSlug } from '../../common/utils/slug.util';
 import { normalizeDisplayText } from '../../common/utils/display-text.util';
 import {
+  normalizeBrandDisplayName,
+  normalizeBrandKey,
+  uniqueBrandDisplayNames,
+} from '../../common/utils/brand.util';
+import {
   convertCashInputToBasePrice,
   resolveCashPriceInputSettings,
   type CashPriceInputSettings,
@@ -18,6 +23,11 @@ import {
 
 const normalizeNullableDisplayText = (value?: string | null) => {
   const normalized = normalizeDisplayText(value);
+  return normalized || null;
+};
+
+const normalizeNullableBrand = (value?: string | null) => {
+  const normalized = normalizeBrandDisplayName(value);
   return normalized || null;
 };
 
@@ -53,7 +63,7 @@ export class ProductsService {
       const product = await tx.product.create({
         data: {
           title,
-          brand: normalizeNullableDisplayText(data.brand),
+          brand: normalizeNullableBrand(data.brand),
           description: data.description,
           slug,
           published: data.published ?? false,
@@ -247,7 +257,7 @@ export class ProductsService {
       page,
       pageSize,
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
-      availableBrands: availableBrandValues.map((entry) => entry.value),
+      availableBrands: uniqueBrandDisplayNames(availableBrandValues.map((entry) => entry.value)),
       ...(metrics
         ? {
             metrics,
@@ -487,7 +497,7 @@ export class ProductsService {
     }
 
     if (data.brand !== undefined) {
-      payload.brand = normalizeNullableDisplayText(data.brand);
+      payload.brand = normalizeNullableBrand(data.brand);
     }
 
     if (data.published !== undefined) {
@@ -594,8 +604,23 @@ export class ProductsService {
     }
 
     const normalizedCategoryIds = [...new Set((data.categoryIds ?? []).map(Number))];
-    const normalizedOptionValues = this.normalizeOptionValues(data.optionValues ?? []);
-    const priceInputSettings = await this.resolvePriceInputSettings(storeId);
+    const rawOptionValues = data.optionValues ?? [];
+    const optionIds = [...new Set(rawOptionValues.map((entry) => Number(entry.productOptionId)))];
+    const [priceInputSettings, optionDefinitions] = await Promise.all([
+      this.resolvePriceInputSettings(storeId),
+      optionIds.length
+        ? this.prisma.productOption.findMany({
+            where: { id: { in: optionIds }, storeId },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve<Array<{ id: number; name: string }>>([]),
+    ]);
+    const brandOptionIds = new Set(
+      optionDefinitions
+        .filter((option) => ['marca', 'marcas'].includes(normalizeBrandKey(option.name)))
+        .map((option) => option.id),
+    );
+    const normalizedOptionValues = this.normalizeOptionValues(rawOptionValues, brandOptionIds);
     const normalizedVariants = this.normalizeVariants(
       data.variants ?? [],
       priceInputSettings,
@@ -1012,7 +1037,7 @@ export class ProductsService {
     return tx.product.create({
       data: {
         title: data.title,
-        brand: normalizeNullableDisplayText(data.brand),
+        brand: normalizeNullableBrand(data.brand),
         description: data.description?.trim() ? data.description.trim() : null,
         slug,
         published: data.published ?? false,
@@ -1066,7 +1091,7 @@ export class ProductsService {
       },
       data: {
         title: data.title,
-        brand: normalizeNullableDisplayText(data.brand),
+        brand: normalizeNullableBrand(data.brand),
         description: data.description?.trim() ? data.description.trim() : null,
         slug,
         published: data.published ?? false,
@@ -1423,24 +1448,28 @@ export class ProductsService {
 
   private normalizeOptionValues(
     optionValues: Array<{ productOptionId: number; value: string }>,
+    brandOptionIds = new Set<number>(),
   ) {
     const seen = new Set<string>();
     const normalized: Array<{ productOptionId: number; value: string }> = [];
 
     for (const entry of optionValues) {
-      const value = normalizeDisplayText(entry.value);
+      const productOptionId = Number(entry.productOptionId);
+      const value = brandOptionIds.has(productOptionId)
+        ? normalizeBrandDisplayName(entry.value)
+        : normalizeDisplayText(entry.value);
       if (!value) {
         continue;
       }
 
-      const key = `${entry.productOptionId}:${value.toLowerCase()}`;
+      const key = `${productOptionId}:${value.toLocaleLowerCase('es-AR')}`;
       if (seen.has(key)) {
         continue;
       }
 
       seen.add(key);
       normalized.push({
-        productOptionId: Number(entry.productOptionId),
+        productOptionId,
         value,
       });
     }

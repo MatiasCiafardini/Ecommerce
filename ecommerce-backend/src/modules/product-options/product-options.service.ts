@@ -13,6 +13,7 @@ import { RenameProductOptionValueDto } from './dto/rename-product-option-value.d
 import { CreateReusableOptionValueDto } from './dto/create-reusable-option-value.dto';
 import { ReorderReusableOptionValuesDto } from './dto/reorder-reusable-option-values.dto';
 import { normalizeDisplayText } from '../../common/utils/display-text.util';
+import { normalizeBrandDisplayName, normalizeBrandKey } from '../../common/utils/brand.util';
 
 @Injectable()
 export class ProductOptionsService {
@@ -28,6 +29,12 @@ export class ProductOptionsService {
     }
 
     return normalizedName;
+  }
+
+  private normalizeOptionValue(optionName: string, value: string) {
+    return ['marca', 'marcas'].includes(normalizeBrandKey(optionName))
+      ? normalizeBrandDisplayName(value)
+      : normalizeDisplayText(value);
   }
 
   async findAllOptions(storeId: number) {
@@ -244,18 +251,18 @@ export class ProductOptionsService {
     optionId: number,
     dto: CreateReusableOptionValueDto,
   ) {
-    const normalizedValue = normalizeDisplayText(dto.value);
-    if (!normalizedValue) {
-      throw new BadRequestException('Product option value is required');
-    }
-
     const option = await this.prisma.productOption.findFirst({
       where: { id: optionId, storeId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
 
     if (!option) {
       throw new NotFoundException('Product option not found');
+    }
+
+    const normalizedValue = this.normalizeOptionValue(option.name, dto.value);
+    if (!normalizedValue) {
+      throw new BadRequestException('Product option value is required');
     }
 
     const lastValue = await this.prisma.productOptionReusableValue.findFirst({
@@ -397,11 +404,6 @@ export class ProductOptionsService {
     productId: number,
     dto: AddProductOptionValueDto,
   ) {
-    const normalizedValue = normalizeDisplayText(dto.value);
-    if (!normalizedValue) {
-      throw new BadRequestException('Product option value is required');
-    }
-
     const [product, option] = await Promise.all([
       this.prisma.product.findFirst({
         where: {
@@ -425,6 +427,11 @@ export class ProductOptionsService {
 
     if (!option) {
       throw new NotFoundException('Product option not found');
+    }
+
+    const normalizedValue = this.normalizeOptionValue(option.name, dto.value);
+    if (!normalizedValue) {
+      throw new BadRequestException('Product option value is required');
     }
 
     const existing = await this.prisma.productOptionValue.findFirst({
@@ -548,7 +555,22 @@ export class ProductOptionsService {
     dto: RenameProductOptionValueDto,
   ) {
     const currentValue = dto.currentValue.trim();
-    const nextValue = normalizeDisplayText(dto.nextValue);
+    const option = await this.prisma.productOption.findFirst({
+      where: {
+        id: optionId,
+        storeId,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (!option) {
+      throw new NotFoundException('Product option not found');
+    }
+
+    const nextValue = this.normalizeOptionValue(option.name, dto.nextValue);
     if (!currentValue || !nextValue) {
       throw new BadRequestException('Product option value is required');
     }
@@ -559,20 +581,6 @@ export class ProductOptionsService {
       }) === 0
     ) {
       throw new BadRequestException('Value name did not change');
-    }
-
-    const option = await this.prisma.productOption.findFirst({
-      where: {
-        id: optionId,
-        storeId,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!option) {
-      throw new NotFoundException('Product option not found');
     }
 
     const currentEntries = await this.prisma.productOptionValue.findMany({

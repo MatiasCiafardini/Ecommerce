@@ -28,6 +28,10 @@ import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider'
 import { RequestCancellationDto } from './dto/request-cancellation.dto';
 import { ReviewCancellationRequestDto } from './dto/review-cancellation-request.dto';
 import { AdminNotificationMailService } from '../notifications/admin-notification-mail.service';
+import {
+  chooseBrandDisplayName,
+  normalizeBrandKey,
+} from '../../common/utils/brand.util';
 
 type OrderItemData = {
   variantId: number;
@@ -2243,7 +2247,8 @@ export class OrdersService {
           return optionName === 'marca' || optionName === 'marcas';
         });
         const brand = brandAttribute?.value.trim() || product.brand?.trim() || 'Sin marca';
-        if (query.brand && query.brand !== brand) continue;
+        const brandKey = normalizeBrandKey(brand);
+        if (query.brand && normalizeBrandKey(query.brand) !== brandKey) continue;
         orderMatches = true;
         const netUnits = Math.max(item.quantity - item.returnedQuantity, 0);
         const itemRevenue = netUnits * Number(item.price) * netFactor;
@@ -2256,16 +2261,18 @@ export class OrdersService {
         day.units += netUnits;
         day.revenue += itemRevenue;
 
-        const brandRow = brands.get(brand) ?? { name: brand, units: 0, revenue: 0, returns: 0, stock: 0 };
+        const existingBrandRow = brands.get(brandKey);
+        const brandRow = existingBrandRow ?? { name: brand, units: 0, revenue: 0, returns: 0, stock: 0 };
+        brandRow.name = chooseBrandDisplayName(brandRow.name, brand);
         brandRow.units += netUnits;
         brandRow.revenue += itemRevenue;
         brandRow.returns += item.returnedQuantity;
-        const brandStockKey = `${brand}:${item.variant.id}`;
+        const brandStockKey = `${brandKey}:${item.variant.id}`;
         if (!brandStockVariants.has(brandStockKey)) {
           brandRow.stock += stock;
           brandStockVariants.add(brandStockKey);
         }
-        brands.set(brand, brandRow);
+        brands.set(brandKey, brandRow);
 
         const key = String(item.variant.id);
         const productRow = products.get(key) ?? {
@@ -2292,7 +2299,12 @@ export class OrdersService {
         ? this.roundCurrency(row.units * 100 / (row.units + row.stock)) : 0,
     });
     const brandRows = [...brands.values()].map(decorate).sort((a, b) => b.revenue - a.revenue);
-    const productRows = [...products.values()].map(decorate).sort((a, b) => b.units - a.units).slice(0, 50);
+    const productRows = [...products.values()]
+      .map((row) => ({
+        ...row,
+        brand: brands.get(normalizeBrandKey(row.brand))?.name ?? row.brand,
+      }))
+      .map(decorate).sort((a, b) => b.units - a.units).slice(0, 50);
 
     return {
       summary: {

@@ -1650,9 +1650,11 @@ export default function AdminProductsSection({
 
     const normalizedValue = value.toLowerCase();
     const option = options.find((item) => item.id === optionId);
-    const alreadyExists = (option?.reusableValues ?? []).some(
+    const existingValue = (option?.reusableValues ?? []).find(
       (item) => item.value.trim().toLowerCase() === normalizedValue,
     );
+    const alreadyExists = Boolean(existingValue);
+    const selectedValue = existingValue?.value ?? value;
 
     if (!alreadyExists) {
       setOptions((current) =>
@@ -1674,11 +1676,14 @@ export default function AdminProductsSection({
 
     setSelectedOptionValues((current) => {
       const currentValues = current[optionId] ?? [];
-      if (currentValues.includes(value)) {
+      if (currentValues.includes(selectedValue)) {
         return current;
       }
-      return { ...current, [optionId]: [...currentValues, value] };
+      return { ...current, [optionId]: [...currentValues, selectedValue] };
     });
+    setSelectedVariantAttributeIds((current) =>
+      current.includes(optionId) ? current : [...current, optionId],
+    );
 
     setDraftOptionValues((current) => ({ ...current, [optionId]: "" }));
 
