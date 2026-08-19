@@ -1706,7 +1706,17 @@ export default function AdminProductsSection({
         },
       ]);
 
-      await loadData();
+      const persistedValue = String(created.value ?? selectedValue).trim() || selectedValue;
+      if (persistedValue !== selectedValue) {
+        setSelectedOptionValues((current) => ({
+          ...current,
+          [optionId]: (current[optionId] ?? []).map((item) =>
+            item === selectedValue ? persistedValue : item,
+          ),
+        }));
+      }
+
+      await loadOptions();
     } catch (err) {
       setError(
         err instanceof Error
