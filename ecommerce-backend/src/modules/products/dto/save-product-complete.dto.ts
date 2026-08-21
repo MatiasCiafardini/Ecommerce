@@ -7,8 +7,11 @@ import {
   IsOptional,
   IsString,
   ValidateNested,
+  IsIn,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PRODUCT_INVENTORY_POLICIES, type ProductInventoryPolicy } from '../../../common/inventory-types';
 
 class SaveProductOptionValueDto {
   @ApiProperty({ example: 1 })
@@ -86,6 +89,17 @@ class SaveProductVariantDto {
 }
 
 export class SaveProductCompleteDto {
+  @ApiPropertyOptional({ enum: PRODUCT_INVENTORY_POLICIES, default: 'RESTOCK' })
+  @IsOptional()
+  @IsIn(PRODUCT_INVENTORY_POLICIES)
+  inventoryPolicy?: ProductInventoryPolicy;
+
+  @ApiPropertyOptional({ example: 3, default: 3 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  lowStockThreshold?: number;
+
   @ApiProperty({ example: 'Nike Air Max 90' })
   @IsString()
   title: string;

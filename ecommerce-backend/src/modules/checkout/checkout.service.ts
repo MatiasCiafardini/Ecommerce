@@ -202,6 +202,7 @@ export class CheckoutService {
           storeId,
           item.variantId,
           item.quantity,
+          { origin: 'checkout.create' },
         );
       }
 

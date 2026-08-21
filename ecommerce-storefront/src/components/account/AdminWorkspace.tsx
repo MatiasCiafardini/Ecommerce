@@ -196,7 +196,15 @@ export default function AdminWorkspace({
   if (section === "admin-accounting") return <AdminAccountingSection />;
   if (section === "admin-manual-sales") return <AdminManualSalesWorkspace />;
   if (section === "admin-products") return <AdminProductsSection userRole={user.role} />;
-  if (section === "admin-stock") return <AdminStockSection userRole={user.role} />;
+  if (section === "admin-stock") return <AdminStockSection userRole={user.role} onOpenProduct={(productId) => {
+    onSectionChange("admin-products");
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("section", "admin-products");
+      url.searchParams.set("productId", String(productId));
+      window.history.replaceState(null, "", `${url.pathname}?${url.searchParams}${url.hash}`);
+    }
+  }} />;
   if (section === "admin-labels") return <AdminLabelsSection />;
   if (section === "admin-categories")
     return <AdminProductsSection initialTab="categories" userRole={user.role} />;

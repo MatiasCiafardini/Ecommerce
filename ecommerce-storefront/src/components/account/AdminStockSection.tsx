@@ -21,6 +21,27 @@ type VariantRow = {
   imageUrl: string | null;
   active: boolean;
   categories: { id: number; name: string }[];
+  inventoryPolicy: InventoryPolicy;
+  lowStockThreshold: number;
+};
+
+type InventoryPolicy = "UNCLASSIFIED" | "RESTOCK" | "NO_RESTOCK" | "UNTRACKED";
+type InventoryMovement = {
+  id: number; type: string; origin: string; reason?: string | null; quantityDelta: number; reservedDelta: number;
+  quantityBefore: number; quantityAfter: number; reservedBefore: number; reservedAfter: number; approximate: boolean; createdAt: string;
+  actorName?: string | null; actorEmail?: string | null;
+  variant: { id: number; sku: string; Color?: string | null; Size?: string | null; product: { id: number; title: string } };
+};
+type AnalyticsRow = {
+  productId: number; title: string; brand?: string | null; published: boolean; inventoryPolicy: InventoryPolicy; lowStockThreshold: number;
+  onHand: number; reserved: number; available: number; retailValue: number; sold90: number; sellThrough: number;
+  lastLoadAt?: string | null; lastSaleAt?: string | null; noSaleDays?: number | null; ageDays?: number | null; ageApproximate: boolean;
+};
+type AnalyticsPayload = {
+  summary: { products: number; onHand: number; reserved: number; available: number; retailValue: number; withoutStock: number; lowStock: number; unclassified: number; noSales30: number; noSales60: number; noSales90: number };
+  agingBuckets: { key: string; label: string; products: number }[];
+  rankings: { fastest: AnalyticsRow[]; slowest: AnalyticsRow[] };
+  items: AnalyticsRow[]; total: number; page: number; totalPages: number;
 };
 
 type Category = { id: number; name: string };
@@ -50,7 +71,8 @@ const initialFilters: Filters = {
   withoutStockOnly: false,
 };
 
-export default function AdminStockSection({ userRole }: { userRole?: string | null }) {
+export default function AdminStockSection({ userRole, onOpenProduct }: { userRole?: string | null; onOpenProduct?: (productId: number) => void }) {
+  const [workspaceTab, setWorkspaceTab] = useState<"inventory" | "analytics">("inventory");
   const [rows, setRows] = useState<VariantRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ colors: [], sizes: [] });
@@ -65,6 +87,18 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
+  const [historyRow, setHistoryRow] = useState<VariantRow | null>(null);
+  const [movements, setMovements] = useState<InventoryMovement[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [analytics, setAnalytics] = useState<AnalyticsPayload | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsSearch, setAnalyticsSearch] = useState("");
+  const [analyticsPolicy, setAnalyticsPolicy] = useState("");
+  const [analyticsAging, setAnalyticsAging] = useState("");
+  const [analyticsAlert, setAnalyticsAlert] = useState("");
+  const [selectedAnalyticsIds, setSelectedAnalyticsIds] = useState<number[]>([]);
+  const [bulkPolicy, setBulkPolicy] = useState<InventoryPolicy>("RESTOCK");
   const didMountFiltersRef = useRef(false);
   const storeId = getClientStoreId();
   const pricingPolicy = useMemo(
@@ -103,6 +137,13 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
     // loadRows intentionally closes over sorting state for the current page request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, sortKey, sortDirection]);
+
+  useEffect(() => {
+    if (workspaceTab !== "analytics") return;
+    const timeout = window.setTimeout(() => void loadAnalytics(), 200);
+    return () => window.clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceTab, analyticsSearch, analyticsPolicy, analyticsAging, analyticsAlert]);
 
   const sortedRows = useMemo(() => {
     const direction = sortDirection === "asc" ? 1 : -1;
@@ -182,6 +223,7 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
     setAdjustingRow(row);
     setAdjustStockValue(String(row.stock ?? 0));
     setNotice("");
+    setAdjustReason("");
   }
 
   async function updateStock() {
@@ -195,7 +237,7 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
     try {
       await api(`/inventory/${adjustingRow.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ quantity }),
+        body: JSON.stringify({ quantity, reason: adjustReason.trim() || undefined }),
       });
       setRows((current) =>
         current.map((item) => item.id === adjustingRow.id ? { ...item, stock: quantity } : item),
@@ -208,6 +250,58 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
     } finally {
       setSavingId(null);
     }
+  }
+
+  async function openHistory(row: VariantRow) {
+    setHistoryRow(row);
+    setHistoryLoading(true);
+    try {
+      const payload = await api(`/inventory/movements?variantId=${row.id}&pageSize=100`) as { items: InventoryMovement[] };
+      setMovements(Array.isArray(payload.items) ? payload.items : []);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo cargar el historial.");
+      setMovements([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function loadAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const params = new URLSearchParams({ pageSize: "80" });
+      if (analyticsSearch.trim()) params.set("search", analyticsSearch.trim());
+      if (analyticsPolicy) params.set("policy", analyticsPolicy);
+      if (analyticsAging) params.set("agingBucket", analyticsAging);
+      if (analyticsAlert) params.set("alert", analyticsAlert);
+      setAnalytics(await api(`/inventory/analytics?${params}`) as AnalyticsPayload);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo cargar la analitica.");
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }
+
+  async function updatePolicy(productId: number, inventoryPolicy: InventoryPolicy) {
+    await api("/products/admin/inventory-policy", { method: "PATCH", body: JSON.stringify({ productIds: [productId], inventoryPolicy }) });
+    setRows((current) => current.map((row) => row.productId === productId ? { ...row, inventoryPolicy } : row));
+    await loadAnalytics();
+  }
+
+  async function updatePolicies() {
+    if (!selectedAnalyticsIds.length) return;
+    await api("/products/admin/inventory-policy", { method: "PATCH", body: JSON.stringify({ productIds: selectedAnalyticsIds, inventoryPolicy: bulkPolicy }) });
+    setSelectedAnalyticsIds([]);
+    await loadAnalytics();
+  }
+
+  function exportAnalytics() {
+    const params = new URLSearchParams();
+    if (analyticsSearch.trim()) params.set("search", analyticsSearch.trim());
+    if (analyticsPolicy) params.set("policy", analyticsPolicy);
+    if (analyticsAging) params.set("agingBucket", analyticsAging);
+    if (analyticsAlert) params.set("alert", analyticsAlert);
+    window.location.href = `/api/proxy/inventory/analytics/export.csv?${params}`;
   }
 
   return (
@@ -224,8 +318,14 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
         </div>
       </header>
 
+      <div style={tabsStyle}>
+        <button type="button" style={tabButtonStyle(workspaceTab === "inventory")} onClick={() => setWorkspaceTab("inventory")}>Inventario</button>
+        <button type="button" style={tabButtonStyle(workspaceTab === "analytics")} onClick={() => setWorkspaceTab("analytics")}>Analitica</button>
+      </div>
+
       {notice ? <div style={noticeStyle}>{notice}</div> : null}
 
+      {workspaceTab === "inventory" ? (
       <div style={panelGridStyle}>
         <aside style={filtersStyle}>
           <Field label="Buscador">
@@ -279,12 +379,12 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
                 <SortableTh sortKey="stock" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Stock</SortableTh>
                 <SortableTh sortKey="price" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Precio</SortableTh>
                 <SortableTh sortKey="active" activeKey={sortKey} direction={sortDirection} onSort={changeSort}>Estado</SortableTh>
-                {canAdjustStock ? <th style={thStyle}>Accion</th> : null}
+                <th style={thStyle}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? <StateRow colSpan={canAdjustStock ? 8 : 7} label="Cargando variantes..." /> : null}
-              {!loading && sortedRows.length === 0 ? <StateRow colSpan={canAdjustStock ? 8 : 7} label="No hay variantes para estos filtros." /> : null}
+              {loading ? <StateRow colSpan={8} label="Cargando variantes..." /> : null}
+              {!loading && sortedRows.length === 0 ? <StateRow colSpan={8} label="No hay variantes para estos filtros." /> : null}
               {!loading && sortedRows.map((row) => (
                 <tr key={row.id}>
                   <td style={tdStyle}>
@@ -298,9 +398,11 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
                   <td style={tdStyle}>{row.sku?.trim() ? <code>{row.sku}</code> : <span style={mutedStyle}>Sin SKU</span>}</td>
                   <td style={tdStyle}><strong>{row.stock}</strong></td>
                   <td style={tdStyle}>{money(resolveManualSaleUnitPrice(row.price, pricingPolicy))}</td>
-                  <td style={tdStyle}>{row.active ? "Activa" : "Oculta"}</td>
-                  {canAdjustStock ? (
-                    <td style={tdStyle}>
+                  <td style={tdStyle}><strong>{row.active ? "Activa" : "Oculta"}</strong><small style={{ display: "block", ...mutedStyle }}>{policyLabel(row.inventoryPolicy)}</small></td>
+                  <td style={tdStyle}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button type="button" style={ghostButtonStyle} onClick={() => void openHistory(row)}>Historial</button>
+                      {canAdjustStock ? (
                       <button
                         type="button"
                         style={primaryButtonStyle}
@@ -309,8 +411,9 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
                       >
                         Ajustar
                       </button>
-                    </td>
-                  ) : null}
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -340,6 +443,63 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
           </div>
         </div>
       </div>
+      ) : (
+        <section style={{ display: "grid", gap: 16 }}>
+          <div style={analyticsToolbarStyle}>
+            <input style={inputStyle} value={analyticsSearch} onChange={(event) => setAnalyticsSearch(event.target.value)} placeholder="Buscar producto, marca o SKU" />
+            <select style={inputStyle} value={analyticsPolicy} onChange={(event) => setAnalyticsPolicy(event.target.value)}>
+              <option value="">Todas las politicas</option>
+              <option value="UNCLASSIFIED">Sin clasificar</option><option value="RESTOCK">Reponer</option><option value="NO_RESTOCK">No reponer</option><option value="UNTRACKED">Sin seguimiento</option>
+            </select>
+            <select style={inputStyle} value={analyticsAging} onChange={(event) => setAnalyticsAging(event.target.value)}><option value="">Toda antiguedad</option><option value="0-90">0 a 90 dias</option><option value="91-180">91 a 180 dias</option><option value="181-365">181 a 365 dias</option><option value="365+">Mas de 365 dias</option></select>
+            <select style={inputStyle} value={analyticsAlert} onChange={(event) => setAnalyticsAlert(event.target.value)}><option value="">Todas las alertas</option><option value="without-stock">Sin stock accionable</option><option value="low-stock">Stock bajo</option></select>
+            <button type="button" style={ghostButtonStyle} onClick={exportAnalytics}>Exportar CSV</button>
+          </div>
+          {canAdjustStock ? <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}><strong style={{ color: "var(--account-text-strong)" }}>{selectedAnalyticsIds.length} seleccionados</strong><select style={compactSelectStyle} value={bulkPolicy} onChange={(event) => setBulkPolicy(event.target.value as InventoryPolicy)}>{policyOptions()}</select><button type="button" style={primaryButtonStyle} disabled={!selectedAnalyticsIds.length} onClick={() => void updatePolicies()}>Aplicar politica</button></div> : null}
+          {analyticsLoading && !analytics ? <div style={noticeStyle}>Cargando analitica...</div> : null}
+          {analytics ? (
+            <>
+              <div style={analyticsStatsStyle}>
+                <Stat label="Unidades" value={String(analytics.summary.onHand)} />
+                <Stat label="Reservadas" value={String(analytics.summary.reserved)} />
+                <Stat label="Valor a precio de venta" value={money(analytics.summary.retailValue)} />
+                <Stat label="Sin stock accionable" value={String(analytics.summary.withoutStock)} />
+                <Stat label="Stock bajo" value={String(analytics.summary.lowStock)} />
+                <Stat label="Sin clasificar" value={String(analytics.summary.unclassified)} />
+              </div>
+              <div style={agingGridStyle}>
+                {analytics.agingBuckets.map((bucket) => <article key={bucket.key} style={agingCardStyle}><span>{bucket.label}</span><strong>{bucket.products}</strong><small>productos con stock</small></article>)}
+                <article style={agingCardStyle}><span>Sin ventas 30 dias</span><strong>{analytics.summary.noSales30}</strong><small>productos con stock</small></article>
+                <article style={agingCardStyle}><span>Sin ventas 60 dias</span><strong>{analytics.summary.noSales60}</strong><small>productos con stock</small></article>
+                <article style={agingCardStyle}><span>Sin ventas 90 dias</span><strong>{analytics.summary.noSales90}</strong><small>productos con stock</small></article>
+              </div>
+              <div style={rankingGridStyle}>
+                <Ranking title="Mayor rotacion" rows={analytics.rankings.fastest} detail={(row) => `${row.sellThrough}% sell-through · ${row.sold90} ventas`} />
+                <Ranking title="Stock de menor rotacion" rows={analytics.rankings.slowest} detail={(row) => `${row.sold90} ventas · ${row.ageDays == null ? "edad sin dato" : `${row.ageDays} dias`}`} />
+              </div>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead><tr>{canAdjustStock ? <th style={thStyle}><input type="checkbox" aria-label="Seleccionar pagina" checked={Boolean(analytics.items.length) && analytics.items.every((row) => selectedAnalyticsIds.includes(row.productId))} onChange={(event) => setSelectedAnalyticsIds(event.target.checked ? analytics.items.map((row) => row.productId) : [])} /></th> : null}<th style={thStyle}>Producto</th><th style={thStyle}>Politica</th><th style={thStyle}>Stock</th><th style={thStyle}>Antiguedad</th><th style={thStyle}>Ultima venta</th><th style={thStyle}>Ventas 90d</th><th style={thStyle}>Rotacion</th><th style={thStyle}>Valor</th></tr></thead>
+                  <tbody>
+                    {analytics.items.map((row) => (
+                      <tr key={row.productId}>
+                        {canAdjustStock ? <td style={tdStyle}><input type="checkbox" checked={selectedAnalyticsIds.includes(row.productId)} onChange={(event) => setSelectedAnalyticsIds((current) => event.target.checked ? [...new Set([...current, row.productId])] : current.filter((id) => id !== row.productId))} /></td> : null}
+                        <td style={tdStyle}><button type="button" onClick={() => onOpenProduct?.(row.productId)} style={{ border: 0, padding: 0, background: "transparent", color: "var(--account-text-strong)", cursor: onOpenProduct ? "pointer" : "default", textAlign: "left" }}><strong>{row.title}</strong><small style={{ display: "block", ...mutedStyle }}>{row.brand || "Sin marca"}</small></button></td>
+                        <td style={tdStyle}>{canAdjustStock ? <select style={compactSelectStyle} value={row.inventoryPolicy} onChange={(event) => void updatePolicy(row.productId, event.target.value as InventoryPolicy)}>{policyOptions()}</select> : policyLabel(row.inventoryPolicy)}</td>
+                        <td style={tdStyle}><strong>{row.available}</strong><small style={{ display: "block", ...mutedStyle }}>{row.reserved} reservadas</small></td>
+                        <td style={tdStyle}>{row.ageDays === null || row.ageDays === undefined ? "Sin dato" : `${row.ageDays} dias${row.ageApproximate ? "*" : ""}`}</td>
+                        <td style={tdStyle}>{formatDate(row.lastSaleAt)}</td><td style={tdStyle}>{row.sold90}</td><td style={tdStyle}>{row.sellThrough}%</td><td style={tdStyle}>{money(row.retailValue)}</td>
+                      </tr>
+                    ))}
+                    {!analytics.items.length ? <StateRow colSpan={canAdjustStock ? 9 : 8} label="No hay productos para estos filtros." /> : null}
+                  </tbody>
+                </table>
+              </div>
+              <small style={mutedStyle}>* La antiguedad del saldo inicial es aproximada desde la habilitacion del historial.</small>
+            </>
+          ) : null}
+        </section>
+      )}
 
       {adjustingRow ? (
         <div style={modalOverlayStyle} onClick={() => savingId ? null : setAdjustingRow(null)}>
@@ -374,6 +534,7 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
                 onChange={(event) => setAdjustStockValue(event.target.value)}
               />
             </Field>
+            <Field label="Motivo (opcional)"><input style={inputStyle} value={adjustReason} onChange={(event) => setAdjustReason(event.target.value)} placeholder="Ej. ingreso de mercaderia o correccion" /></Field>
 
             <div style={modalActionsStyle}>
               <button type="button" style={ghostButtonStyle} onClick={() => setAdjustingRow(null)} disabled={Boolean(savingId)}>
@@ -383,6 +544,20 @@ export default function AdminStockSection({ userRole }: { userRole?: string | nu
                 {savingId ? "Guardando..." : "Guardar ajuste"}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {historyRow ? (
+        <div style={modalOverlayStyle} onClick={() => setHistoryRow(null)}>
+          <div style={{ ...modalStyle, width: "min(900px, 100%)", maxHeight: "85vh", overflow: "auto" }} onClick={(event) => event.stopPropagation()}>
+            <div style={modalHeaderStyle}><div><p style={eyebrowStyle}>Historial de stock</p><h3 style={modalTitleStyle}>{historyRow.productName}</h3><span style={mutedStyle}>{variantSummary(historyRow)} · {historyRow.sku}</span></div><button type="button" style={iconButtonStyle} onClick={() => setHistoryRow(null)}>x</button></div>
+            {historyLoading ? <div style={noticeStyle}>Cargando movimientos...</div> : (
+              <div style={tableWrapStyle}><table style={tableStyle}><thead><tr><th style={thStyle}>Fecha</th><th style={thStyle}>Origen</th><th style={thStyle}>Cambio</th><th style={thStyle}>Stock</th><th style={thStyle}>Usuario / motivo</th></tr></thead><tbody>
+                {movements.map((movement) => <tr key={movement.id}><td style={tdStyle}>{formatDate(movement.createdAt)}</td><td style={tdStyle}>{movementTypeLabel(movement.type)}</td><td style={tdStyle}><strong style={{ color: movement.quantityDelta >= 0 ? "#39b77a" : "#df6b6b" }}>{signed(movement.quantityDelta)}</strong>{movement.reservedDelta ? <small style={{ display: "block", ...mutedStyle }}>Reserva {signed(movement.reservedDelta)}</small> : null}</td><td style={tdStyle}>{movement.quantityBefore} → {movement.quantityAfter}</td><td style={tdStyle}>{movement.actorName || movement.actorEmail || "Sistema"}<small style={{ display: "block", ...mutedStyle }}>{movement.reason || (movement.approximate ? "Saldo inicial aproximado" : "")}</small></td></tr>)}
+                {!movements.length ? <StateRow colSpan={5} label="Todavia no hay movimientos registrados." /> : null}
+              </tbody></table></div>
+            )}
           </div>
         </div>
       ) : null}
@@ -424,6 +599,31 @@ function variantSummary(row: Pick<VariantRow, "color" | "size" | "variantName">)
     .filter(Boolean);
 
   return parts.length > 0 ? parts.join(" - ") : row.variantName?.trim() || "Unica";
+}
+
+function policyLabel(policy?: InventoryPolicy) {
+  return ({ UNCLASSIFIED: "Sin clasificar", RESTOCK: "Reponer", NO_RESTOCK: "No reponer", UNTRACKED: "Sin seguimiento" } as Record<string, string>)[policy ?? ""] ?? "Sin clasificar";
+}
+
+function policyOptions() {
+  return (["UNCLASSIFIED", "RESTOCK", "NO_RESTOCK", "UNTRACKED"] as InventoryPolicy[]).map((policy) => <option key={policy} value={policy}>{policyLabel(policy)}</option>);
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "Sin ventas";
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function signed(value: number) {
+  return value > 0 ? `+${value}` : String(value);
+}
+
+function movementTypeLabel(type: string) {
+  return ({ OPENING_BALANCE: "Saldo inicial", INITIAL_LOAD: "Carga inicial", MANUAL_ADJUSTMENT: "Ajuste manual", RESERVATION: "Reserva", RESERVATION_RELEASE: "Liberacion", SALE: "Venta", CANCELLATION_RESTOCK: "Cancelacion", RETURN_RESTOCK: "Devolucion", EXCHANGE_OUT: "Cambio", ORDER_EDIT: "Edicion de venta", TRIAL_RESERVATION: "Prueba", TRIAL_RELEASE: "Devolucion de prueba", TRIAL_SALE: "Venta de prueba", SYSTEM_CORRECTION: "Correccion" } as Record<string, string>)[type] ?? type;
+}
+
+function Ranking({ title, rows, detail }: { title: string; rows: AnalyticsRow[]; detail: (row: AnalyticsRow) => string }) {
+  return <article style={rankingCardStyle}><strong>{title}</strong>{rows.length ? rows.map((row, index) => <div key={row.productId} style={rankingRowStyle}><span>{index + 1}. {row.title}</span><small style={mutedStyle}>{detail(row)}</small></div>) : <small style={mutedStyle}>Todavia no hay datos suficientes.</small>}</article>;
 }
 
 function normalizeFilterOptions(options: FilterOptions): FilterOptions {
@@ -539,11 +739,21 @@ const headerStyle: React.CSSProperties = { display: "flex", justifyContent: "spa
 const eyebrowStyle: React.CSSProperties = { margin: "0 0 4px", color: "var(--account-text-muted)", textTransform: "uppercase", letterSpacing: "0.14em", fontSize: 12, fontWeight: 800 };
 const titleStyle: React.CSSProperties = { margin: 0, color: "var(--account-text-strong)", fontSize: 28 };
 const statsStyle: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
+const tabsStyle: React.CSSProperties = { display: "flex", gap: 8, borderBottom: "1px solid var(--account-item-border)", paddingBottom: 8 };
+const tabButtonStyle = (active: boolean): React.CSSProperties => ({ minHeight: 40, border: "1px solid var(--account-item-border)", borderRadius: 12, background: active ? "var(--account-item-bg-active)" : "var(--account-sidebar-bg)", color: "var(--account-text-strong)", fontWeight: 800, padding: "0 16px", cursor: "pointer" });
 const statStyle: React.CSSProperties = { minWidth: 116, border: "1px solid var(--account-item-border)", borderRadius: 14, background: "var(--account-item-bg)", padding: "10px 12px", display: "grid", gap: 4 };
+const analyticsToolbarStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, alignItems: "center" };
+const analyticsStatsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 };
+const agingGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 };
+const agingCardStyle: React.CSSProperties = { border: "1px solid var(--account-item-border)", borderRadius: 16, background: "var(--account-item-bg)", color: "var(--account-text-strong)", padding: 14, display: "grid", gap: 5 };
+const rankingGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 };
+const rankingCardStyle: React.CSSProperties = { ...agingCardStyle, gap: 10 };
+const rankingRowStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, borderTop: "1px solid var(--account-item-border)", paddingTop: 8 };
 const panelGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(220px, 280px) minmax(0, 1fr)", gap: 16, alignItems: "start" };
 const filtersStyle: React.CSSProperties = { border: "1px solid var(--account-item-border)", borderRadius: 18, background: "var(--account-item-bg)", padding: 16, display: "grid", gap: 12 };
 const fieldStyle: React.CSSProperties = { display: "grid", gap: 6, color: "var(--account-text-muted)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" };
 const inputStyle: React.CSSProperties = { width: "100%", minHeight: 40, border: "1px solid var(--account-item-border)", borderRadius: 12, background: "var(--account-sidebar-bg)", color: "var(--account-text-strong)", padding: "0 12px", font: "inherit" };
+const compactSelectStyle: React.CSSProperties = { ...inputStyle, minWidth: 140, minHeight: 34 };
 const checkStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, color: "var(--account-text-strong)", fontWeight: 700 };
 const tableWrapStyle: React.CSSProperties = { minWidth: 0, overflow: "auto", border: "1px solid var(--account-item-border)", borderRadius: 18, background: "var(--account-item-bg)" };
 const tableStyle: React.CSSProperties = { width: "100%", minWidth: 960, borderCollapse: "collapse" };

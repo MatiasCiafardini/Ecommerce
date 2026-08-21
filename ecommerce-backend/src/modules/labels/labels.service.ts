@@ -87,6 +87,8 @@ export class LabelsService {
               title: true,
               slug: true,
               published: true,
+              inventoryPolicy: true,
+              lowStockThreshold: true,
               images: { orderBy: { position: 'asc' }, take: 1 },
               categories: {
                 where: { category: { deletedAt: null } },
@@ -727,6 +729,8 @@ export class LabelsService {
       price: Number(variant.price),
       imageUrl: image,
       active: Boolean(variant.product.published),
+      inventoryPolicy: variant.product.inventoryPolicy,
+      lowStockThreshold: variant.product.lowStockThreshold,
       categories: variant.product.categories?.map((entry: any) => entry.category) ?? [],
     };
   }

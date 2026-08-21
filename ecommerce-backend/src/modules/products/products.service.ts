@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Product } from '@prisma/client';
+import { PRODUCT_INVENTORY_POLICIES, type ProductInventoryPolicy } from '../../common/inventory-types';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CatalogAuditService,
   type CatalogAuditActor,
 } from '../catalog-audit/catalog-audit.service';
+import { InventoryMovementService } from '../inventory-lock/inventory-movement.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
@@ -49,6 +51,7 @@ export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private catalogAudit: CatalogAuditService,
+    private movements: InventoryMovementService,
   ) {}
 
   async create(data: CreateProductDto, storeId: number, actor?: CatalogAuditActor) {
@@ -72,6 +75,8 @@ export class ProductsService {
           packageWidthCm: data.packageWidthCm,
           packageLengthCm: data.packageLengthCm,
           packagingTemplateId: data.packagingTemplateId?.trim() || null,
+          inventoryPolicy: data.inventoryPolicy ?? 'RESTOCK',
+          lowStockThreshold: data.lowStockThreshold ?? 3,
           storeId,
         },
       });
@@ -165,6 +170,8 @@ export class ProductsService {
             title: true,
             slug: true,
             published: true,
+            inventoryPolicy: true,
+            lowStockThreshold: true,
             description: true,
             weightGrams: true,
             packageHeightCm: true,
@@ -384,6 +391,8 @@ export class ProductsService {
     } else if (status === 'draft') {
       where.published = false;
     } else if (status === 'without-stock') {
+      where.published = true;
+      where.inventoryPolicy = 'RESTOCK';
       andConditions.push(this.buildWithoutStockWhere(storeId));
     }
 
@@ -478,6 +487,8 @@ export class ProductsService {
       packageWidthCm?: number | null;
       packageLengthCm?: number | null;
       packagingTemplateId?: string | null;
+      inventoryPolicy?: ProductInventoryPolicy;
+      lowStockThreshold?: number;
     } = {};
 
     if (data.title !== undefined) {
@@ -523,6 +534,8 @@ export class ProductsService {
     if (data.packagingTemplateId !== undefined) {
       payload.packagingTemplateId = data.packagingTemplateId?.trim() || null;
     }
+    if (data.inventoryPolicy !== undefined) payload.inventoryPolicy = data.inventoryPolicy;
+    if (data.lowStockThreshold !== undefined) payload.lowStockThreshold = data.lowStockThreshold;
 
     const product = await this.prisma.$transaction(async (tx) => {
       const before = await this.findById(tx, productId, storeId);
@@ -641,6 +654,8 @@ export class ProductsService {
             packageWidthCm: data.packageWidthCm,
             packageLengthCm: data.packageLengthCm,
             packagingTemplateId: data.packagingTemplateId,
+            inventoryPolicy: data.inventoryPolicy,
+            lowStockThreshold: data.lowStockThreshold,
           })
           : await this.createProductRecord(tx, storeId, {
             title: normalizedTitle,
@@ -652,6 +667,8 @@ export class ProductsService {
             packageWidthCm: data.packageWidthCm,
             packageLengthCm: data.packageLengthCm,
             packagingTemplateId: data.packagingTemplateId,
+            inventoryPolicy: data.inventoryPolicy,
+            lowStockThreshold: data.lowStockThreshold,
           });
 
       await this.ensureCategoriesBelongToStore(tx, normalizedCategoryIds, storeId);
@@ -659,7 +676,7 @@ export class ProductsService {
       await this.ensureReusableVariantAttributeValues(tx, storeId, normalizedVariants);
       await this.syncCategories(tx, product.id, normalizedCategoryIds);
       await this.syncOptionValues(tx, product.id, normalizedOptionValues);
-      await this.syncVariants(tx, product.id, storeId, normalizedVariants);
+      await this.syncVariants(tx, product.id, storeId, normalizedVariants, actor);
 
       const after = await this.findById(tx, product.id, storeId);
 
@@ -860,6 +877,7 @@ export class ProductsService {
         SELECT
           p.id,
           p.published,
+          p."inventoryPolicy",
           COALESCE(SUM(COALESCE(i.quantity, 0)), 0) AS stock
         FROM "Product" p
         LEFT JOIN "ProductVariant" v
@@ -871,13 +889,13 @@ export class ProductsService {
         WHERE
           p."storeId" = ${storeId}
           AND p."deletedAt" IS NULL
-        GROUP BY p.id, p.published
+        GROUP BY p.id, p.published, p."inventoryPolicy"
       )
       SELECT
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE published = true)::int AS published,
         COUNT(*) FILTER (WHERE published = false)::int AS draft,
-        COUNT(*) FILTER (WHERE stock <= 0)::int AS "withoutStock"
+        COUNT(*) FILTER (WHERE stock <= 0 AND published = true AND "inventoryPolicy" = 'RESTOCK')::int AS "withoutStock"
       FROM product_stock
     `);
 
@@ -899,6 +917,45 @@ export class ProductsService {
 
   private invalidateCatalogMetrics(storeId: number) {
     catalogMetricsCache.delete(storeId);
+  }
+
+  async updateInventoryPolicyBulk(
+    data: { productIds: number[]; inventoryPolicy: ProductInventoryPolicy; lowStockThreshold?: number },
+    storeId: number,
+    actor?: CatalogAuditActor,
+  ) {
+    const productIds = [...new Set((data.productIds ?? []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!productIds.length) throw new BadRequestException('Select at least one product');
+    if (!PRODUCT_INVENTORY_POLICIES.includes(data.inventoryPolicy)) throw new BadRequestException('Invalid inventory policy');
+    if (data.lowStockThreshold !== undefined && (!Number.isInteger(data.lowStockThreshold) || data.lowStockThreshold < 0)) {
+      throw new BadRequestException('Low stock threshold must be a non-negative integer');
+    }
+    const result = await this.prisma.$transaction(async (tx) => {
+      const products = await tx.product.findMany({ where: { id: { in: productIds }, storeId, deletedAt: null } });
+      if (products.length !== productIds.length) throw new NotFoundException('One or more products were not found');
+      await tx.product.updateMany({
+        where: { id: { in: productIds }, storeId, deletedAt: null },
+        data: {
+          inventoryPolicy: data.inventoryPolicy,
+          ...(data.lowStockThreshold !== undefined ? { lowStockThreshold: data.lowStockThreshold } : {}),
+        },
+      });
+      for (const product of products) {
+        await this.catalogAudit.create({
+          storeId,
+          productId: product.id,
+          action: 'product.inventory_policy_updated',
+          entity: 'product',
+          entityId: product.id,
+          actor,
+          before: { inventoryPolicy: product.inventoryPolicy, lowStockThreshold: product.lowStockThreshold },
+          after: { inventoryPolicy: data.inventoryPolicy, lowStockThreshold: data.lowStockThreshold ?? product.lowStockThreshold },
+        }, tx);
+      }
+      return { updated: products.length };
+    });
+    this.invalidateCatalogMetrics(storeId);
+    return result;
   }
 
   async getAuditLogs(productId: number, storeId: number, rawLimit?: string | number) {
@@ -1030,6 +1087,8 @@ export class ProductsService {
       packageWidthCm?: number | null;
       packageLengthCm?: number | null;
       packagingTemplateId?: string | null;
+      inventoryPolicy?: ProductInventoryPolicy;
+      lowStockThreshold?: number;
     },
   ) {
     const slug = await this.resolveAvailableSlugTx(tx, generateSlug(data.title), storeId);
@@ -1046,6 +1105,8 @@ export class ProductsService {
         packageWidthCm: data.packageWidthCm ?? null,
         packageLengthCm: data.packageLengthCm ?? null,
         packagingTemplateId: data.packagingTemplateId?.trim() || null,
+        inventoryPolicy: data.inventoryPolicy ?? 'RESTOCK',
+        lowStockThreshold: data.lowStockThreshold ?? 3,
         storeId,
       },
     });
@@ -1065,6 +1126,8 @@ export class ProductsService {
       packageWidthCm?: number | null;
       packageLengthCm?: number | null;
       packagingTemplateId?: string | null;
+      inventoryPolicy?: ProductInventoryPolicy;
+      lowStockThreshold?: number;
     },
   ) {
     const existing = await tx.product.findFirst({
@@ -1100,6 +1163,8 @@ export class ProductsService {
         packageWidthCm: data.packageWidthCm ?? null,
         packageLengthCm: data.packageLengthCm ?? null,
         packagingTemplateId: data.packagingTemplateId?.trim() || null,
+        inventoryPolicy: data.inventoryPolicy,
+        lowStockThreshold: data.lowStockThreshold,
       },
     });
   }
@@ -1311,6 +1376,7 @@ export class ProductsService {
       packageHeightCm?: number | null;
       packageLengthCm?: number | null;
     }>,
+    actor?: CatalogAuditActor,
   ) {
     const existingVariants = await tx.productVariant.findMany({
       where: {
@@ -1370,22 +1436,27 @@ export class ProductsService {
           data: payload,
         });
 
-        await tx.inventory.upsert({
-          where: {
-            storeId_variantId: {
-              storeId,
-              variantId: variant.id,
-            },
-          },
-          update: {
-            quantity: variant.inventoryQuantity,
-          },
-          create: {
-            storeId,
-            variantId: variant.id,
-            quantity: variant.inventoryQuantity,
-          },
-        });
+        const existingInventory = existingVariants.find((entry) => entry.id === variant.id)?.inventories[0];
+        if (existingInventory) {
+          await this.movements.setQuantityTx(tx, storeId, variant.id, variant.inventoryQuantity, {
+            type: 'MANUAL_ADJUSTMENT',
+            origin: 'product.save',
+            actor,
+            referenceType: 'product',
+            referenceId: productId,
+          });
+        } else {
+          const inventory = await tx.inventory.create({
+            data: { storeId, variantId: variant.id, quantity: variant.inventoryQuantity },
+          });
+          await this.movements.recordCreatedTx(tx, inventory, {
+            type: 'INITIAL_LOAD',
+            origin: 'product.save',
+            actor,
+            referenceType: 'product',
+            referenceId: productId,
+          });
+        }
 
         continue;
       }
@@ -1394,12 +1465,19 @@ export class ProductsService {
         data: payload,
       });
 
-      await tx.inventory.create({
+      const inventory = await tx.inventory.create({
         data: {
           storeId,
           variantId: createdVariant.id,
           quantity: variant.inventoryQuantity,
         },
+      });
+      await this.movements.recordCreatedTx(tx, inventory, {
+        type: 'INITIAL_LOAD',
+        origin: 'product.create',
+        actor,
+        referenceType: 'product',
+        referenceId: productId,
       });
     }
   }

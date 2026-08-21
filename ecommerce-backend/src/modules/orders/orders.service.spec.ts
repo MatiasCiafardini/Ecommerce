@@ -443,6 +443,7 @@ describe('OrdersService manual sale edits', () => {
       7,
       301,
       1,
+      { origin: 'order.manual-create' },
     );
   });
 

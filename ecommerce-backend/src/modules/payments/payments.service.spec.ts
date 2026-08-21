@@ -107,6 +107,7 @@ describe('PaymentsService', () => {
       7,
       101,
       2,
+      { origin: 'payment.cancelled', referenceType: 'order', referenceId: 41 },
     );
     expect(inventoryLockService.releaseStockTx).toHaveBeenNthCalledWith(
       2,
@@ -114,6 +115,7 @@ describe('PaymentsService', () => {
       7,
       102,
       1,
+      { origin: 'payment.cancelled', referenceType: 'order', referenceId: 41 },
     );
     expect(tx.order.update).toHaveBeenCalledWith({
       where: { id: 41 },
@@ -186,6 +188,7 @@ describe('PaymentsService', () => {
       5,
       501,
       3,
+      { origin: 'payment.cancelled', referenceType: 'order', referenceId: 77 },
     );
     expect(tx.order.update).toHaveBeenCalledWith({
       where: { id: 77 },

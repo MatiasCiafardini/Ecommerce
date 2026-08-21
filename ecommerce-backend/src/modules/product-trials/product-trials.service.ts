@@ -100,7 +100,13 @@ export class ProductTrialsService {
         });
         if (!variant) throw new NotFoundException(`Variant ${requested.variantId} not found`);
 
-        await this.inventoryLockService.reserveStockTx(tx, storeId, requested.variantId, requested.quantity);
+        await this.inventoryLockService.reserveStockTx(tx, storeId, requested.variantId, requested.quantity, {
+          type: 'TRIAL_RESERVATION',
+          origin: 'product-trial.create',
+          referenceType: 'product-trial',
+          referenceId: trial.id,
+          actor: { sub: userId },
+        });
         for (let unit = 0; unit < requested.quantity; unit += 1) {
           const item = await tx.productTrialItem.create({
             data: { storeId, trialId: trial.id, variantId: requested.variantId, price: requested.price },
@@ -141,7 +147,13 @@ export class ProductTrialsService {
           data: { status: 'returned', resolvedAt: now, resolvedByUserId: userId },
         });
         if (claimed.count !== 1) throw new BadRequestException('La prenda ya fue resuelta.');
-        await this.inventoryLockService.releaseStockTx(tx, storeId, item.variantId, 1);
+        await this.inventoryLockService.releaseStockTx(tx, storeId, item.variantId, 1, {
+          type: 'TRIAL_RELEASE',
+          origin: 'product-trial.return',
+          referenceType: 'product-trial',
+          referenceId: item.trialId,
+          actor: { sub: userId },
+        });
       }
 
       for (const trialId of [...new Set(items.map((item) => item.trialId))]) {

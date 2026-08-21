@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { ApiTags, ApiSecurity, ApiBearerAuth } from '@nestjs/swagger';
@@ -19,6 +20,28 @@ export class InventoryController {
     return this.inventoryService.create(dto, req.storeId, req.user);
   }
 
+  @Get('movements')
+  listMovements(@Req() req, @Query() query: Record<string, string | undefined>) {
+    return this.inventoryService.listMovements(req.storeId, query);
+  }
+
+  @Get('analytics')
+  analytics(@Req() req, @Query() query: Record<string, string | undefined>) {
+    return this.inventoryService.getAnalytics(req.storeId, query);
+  }
+
+  @Get('analytics/export.csv')
+  async exportAnalytics(
+    @Req() req,
+    @Query() query: Record<string, string | undefined>,
+    @Res() res: Response,
+  ) {
+    const csv = await this.inventoryService.getAnalyticsCsv(req.storeId, query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="inventario-analitica.csv"');
+    res.send(`\uFEFF${csv}`);
+  }
+
   @Get(':variantId')
   find(@Param('variantId') variantId: string, @Req() req) {
     return this.inventoryService.findByVariant(Number(variantId), req.storeId);
@@ -28,14 +51,9 @@ export class InventoryController {
   @UseGuards(CatalogManagerGuard)
   update(
     @Param('variantId') variantId: string,
-    @Body('quantity') quantity: number,
+    @Body() body: { quantity: number; reason?: string },
     @Req() req,
   ) {
-    return this.inventoryService.updateStock(
-      Number(variantId),
-      quantity,
-      req.storeId,
-      req.user,
-    );
+    return this.inventoryService.updateStock(Number(variantId), body.quantity, req.storeId, req.user, body.reason);
   }
 }

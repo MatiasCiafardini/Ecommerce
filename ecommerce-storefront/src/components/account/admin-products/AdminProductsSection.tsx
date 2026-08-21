@@ -29,6 +29,8 @@ export type Product = {
   packageWidthCm?: number | null;
   packageLengthCm?: number | null;
   packagingTemplateId?: string | null;
+  inventoryPolicy?: InventoryPolicy;
+  lowStockThreshold?: number;
   images?: Array<{
     id: number;
     url: string;
@@ -86,6 +88,10 @@ type ProductCatalogResponse = {
   metrics: ProductCatalogMetrics;
   availableBrands?: string[];
 };
+
+type InventoryPolicy = "UNCLASSIFIED" | "RESTOCK" | "NO_RESTOCK" | "UNTRACKED";
+type ProductInventoryMovement = { id: number; type: string; quantityDelta: number; quantityBefore: number; quantityAfter: number; createdAt: string; reason?: string | null; actorName?: string | null; actorEmail?: string | null; approximate: boolean; variant: { id: number; sku: string; Color?: string | null; Size?: string | null } };
+type ProductInventoryAnalytics = { productId: number; onHand: number; reserved: number; available: number; retailValue: number; ageDays?: number | null; ageApproximate: boolean; lastLoadAt?: string | null; lastSaleAt?: string | null; lastStockChangeAt?: string | null; sold90: number; sellThrough: number };
 
 export type Category = {
   id: number;
@@ -1093,6 +1099,8 @@ export default function AdminProductsSection({
     packageHeightCm: "",
     packageWidthCm: "",
     packageLengthCm: "",
+    inventoryPolicy: "RESTOCK" as InventoryPolicy,
+    lowStockThreshold: "3",
   });
   const [newCategoryName, setNewCategoryName] = useState("");
   const [creatingCategoryInline, setCreatingCategoryInline] = useState(false);
@@ -1106,6 +1114,10 @@ export default function AdminProductsSection({
     waistSize: "",
   });
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [inventoryHistory, setInventoryHistory] = useState<ProductInventoryMovement[]>([]);
+  const [inventoryHistoryVariantId, setInventoryHistoryVariantId] = useState("");
+  const [inventoryAnalytics, setInventoryAnalytics] = useState<ProductInventoryAnalytics | null>(null);
+  const [inventoryDetailLoading, setInventoryDetailLoading] = useState(false);
   const [autoOpenedProductId, setAutoOpenedProductId] = useState<number | null>(
     null,
   );
@@ -1209,6 +1221,26 @@ export default function AdminProductsSection({
       setActiveStoreId(null);
     }
   }, []);
+
+  useEffect(() => {
+    if (!editingProductId) return;
+    let active = true;
+    setInventoryDetailLoading(true);
+    Promise.all([
+      api(`/inventory/movements?productId=${editingProductId}&pageSize=50`),
+      api(`/inventory/analytics?productId=${editingProductId}&pageSize=1`),
+    ]).then(([historyPayload, analyticsPayload]) => {
+      if (!active) return;
+      const history = historyPayload as { items?: ProductInventoryMovement[] };
+      const analytics = analyticsPayload as { items?: ProductInventoryAnalytics[] };
+      setInventoryHistory(Array.isArray(history.items) ? history.items : []);
+      setInventoryHistoryVariantId("");
+      setInventoryAnalytics(Array.isArray(analytics.items) ? analytics.items[0] ?? null : null);
+    }).catch(() => {
+      if (active) { setInventoryHistory([]); setInventoryAnalytics(null); }
+    }).finally(() => { if (active) setInventoryDetailLoading(false); });
+    return () => { active = false; };
+  }, [editingProductId]);
 
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
@@ -1502,6 +1534,8 @@ export default function AdminProductsSection({
       packageHeightCm: "",
       packageWidthCm: "",
       packageLengthCm: "",
+      inventoryPolicy: "RESTOCK",
+      lowStockThreshold: "3",
     });
     setSelectedCategoryIds([]);
     setImageFiles([]);
@@ -1520,6 +1554,9 @@ export default function AdminProductsSection({
     setWizardStep("info");
     setPackagingTemplateId("");
     setSelectedVariantIndexes([]);
+    setInventoryHistory([]);
+    setInventoryHistoryVariantId("");
+    setInventoryAnalytics(null);
     setBulkVariantPatch({ price: "", stock: "", color: "", size: "", waistSize: "" });
     setImageUploadProgress(null);
     setAttributeDraft(null);
@@ -2825,6 +2862,8 @@ export default function AdminProductsSection({
           packageHeightCm: String(product.packageHeightCm ?? ""),
           packageWidthCm: String(product.packageWidthCm ?? ""),
           packageLengthCm: String(product.packageLengthCm ?? ""),
+          inventoryPolicy: product.inventoryPolicy ?? "UNCLASSIFIED",
+          lowStockThreshold: String(product.lowStockThreshold ?? 3),
         });
         setPackagingTemplateId(product.packagingTemplateId ?? "");
         setSelectedCategoryIds(
@@ -2939,6 +2978,8 @@ export default function AdminProductsSection({
           packageHeightCm: String(product.packageHeightCm ?? ""),
           packageWidthCm: String(product.packageWidthCm ?? ""),
           packageLengthCm: String(product.packageLengthCm ?? ""),
+          inventoryPolicy: "RESTOCK",
+          lowStockThreshold: String(product.lowStockThreshold ?? 3),
         });
         setPackagingTemplateId(product.packagingTemplateId ?? "");
         setSelectedCategoryIds(
@@ -3421,6 +3462,8 @@ export default function AdminProductsSection({
       ? Number(form.packageLengthCm)
       : null,
     packagingTemplateId: packagingTemplateId || null,
+    inventoryPolicy: form.inventoryPolicy,
+    lowStockThreshold: Math.max(0, Number(form.lowStockThreshold || 3)),
     categoryIds: selectedCategoryIds,
     optionValues: buildOptionValuesToPersist(),
     variants: variantsToSync.map((variant) => ({
@@ -3459,6 +3502,8 @@ export default function AdminProductsSection({
         ? Number(form.packageLengthCm)
         : undefined,
       packagingTemplateId: packagingTemplateId || undefined,
+      inventoryPolicy: form.inventoryPolicy,
+      lowStockThreshold: Math.max(0, Number(form.lowStockThreshold || 3)),
     }),
     [form, packagingTemplateId],
   );
@@ -4022,6 +4067,45 @@ export default function AdminProductsSection({
               style={{ ...largeFieldStyle, minHeight: 150, resize: "vertical" }}
             />
           </div>
+          <div style={wizardSubpanelStyle}>
+            <strong>Politica de inventario</strong>
+            <div style={wizardTwoColumnStyle}>
+              <label style={{ display: "grid", gap: 7, color: "var(--account-text-strong)" }}>
+                <span>Reposicion</span>
+                <select style={largeFieldStyle} value={form.inventoryPolicy} onChange={(event) => setForm((current) => ({ ...current, inventoryPolicy: event.target.value as InventoryPolicy }))}>
+                  <option value="UNCLASSIFIED">Sin clasificar</option><option value="RESTOCK">Reponer</option><option value="NO_RESTOCK">No reponer / discontinuado</option><option value="UNTRACKED">Sin seguimiento</option>
+                </select>
+              </label>
+              <label style={{ display: "grid", gap: 7, color: "var(--account-text-strong)" }}>
+                <span>Alerta de stock bajo</span>
+                <input type="number" min={0} step={1} style={largeFieldStyle} value={form.lowStockThreshold} onChange={(event) => setForm((current) => ({ ...current, lowStockThreshold: event.target.value.replace(/\D/g, "") }))} />
+              </label>
+            </div>
+            <small style={metaStyle}>Solo los productos publicados marcados como “Reponer” generan alertas por falta o bajo stock.</small>
+          </div>
+          {editingProductId ? (
+            <div style={wizardSubpanelStyle}>
+              <strong>Resumen e historial de inventario</strong>
+              {inventoryDetailLoading ? <span style={metaStyle}>Cargando inventario...</span> : null}
+              {inventoryAnalytics ? (
+                <div style={summaryGridStyle}>
+                  <MiniStat label="Stock" value={String(inventoryAnalytics.onHand)} />
+                  <MiniStat label="Disponible" value={String(inventoryAnalytics.available)} />
+                  <MiniStat label="Reservado" value={String(inventoryAnalytics.reserved)} />
+                  <MiniStat label="Valor venta" value={money(inventoryAnalytics.retailValue)} />
+                  <MiniStat label="Antiguedad" value={inventoryAnalytics.ageDays == null ? "Sin dato" : `${inventoryAnalytics.ageDays} dias${inventoryAnalytics.ageApproximate ? "*" : ""}`} />
+                  <MiniStat label="Ultima carga" value={formatInventoryDate(inventoryAnalytics.lastLoadAt)} />
+                  <MiniStat label="Ultimo cambio" value={formatInventoryDate(inventoryAnalytics.lastStockChangeAt)} />
+                  <MiniStat label="Ultima venta" value={formatInventoryDate(inventoryAnalytics.lastSaleAt)} />
+                </div>
+              ) : null}
+              <label style={{ display: "grid", gap: 6, maxWidth: 320, color: "var(--account-text-strong)" }}><span>Filtrar historial por variante</span><select style={largeFieldStyle} value={inventoryHistoryVariantId} onChange={(event) => setInventoryHistoryVariantId(event.target.value)}><option value="">Todas las variantes</option>{Array.from(new Map(inventoryHistory.map((movement) => [movement.variant.id, movement.variant])).values()).map((variant) => <option key={variant.id} value={variant.id}>{variant.sku || `Variante ${variant.id}`}{variant.Color ? ` · ${variant.Color}` : ""}{variant.Size ? ` · ${variant.Size}` : ""}</option>)}</select></label>
+              <div style={{ ...tableWrapStyle, maxHeight: 320 }}><table style={{ ...tableStyle, minWidth: 720 }}><thead><tr><th style={thStyle}>Fecha</th><th style={thStyle}>Variante</th><th style={thStyle}>Movimiento</th><th style={thStyle}>Stock</th><th style={thStyle}>Usuario / motivo</th></tr></thead><tbody>
+                {inventoryHistory.filter((movement) => !inventoryHistoryVariantId || movement.variant.id === Number(inventoryHistoryVariantId)).slice(0, 20).map((movement) => <tr key={movement.id}><td style={tdStyle}>{formatInventoryDate(movement.createdAt)}</td><td style={tdStyle}>{movement.variant.sku}</td><td style={tdStyle}><strong>{movement.quantityDelta > 0 ? `+${movement.quantityDelta}` : movement.quantityDelta}</strong></td><td style={tdStyle}>{movement.quantityBefore} → {movement.quantityAfter}</td><td style={tdStyle}>{movement.actorName || movement.actorEmail || "Sistema"}<small style={{ display: "block", ...metaStyle }}>{movement.reason || (movement.approximate ? "Saldo inicial aproximado" : movement.type)}</small></td></tr>)}
+                {!inventoryHistory.filter((movement) => !inventoryHistoryVariantId || movement.variant.id === Number(inventoryHistoryVariantId)).length && !inventoryDetailLoading ? <tr><td colSpan={5} style={{ ...tdStyle, textAlign: "center" }}>Todavia no hay movimientos para esta variante.</td></tr> : null}
+              </tbody></table></div>
+            </div>
+          ) : null}
           <div style={wizardTwoColumnStyle}>
             <div style={wizardSubpanelStyle}>
               <strong>Categorias</strong>
@@ -6872,6 +6956,15 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return <article style={statStyle}><span style={metaStyle}>{label}</span><strong style={{ color: "var(--account-text-strong)", fontSize: 18 }}>{value}</strong></article>;
+}
+
+function formatInventoryDate(value?: string | null) {
+  if (!value) return "Sin ventas";
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
 function StateCard({ label }: { label: string }) {
   return <div style={stateStyle}>{label}</div>;
 }
@@ -8256,6 +8349,7 @@ const tableStyle: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
 };
+const summaryGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10 };
 
 const brandTagsStyle: React.CSSProperties = {
   display: "flex",

@@ -21,6 +21,7 @@ model Store {
   storefrontConfig               Json?
   createdAt                      DateTime                      @default(now())
   catalogAuditLogs               CatalogAuditLog[]
+  inventoryMovements             InventoryMovement[]
   cancellationRequests           CancellationRequest[]
   carts                          Cart[]
   cashRegisterSessions           CashRegisterSession[]
@@ -122,6 +123,8 @@ model Product {
   published           Boolean              @default(false)
   slug                String
   deletedAt           DateTime?
+  inventoryPolicy     ProductInventoryPolicy @default(RESTOCK)
+  lowStockThreshold   Int                    @default(3)
   auditLogs           CatalogAuditLog[]
   discountTargets     DiscountProduct[]
   store               Store                @relation(fields: [storeId], references: [id])
@@ -169,6 +172,7 @@ model ProductVariant {
   cartItems         CartItem[]
   discountTargets   DiscountVariant[]
   inventories       Inventory[]
+  inventoryMovements InventoryMovement[]
   manualReturnItems ManualReturnItem[]
   orderItems        OrderItem[]
   productTrialItems ProductTrialItem[]
@@ -232,6 +236,40 @@ model Inventory {
 
   @@unique([storeId, variantId])
   @@index([storeId])
+}
+
+model InventoryMovement {
+  id             Int                   @id @default(autoincrement())
+  storeId        Int
+  variantId      Int
+  actorUserId    Int?
+  actorEmail     String?
+  actorName      String?
+  type           InventoryMovementType
+  origin         String
+  referenceType  String?
+  referenceId    Int?
+  reason         String?
+  quantityDelta  Int
+  reservedDelta  Int
+  quantityBefore Int
+  quantityAfter  Int
+  reservedBefore Int
+  reservedAfter  Int
+  approximate    Boolean               @default(false)
+  idempotencyKey String?
+  metadata       Json?
+  createdAt      DateTime              @default(now())
+  store          Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  variant        ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  actorUser      User?                 @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, idempotencyKey])
+  @@index([storeId, createdAt])
+  @@index([storeId, variantId, createdAt])
+  @@index([storeId, type, createdAt])
+  @@index([referenceType, referenceId])
+  @@index([actorUserId])
 }
 
 model CatalogAuditLog {
@@ -371,6 +409,7 @@ model User {
   storeLocationId         Int?
   createdAt               DateTime                 @default(now())
   catalogAuditLogs        CatalogAuditLog[]
+  inventoryMovements      InventoryMovement[]
   store                   Store                    @relation(fields: [storeId], references: [id])
   storeLocation           StoreLocation?           @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
   currentAccountMovements CurrentAccountMovement[]
@@ -1090,6 +1129,30 @@ enum OrderStatus {
   picked_up
   delivered
   refunded
+}
+
+enum ProductInventoryPolicy {
+  UNCLASSIFIED
+  RESTOCK
+  NO_RESTOCK
+  UNTRACKED
+}
+
+enum InventoryMovementType {
+  OPENING_BALANCE
+  INITIAL_LOAD
+  MANUAL_ADJUSTMENT
+  RESERVATION
+  RESERVATION_RELEASE
+  SALE
+  CANCELLATION_RESTOCK
+  RETURN_RESTOCK
+  EXCHANGE_OUT
+  ORDER_EDIT
+  TRIAL_RESERVATION
+  TRIAL_RELEASE
+  TRIAL_SALE
+  SYSTEM_CORRECTION
 }
 
 enum ShipmentStatus {

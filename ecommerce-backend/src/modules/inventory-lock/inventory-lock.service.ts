@@ -1,168 +1,73 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { InventoryMovementService, type InventoryMovementContext } from './inventory-movement.service';
 
 @Injectable()
 export class InventoryLockService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, @Optional() private movements?: InventoryMovementService) {}
 
-  /*
-    Wrapper para usar fuera de una transacción
-  */
   async reserveStock(storeId: number, variantId: number, quantity: number) {
-    return this.prisma.$transaction((tx) =>
-      this.reserveStockTx(tx, storeId, variantId, quantity),
-    );
+    return this.prisma.$transaction((tx) => this.reserveStockTx(tx, storeId, variantId, quantity));
   }
 
-  /*
-    Usado dentro de una transacción existente
-  */
-  async reserveStockTx(
-    tx: Prisma.TransactionClient,
-    storeId: number,
-    variantId: number,
-    quantity: number,
-  ) {
-    const rows: any[] = await tx.$queryRawUnsafe(
-      `
-      SELECT *
-      FROM "Inventory"
-      WHERE "variantId" = $1
-      AND "storeId" = $2
-      FOR UPDATE
-      `,
-      variantId,
-      storeId,
-    );
-
-    if (!rows.length) {
-      throw new BadRequestException('Inventory not found');
+  async reserveStockTx(tx: Prisma.TransactionClient, storeId: number, variantId: number, quantity: number, context?: Partial<InventoryMovementContext>) {
+    this.assertPositiveQuantity(quantity);
+    if (this.movements) {
+      return this.movements.adjustTx(tx, storeId, variantId, 0, quantity, { type: 'RESERVATION', origin: 'system', ...context });
     }
-
-    const inventory = rows[0];
-
-    const available = inventory.quantity - inventory.reserved;
-
-    if (available < quantity) {
-      throw new BadRequestException('Not enough stock available');
-    }
-
-    return tx.inventory.update({
-      where: {
-        storeId_variantId: {
-          storeId,
-          variantId,
-        },
-      },
-      data: {
-        reserved: {
-          increment: quantity,
-        },
-      },
+    const before = await this.getInventory(tx, storeId, variantId);
+    if (before.quantity - before.reserved < quantity) throw new BadRequestException('Not enough stock available');
+    const updated = await tx.inventory.update({
+      where: { storeId_variantId: { storeId, variantId } },
+      data: { reserved: { increment: quantity } },
     });
+    return updated;
   }
 
-  /*
-    Wrapper
-  */
   async releaseStock(storeId: number, variantId: number, quantity: number) {
-    return this.prisma.$transaction((tx) =>
-      this.releaseStockTx(tx, storeId, variantId, quantity),
-    );
+    return this.prisma.$transaction((tx) => this.releaseStockTx(tx, storeId, variantId, quantity));
   }
 
-  /*
-    Usado dentro de transacción existente
-  */
-  async releaseStockTx(
-    tx: Prisma.TransactionClient,
-    storeId: number,
-    variantId: number,
-    quantity: number,
-  ) {
-    const inventory = await tx.inventory.findUnique({
-      where: {
-        storeId_variantId: {
-          storeId,
-          variantId,
-        },
-      },
-    });
-
-    if (!inventory) {
-      throw new BadRequestException('Inventory not found');
+  async releaseStockTx(tx: Prisma.TransactionClient, storeId: number, variantId: number, quantity: number, context?: Partial<InventoryMovementContext>) {
+    this.assertPositiveQuantity(quantity);
+    if (this.movements) {
+      return this.movements.adjustTx(tx, storeId, variantId, 0, -quantity, { type: 'RESERVATION_RELEASE', origin: 'system', ...context });
     }
-
-    if (inventory.reserved < quantity) {
-      throw new BadRequestException('Invalid reserved stock');
-    }
-
-    return tx.inventory.update({
-      where: {
-        storeId_variantId: {
-          storeId,
-          variantId,
-        },
-      },
-      data: {
-        reserved: {
-          decrement: quantity,
-        },
-      },
+    const before = await this.getInventory(tx, storeId, variantId);
+    if (before.reserved < quantity) throw new BadRequestException('Invalid reserved stock');
+    const updated = await tx.inventory.update({
+      where: { storeId_variantId: { storeId, variantId } },
+      data: { reserved: { decrement: quantity } },
     });
+    return updated;
   }
 
-  /*
-    Wrapper
-  */
   async confirmStock(storeId: number, variantId: number, quantity: number) {
-    return this.prisma.$transaction((tx) =>
-      this.confirmStockTx(tx, storeId, variantId, quantity),
-    );
+    return this.prisma.$transaction((tx) => this.confirmStockTx(tx, storeId, variantId, quantity));
   }
 
-  /*
-    Usado dentro de transacción existente
-  */
-  async confirmStockTx(
-    tx: Prisma.TransactionClient,
-    storeId: number,
-    variantId: number,
-    quantity: number,
-  ) {
-    const inventory = await tx.inventory.findUnique({
-      where: {
-        storeId_variantId: {
-          storeId,
-          variantId,
-        },
-      },
-    });
-
-    if (!inventory) {
-      throw new BadRequestException('Inventory not found');
+  async confirmStockTx(tx: Prisma.TransactionClient, storeId: number, variantId: number, quantity: number, context?: Partial<InventoryMovementContext>) {
+    this.assertPositiveQuantity(quantity);
+    if (this.movements) {
+      return this.movements.adjustTx(tx, storeId, variantId, -quantity, -quantity, { type: 'SALE', origin: 'system', ...context });
     }
-
-    if (inventory.reserved < quantity) {
-      throw new BadRequestException('Invalid reserved stock');
-    }
-
-    return tx.inventory.update({
-      where: {
-        storeId_variantId: {
-          storeId,
-          variantId,
-        },
-      },
-      data: {
-        quantity: {
-          decrement: quantity,
-        },
-        reserved: {
-          decrement: quantity,
-        },
-      },
+    const before = await this.getInventory(tx, storeId, variantId);
+    if (before.reserved < quantity) throw new BadRequestException('Invalid reserved stock');
+    const updated = await tx.inventory.update({
+      where: { storeId_variantId: { storeId, variantId } },
+      data: { quantity: { decrement: quantity }, reserved: { decrement: quantity } },
     });
+    return updated;
+  }
+
+  private async getInventory(tx: Prisma.TransactionClient, storeId: number, variantId: number) {
+    const inventory = await tx.inventory.findUnique({ where: { storeId_variantId: { storeId, variantId } } });
+    if (!inventory) throw new BadRequestException('Inventory not found');
+    return inventory;
+  }
+
+  private assertPositiveQuantity(quantity: number) {
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new BadRequestException('Quantity must be a positive integer');
   }
 }

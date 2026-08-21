@@ -3,9 +3,12 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { access } from 'fs/promises';
 import { join } from 'path';
+import { Prisma } from '@prisma/client';
+import type { InventoryMovementType } from '../../common/inventory-types';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateReturnDto } from './dto/create-return.dto';
@@ -18,6 +21,7 @@ import { UpdateManualReturnDto } from './dto/update-manual-return.dto';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { AdminNotificationMailService } from '../notifications/admin-notification-mail.service';
 import { privateUploadsDir, uploadsDir } from '../../common/uploads';
+import { InventoryMovementService } from '../inventory-lock/inventory-movement.service';
 
 type UploadedReturnProof = { filename: string; originalname: string };
 const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'STAFF']);
@@ -28,6 +32,7 @@ export class ReturnsService {
     private prisma: PrismaService,
     private mercadopago: MercadoPagoProvider,
     private adminNotificationMailService: AdminNotificationMailService,
+    @Optional() private inventoryMovements?: InventoryMovementService,
   ) {}
 
   async findManualReturns(
@@ -140,41 +145,11 @@ export class ReturnsService {
       }
 
       for (const item of normalizedReturned) {
-        await tx.inventory.upsert({
-          where: {
-            storeId_variantId: {
-              storeId,
-              variantId: item.variantId,
-            },
-          },
-          create: {
-            storeId,
-            variantId: item.variantId,
-            quantity: item.quantity,
-            reserved: 0,
-          },
-          update: {
-            quantity: {
-              increment: item.quantity,
-            },
-          },
-        });
+        await this.adjustInventoryTx(tx, storeId, item.variantId, item.quantity, 'RETURN_RESTOCK', 'manual-return.create');
       }
 
       for (const item of normalizedExchange) {
-        await tx.inventory.update({
-          where: {
-            storeId_variantId: {
-              storeId,
-              variantId: item.variantId,
-            },
-          },
-          data: {
-            quantity: {
-              decrement: item.quantity,
-            },
-          },
-        });
+        await this.adjustInventoryTx(tx, storeId, item.variantId, -item.quantity, 'EXCHANGE_OUT', 'manual-return.create');
       }
 
       const totalReturned = this.roundMoney(
@@ -402,11 +377,7 @@ export class ReturnsService {
         if (delta < 0 && (!inventory || inventory.quantity - inventory.reserved < Math.abs(delta))) {
           throw new BadRequestException(`Not enough stock for variant ${variantId}`);
         }
-        await tx.inventory.upsert({
-          where: { storeId_variantId: { storeId, variantId } },
-          create: { storeId, variantId, quantity: delta, reserved: 0 },
-          update: { quantity: delta > 0 ? { increment: delta } : { decrement: Math.abs(delta) } },
-        });
+        await this.adjustInventoryTx(tx, storeId, variantId, delta, 'ORDER_EDIT', 'manual-return.edit', existing.id);
       }
 
       const totalReturned = this.roundMoney(nextReturned.reduce((sum, item) => sum + item.price * item.quantity, 0));
@@ -766,17 +737,7 @@ export class ReturnsService {
 
           if (!orderItem) continue;
 
-          await tx.inventory.updateMany({
-            where: {
-              variantId: orderItem.variantId,
-              storeId,
-            },
-            data: {
-              quantity: {
-                increment: item.quantity,
-              },
-            },
-          });
+          await this.adjustInventoryTx(tx, storeId, orderItem.variantId, item.quantity, 'RETURN_RESTOCK', 'return.received', returnRequest.id);
 
           await tx.orderItem.update({
             where: { id: orderItem.id },
@@ -1492,6 +1453,44 @@ export class ReturnsService {
 
   private roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private async adjustInventoryTx(
+    tx: Prisma.TransactionClient,
+    storeId: number,
+    variantId: number,
+    quantityDelta: number,
+    type: InventoryMovementType,
+    origin: string,
+    referenceId?: number,
+  ) {
+    if (!this.inventoryMovements) {
+      if (origin === 'return.received') {
+        return tx.inventory.updateMany({
+          where: { storeId, variantId },
+          data: { quantity: { increment: quantityDelta } },
+        });
+      }
+      if (quantityDelta < 0) {
+        return tx.inventory.update({
+          where: { storeId_variantId: { storeId, variantId } },
+          data: { quantity: { decrement: Math.abs(quantityDelta) } },
+        });
+      }
+      return tx.inventory.upsert({
+        where: { storeId_variantId: { storeId, variantId } },
+        create: { storeId, variantId, quantity: quantityDelta, reserved: 0 },
+        update: { quantity: { increment: quantityDelta } },
+      });
+    }
+    const existing = await tx.inventory.findUnique({ where: { storeId_variantId: { storeId, variantId } } });
+    if (!existing) {
+      if (quantityDelta < 0) throw new BadRequestException(`Inventory missing for variant ${variantId}`);
+      const created = await tx.inventory.create({ data: { storeId, variantId, quantity: quantityDelta, reserved: 0 } });
+      await this.inventoryMovements.recordCreatedTx(tx, created, { type, origin, referenceType: 'return', referenceId });
+      return created;
+    }
+    return this.inventoryMovements.adjustTx(tx, storeId, variantId, quantityDelta, 0, { type, origin, referenceType: 'return', referenceId });
   }
 
   private async resolveProofAbsolutePath(proofUrl: string) {

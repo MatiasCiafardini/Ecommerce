@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -21,8 +22,10 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { CreateManualSaleDto } from './dto/create-manual-sale.dto';
 import { UpdateManualSaleDto } from './dto/update-manual-sale.dto';
 import { ExportAccountingDto } from './dto/export-accounting.dto';
-import { CancellationRequestStatus, CurrentAccount, OrderStatus } from '@prisma/client';
+import { CancellationRequestStatus, CurrentAccount, OrderStatus, Prisma } from '@prisma/client';
+import type { InventoryMovementType } from '../../common/inventory-types';
 import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
+import { InventoryMovementService } from '../inventory-lock/inventory-movement.service';
 import { ShipmentService } from '../fulfillment/services/shipment.service';
 import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { RequestCancellationDto } from './dto/request-cancellation.dto';
@@ -66,6 +69,7 @@ export class OrdersService {
     private shipmentService: ShipmentService,
     private mercadopago: MercadoPagoProvider,
     private adminNotificationMailService: AdminNotificationMailService,
+    @Optional() private inventoryMovements?: InventoryMovementService,
   ) {}
 
   async create(data: CreateOrderDto, storeId: number) {
@@ -134,6 +138,7 @@ export class OrdersService {
           storeId,
           item.variantId,
           item.quantity,
+          { origin: 'order.create' },
         );
       }
 
@@ -377,6 +382,7 @@ export class OrdersService {
             storeId,
             item.variantId,
             item.quantity,
+            { origin: 'order.manual-create' },
           );
         }
       }
@@ -571,6 +577,7 @@ export class OrdersService {
             storeId,
             item.variantId,
             item.quantity,
+            { origin: 'order.manual-confirm', referenceType: 'order', referenceId: order.id },
           );
         }
       }
@@ -828,33 +835,9 @@ export class OrdersService {
 
         if (!nextItem) {
           if (behavesAsPending) {
-            await tx.inventory.update({
-              where: {
-                storeId_variantId: {
-                  storeId,
-                  variantId: existingItem.variantId,
-                },
-              },
-              data: {
-                reserved: {
-                  decrement: existingItem.quantity,
-                },
-              },
-            });
+            await this.adjustInventoryTx(tx, storeId, existingItem.variantId, 0, -existingItem.quantity, 'ORDER_EDIT', order.id);
           } else {
-            await tx.inventory.update({
-              where: {
-                storeId_variantId: {
-                  storeId,
-                  variantId: existingItem.variantId,
-                },
-              },
-              data: {
-                quantity: {
-                  increment: existingItem.quantity,
-                },
-              },
-            });
+            await this.adjustInventoryTx(tx, storeId, existingItem.variantId, existingItem.quantity, 0, 'ORDER_EDIT', order.id);
           }
 
           await tx.orderItem.delete({
@@ -876,35 +859,9 @@ export class OrdersService {
 
         if (delta !== 0) {
           if (behavesAsPending) {
-            await tx.inventory.update({
-              where: {
-                storeId_variantId: {
-                  storeId,
-                  variantId: existingItem.variantId,
-                },
-              },
-              data: {
-                reserved:
-                  delta > 0
-                    ? { increment: delta }
-                    : { decrement: Math.abs(delta) },
-              },
-            });
+            await this.adjustInventoryTx(tx, storeId, existingItem.variantId, 0, delta, 'ORDER_EDIT', order.id);
           } else {
-            await tx.inventory.update({
-              where: {
-                storeId_variantId: {
-                  storeId,
-                  variantId: existingItem.variantId,
-                },
-              },
-              data: {
-                quantity:
-                  delta > 0
-                    ? { decrement: delta }
-                    : { increment: Math.abs(delta) },
-              },
-            });
+            await this.adjustInventoryTx(tx, storeId, existingItem.variantId, -delta, 0, 'ORDER_EDIT', order.id);
           }
         }
 
@@ -951,33 +908,9 @@ export class OrdersService {
         }
 
         if (behavesAsPending) {
-          await tx.inventory.update({
-            where: {
-              storeId_variantId: {
-                storeId,
-                variantId: newItem.variantId,
-              },
-            },
-            data: {
-              reserved: {
-                increment: newItem.quantity,
-              },
-            },
-          });
+          await this.adjustInventoryTx(tx, storeId, newItem.variantId, 0, newItem.quantity, 'ORDER_EDIT', order.id);
         } else {
-          await tx.inventory.update({
-            where: {
-              storeId_variantId: {
-                storeId,
-                variantId: newItem.variantId,
-              },
-            },
-            data: {
-              quantity: {
-                decrement: newItem.quantity,
-              },
-            },
-          });
+          await this.adjustInventoryTx(tx, storeId, newItem.variantId, -newItem.quantity, 0, 'ORDER_EDIT', order.id);
         }
 
         await tx.orderItem.create({
@@ -1341,21 +1274,10 @@ export class OrdersService {
             storeId,
             item.variantId,
             item.quantity,
+            { origin: 'order.cancel', referenceType: 'order', referenceId: order.id },
           );
         } else {
-          await tx.inventory.update({
-            where: {
-              storeId_variantId: {
-                storeId,
-                variantId: item.variantId,
-              },
-            },
-            data: {
-              quantity: {
-                increment: item.quantity,
-              },
-            },
-          });
+          await this.adjustInventoryTx(tx, storeId, item.variantId, item.quantity, 0, 'CANCELLATION_RESTOCK', order.id);
         }
       }
 
@@ -1713,6 +1635,7 @@ export class OrdersService {
             storeId,
             item.variantId,
             item.quantity,
+            { origin: 'order.status-cancelled', referenceType: 'order', referenceId: order.id },
           );
         }
       }
@@ -1726,6 +1649,7 @@ export class OrdersService {
             storeId,
             item.variantId,
             item.quantity,
+            { origin: 'order.status-paid', referenceType: 'order', referenceId: order.id },
           );
         }
       }
@@ -1739,6 +1663,7 @@ export class OrdersService {
             storeId,
             item.variantId,
             item.quantity,
+            { origin: 'order.pickup-paid', referenceType: 'order', referenceId: order.id },
           );
         }
       }
@@ -2080,6 +2005,7 @@ export class OrdersService {
               current.storeId,
               item.variantId,
               item.quantity,
+              { origin: 'order.expired', referenceType: 'order', referenceId: current.id },
             );
           }
 
@@ -2822,6 +2748,7 @@ export class OrdersService {
           storeId,
           item.variantId,
           item.quantity,
+          { origin: 'order.cancellation-request', referenceType: 'order', referenceId: order.id },
         );
       }
 
@@ -2974,19 +2901,7 @@ export class OrdersService {
       }
 
       for (const item of order.items) {
-        await tx.inventory.update({
-          where: {
-            storeId_variantId: {
-              storeId,
-              variantId: item.variantId,
-            },
-          },
-          data: {
-            quantity: {
-              increment: item.quantity,
-            },
-          },
-        });
+        await this.adjustInventoryTx(tx, storeId, item.variantId, item.quantity, 0, 'CANCELLATION_RESTOCK', order.id);
       }
 
       const approvedPayment = order.payments.find((payment) =>
@@ -4114,6 +4029,32 @@ export class OrdersService {
       ),
       href: `/account/orders/${order.id}`,
       buttonLabel: 'Ver detalle',
+    });
+  }
+
+  private async adjustInventoryTx(
+    tx: Prisma.TransactionClient,
+    storeId: number,
+    variantId: number,
+    quantityDelta: number,
+    reservedDelta: number,
+    type: InventoryMovementType,
+    orderId: number,
+  ) {
+    if (this.inventoryMovements) {
+      return this.inventoryMovements.adjustTx(tx, storeId, variantId, quantityDelta, reservedDelta, {
+        type,
+        origin: 'order',
+        referenceType: 'order',
+        referenceId: orderId,
+      });
+    }
+    return tx.inventory.update({
+      where: { storeId_variantId: { storeId, variantId } },
+      data: {
+        ...(quantityDelta ? { quantity: quantityDelta > 0 ? { increment: quantityDelta } : { decrement: Math.abs(quantityDelta) } } : {}),
+        ...(reservedDelta ? { reserved: reservedDelta > 0 ? { increment: reservedDelta } : { decrement: Math.abs(reservedDelta) } } : {}),
+      },
     });
   }
 }

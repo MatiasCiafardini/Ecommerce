@@ -1,16 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import {
   CatalogAuditService,
   type CatalogAuditActor,
 } from '../catalog-audit/catalog-audit.service';
+import { InventoryMovementService } from '../inventory-lock/inventory-movement.service';
 
 @Injectable()
 export class InventoryService {
   constructor(
     private prisma: PrismaService,
     private catalogAudit: CatalogAuditService,
+    private movements: InventoryMovementService,
   ) {}
 
   create(dto: CreateInventoryDto, storeId: number, actor?: CatalogAuditActor) {
@@ -30,6 +32,14 @@ export class InventoryService {
             },
           },
         },
+      });
+
+      await this.movements.recordCreatedTx(tx, inventory, {
+        type: 'INITIAL_LOAD',
+        origin: 'inventory.create',
+        actor,
+        referenceType: 'inventory',
+        referenceId: inventory.id,
       });
 
       await this.catalogAudit.create({
@@ -69,7 +79,11 @@ export class InventoryService {
     quantity: number,
     storeId: number,
     actor?: CatalogAuditActor,
+    reason?: string,
   ) {
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      throw new BadRequestException('Quantity must be a non-negative integer');
+    }
     const inventory = await this.prisma.inventory.findUnique({
       where: {
         storeId_variantId: {
@@ -93,25 +107,17 @@ export class InventoryService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.inventory.update({
-        where: {
-          storeId_variantId: {
-            storeId,
-            variantId,
-          },
-        },
-        data: {
-          quantity,
-        },
-        include: {
-          variant: {
-            select: {
-              id: true,
-              productId: true,
-              sku: true,
-            },
-          },
-        },
+      await this.movements.setQuantityTx(tx, storeId, variantId, quantity, {
+        type: 'MANUAL_ADJUSTMENT',
+        origin: 'inventory.manual',
+        actor,
+        reason,
+        referenceType: 'inventory',
+        referenceId: inventory.id,
+      });
+      const updated = await tx.inventory.findUniqueOrThrow({
+        where: { storeId_variantId: { storeId, variantId } },
+        include: { variant: { select: { id: true, productId: true, sku: true } } },
       });
 
       await this.catalogAudit.create({
@@ -132,5 +138,17 @@ export class InventoryService {
 
       return updated;
     });
+  }
+
+  listMovements(storeId: number, query: Record<string, string | undefined>) {
+    return this.movements.list(storeId, query);
+  }
+
+  getAnalytics(storeId: number, query: Record<string, string | undefined>) {
+    return this.movements.analytics(storeId, query);
+  }
+
+  getAnalyticsCsv(storeId: number, query: Record<string, string | undefined>) {
+    return this.movements.analyticsCsv(storeId, query);
   }
 }

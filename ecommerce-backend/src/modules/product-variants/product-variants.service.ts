@@ -5,6 +5,7 @@ import {
   CatalogAuditService,
   type CatalogAuditActor,
 } from '../catalog-audit/catalog-audit.service';
+import { InventoryMovementService } from '../inventory-lock/inventory-movement.service';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateVariantDto } from './dto/update-variant.dto';
 import {
@@ -23,6 +24,7 @@ export class ProductVariantsService {
   constructor(
     private prisma: PrismaService,
     private catalogAudit: CatalogAuditService,
+    private movements: InventoryMovementService,
   ) {}
 
   private normalizeWeightGrams(data: {
@@ -156,6 +158,16 @@ export class ProductVariantsService {
           },
         });
 
+        if (variant.inventories[0]) {
+          await this.movements.recordCreatedTx(tx, variant.inventories[0], {
+            type: 'INITIAL_LOAD',
+            origin: 'variant.create',
+            actor,
+            referenceType: 'variant',
+            referenceId: variant.id,
+          });
+        }
+
         await this.catalogAudit.create({
           storeId,
           productId: variant.productId,
@@ -287,22 +299,24 @@ export class ProductVariantsService {
         });
 
         if (data.inventoryQuantity !== undefined) {
-          await tx.inventory.upsert({
-            where: {
-              storeId_variantId: {
-                storeId,
-                variantId,
-              },
-            },
-            update: {
-              quantity: data.inventoryQuantity,
-            },
-            create: {
-              storeId,
-              variantId,
-              quantity: data.inventoryQuantity,
-            },
-          });
+          if (variant.inventories[0]) {
+            await this.movements.setQuantityTx(tx, storeId, variantId, data.inventoryQuantity, {
+              type: 'MANUAL_ADJUSTMENT',
+              origin: 'variant.update',
+              actor,
+              referenceType: 'variant',
+              referenceId: variantId,
+            });
+          } else {
+            const inventory = await tx.inventory.create({ data: { storeId, variantId, quantity: data.inventoryQuantity } });
+            await this.movements.recordCreatedTx(tx, inventory, {
+              type: 'INITIAL_LOAD',
+              origin: 'variant.update',
+              actor,
+              referenceType: 'variant',
+              referenceId: variantId,
+            });
+          }
         }
 
         const after = await tx.productVariant.findFirst({

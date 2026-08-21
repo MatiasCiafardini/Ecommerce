@@ -728,6 +728,7 @@ export class PaymentsService {
             order.storeId,
             item.variantId,
             item.quantity,
+            { origin: 'payment.approved', referenceType: 'order', referenceId: order.id },
           );
         }
 
@@ -968,6 +969,7 @@ export class PaymentsService {
           order.storeId,
           item.variantId,
           item.quantity,
+          { origin: 'payment.cancelled', referenceType: 'order', referenceId: order.id },
         );
       }
 

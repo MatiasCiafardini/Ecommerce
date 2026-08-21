@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
+import type { ProductInventoryPolicy } from '../../common/inventory-types';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SaveProductCompleteDto } from './dto/save-product-complete.dto';
@@ -76,6 +77,15 @@ export class ProductsController {
   @UseGuards(CatalogManagerGuard)
   checkSkus(@Body() dto: CheckProductSkusDto, @Req() req) {
     return this.productsService.checkSkus(dto.candidates, req.storeId);
+  }
+
+  @Patch('admin/inventory-policy')
+  @UseGuards(CatalogManagerGuard)
+  updateInventoryPolicyBulk(
+    @Body() body: { productIds: number[]; inventoryPolicy: ProductInventoryPolicy; lowStockThreshold?: number },
+    @Req() req,
+  ) {
+    return this.productsService.updateInventoryPolicyBulk(body, req.storeId, req.user);
   }
 
   @Get('admin/:id')
