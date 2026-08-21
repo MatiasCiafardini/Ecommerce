@@ -80,6 +80,7 @@ export class InventoryService {
     storeId: number,
     actor?: CatalogAuditActor,
     reason?: string,
+    movementKind: 'RESTOCK' | 'CORRECTION' = 'CORRECTION',
   ) {
     if (!Number.isInteger(quantity) || quantity < 0) {
       throw new BadRequestException('Quantity must be a non-negative integer');
@@ -108,10 +109,11 @@ export class InventoryService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.movements.setQuantityTx(tx, storeId, variantId, quantity, {
-        type: 'MANUAL_ADJUSTMENT',
-        origin: 'inventory.manual',
+        type: movementKind === 'RESTOCK' ? 'STOCK_RECEIPT' : 'MANUAL_ADJUSTMENT',
+        origin: movementKind === 'RESTOCK' ? 'inventory.restock' : 'inventory.manual',
         actor,
         reason,
+        approximate: movementKind !== 'RESTOCK' && quantity > inventory.quantity,
         referenceType: 'inventory',
         referenceId: inventory.id,
       });

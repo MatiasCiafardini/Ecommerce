@@ -42,6 +42,15 @@ describe('InventoryMovementService', () => {
       .rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects a receipt that would reduce stock instead of treating it as a restock', async () => {
+    const { service, tx } = setup();
+    await expect(service.setQuantityTx(tx as never, 2, 20, 7, {
+      type: 'STOCK_RECEIPT', origin: 'inventory.restock',
+    })).rejects.toThrow('A stock receipt must increase the current quantity');
+    expect(tx.inventory.update).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
+  });
+
   it('does not apply an idempotent adjustment twice', async () => {
     const { service, tx } = setup();
     tx.inventoryMovement.findUnique.mockResolvedValue({ id: 99 });
@@ -61,5 +70,88 @@ describe('InventoryMovementService', () => {
     ]);
     const result = await service.analytics(2, {});
     expect(result.summary.withoutStock).toBe(1);
+  });
+
+  it('uses the confirmed stock reduction as the exact last sale and only falls back to orders', async () => {
+    const { service } = setup();
+    (service as any).prisma.$queryRaw.mockResolvedValue([
+      {
+        productId: 1, title: 'Venta exacta', published: true, inventoryPolicy: 'RESTOCK',
+        lowStockThreshold: 3, onHand: 5, reserved: 0, available: 5, retailValue: 500,
+        sold30: 1, sold60: 1, sold90: 1, lastMovementSaleAt: '2026-08-18T15:30:00.000Z',
+        lastOrderSaleAt: '2026-08-20T10:00:00.000Z', categoryIds: [],
+      },
+      {
+        productId: 2, title: 'Venta historica', published: true, inventoryPolicy: 'RESTOCK',
+        lowStockThreshold: 3, onHand: 2, reserved: 0, available: 2, retailValue: 200,
+        sold30: 0, sold60: 0, sold90: 0, lastOrderSaleAt: '2025-12-01T10:00:00.000Z', categoryIds: [],
+      },
+    ]);
+
+    const result = await service.analytics(2, { sortBy: 'title', sortDirection: 'asc' });
+    const exact = result.items.find((item) => item.productId === 1)!;
+    const fallback = result.items.find((item) => item.productId === 2)!;
+    expect(exact.lastSaleAt).toBe('2026-08-18T15:30:00.000Z');
+    expect(exact.lastSaleEstimated).toBe(false);
+    expect(fallback.lastSaleAt).toBe('2025-12-01T10:00:00.000Z');
+    expect(fallback.lastSaleEstimated).toBe(true);
+  });
+
+  it('keeps old FIFO layers visible after a recent partial restock', async () => {
+    const { service } = setup();
+    (service as any).prisma.$queryRaw.mockResolvedValue([
+      {
+        productId: 3, title: 'Jean con capas', brand: 'Kayra', published: true,
+        inventoryPolicy: 'RESTOCK', lowStockThreshold: 3, onHand: 11, reserved: 0,
+        available: 11, retailValue: 1100, sold30: 0, sold60: 0, sold90: 0,
+        firstKnownStockAt: '2025-12-01T12:00:00.000Z', lastRestockAt: '2026-08-20T12:00:00.000Z',
+        oldestStockAt: '2025-12-01T12:00:00.000Z', units0To90: 1, units90To180: 0,
+        units181To365: 10, unitsOver365: 0, value0To90: 100, value90To180: 0,
+        value181To365: 1000, valueOver365: 0, categoryIds: [],
+      },
+    ]);
+
+    const result = await service.analytics(2, {});
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      available: 11,
+      lastRestockAt: '2026-08-20T12:00:00.000Z',
+      aged180Units: 10,
+      aged180Value: 1000,
+      immobilizedValue: 1000,
+    }));
+    expect(result.items[0].ageDays).toBeGreaterThan(180);
+    expect(result.summary.oldProducts).toBe(1);
+    expect(result.summary.oldStockValue).toBe(1000);
+  });
+
+  it('values available stock and the selected age layer without multiplying the whole product', async () => {
+    const { service } = setup();
+    (service as any).prisma.$queryRaw.mockResolvedValue([
+      {
+        productId: 4, title: 'Capas valorizadas', published: true, inventoryPolicy: 'RESTOCK',
+        lowStockThreshold: 3, onHand: 8, reserved: 2, available: 6, retailValue: 600,
+        sold30: 0, sold60: 0, sold90: 0, oldestStockAt: '2025-10-01T12:00:00.000Z',
+        units0To90: 2, units90To180: 0, units181To365: 4, unitsOver365: 0,
+        value0To90: 200, value90To180: 0, value181To365: 400, valueOver365: 0,
+        categoryIds: [],
+      },
+    ]);
+
+    const result = await service.analytics(2, { quickFilter: 'older-180' });
+    expect(result.summary.retailValue).toBe(600);
+    expect(result.items[0].immobilizedValue).toBe(400);
+    expect(result.agingBuckets.reduce((sum, bucket) => sum + bucket.value, 0)).toBe(600);
+  });
+
+  it('excludes products with no available units from the aging table', async () => {
+    const { service } = setup();
+    (service as any).prisma.$queryRaw.mockResolvedValue([
+      { productId: 5, title: 'Agotado', published: true, inventoryPolicy: 'RESTOCK', lowStockThreshold: 3, onHand: 0, reserved: 0, available: 0, retailValue: 0, sold30: 0, sold60: 0, sold90: 0, categoryIds: [] },
+      { productId: 6, title: 'Disponible', published: true, inventoryPolicy: 'RESTOCK', lowStockThreshold: 3, onHand: 1, reserved: 0, available: 1, retailValue: 100, sold30: 0, sold60: 0, sold90: 0, categoryIds: [] },
+    ]);
+
+    const result = await service.analytics(2, {});
+    expect(result.summary.withoutStock).toBe(1);
+    expect(result.items.map((item) => item.productId)).toEqual([6]);
   });
 });

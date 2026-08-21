@@ -1,0 +1,91 @@
+{
+  "summary": {
+    "products": 9,
+    "productsWithStock": 8,
+    "onHand": 102,
+    "available": 96,
+    "retailValue": 1235000,
+    "oldProducts": 4,
+    "oldStockValue": 645000,
+    "noSales90": 5,
+    "noRecentSalesValue": 845000,
+    "overOneYear": 2,
+    "overOneYearValue": 310000
+  },
+  "agingBuckets": [
+    { "key": "0-90", "label": "Menos de 3 meses", "products": 2, "value": 285000 },
+    { "key": "90-180", "label": "Entre 3 y 6 meses", "products": 2, "value": 305000 },
+    { "key": "181-365", "label": "Entre 6 y 12 meses", "products": 2, "value": 335000 },
+    { "key": "365+", "label": "Más de un año", "products": 2, "value": 310000 }
+  ],
+  "items": [
+    {
+      "productId": 4, "title": "Tapado clásico", "brand": "Kayra", "published": true, "inventoryPolicy": "RESTOCK", "lowStockThreshold": 3,
+      "onHand": 8, "reserved": 0, "available": 8, "retailValue": 180000, "sold90": 0, "sellThrough": 0,
+      "productCreatedAt": "2025-05-01T12:00:00.000Z", "firstKnownStockAt": "2025-05-18T12:00:00.000Z", "firstKnownStockApproximate": false,
+      "lastRestockAt": "2025-05-18T12:00:00.000Z", "lastSaleAt": null, "lastSaleEstimated": false, "noSaleDays": null,
+      "ageDays": 460, "ageApproximate": false, "skus": "TAP-001", "aged90Units": 8, "aged180Units": 8, "aged365Units": 8,
+      "aged90Value": 180000, "aged180Value": 180000, "aged365Value": 180000, "immobilizedValue": 180000
+    },
+    {
+      "productId": 9, "title": "Cárdigan archivo", "brand": "Kayra", "published": false, "inventoryPolicy": "UNCLASSIFIED", "lowStockThreshold": 3,
+      "onHand": 6, "reserved": 0, "available": 6, "retailValue": 130000, "sold90": 0, "sellThrough": 0,
+      "productCreatedAt": "2025-07-01T12:00:00.000Z", "firstKnownStockAt": "2026-08-01T12:00:00.000Z", "firstKnownStockApproximate": true,
+      "lastRestockAt": null, "lastSaleAt": "2025-07-20T12:00:00.000Z", "lastSaleEstimated": true, "noSaleDays": 397,
+      "ageDays": 400, "ageApproximate": true, "skus": "CAR-009", "aged90Units": 6, "aged180Units": 6, "aged365Units": 6,
+      "aged90Value": 130000, "aged180Value": 130000, "aged365Value": 130000, "immobilizedValue": 130000
+    },
+    {
+      "productId": 3, "title": "Jean recto azul", "brand": "Denim Sur", "published": true, "inventoryPolicy": "RESTOCK", "lowStockThreshold": 3,
+      "onHand": 15, "reserved": 1, "available": 14, "retailValue": 210000, "sold90": 3, "sellThrough": 17.6,
+      "productCreatedAt": "2025-12-01T12:00:00.000Z", "firstKnownStockAt": "2025-12-20T12:00:00.000Z", "firstKnownStockApproximate": false,
+      "lastRestockAt": "2026-08-12T12:00:00.000Z", "lastSaleAt": "2026-07-05T12:00:00.000Z", "lastSaleEstimated": false, "noSaleDays": 47,
+      "ageDays": 240, "ageApproximate": false, "skus": "JEA-100 JEA-102", "aged90Units": 10, "aged180Units": 9, "aged365Units": 0,
+      "aged90Value": 150000, "aged180Value": 135000, "aged365Value": 0, "immobilizedValue": 135000
+    },
+    {
+      "productId": 6, "title": "Vestido con devolución", "brand": "Luna", "published": true, "inventoryPolicy": "NO_RESTOCK", "lowStockThreshold": 3,
+      "onHand": 7, "reserved": 0, "available": 7, "retailValue": 110000, "sold90": 0, "sellThrough": 0,
+      "productCreatedAt": "2026-01-02T12:00:00.000Z", "firstKnownStockAt": "2026-01-13T12:00:00.000Z", "firstKnownStockApproximate": false,
+      "lastRestockAt": "2026-01-13T12:00:00.000Z", "lastSaleAt": "2026-03-01T12:00:00.000Z", "lastSaleEstimated": false, "noSaleDays": 173,
+      "ageDays": 220, "ageApproximate": false, "skus": "VES-RET", "aged90Units": 7, "aged180Units": 7, "aged365Units": 0,
+      "aged90Value": 110000, "aged180Value": 110000, "aged365Value": 0, "immobilizedValue": 110000
+    },
+    {
+      "productId": 2, "title": "Camisa lino", "brand": "Kayra", "published": true, "inventoryPolicy": "RESTOCK", "lowStockThreshold": 3,
+      "onHand": 18, "reserved": 2, "available": 16, "retailValue": 205000, "sold90": 0, "sellThrough": 0,
+      "productCreatedAt": "2026-03-01T12:00:00.000Z", "firstKnownStockAt": "2026-04-03T12:00:00.000Z", "firstKnownStockApproximate": false,
+      "lastRestockAt": "2026-04-03T12:00:00.000Z", "lastSaleAt": null, "lastSaleEstimated": false, "noSaleDays": null,
+      "ageDays": 140, "ageApproximate": false, "skus": "CAM-LIN-M", "aged90Units": 16, "aged180Units": 0, "aged365Units": 0,
+      "aged90Value": 205000, "aged180Value": 0, "aged365Value": 0, "immobilizedValue": 0
+    },
+    {
+      "productId": 7, "title": "Pantalón sin historial", "brand": "Norte", "published": true, "inventoryPolicy": "RESTOCK", "lowStockThreshold": 3,
+      "onHand": 12, "reserved": 0, "available": 12, "retailValue": 100000, "sold90": 0, "sellThrough": 0,
+      "productCreatedAt": "2026-04-15T12:00:00.000Z", "firstKnownStockAt": null, "firstKnownStockApproximate": false,
+      "lastRestockAt": null, "lastSaleAt": null, "lastSaleEstimated": false, "noSaleDays": null,
+      "ageDays": 100, "ageApproximate": true, "skus": "PAN-TR-1", "aged90Units": 12, "aged180Units": 0, "aged365Units": 0,
+      "aged90Value": 100000, "aged180Value": 0, "aged365Value": 0, "immobilizedValue": 0
+    },
+    {
+      "productId": 5, "title": "Remera básica", "brand": "Kayra", "published": true, "inventoryPolicy": "RESTOCK", "lowStockThreshold": 3,
+      "onHand": 20, "reserved": 2, "available": 18, "retailValue": 160000, "sold90": 12, "sellThrough": 40,
+      "productCreatedAt": "2026-07-10T12:00:00.000Z", "firstKnownStockAt": "2026-07-22T12:00:00.000Z", "firstKnownStockApproximate": false,
+      "lastRestockAt": "2026-07-22T12:00:00.000Z", "lastSaleAt": "2026-08-19T12:00:00.000Z", "lastSaleEstimated": false, "noSaleDays": 2,
+      "ageDays": 30, "ageApproximate": false, "skus": "REM-001", "aged90Units": 0, "aged180Units": 0, "aged365Units": 0,
+      "aged90Value": 0, "aged180Value": 0, "aged365Value": 0, "immobilizedValue": 0
+    },
+    {
+      "productId": 1, "title": "Blusa nueva", "brand": "Kayra", "published": true, "inventoryPolicy": "RESTOCK", "lowStockThreshold": 3,
+      "onHand": 16, "reserved": 1, "available": 15, "retailValue": 140000, "sold90": 5, "sellThrough": 25,
+      "productCreatedAt": "2026-08-05T12:00:00.000Z", "firstKnownStockAt": "2026-08-09T12:00:00.000Z", "firstKnownStockApproximate": false,
+      "lastRestockAt": "2026-08-09T12:00:00.000Z", "lastSaleAt": "2026-08-17T12:00:00.000Z", "lastSaleEstimated": false, "noSaleDays": 4,
+      "ageDays": 12, "ageApproximate": false, "skus": "BLU-NEW", "aged90Units": 0, "aged180Units": 0, "aged365Units": 0,
+      "aged90Value": 0, "aged180Value": 0, "aged365Value": 0, "immobilizedValue": 0
+    }
+  ],
+  "total": 8,
+  "page": 1,
+  "pageSize": 25,
+  "totalPages": 1
+}

@@ -34,21 +34,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts",
-    ".next-store1/types/**/*.ts",
-    ".next-store1/dev/types/**/*.ts",
-    ".next-store2/types/**/*.ts",
-    ".next-store2/dev/types/**/*.ts",
-    ".next-store3/types/**/*.ts",
-    ".next-store3/dev/types/**/*.ts",
-    ".next-store4/types/**/*.ts",
-    ".next-store4/dev/types/**/*.ts",
-    ".next-store5/types/**/*.ts",
-    ".next-store5/dev/types/**/*.ts",
-    ".next-store6/types/**/*.ts",
-    ".next-store6/dev/types/**/*.ts",
-    ".next-store7/types/**/*.ts",
-    ".next-store7/dev/types/**/*.ts"
+    "**/*.mts"
   ],
   "exclude": [
     "node_modules"

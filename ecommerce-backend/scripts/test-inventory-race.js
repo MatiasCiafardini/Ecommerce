@@ -8,7 +8,6 @@ const api = axios.create({
   headers: { 'x-store-id': STORE_ID },
 });
 
-let token;
 let variantId;
 const ADMIN_PASSWORD_CANDIDATES = process.env.TEST_ADMIN_PASSWORD
   ? [process.env.TEST_ADMIN_PASSWORD]
@@ -34,8 +33,17 @@ async function login() {
     throw lastError;
   }
 
-  token = res.data.access_token;
-  api.defaults.headers.Authorization = `Bearer ${token}`;
+  const token = res.data.access_token;
+  const cookie = (res.headers['set-cookie'] || [])
+    .map((value) => value.split(';', 1)[0])
+    .join('; ');
+
+  if (token) api.defaults.headers.Authorization = `Bearer ${token}`;
+  if (cookie) api.defaults.headers.Cookie = cookie;
+
+  if (!token && !cookie) {
+    throw new Error('Login did not return an access token or session cookie');
+  }
 }
 
 async function setupProduct() {

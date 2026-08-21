@@ -51,9 +51,9 @@ export class InventoryController {
   @UseGuards(CatalogManagerGuard)
   update(
     @Param('variantId') variantId: string,
-    @Body() body: { quantity: number; reason?: string },
+    @Body() body: { quantity: number; reason?: string; movementKind?: 'RESTOCK' | 'CORRECTION' },
     @Req() req,
   ) {
-    return this.inventoryService.updateStock(Number(variantId), body.quantity, req.storeId, req.user, body.reason);
+    return this.inventoryService.updateStock(Number(variantId), body.quantity, req.storeId, req.user, body.reason, body.movementKind);
   }
 }
