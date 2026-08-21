@@ -22,6 +22,7 @@ import {
   resolveCashPriceInputSettings,
   type CashPriceInputSettings,
 } from '../../common/price-input-mode';
+import { isGiftCardProduct } from '../../common/gift-card-product';
 
 const normalizeNullableDisplayText = (value?: string | null) => {
   const normalized = normalizeDisplayText(value);
@@ -75,7 +76,7 @@ export class ProductsService {
           packageWidthCm: data.packageWidthCm,
           packageLengthCm: data.packageLengthCm,
           packagingTemplateId: data.packagingTemplateId?.trim() || null,
-          inventoryPolicy: data.inventoryPolicy ?? 'RESTOCK',
+          inventoryPolicy: isGiftCardProduct(title) ? 'UNTRACKED' : (data.inventoryPolicy ?? 'RESTOCK'),
           lowStockThreshold: data.lowStockThreshold ?? 3,
           storeId,
         },
@@ -501,6 +502,7 @@ export class ProductsService {
       await this.ensureSlugAvailable(slug, storeId, productId);
       payload.title = title;
       payload.slug = slug;
+      if (isGiftCardProduct(title)) payload.inventoryPolicy = 'UNTRACKED';
     }
 
     if (data.description !== undefined) {
@@ -534,7 +536,7 @@ export class ProductsService {
     if (data.packagingTemplateId !== undefined) {
       payload.packagingTemplateId = data.packagingTemplateId?.trim() || null;
     }
-    if (data.inventoryPolicy !== undefined) payload.inventoryPolicy = data.inventoryPolicy;
+    if (data.inventoryPolicy !== undefined && payload.inventoryPolicy !== 'UNTRACKED') payload.inventoryPolicy = data.inventoryPolicy;
     if (data.lowStockThreshold !== undefined) payload.lowStockThreshold = data.lowStockThreshold;
 
     const product = await this.prisma.$transaction(async (tx) => {
@@ -640,6 +642,12 @@ export class ProductsService {
     );
 
     this.ensureNoDuplicateVariantSkus(normalizedVariants);
+    const inventoryPolicy = isGiftCardProduct(
+      normalizedTitle,
+      normalizedVariants.map((variant) => variant.sku),
+    )
+      ? 'UNTRACKED'
+      : data.inventoryPolicy;
 
     const product = await this.prisma.$transaction(async (tx) => {
       const before = productId ? await this.findById(tx, productId, storeId) : null;
@@ -654,7 +662,7 @@ export class ProductsService {
             packageWidthCm: data.packageWidthCm,
             packageLengthCm: data.packageLengthCm,
             packagingTemplateId: data.packagingTemplateId,
-            inventoryPolicy: data.inventoryPolicy,
+            inventoryPolicy,
             lowStockThreshold: data.lowStockThreshold,
           })
           : await this.createProductRecord(tx, storeId, {
@@ -667,7 +675,7 @@ export class ProductsService {
             packageWidthCm: data.packageWidthCm,
             packageLengthCm: data.packageLengthCm,
             packagingTemplateId: data.packagingTemplateId,
-            inventoryPolicy: data.inventoryPolicy,
+            inventoryPolicy,
             lowStockThreshold: data.lowStockThreshold,
           });
 
@@ -1105,7 +1113,7 @@ export class ProductsService {
         packageWidthCm: data.packageWidthCm ?? null,
         packageLengthCm: data.packageLengthCm ?? null,
         packagingTemplateId: data.packagingTemplateId?.trim() || null,
-        inventoryPolicy: data.inventoryPolicy ?? 'RESTOCK',
+        inventoryPolicy: isGiftCardProduct(data.title) ? 'UNTRACKED' : (data.inventoryPolicy ?? 'RESTOCK'),
         lowStockThreshold: data.lowStockThreshold ?? 3,
         storeId,
       },
@@ -1163,7 +1171,7 @@ export class ProductsService {
         packageWidthCm: data.packageWidthCm ?? null,
         packageLengthCm: data.packageLengthCm ?? null,
         packagingTemplateId: data.packagingTemplateId?.trim() || null,
-        inventoryPolicy: data.inventoryPolicy,
+        inventoryPolicy: isGiftCardProduct(data.title) ? 'UNTRACKED' : data.inventoryPolicy,
         lowStockThreshold: data.lowStockThreshold,
       },
     });

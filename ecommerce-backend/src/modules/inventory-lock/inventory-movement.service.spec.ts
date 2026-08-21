@@ -72,6 +72,32 @@ describe('InventoryMovementService', () => {
     expect(result.summary.withoutStock).toBe(1);
   });
 
+  it('excludes existing gift cards from every inventory analytics total', async () => {
+    const { service } = setup();
+    (service as any).prisma.$queryRaw.mockResolvedValue([
+      { productId: 1, title: 'GIFT CARD TROJANI', skus: 'GIF-CAR-100', published: true, inventoryPolicy: 'UNCLASSIFIED', lowStockThreshold: 3, onHand: 2999, reserved: 0, available: 2999, retailValue: 449900000, sold30: 0, sold60: 0, sold90: 0, categoryIds: [] },
+      { productId: 2, title: 'Remera fisica', skus: 'REM-1', published: true, inventoryPolicy: 'RESTOCK', lowStockThreshold: 3, onHand: 2, reserved: 0, available: 2, retailValue: 60000, sold30: 0, sold60: 0, sold90: 0, categoryIds: [] },
+    ]);
+
+    const result = await service.analytics(3, {});
+    expect(result.summary.products).toBe(1);
+    expect(result.summary.productsWithStock).toBe(1);
+    expect(result.summary.retailValue).toBe(60000);
+    expect(result.items.map((item) => item.productId)).toEqual([2]);
+  });
+
+  it('estimates opening-balance age from product creation instead of deployment time', async () => {
+    const { service } = setup();
+    (service as any).prisma.$queryRaw.mockResolvedValue([]);
+
+    await service.analytics(3, {});
+
+    const query = (service as any).prisma.$queryRaw.mock.calls[0][0];
+    expect(query.strings.join(' ')).toContain(
+      `m.type = 'OPENING_BALANCE' THEN LEAST(m."createdAt", p."createdAt")`,
+    );
+  });
+
   it('uses the confirmed stock reduction as the exact last sale and only falls back to orders', async () => {
     const { service } = setup();
     (service as any).prisma.$queryRaw.mockResolvedValue([

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { isGiftCardProduct } from '../../common/gift-card-product';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { InventoryMovementType } from '../../common/inventory-types';
 
@@ -183,12 +184,17 @@ export class InventoryMovementService {
         WHERE "storeId" = ${storeId}
         GROUP BY "variantId"
       ), first_known_stock AS (
-        SELECT DISTINCT ON ("variantId") "variantId", "createdAt" AS "firstKnownStockAt",
-          (approximate OR type = 'OPENING_BALANCE') AS "firstKnownStockApproximate"
-        FROM "InventoryMovement"
-        WHERE "storeId" = ${storeId} AND "quantityDelta" > 0
-          AND type IN ('OPENING_BALANCE', 'INITIAL_LOAD', 'STOCK_RECEIPT', 'RETURN_RESTOCK', 'CANCELLATION_RESTOCK')
-        ORDER BY "variantId", "createdAt", id
+        SELECT DISTINCT ON (m."variantId") m."variantId",
+          CASE WHEN m.type = 'OPENING_BALANCE' THEN LEAST(m."createdAt", p."createdAt") ELSE m."createdAt" END AS "firstKnownStockAt",
+          (m.approximate OR m.type = 'OPENING_BALANCE') AS "firstKnownStockApproximate"
+        FROM "InventoryMovement" m
+        JOIN "ProductVariant" v ON v.id = m."variantId"
+        JOIN "Product" p ON p.id = v."productId"
+        WHERE m."storeId" = ${storeId} AND m."quantityDelta" > 0
+          AND m.type IN ('OPENING_BALANCE', 'INITIAL_LOAD', 'STOCK_RECEIPT', 'RETURN_RESTOCK', 'CANCELLATION_RESTOCK')
+        ORDER BY m."variantId",
+          CASE WHEN m.type = 'OPENING_BALANCE' THEN LEAST(m."createdAt", p."createdAt") ELSE m."createdAt" END,
+          m.id
       ), last_restock AS (
         SELECT "variantId", MAX("createdAt") AS "lastRestockAt"
         FROM "InventoryMovement"
@@ -196,11 +202,17 @@ export class InventoryMovementService {
           AND type IN ('INITIAL_LOAD', 'STOCK_RECEIPT')
         GROUP BY "variantId"
       ), inbound_layers AS (
-        SELECT m.id, m."variantId", m."createdAt",
+        SELECT m.id, m."variantId",
+          CASE WHEN m.type = 'OPENING_BALANCE' THEN LEAST(m."createdAt", p."createdAt") ELSE m."createdAt" END AS "createdAt",
           (m.approximate OR m.type IN ('OPENING_BALANCE', 'MANUAL_ADJUSTMENT', 'SYSTEM_CORRECTION', 'ORDER_EDIT')) AS approximate,
           m."quantityDelta",
-          SUM(m."quantityDelta") OVER (PARTITION BY m."variantId" ORDER BY m."createdAt", m.id) AS cumulative_inbound
+          SUM(m."quantityDelta") OVER (
+            PARTITION BY m."variantId"
+            ORDER BY CASE WHEN m.type = 'OPENING_BALANCE' THEN LEAST(m."createdAt", p."createdAt") ELSE m."createdAt" END, m.id
+          ) AS cumulative_inbound
         FROM "InventoryMovement" m
+        JOIN "ProductVariant" v ON v.id = m."variantId"
+        JOIN "Product" p ON p.id = v."productId"
         WHERE m."storeId" = ${storeId} AND m."quantityDelta" > 0
       ), remaining_layers AS (
         SELECT l.*,
@@ -270,12 +282,16 @@ export class InventoryMovementService {
     `);
 
     const normalized = rows.map((row) => this.normalizeAnalyticsRow(row));
-    const filtered = this.filterAnalyticsRows(normalized, query)
+    // Gift cards are a payment instrument, not physical merchandise. Keep the
+    // defensive check for existing records and mark new ones UNTRACKED at save time.
+    const included = normalized.filter((row) =>
+      row.inventoryPolicy !== 'UNTRACKED' && !isGiftCardProduct(row.title, row.skus),
+    );
+    const filtered = this.filterAnalyticsRows(included, query)
       .map((row) => ({ ...row, immobilizedValue: this.immobilizedValue(row, query) }));
     const sorted = this.sortAnalyticsRows(filtered, query.sortBy, query.sortDirection);
     const page = this.positiveInt(query.page, 1, 10_000);
     const pageSize = query.exportAll === 'true' ? Math.max(1, sorted.length) : this.positiveInt(query.pageSize, 40, 120);
-    const included = normalized.filter((row) => row.inventoryPolicy !== 'UNTRACKED');
     const withStock = included.filter((row) => row.available > 0);
     const actionable = included.filter((row) => row.published && row.inventoryPolicy === 'RESTOCK');
     const oldProducts = withStock.filter((row) => row.aged180Units > 0);
@@ -291,7 +307,7 @@ export class InventoryMovementService {
         retailValue: included.reduce((sum, row) => sum + row.retailValue, 0),
         withoutStock: actionable.filter((row) => row.available <= 0).length,
         lowStock: actionable.filter((row) => row.available > 0 && row.available <= row.lowStockThreshold).length,
-        unclassified: normalized.filter((row) => row.inventoryPolicy === 'UNCLASSIFIED').length,
+        unclassified: included.filter((row) => row.inventoryPolicy === 'UNCLASSIFIED').length,
         oldProducts: oldProducts.length,
         oldStockValue: oldProducts.reduce((sum, row) => sum + row.aged180Value, 0),
         noSales30: withStock.filter((row) => !row.lastSaleAt || row.noSaleDays! >= 30).length,
