@@ -24,7 +24,13 @@ type GiftCardRow = GiftCardForSale & {
 type GiftCardStats = { count: number; issuedTotal: number; activeBalance: number; redeemedTotal: number };
 type GiftCardDetail = GiftCardRow & { message?: string | null; movements?: Array<{ id: number; type: string; amount: string | number; balanceAfter: string | number; reason?: string | null; createdAt: string; orderId?: number | null }> };
 
-export default function GiftCardsPanel({ onUse }: { onUse: (card: GiftCardForSale) => void }) {
+export default function GiftCardsPanel({
+  onUse,
+  onCreate,
+}: {
+  onUse: (card: GiftCardForSale) => void;
+  onCreate: () => void;
+}) {
   const [cards, setCards] = useState<GiftCardRow[]>([]);
   const [stats, setStats] = useState<GiftCardStats | null>(null);
   const [search, setSearch] = useState("");
@@ -80,7 +86,15 @@ export default function GiftCardsPanel({ onUse }: { onUse: (card: GiftCardForSal
 
   return (
     <section style={{ display: "grid", gap: 16 }}>
-      <header><h2 style={{ margin: 0 }}>Gift Cards</h2><p>Consulta saldos, destinatarios y usa una tarjeta en una venta.</p></header>
+      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Gift Cards</h2>
+          <p>Consulta saldos, destinatarios y usa una tarjeta en una venta.</p>
+        </div>
+        <button type="button" onClick={onCreate} style={createButtonStyle}>
+          + Nueva gift card
+        </button>
+      </header>
       {error ? <p style={{ color: "#b42318" }}>{error}</p> : null}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
         <Stat label="Saldo activo" value={money(stats?.activeBalance ?? 0)} />
@@ -124,3 +138,14 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const cell = { padding: 10, borderBottom: "1px solid var(--theme-colors-border)", textAlign: "left" as const, whiteSpace: "nowrap" as const };
+
+const createButtonStyle = {
+  padding: "11px 18px",
+  border: 0,
+  borderRadius: 10,
+  background: "#1f6f5b",
+  color: "#fff",
+  fontWeight: 700,
+  cursor: "pointer",
+  whiteSpace: "nowrap" as const,
+};

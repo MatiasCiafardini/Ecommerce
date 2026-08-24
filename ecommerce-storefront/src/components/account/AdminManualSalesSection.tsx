@@ -230,6 +230,7 @@ export default function AdminManualSalesSection({
   initialGiftCard,
   initialGiftCardAmount,
   initialGiftCardRequestKey,
+  onGiftCardRequestHandled,
   lockCustomer = false,
 }: {
   storeLocationId?: number | null;
@@ -241,6 +242,7 @@ export default function AdminManualSalesSection({
   initialGiftCard?: GiftCardForSale | null;
   initialGiftCardAmount?: number | null;
   initialGiftCardRequestKey?: number;
+  onGiftCardRequestHandled?: () => void;
   lockCustomer?: boolean;
 }) {
   const [products, setProducts] = useState<ManualSaleProduct[]>([]);
@@ -1012,21 +1014,21 @@ export default function AdminManualSalesSection({
     );
   };
 
-  const addQuickGiftCard = async (amount: number) => {
+  const addQuickGiftCard = async (amount?: number | null) => {
     setError("");
     try {
       const results = await searchProducts("Gift Card");
       const product = results.find((entry) => entry.type === "GIFT_CARD") ?? results[0];
-      const variant = product?.variants?.find(
-        (entry) => Number(entry.price) === amount,
-      ) ?? product?.variants?.[0];
+      const variant = (amount
+        ? product?.variants?.find((entry) => Number(entry.price) === amount)
+        : undefined) ?? product?.variants?.[0];
       if (!product || !variant) {
         setError("No encontramos el producto Gift Card. Crealo o ejecuta el seed de Trojani.");
         return;
       }
       addVariant(
         { ...product, type: "GIFT_CARD", trackInventory: false },
-        { ...variant, price: amount },
+        { ...variant, price: amount ?? variant.price },
       );
     } catch (err) {
       setError(getErrorMessage(err, "No se pudo agregar la gift card."));
@@ -1034,8 +1036,9 @@ export default function AdminManualSalesSection({
   };
 
   useEffect(() => {
-    if (!initialGiftCardAmount) return;
+    if (!initialGiftCardRequestKey) return;
     void addQuickGiftCard(initialGiftCardAmount);
+    onGiftCardRequestHandled?.();
     // The parent changes this value only for an explicit dashboard quick action.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialGiftCardAmount, initialGiftCardRequestKey]);
@@ -1595,15 +1598,6 @@ export default function AdminManualSalesSection({
       ) : (
         <div className="manual-sale-workspace">
           <section className="manual-sale-catalog" aria-label="Catalogo">
-            <div className="manual-sale-card" style={{ marginBottom: 12 }}>
-              <strong>Gift cards rápidas</strong>
-              <p style={{ margin: "6px 0 12px", color: "var(--theme-colors-text-muted)" }}>Agrega una o varias y edita el importe antes de cobrar.</p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[25000, 50000, 100000].map((amount) => (
-                  <button key={amount} type="button" className="manual-sale-button manual-sale-button-soft" onClick={() => void addQuickGiftCard(amount)}>+{money(amount)}</button>
-                ))}
-              </div>
-            </div>
             <div className="manual-sale-card manual-sale-search-card">
               <div className="manual-sale-search-titlebar">
                 <h3>Buscar productos</h3>

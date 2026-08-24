@@ -313,9 +313,9 @@ function AdminManualSalesWorkspace({
     setActiveTab("sale");
   };
 
-  const startGiftCardSale = (amount: number) => {
+  const startGiftCardSale = (amount?: number) => {
     setInitialGiftCard(null);
-    setInitialGiftCardAmount(amount);
+    setInitialGiftCardAmount(amount ?? null);
     setGiftCardQuickRequestKey((current) => current + 1);
     setActiveTab("sale");
   };
@@ -406,6 +406,10 @@ function AdminManualSalesWorkspace({
             initialGiftCard={initialGiftCard}
             initialGiftCardAmount={initialGiftCardAmount}
             initialGiftCardRequestKey={giftCardQuickRequestKey}
+            onGiftCardRequestHandled={() => {
+              setInitialGiftCardAmount(null);
+              setGiftCardQuickRequestKey(0);
+            }}
           />
         ) : null}
         {activeTab === "current-accounts" ? (
@@ -416,7 +420,9 @@ function AdminManualSalesWorkspace({
             initialMode="trials"
           />
         ) : null}
-        {activeTab === "gift-cards" ? <GiftCardsPanel onUse={useGiftCard} /> : null}
+        {activeTab === "gift-cards" ? (
+          <GiftCardsPanel onUse={useGiftCard} onCreate={() => startGiftCardSale()} />
+        ) : null}
         {activeTab === "returns" ? (
           <ManualReturnsPanel storeLocationId={selectedLocationId} initialDraft={initialReturnDraft} />
         ) : null}
