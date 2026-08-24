@@ -395,7 +395,6 @@ function AdminManualSalesWorkspace({
             onManageTrial={managePendingTrial}
             onGenerateReturn={startManualReturn}
             onOpenGiftCards={() => setActiveTab("gift-cards")}
-            onStartGiftCardSale={startGiftCardSale}
           />
         ) : null}
         {activeTab === "sale" ? (
@@ -443,14 +442,12 @@ function ManualSalesDashboard({
   onManageTrial,
   onGenerateReturn,
   onOpenGiftCards,
-  onStartGiftCardSale,
 }: {
   storeLocationId?: number | null;
   onOpenCash: () => void;
   onManageTrial: (accountId: number) => void;
   onGenerateReturn?: (draft: ManualReturnDraft) => void;
   onOpenGiftCards: () => void;
-  onStartGiftCardSale: (amount: number) => void;
 }) {
   const { user } = useAuth();
   const [cash, setCash] = useState<ManualCashPayload | null>(null);
@@ -631,9 +628,6 @@ function ManualSalesDashboard({
               <QuickActionButton icon={<PersonAddIcon />} title="Crear cuenta corriente" description="Nuevo cliente" onClick={openCreateAccount} />
               <QuickActionButton icon={<ClockIcon />} title="Historial de ventas" description="Ver ventas realizadas" onClick={openSalesHistory} />
               <QuickActionButton icon={<TagIcon />} title="Gift Cards" description="Consultar saldos y canjear" onClick={onOpenGiftCards} />
-              {[25000, 50000, 100000].map((amount) => (
-                <QuickActionButton key={amount} icon={<TagIcon />} title={`Gift Card ${money(amount)}`} description="Crear venta rápida" onClick={() => onStartGiftCardSale(amount)} />
-              ))}
             </div>
           </section>
 
