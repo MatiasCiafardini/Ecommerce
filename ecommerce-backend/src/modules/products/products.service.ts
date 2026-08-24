@@ -638,16 +638,19 @@ export class ProductsService {
         .map((option) => option.id),
     );
     const normalizedOptionValues = this.normalizeOptionValues(rawOptionValues, brandOptionIds);
+    const giftCardProduct = isGiftCardProduct(
+      normalizedTitle,
+      (data.variants ?? []).map((variant) => variant.sku),
+    );
     const normalizedVariants = this.normalizeVariants(
       data.variants ?? [],
-      priceInputSettings,
+      giftCardProduct
+        ? { enabled: false, discountPercentage: 0, multiplier: 1 }
+        : priceInputSettings,
     );
 
     this.ensureNoDuplicateVariantSkus(normalizedVariants);
-    const inventoryPolicy = isGiftCardProduct(
-      normalizedTitle,
-      normalizedVariants.map((variant) => variant.sku),
-    )
+    const inventoryPolicy = giftCardProduct
       ? 'UNTRACKED'
       : data.inventoryPolicy;
 

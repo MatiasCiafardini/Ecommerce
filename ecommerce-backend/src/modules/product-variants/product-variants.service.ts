@@ -13,6 +13,7 @@ import {
   resolveCashPriceInputSettings,
 } from '../../common/price-input-mode';
 import { normalizeDisplayText } from '../../common/utils/display-text.util';
+import { isGiftCardProduct } from '../../common/gift-card-product';
 
 const normalizeNullableDisplayText = (value?: string | null) => {
   const normalized = normalizeDisplayText(value);
@@ -121,13 +122,16 @@ export class ProductVariantsService {
         data.length,
       );
       const priceInputSettings = await this.resolvePriceInputSettings(storeId);
+      const effectivePriceInputSettings = isGiftCardProduct(product.title, sku)
+        ? { enabled: false, discountPercentage: 0, multiplier: 1 }
+        : priceInputSettings;
 
       return await this.prisma.$transaction(async (tx) => {
         const variant = await tx.productVariant.create({
           data: {
             productId: data.productId,
             sku,
-            price: convertCashInputToBasePrice(data.price, priceInputSettings),
+            price: convertCashInputToBasePrice(data.price, effectivePriceInputSettings),
             Size: normalizeNullableDisplayText(data.Size),
             Color: normalizeNullableDisplayText(data.Color),
             waistSize: normalizeNullableDisplayText(data.waistSize),
@@ -246,9 +250,15 @@ export class ProductVariantsService {
     }
     if (data.price !== undefined) {
       const priceInputSettings = await this.resolvePriceInputSettings(storeId);
+      const effectivePriceInputSettings = isGiftCardProduct(
+        variant.product.title,
+        data.sku ?? variant.sku,
+      )
+        ? { enabled: false, discountPercentage: 0, multiplier: 1 }
+        : priceInputSettings;
       payload.price = convertCashInputToBasePrice(
         data.price,
-        priceInputSettings,
+        effectivePriceInputSettings,
       );
     }
     if (data.Size !== undefined) payload.Size = normalizeNullableDisplayText(data.Size);

@@ -641,13 +641,13 @@ export default function AdminManualSalesSection({
             splitPaymentBaseComplete
               ? Math.max(splitPaymentBaseTarget - splitPaymentTotal, 0)
               : partialSplitPaymentDiscountAmount,
-            subtotal,
+            fullPaymentMethodDiscountAmount,
           )
         : roundCurrency(fullPaymentMethodDiscountAmount * paymentMethodDiscountRatio)
       : 0;
   const manualDiscountBase = splitPaymentEnabled
-    ? subtotal
-    : Math.max(subtotal - paymentMethodDiscountAmount, 0);
+    ? discountableSubtotal
+    : Math.max(discountableSubtotal - paymentMethodDiscountAmount, 0);
   const manualDiscountAmount = splitPaymentEnabled
     ? manualDiscountAmountBeforePayment
     : discountType === "percentage"
@@ -4588,14 +4588,19 @@ function calculateManualSaleSubmissionAmounts({
   useCurrentAccountCredit: boolean;
 }) {
   const subtotal = lines.reduce((total, line) => total + line.lineTotal, 0);
+  const discountableLines = lines.filter((line) => !line.isGiftCard);
+  const discountableSubtotal = discountableLines.reduce(
+    (total, line) => total + line.lineTotal,
+    0,
+  );
   const manualDiscountAmountBeforePayment =
     discountType === "percentage"
       ? calculateDiscountOnRemainingBase(
-          subtotal,
+          discountableSubtotal,
           safeDiscountValue,
           pricingPolicy,
         )
-      : Math.min(safeDiscountValue, subtotal);
+      : Math.min(safeDiscountValue, discountableSubtotal);
   const splitPaymentBaseTarget = Math.max(subtotal - manualDiscountAmountBeforePayment, 0);
   const normalizedSplitPayments = splitPayments.map((payment) => ({
     method: payment.method,
@@ -4656,8 +4661,8 @@ function calculateManualSaleSubmissionAmounts({
   const fullPaymentMethodDiscountAmount =
     paymentMethodDiscountPercentage > 0
       ? calculateManualSaleDiscountAmount(
-          lines,
-          subtotal,
+          discountableLines,
+          discountableSubtotal,
           paymentMethodDiscountPercentage,
           pricingPolicy,
         )
@@ -4669,13 +4674,13 @@ function calculateManualSaleSubmissionAmounts({
             splitPaymentBaseComplete
               ? Math.max(splitPaymentBaseTarget - splitPaymentTotal, 0)
               : partialSplitPaymentDiscountAmount,
-            subtotal,
+            fullPaymentMethodDiscountAmount,
           )
         : roundCurrency(fullPaymentMethodDiscountAmount * paymentMethodDiscountRatio)
       : 0;
   const manualDiscountBase = splitPaymentEnabled
-    ? subtotal
-    : Math.max(subtotal - paymentMethodDiscountAmount, 0);
+    ? discountableSubtotal
+    : Math.max(discountableSubtotal - paymentMethodDiscountAmount, 0);
   const manualDiscountAmount = splitPaymentEnabled
     ? manualDiscountAmountBeforePayment
     : discountType === "percentage"

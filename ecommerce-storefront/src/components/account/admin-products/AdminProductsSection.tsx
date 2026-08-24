@@ -813,6 +813,26 @@ function formatEditablePriceFromBase(
     : displayPrice.toFixed(2).replace(/\.?0+$/, "");
 }
 
+function isGiftCardCatalogProduct(product: Pick<Product, "title" | "variants">) {
+  const values = [product.title, ...(product.variants ?? []).map((variant) => variant.sku ?? "")]
+    .map((value) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean);
+
+  return values.some((value) =>
+    /(^|\s)GIFT\s*CARD(\s|$)/.test(value)
+      || /(^|\s)TARJETA\s+(DE\s+)?REGALO(\s|$)/.test(value)
+      || /^GIF\s+CAR(\s|$)/.test(value),
+  );
+}
+
 function normalizePriceInputSettings(input: unknown): ProductPriceInputSettings {
   if (!input || typeof input !== "object") return defaultPriceInputSettings;
   const source = input as Partial<ProductPriceInputSettings>;
@@ -830,8 +850,11 @@ function getProductPriceFrom(
   product: Product,
   priceInputSettings = defaultPriceInputSettings,
 ) {
+  const effectivePriceInputSettings = isGiftCardCatalogProduct(product)
+    ? defaultPriceInputSettings
+    : priceInputSettings;
   const prices = (product.variants ?? [])
-    .map((variant) => resolveCatalogPriceFromBase(variant.price, priceInputSettings))
+    .map((variant) => resolveCatalogPriceFromBase(variant.price, effectivePriceInputSettings))
     .filter((price) => Number.isFinite(price) && price > 0);
 
   return prices.length > 0 ? Math.min(...prices) : 0;
@@ -2907,13 +2930,19 @@ export default function AdminProductsSection({
         ]);
         setDraftOptionValues({});
 
+        const effectivePriceInputSettings = isGiftCardCatalogProduct({
+          title: product.title,
+          variants: productVariants,
+        })
+          ? defaultPriceInputSettings
+          : priceInputSettings;
         const safeVariants = Array.isArray(productVariants)
           ? productVariants.map((variant) => ({
               id: variant.id,
               sku: String(variant.sku ?? ""),
               price: formatEditablePriceFromBase(
                 variant.price,
-                priceInputSettings,
+                effectivePriceInputSettings,
               ),
               Size: String(variant.Size ?? ""),
               Color: String(variant.Color ?? ""),
@@ -3008,13 +3037,19 @@ export default function AdminProductsSection({
         ]);
         setDraftOptionValues({});
 
+        const effectivePriceInputSettings = isGiftCardCatalogProduct({
+          title: product.title,
+          variants: productVariants,
+        })
+          ? defaultPriceInputSettings
+          : priceInputSettings;
         setVariants(
           Array.isArray(productVariants)
             ? productVariants.map((variant) => ({
                 sku: `${String(variant.sku ?? "").trim()}-COPY`,
                 price: formatEditablePriceFromBase(
                   variant.price,
-                  priceInputSettings,
+                  effectivePriceInputSettings,
                 ),
                 Size: String(variant.Size ?? ""),
                 Color: String(variant.Color ?? ""),
