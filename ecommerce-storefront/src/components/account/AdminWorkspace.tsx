@@ -28,6 +28,7 @@ import AdminLabelsGenerator from "./AdminLabelsGenerator";
 import AdminStockSection from "./AdminStockSection";
 import DeveloperModePanel from "./DeveloperModePanel";
 import type { AdminReturn, AdminSection, AdminShipment } from "./admin-types";
+import GiftCardsPanel, { type GiftCardForSale } from "./GiftCardsPanel";
 
 type Props = {
   section: AdminSection;
@@ -52,7 +53,7 @@ const operationalPendingStatuses = new Set([
   "packed",
 ]);
 
-type ManualSalesTab = "dashboard" | "sale" | "current-accounts" | "returns" | "cash-register" | "analytics";
+type ManualSalesTab = "dashboard" | "sale" | "gift-cards" | "current-accounts" | "returns" | "cash-register" | "analytics";
 
 type PendingTrialItem = {
   id: number;
@@ -232,6 +233,9 @@ function AdminManualSalesWorkspace({
   const [initialSaleCustomer, setInitialSaleCustomer] = useState<ManualSaleCustomer | null>(null);
   const [trialAccountId, setTrialAccountId] = useState<number | null>(null);
   const [initialReturnDraft, setInitialReturnDraft] = useState<ManualReturnDraft | null>(null);
+  const [initialGiftCard, setInitialGiftCard] = useState<GiftCardForSale | null>(null);
+  const [initialGiftCardAmount, setInitialGiftCardAmount] = useState<number | null>(null);
+  const [giftCardQuickRequestKey, setGiftCardQuickRequestKey] = useState(0);
   const [locations, setLocations] = useState<StoreLocation[]>([]);
   const locationPreferenceKey = `admin-selected-location:${user?.storeId ?? "store"}:${user?.id ?? "user"}`;
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(() => {
@@ -303,6 +307,19 @@ function AdminManualSalesWorkspace({
     setActiveTab("current-accounts");
   };
 
+  const useGiftCard = (card: GiftCardForSale) => {
+    setInitialGiftCardAmount(null);
+    setInitialGiftCard(card);
+    setActiveTab("sale");
+  };
+
+  const startGiftCardSale = (amount: number) => {
+    setInitialGiftCard(null);
+    setInitialGiftCardAmount(amount);
+    setGiftCardQuickRequestKey((current) => current + 1);
+    setActiveTab("sale");
+  };
+
   return (
     <section style={manualSalesBoutiqueShellStyle} data-account-panel>
       <style>
@@ -330,6 +347,7 @@ function AdminManualSalesWorkspace({
             {[
               ["dashboard", "Inicio"],
               ["sale", "Venta manual"],
+              ["gift-cards", "Gift Cards"],
               ["current-accounts", "Cuentas corrientes"],
               ["cash-register", "Caja"],
               ["returns", "Devoluciones"],
@@ -376,6 +394,8 @@ function AdminManualSalesWorkspace({
             onOpenCash={() => setActiveTab("cash-register")}
             onManageTrial={managePendingTrial}
             onGenerateReturn={startManualReturn}
+            onOpenGiftCards={() => setActiveTab("gift-cards")}
+            onStartGiftCardSale={startGiftCardSale}
           />
         ) : null}
         {activeTab === "sale" ? (
@@ -383,6 +403,9 @@ function AdminManualSalesWorkspace({
             storeLocationId={selectedLocationId}
             initialCustomer={initialSaleCustomer}
             initialPaymentMethod={initialSaleCustomer ? "Cuenta corriente" : undefined}
+            initialGiftCard={initialGiftCard}
+            initialGiftCardAmount={initialGiftCardAmount}
+            initialGiftCardRequestKey={giftCardQuickRequestKey}
           />
         ) : null}
         {activeTab === "current-accounts" ? (
@@ -393,6 +416,7 @@ function AdminManualSalesWorkspace({
             initialMode="trials"
           />
         ) : null}
+        {activeTab === "gift-cards" ? <GiftCardsPanel onUse={useGiftCard} /> : null}
         {activeTab === "returns" ? (
           <ManualReturnsPanel storeLocationId={selectedLocationId} initialDraft={initialReturnDraft} />
         ) : null}
@@ -412,11 +436,15 @@ function ManualSalesDashboard({
   onOpenCash,
   onManageTrial,
   onGenerateReturn,
+  onOpenGiftCards,
+  onStartGiftCardSale,
 }: {
   storeLocationId?: number | null;
   onOpenCash: () => void;
   onManageTrial: (accountId: number) => void;
   onGenerateReturn?: (draft: ManualReturnDraft) => void;
+  onOpenGiftCards: () => void;
+  onStartGiftCardSale: (amount: number) => void;
 }) {
   const { user } = useAuth();
   const [cash, setCash] = useState<ManualCashPayload | null>(null);
@@ -596,6 +624,10 @@ function ManualSalesDashboard({
               <QuickActionButton icon={<TagIcon />} title="Prendas pendientes" description="Ver entregas a clientes" onClick={() => void openPendingTrials()} />
               <QuickActionButton icon={<PersonAddIcon />} title="Crear cuenta corriente" description="Nuevo cliente" onClick={openCreateAccount} />
               <QuickActionButton icon={<ClockIcon />} title="Historial de ventas" description="Ver ventas realizadas" onClick={openSalesHistory} />
+              <QuickActionButton icon={<TagIcon />} title="Gift Cards" description="Consultar saldos y canjear" onClick={onOpenGiftCards} />
+              {[25000, 50000, 100000].map((amount) => (
+                <QuickActionButton key={amount} icon={<TagIcon />} title={`Gift Card ${money(amount)}`} description="Crear venta rápida" onClick={() => onStartGiftCardSale(amount)} />
+              ))}
             </div>
           </section>
 

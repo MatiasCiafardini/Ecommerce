@@ -15,11 +15,14 @@ import {
   isDiscountedAdministrativePaymentMethod,
 } from "@/lib/manual-payment-methods";
 import { money } from "./order-utils";
+import type { GiftCardForSale } from "./GiftCardsPanel";
 
 type ManualSaleProduct = {
   id: number;
   title: string;
   slug: string;
+  type?: "STANDARD" | "GIFT_CARD";
+  trackInventory?: boolean;
   imageUrl?: string | null;
   thumbnailUrl?: string | null;
   images?: Array<{ url?: string | null }>;
@@ -37,6 +40,7 @@ type ManualSaleProduct = {
 };
 
 type ManualSaleLine = {
+  lineId: string;
   variantId: number;
   productId: number;
   title: string;
@@ -47,6 +51,15 @@ type ManualSaleLine = {
   catalogPrice: number;
   available: number;
   imageUrl?: string | null;
+  isGiftCard?: boolean;
+  giftCardPurchaserName?: string;
+  giftCardPurchaserEmail?: string;
+  giftCardPurchaserPhone?: string;
+  giftCardRecipientName?: string;
+  giftCardRecipientEmail?: string;
+  giftCardRecipientPhone?: string;
+  giftCardMessage?: string;
+  giftCardExpiresAt?: string;
 };
 
 export type TrialSaleItem = {
@@ -58,6 +71,15 @@ export type TrialSaleItem = {
   sku: string;
   price: number;
   imageUrl?: string | null;
+};
+
+type AppliedGiftCard = {
+  id: number;
+  code: string;
+  codeLastFour: string;
+  recipientName: string;
+  balance: string | number;
+  amount: string;
 };
 
 type ManualSalePaymentLine = {
@@ -93,6 +115,7 @@ type CreatedOrder = {
   id: number;
   total: string | number;
   status: string;
+  items?: Array<{ issuedGiftCard?: { code: string; balance: string | number; recipientName: string } | null }>;
 };
 
 export type ManualSaleCustomer = {
@@ -168,7 +191,9 @@ const toVariantRows = (products: ManualSaleProduct[]): ManualSaleVariantRow[] =>
       variantLabel: getVariantLabel(variant),
       sku: String(variant.sku ?? ""),
       price: variant.price,
-      available: getAvailableStock(variant.inventories),
+      available: product.type === "GIFT_CARD" || product.trackInventory === false
+        ? Number.MAX_SAFE_INTEGER
+        : getAvailableStock(variant.inventories),
       imageUrl: getProductImageUrl(product),
     })),
   );
@@ -202,6 +227,9 @@ export default function AdminManualSalesSection({
   initialCurrentAccount,
   initialPaymentMethod,
   initialTrialItems,
+  initialGiftCard,
+  initialGiftCardAmount,
+  initialGiftCardRequestKey,
   lockCustomer = false,
 }: {
   storeLocationId?: number | null;
@@ -210,6 +238,9 @@ export default function AdminManualSalesSection({
   initialCurrentAccount?: CurrentAccountLookup | null;
   initialPaymentMethod?: string;
   initialTrialItems?: TrialSaleItem[];
+  initialGiftCard?: GiftCardForSale | null;
+  initialGiftCardAmount?: number | null;
+  initialGiftCardRequestKey?: number;
   lockCustomer?: boolean;
 }) {
   const [products, setProducts] = useState<ManualSaleProduct[]>([]);
@@ -248,6 +279,9 @@ export default function AdminManualSalesSection({
   const [storeId, setStoreId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<ManualSaleLine[]>([]);
+  const [giftCardCode, setGiftCardCode] = useState("");
+  const [appliedGiftCards, setAppliedGiftCards] = useState<AppliedGiftCard[]>([]);
+  const [giftCardLookupLoading, setGiftCardLookupLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmSaleOpen, setConfirmSaleOpen] = useState(false);
   const [manualPriceMode, setManualPriceMode] = useState<ManualPriceMode | null>(null);
@@ -293,6 +327,7 @@ export default function AdminManualSalesSection({
         continue;
       }
       grouped.set(item.variantId, {
+        lineId: `trial-${item.variantId}`,
         variantId: item.variantId,
         productId: item.productId,
         title: item.title,
@@ -310,6 +345,13 @@ export default function AdminManualSalesSection({
       available: line.quantity,
     })));
   }, [initialTrialItems]);
+
+  useEffect(() => {
+    if (!initialGiftCard) return;
+    setAppliedGiftCards((current) => current.some((card) => card.id === initialGiftCard.id)
+      ? current
+      : [...current, { ...initialGiftCard, amount: String(Number(initialGiftCard.balance)) }]);
+  }, [initialGiftCard]);
 
   const searchProducts = async (query: string, signal?: AbortSignal) => {
     const normalizedQuery = normalizeScannerSkuInput(query).trim();
@@ -504,6 +546,11 @@ export default function AdminManualSalesSection({
     (total, line) => total + line.lineTotal,
     0,
   );
+  const discountableSaleLines = normalizedSaleLines.filter((line) => !line.isGiftCard);
+  const discountableSubtotal = discountableSaleLines.reduce(
+    (total, line) => total + line.lineTotal,
+    0,
+  );
   const normalizedDiscountValue = Number(discountValue || 0);
   const safeDiscountValue = Number.isFinite(normalizedDiscountValue)
     ? Math.max(normalizedDiscountValue, 0)
@@ -511,11 +558,11 @@ export default function AdminManualSalesSection({
   const manualDiscountAmountBeforePayment =
     discountType === "percentage"
       ? calculateDiscountOnRemainingBase(
-          subtotal,
+          discountableSubtotal,
           safeDiscountValue,
           pricingPolicy,
         )
-      : Math.min(safeDiscountValue, subtotal);
+      : Math.min(safeDiscountValue, discountableSubtotal);
   const splitPaymentBaseTarget = Math.max(subtotal - manualDiscountAmountBeforePayment, 0);
   const normalizedSplitPayments = splitPayments.map((payment) => ({
     method: payment.method,
@@ -579,8 +626,8 @@ export default function AdminManualSalesSection({
   const fullPaymentMethodDiscountAmount =
     paymentMethodDiscountPercentage > 0
       ? calculateManualSaleDiscountAmount(
-          normalizedSaleLines,
-          subtotal,
+          discountableSaleLines,
+          discountableSubtotal,
           paymentMethodDiscountPercentage,
           pricingPolicy,
         )
@@ -619,7 +666,25 @@ export default function AdminManualSalesSection({
     useCurrentAccountCredit && selectedCurrentAccount
       ? Math.min(availableCurrentAccountCredit, total)
       : 0;
-  const amountToCollect = Math.max(total - appliedCurrentAccountCreditAmount, 0);
+  let giftCardRemainingTotal = Math.max(total - appliedCurrentAccountCreditAmount, 0);
+  const normalizedGiftCardApplications = appliedGiftCards.map((card) => {
+    const amount = roundCurrency(
+      Math.min(
+        Math.max(parseCurrencyInput(card.amount), 0),
+        Number(card.balance),
+        giftCardRemainingTotal,
+      ),
+    );
+    giftCardRemainingTotal = roundCurrency(Math.max(giftCardRemainingTotal - amount, 0));
+    return { ...card, appliedAmount: amount };
+  });
+  const appliedGiftCardAmount = roundCurrency(
+    normalizedGiftCardApplications.reduce((sum, card) => sum + card.appliedAmount, 0),
+  );
+  const amountToCollect = Math.max(
+    total - appliedCurrentAccountCreditAmount - appliedGiftCardAmount,
+    0,
+  );
   const effectiveManualPayments = splitPaymentEnabled
     ? normalizedSplitPayments
     : [
@@ -822,7 +887,8 @@ export default function AdminManualSalesSection({
   }, [customerModalOpen]);
 
   const addVariant = (product: ManualSaleProduct, variant: ManualSaleVariant) => {
-    const available = getAvailableStock(variant.inventories);
+    const isGiftCard = product.type === "GIFT_CARD" || product.trackInventory === false;
+    const available = isGiftCard ? Number.MAX_SAFE_INTEGER : getAvailableStock(variant.inventories);
     if (available <= 0) {
       setError("Esa variante no tiene stock disponible.");
       return false;
@@ -831,7 +897,7 @@ export default function AdminManualSalesSection({
     setError("");
     setSuccess("");
     setLines((current) => {
-      const existing = current.find((line) => line.variantId === variant.id);
+      const existing = isGiftCard ? undefined : current.find((line) => line.variantId === variant.id);
       if (existing) {
         return current.map((line) =>
           line.variantId === variant.id
@@ -845,6 +911,7 @@ export default function AdminManualSalesSection({
       return [
         ...current,
         {
+          lineId: `${variant.id}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
           variantId: variant.id,
           productId: product.id,
           title: product.title,
@@ -854,6 +921,7 @@ export default function AdminManualSalesSection({
           price: String(catalogPrice),
           catalogPrice,
           available,
+          isGiftCard,
           imageUrl: getProductImageUrl(product),
         },
       ];
@@ -938,14 +1006,74 @@ export default function AdminManualSalesSection({
     setSelectedCatalogVariantId(visibleVariantRows[nextIndex].variant.id);
   };
 
-  const updateLine = (variantId: number, patch: Partial<ManualSaleLine>) => {
+  const updateLine = (lineId: string, patch: Partial<ManualSaleLine>) => {
     setLines((current) =>
-      current.map((line) => (line.variantId === variantId ? { ...line, ...patch } : line)),
+      current.map((line) => (line.lineId === lineId ? { ...line, ...patch } : line)),
     );
   };
 
-  const removeLine = (variantId: number) => {
-    setLines((current) => current.filter((line) => line.variantId !== variantId));
+  const addQuickGiftCard = async (amount: number) => {
+    setError("");
+    try {
+      const results = await searchProducts("Gift Card");
+      const product = results.find((entry) => entry.type === "GIFT_CARD") ?? results[0];
+      const variant = product?.variants?.find(
+        (entry) => Number(entry.price) === amount,
+      ) ?? product?.variants?.[0];
+      if (!product || !variant) {
+        setError("No encontramos el producto Gift Card. Crealo o ejecuta el seed de Trojani.");
+        return;
+      }
+      addVariant(
+        { ...product, type: "GIFT_CARD", trackInventory: false },
+        { ...variant, price: amount },
+      );
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudo agregar la gift card."));
+    }
+  };
+
+  useEffect(() => {
+    if (!initialGiftCardAmount) return;
+    void addQuickGiftCard(initialGiftCardAmount);
+    // The parent changes this value only for an explicit dashboard quick action.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialGiftCardAmount, initialGiftCardRequestKey]);
+
+  const lookupGiftCard = async () => {
+    const code = giftCardCode.trim();
+    if (!code) return;
+    setGiftCardLookupLoading(true);
+    setError("");
+    try {
+      const card = (await api(`/gift-cards/lookup?code=${encodeURIComponent(code)}`)) as {
+        id: number;
+        code: string;
+        codeLastFour: string;
+        recipientName: string;
+        balance: string | number;
+      };
+      setAppliedGiftCards((current) =>
+        current.some((entry) => entry.id === card.id)
+          ? current
+          : [
+              ...current,
+              {
+                ...card,
+                amount: String(Number(card.balance)),
+              },
+            ],
+      );
+      setGiftCardCode("");
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudo consultar la gift card."));
+    } finally {
+      setGiftCardLookupLoading(false);
+    }
+  };
+
+  const removeLine = (lineId: string) => {
+    setLines((current) => current.filter((line) => line.lineId !== lineId));
   };
 
   const resetForm = () => {
@@ -967,11 +1095,11 @@ export default function AdminManualSalesSection({
     setNotes("");
     setProductQuery("");
     setLines([]);
+    setGiftCardCode("");
+    setAppliedGiftCards([]);
     setManualPriceMode(null);
     setSelectedCatalogVariantId(null);
     setOpenPaymentMenuIndex(null);
-    setSuccess("");
-    setError("");
     focusSearchInput();
   };
 
@@ -993,7 +1121,11 @@ export default function AdminManualSalesSection({
         )
       );
     }, 0);
-    const remainingBase = Math.max(roundCurrency(splitPaymentBaseTarget - coveredBase), 0);
+    const adjustedSplitTarget = Math.max(
+      splitPaymentBaseTarget - appliedGiftCardAmount - appliedCurrentAccountCreditAmount,
+      0,
+    );
+    const remainingBase = Math.max(roundCurrency(adjustedSplitTarget - coveredBase), 0);
     const targetAmount = calculatePaymentAmountForBase(
       remainingBase,
       payments[targetIndex]?.method || "Efectivo",
@@ -1005,7 +1137,7 @@ export default function AdminManualSalesSection({
         ? { ...payment, amount: formatAmountInput(targetAmount) }
         : payment,
     );
-  }, [effectivePaymentDiscountPercentage, splitPaymentBaseTarget, subtotal]);
+  }, [appliedCurrentAccountCreditAmount, appliedGiftCardAmount, effectivePaymentDiscountPercentage, splitPaymentBaseTarget, subtotal]);
 
   useEffect(() => {
     if (!splitPaymentEnabled) return;
@@ -1024,7 +1156,7 @@ export default function AdminManualSalesSection({
       const firstPayment = splitPayments[0] ?? { method: paymentMethod, amount: "" };
       const firstMethod = firstPayment.method || paymentMethod;
       const secondMethod = paymentOptions.find((option) => option !== firstMethod) ?? "Tarjeta";
-      const firstBase = roundCurrency(subtotal / 2);
+      const firstBase = roundCurrency(amountToCollect / 2);
       const firstAmount = calculatePaymentAmountForBase(
         firstBase,
         firstMethod,
@@ -1079,6 +1211,13 @@ export default function AdminManualSalesSection({
   };
 
   const getPaymentValidationMessage = () => {
+    if (lines.some((line) => line.isGiftCard && !line.giftCardRecipientName?.trim())) {
+      return "Indica el destinatario de cada gift card.";
+    }
+
+    if (normalizedGiftCardApplications.some((card) => card.appliedAmount <= 0)) {
+      return "El importe aplicado de cada gift card debe ser mayor a cero.";
+    }
     if (currentAccountSelected && !selectedCurrentAccount) {
       return "Para vender en cuenta corriente, selecciona o registra un cliente.";
     }
@@ -1199,6 +1338,12 @@ export default function AdminManualSalesSection({
               amount: payment.amount,
             }))
           : undefined,
+        giftCardApplications: normalizedGiftCardApplications.length
+          ? normalizedGiftCardApplications.map((card) => ({
+              giftCardId: card.id,
+              amount: card.appliedAmount,
+            }))
+          : undefined,
         discountType: "fixed" as const,
         discountValue: saleAmounts.discountAmount,
         appliedCurrentAccountCreditAmount:
@@ -1217,6 +1362,30 @@ export default function AdminManualSalesSection({
           catalogPrice: changedVariantIds.has(line.variantId)
             ? line.catalogPrice
             : undefined,
+          giftCardPurchaserName: line.isGiftCard
+            ? line.giftCardPurchaserName?.trim() || customerName.trim() || undefined
+            : undefined,
+          giftCardPurchaserEmail: line.isGiftCard
+            ? line.giftCardPurchaserEmail?.trim() || undefined
+            : undefined,
+          giftCardPurchaserPhone: line.isGiftCard
+            ? line.giftCardPurchaserPhone?.trim() || undefined
+            : undefined,
+          giftCardRecipientName: line.isGiftCard
+            ? line.giftCardRecipientName?.trim() || undefined
+            : undefined,
+          giftCardRecipientEmail: line.isGiftCard
+            ? line.giftCardRecipientEmail?.trim() || undefined
+            : undefined,
+          giftCardRecipientPhone: line.isGiftCard
+            ? line.giftCardRecipientPhone?.trim() || undefined
+            : undefined,
+          giftCardMessage: line.isGiftCard
+            ? line.giftCardMessage?.trim() || undefined
+            : undefined,
+          giftCardExpiresAt: line.isGiftCard
+            ? line.giftCardExpiresAt || undefined
+            : undefined,
         })),
       };
 
@@ -1225,7 +1394,13 @@ export default function AdminManualSalesSection({
         body: JSON.stringify(payload),
       })) as CreatedOrder;
 
-      setSuccess(`Venta #${created.id} registrada por ${money(created.total)}.`);
+      const issuedCodes = (created.items ?? [])
+        .map((item) => item.issuedGiftCard)
+        .filter(Boolean)
+        .map((card) => `${card!.recipientName}: ${card!.code}`);
+      setSuccess(
+        `Venta #${created.id} registrada por ${money(created.total)}.${issuedCodes.length ? ` Gift cards: ${issuedCodes.join(" · ")}` : ""}`,
+      );
       resetForm();
       await onSaleRegistered?.();
     } catch (err) {
@@ -1327,6 +1502,15 @@ export default function AdminManualSalesSection({
     await loadCustomers();
   };
 
+  const copyGiftCardPurchaser = (source: ManualSaleLine) => {
+    setLines((current) => current.map((line) => line.isGiftCard ? {
+      ...line,
+      giftCardPurchaserName: source.giftCardPurchaserName,
+      giftCardPurchaserEmail: source.giftCardPurchaserEmail,
+      giftCardPurchaserPhone: source.giftCardPurchaserPhone,
+    } : line));
+  };
+
   const reactivateInactiveAccount = async () => {
     if (!inactiveAccountPrompt || !pendingCustomerPayload) return;
 
@@ -1411,6 +1595,15 @@ export default function AdminManualSalesSection({
       ) : (
         <div className="manual-sale-workspace">
           <section className="manual-sale-catalog" aria-label="Catalogo">
+            <div className="manual-sale-card" style={{ marginBottom: 12 }}>
+              <strong>Gift cards rápidas</strong>
+              <p style={{ margin: "6px 0 12px", color: "var(--theme-colors-text-muted)" }}>Agrega una o varias y edita el importe antes de cobrar.</p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[25000, 50000, 100000].map((amount) => (
+                  <button key={amount} type="button" className="manual-sale-button manual-sale-button-soft" onClick={() => void addQuickGiftCard(amount)}>+{money(amount)}</button>
+                ))}
+              </div>
+            </div>
             <div className="manual-sale-card manual-sale-search-card">
               <div className="manual-sale-search-titlebar">
                 <h3>Buscar productos</h3>
@@ -1545,7 +1738,7 @@ export default function AdminManualSalesSection({
                 <div className="manual-sale-lines">
                   {lines.map((line) => {
                     return (
-                      <article key={line.variantId} className="manual-sale-line">
+                      <article key={line.lineId} className="manual-sale-line">
                         <div className="manual-sale-line-top">
                           <span className="manual-sale-line-thumb">
                             {line.imageUrl ? <img src={line.imageUrl} alt="" /> : <span>{line.title.slice(0, 2)}</span>}
@@ -1559,7 +1752,7 @@ export default function AdminManualSalesSection({
                           </div>
                           <button
                             type="button"
-                            onClick={() => removeLine(line.variantId)}
+                            onClick={() => removeLine(line.lineId)}
                             className="manual-sale-icon-button"
                             aria-label={`Quitar ${line.title}`}
                           >
@@ -1571,8 +1764,9 @@ export default function AdminManualSalesSection({
                           <div className="manual-sale-qty">
                             <button
                               type="button"
+                              disabled={line.isGiftCard}
                               onClick={() =>
-                                updateLine(line.variantId, {
+                                updateLine(line.lineId, {
                                   quantity: Math.max(1, Number(line.quantity || 1) - 1),
                                 })
                               }
@@ -1583,8 +1777,9 @@ export default function AdminManualSalesSection({
                             <strong>{line.quantity}</strong>
                             <button
                               type="button"
+                              disabled={line.isGiftCard}
                               onClick={() =>
-                                updateLine(line.variantId, {
+                                updateLine(line.lineId, {
                                   quantity: Math.min(line.available, Number(line.quantity || 1) + 1),
                                 })
                               }
@@ -1594,12 +1789,12 @@ export default function AdminManualSalesSection({
                             </button>
                           </div>
                           <label className="manual-sale-line-price">
-                            <span>Importe de la prenda</span>
+                            <span>{line.isGiftCard ? "Importe de la gift card" : "Importe de la prenda"}</span>
                             <input
                               inputMode="decimal"
                               value={line.price}
                               onChange={(event) =>
-                                updateLine(line.variantId, {
+                                updateLine(line.lineId, {
                                   price: sanitizeManualSalePriceInput(event.target.value),
                                 })
                               }
@@ -1608,6 +1803,19 @@ export default function AdminManualSalesSection({
                             />
                           </label>
                         </div>
+                        {line.isGiftCard ? (
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
+                            <button type="button" className="manual-sale-button manual-sale-button-soft" style={{ gridColumn: "1 / -1" }} onClick={() => copyGiftCardPurchaser(line)}>Copiar comprador a todas las gift cards</button>
+                            <label className="manual-sale-line-price"><span>Quien compra</span><input className="manual-sale-field" value={line.giftCardPurchaserName ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardPurchaserName: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Destinatario *</span><input className="manual-sale-field" value={line.giftCardRecipientName ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardRecipientName: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Email comprador</span><input type="email" className="manual-sale-field" value={line.giftCardPurchaserEmail ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardPurchaserEmail: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Teléfono comprador</span><input className="manual-sale-field" value={line.giftCardPurchaserPhone ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardPurchaserPhone: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Email destinatario</span><input type="email" className="manual-sale-field" value={line.giftCardRecipientEmail ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardRecipientEmail: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Teléfono destinatario</span><input className="manual-sale-field" value={line.giftCardRecipientPhone ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardRecipientPhone: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Vencimiento opcional</span><input type="date" className="manual-sale-field" value={line.giftCardExpiresAt ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardExpiresAt: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Mensaje</span><input className="manual-sale-field" value={line.giftCardMessage ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardMessage: event.target.value })} /></label>
+                          </div>
+                        ) : null}
                       </article>
                     );
                   })}
@@ -1619,7 +1827,7 @@ export default function AdminManualSalesSection({
                   <span>Total a cobrar</span>
                   <strong>{money(amountToCollect)}</strong>
                 </div>
-                {(hasDiscount || appliedCurrentAccountCreditAmount > 0) ? (
+                {(hasDiscount || appliedCurrentAccountCreditAmount > 0 || appliedGiftCardAmount > 0) ? (
                   <div className="manual-sale-discount-summary">
                     <SummaryRow label="Subtotal" value={money(subtotal)} />
                     {hasPaymentMethodDiscount ? (
@@ -1643,6 +1851,9 @@ export default function AdminManualSalesSection({
                         label="Saldo a favor utilizado"
                         value={`- ${money(appliedCurrentAccountCreditAmount)}`}
                       />
+                    ) : null}
+                    {appliedGiftCardAmount > 0 ? (
+                      <SummaryRow label="Gift cards aplicadas" value={`- ${money(appliedGiftCardAmount)}`} />
                     ) : null}
                   </div>
                 ) : null}
@@ -1731,6 +1942,25 @@ export default function AdminManualSalesSection({
                       <span>Utilizar saldo a favor</span>
                     </label>
                   ) : null}
+                </div>
+
+                <div className="manual-sale-field-group">
+                  <span>Aplicar Gift Card</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input className="manual-sale-field" value={giftCardCode} onChange={(event) => setGiftCardCode(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void lookupGiftCard(); } }} placeholder="Código GC-..." />
+                    <button type="button" className="manual-sale-button manual-sale-button-soft" disabled={giftCardLookupLoading} onClick={() => void lookupGiftCard()}>{giftCardLookupLoading ? "Buscando..." : "Aplicar"}</button>
+                  </div>
+                  {normalizedGiftCardApplications.map((card) => (
+                    <article key={card.id} style={{ border: "1px solid var(--theme-colors-border)", borderRadius: 10, padding: 10, marginTop: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                        <strong>•••• {card.codeLastFour} · {card.recipientName}</strong>
+                        <button type="button" className="manual-sale-icon-button" onClick={() => setAppliedGiftCards((current) => current.filter((entry) => entry.id !== card.id))}>x</button>
+                      </div>
+                      <small>Saldo disponible: {money(Number(card.balance))}</small>
+                      <label className="manual-sale-line-price" style={{ marginTop: 8 }}><span>Importe a utilizar</span><input className="manual-sale-field" inputMode="decimal" value={appliedGiftCards.find((entry) => entry.id === card.id)?.amount ?? ""} onChange={(event) => setAppliedGiftCards((current) => current.map((entry) => entry.id === card.id ? { ...entry, amount: sanitizeCurrencyInput(event.target.value) } : entry))} /></label>
+                      <small>Saldo luego de la venta: {money(Math.max(Number(card.balance) - card.appliedAmount, 0))}</small>
+                    </article>
+                  ))}
                 </div>
 
                 <div className="manual-sale-field-group">

@@ -1382,6 +1382,30 @@ async function main() {
     } else {
       await seedCatalog(store.id, assetDirs);
     }
+
+    if (store.id === 3) {
+      const giftCard = await prisma.product.create({
+        data: {
+          storeId: store.id,
+          title: 'Gift Card',
+          slug: 'gift-card',
+          description: 'Gift card para utilizar en compras futuras.',
+          published: false,
+          type: 'GIFT_CARD',
+          trackInventory: false,
+          inventoryPolicy: 'UNTRACKED',
+          lowStockThreshold: 0,
+          variants: {
+            create: [
+              { sku: 'GC-25000', price: 25000 },
+              { sku: 'GC-50000', price: 50000 },
+              { sku: 'GC-100000', price: 100000 },
+            ],
+          },
+        },
+      });
+      console.log(`Gift card configurada para Trojani: ${giftCard.id}`);
+    }
   }
 
   console.log('Catalogos de prueba regenerados');

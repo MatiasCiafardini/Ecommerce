@@ -9,15 +9,8 @@ import HeaderSearch from "@/components/header/HeaderSearch";
 import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 import NotificationsMenu from "@/components/notifications/NotificationsMenu";
-import { api } from "@/lib/api";
 import { mergeThemeLayout } from "@/lib/tenant/theme-layout-defaults";
 import type { StorefrontThemeLayout } from "@/types/storefront-config";
-
-type HeaderProductSearchResult = {
-  title?: string | null;
-  slug?: string | null;
-  published?: boolean;
-};
 
 const shopCategoryLinks = [
   { href: "/product?categories=buzos,camperas", label: "Abrigos" },
@@ -25,9 +18,6 @@ const shopCategoryLinks = [
   { href: "/product?category=calzado", label: "Calzado" },
   { href: "/product?category=remeras", label: "Remeras" },
 ];
-
-const afaFallbackHref = "/product/camiseta-argentina";
-const afaSearchTerms = ["afa", "argentina", "camiseta", "futbol", "fútbol"];
 
 const navLinkStyle = {
   color: "color-mix(in srgb, var(--theme-colors-text-strong) 84%, transparent)",
@@ -52,7 +42,6 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
-  const [afaHref, setAfaHref] = useState(afaFallbackHref);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 920px)");
@@ -81,58 +70,10 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
     };
   }, [menuOpen]);
 
-  useEffect(() => {
-    let active = true;
-
-    const resolveAfaProduct = async () => {
-      try {
-        const responses = await Promise.all(
-          afaSearchTerms.map((term) =>
-            api(`/store/products?search=${encodeURIComponent(term)}`).catch(() => []),
-          ),
-        );
-
-        if (!active) {
-          return;
-        }
-
-        const products = responses
-          .flat()
-          .filter(
-            (product): product is HeaderProductSearchResult =>
-              Boolean(product) && typeof product === "object",
-          );
-        const match = products.find((product) => {
-          const searchable = `${product.title ?? ""} ${product.slug ?? ""}`.toLowerCase();
-
-          return (
-            product.published !== false &&
-            product.slug &&
-            (searchable.includes("afa") ||
-              searchable.includes("argentina") ||
-              searchable.includes("camiseta"))
-          );
-        });
-
-        if (match?.slug) {
-          setAfaHref(`/product/${match.slug}`);
-        }
-      } catch {
-        if (active) {
-          setAfaHref(afaFallbackHref);
-        }
-      }
-    };
-
-    void resolveAfaProduct();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const layoutConfig = mergeThemeLayout("trojani", themeLayout);
-  const primaryLinks = layoutConfig.header?.primaryLinks ?? [];
+  const primaryLinks = (layoutConfig.header?.primaryLinks ?? []).filter(
+    (link) => link.label.trim().toLowerCase() !== "afa",
+  );
 
   return (
     <header
@@ -232,10 +173,8 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
               ) : (
                 <Link
                   key={`${link.href}-${link.label}`}
-                  href={link.label.toLowerCase() === "afa" ? afaHref : link.href}
-                  style={
-                    link.label.toLowerCase() === "afa" ? afaNavLinkStyle : navLinkStyle
-                  }
+                  href={link.href}
+                  style={navLinkStyle}
                 >
                   {link.label}
                 </Link>
@@ -421,13 +360,9 @@ export default function Header({ themeLayout }: { themeLayout?: StorefrontThemeL
                   ) : (
                     <Link
                       key={`${link.href}-${link.label}`}
-                      href={link.label.toLowerCase() === "afa" ? afaHref : link.href}
+                      href={link.href}
                       onClick={() => setMenuOpen(false)}
-                      style={
-                        link.label.toLowerCase() === "afa"
-                          ? mobileAfaNavLinkStyle
-                          : mobileNavLinkStyle
-                      }
+                      style={mobileNavLinkStyle}
                     >
                       {link.label}
                     </Link>
@@ -739,23 +674,6 @@ const shopDropdownLinkStyle = {
   fontWeight: 600,
 } as const;
 
-const afaNavLinkStyle = {
-  ...navLinkStyle,
-  width: 44,
-  height: 44,
-  padding: 0,
-  borderRadius: 999,
-  background: "#75c8f0",
-  color: "#fff",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 13,
-  fontWeight: 800,
-  letterSpacing: 0,
-  boxShadow: "0 8px 18px rgba(117, 200, 240, 0.28)",
-} as const;
-
 const iconBadgeStyle = {
   minWidth: 20,
   height: 20,
@@ -802,13 +720,6 @@ const mobileNavButtonStyle = {
   ...mobileNavLinkStyle,
   textAlign: "left",
   cursor: "pointer",
-} as const;
-
-const mobileAfaNavLinkStyle = {
-  ...afaNavLinkStyle,
-  width: 54,
-  height: 54,
-  justifySelf: "start",
 } as const;
 
 const mobileShopDetailsStyle = {

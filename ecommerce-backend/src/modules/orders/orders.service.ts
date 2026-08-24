@@ -35,11 +35,26 @@ import {
   chooseBrandDisplayName,
   normalizeBrandKey,
 } from '../../common/utils/brand.util';
+import { randomBytes } from 'crypto';
 
 type OrderItemData = {
   variantId: number;
   quantity: number;
   price: number;
+};
+
+type GiftCardIssueInput = {
+  itemIndex: number;
+  variantId: number;
+  amount: number;
+  purchaserName?: string;
+  purchaserEmail?: string;
+  purchaserPhone?: string;
+  recipientName: string;
+  recipientEmail?: string;
+  recipientPhone?: string;
+  message?: string;
+  expiresAt?: Date;
 };
 
 type ManualSaleDiscountInput = {
@@ -232,6 +247,7 @@ export class OrdersService {
       let subtotal = 0;
       const orderItems: OrderItemData[] = [];
       const manualPriceChanges: ManualPriceChange[] = [];
+      const giftCardIssues: GiftCardIssueInput[] = [];
       const variantIds = data.items.map((item) => item.variantId);
       const shippingCost = Number(data.shippingCost ?? 0);
       const discount = this.resolveManualSaleDiscount({
@@ -249,6 +265,8 @@ export class OrdersService {
           product: {
             select: {
               title: true,
+              type: true,
+              trackInventory: true,
             },
           },
           inventories: {
@@ -311,25 +329,27 @@ export class OrdersService {
         }
       }
 
-      for (const item of data.items) {
+      for (const [itemIndex, item] of data.items.entries()) {
         const variant = variantsMap.get(item.variantId);
 
         if (!variant) {
           throw new NotFoundException(`Variant ${item.variantId} not found`);
         }
 
+        const isGiftCard = variant.product.type === 'GIFT_CARD';
+        const tracksInventory = variant.product.trackInventory !== false;
         const inventory = variant.inventories[0];
 
-        if (!inventory) {
+        if (!isGiftCard && tracksInventory && !inventory) {
           throw new NotFoundException(
             `Inventory missing for variant ${item.variantId}`,
           );
         }
 
-        const available = inventory.quantity - inventory.reserved;
+        const available = inventory ? inventory.quantity - inventory.reserved : 0;
 
         const reservedByTrial = trialQuantityByVariant.get(item.variantId) ?? 0;
-        if (reservedByTrial === 0 && available < item.quantity) {
+        if (!isGiftCard && tracksInventory && reservedByTrial === 0 && available < item.quantity) {
           throw new BadRequestException(
             `Not enough stock for variant ${item.variantId}`,
           );
@@ -364,6 +384,28 @@ export class OrdersService {
           price,
         });
 
+        if (isGiftCard) {
+          const recipientName = item.giftCardRecipientName?.trim();
+          if (!recipientName) throw new BadRequestException('Indica el destinatario de cada gift card.');
+          if (item.quantity !== 1) throw new BadRequestException('Cada gift card debe agregarse como una linea independiente.');
+          const expiresAt = item.giftCardExpiresAt
+            ? new Date(`${item.giftCardExpiresAt.slice(0, 10)}T23:59:59.999-03:00`)
+            : undefined;
+          giftCardIssues.push({
+            itemIndex,
+            variantId: item.variantId,
+            amount: price,
+            purchaserName: item.giftCardPurchaserName?.trim() || undefined,
+            purchaserEmail: item.giftCardPurchaserEmail?.trim() || undefined,
+            purchaserPhone: item.giftCardPurchaserPhone?.trim() || undefined,
+            recipientName,
+            recipientEmail: item.giftCardRecipientEmail?.trim() || undefined,
+            recipientPhone: item.giftCardRecipientPhone?.trim() || undefined,
+            message: item.giftCardMessage?.trim() || undefined,
+            expiresAt,
+          });
+        }
+
         if (hasManualPriceChange && currentAccountPayment) {
           manualPriceChanges.push({
             variantId: item.variantId,
@@ -376,7 +418,7 @@ export class OrdersService {
           });
         }
 
-        if (reservedByTrial === 0) {
+        if (!isGiftCard && tracksInventory && reservedByTrial === 0) {
           await this.inventoryLockService.reserveStockTx(
             tx,
             storeId,
@@ -387,11 +429,24 @@ export class OrdersService {
         }
       }
 
+      if (giftCardIssues.length && currentAccountPayment) {
+        throw new BadRequestException('Las gift cards deben abonarse al momento de emitirlas.');
+      }
+      if (giftCardIssues.length && data.paymentStatus === 'pending') {
+        throw new BadRequestException('Las gift cards solo se emiten con pagos aprobados.');
+      }
+
+      const giftCardVariantIds = new Set(giftCardIssues.map((issue) => issue.variantId));
+      const discountableOrderItems = orderItems.filter((item) => !giftCardVariantIds.has(item.variantId));
+      const discountableSubtotal = discountableOrderItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0,
+      );
       const discountAmount = this.calculateManualSaleDiscountAmount(
-        subtotal,
+        discountableSubtotal,
         discount.type,
         discount.value,
-        orderItems,
+        discountableOrderItems,
         pricingPolicy,
       );
       const total = Math.max(subtotal - discountAmount + shippingCost, 0);
@@ -433,7 +488,47 @@ export class OrdersService {
         }
       }
 
-      const amountToCollect = this.roundCurrency(Math.max(total - appliedCreditAmount, 0));
+      const requestedGiftCardApplications = data.giftCardApplications ?? [];
+      const uniqueGiftCardIds = new Set(
+        requestedGiftCardApplications.map((application) => application.giftCardId),
+      );
+      if (uniqueGiftCardIds.size !== requestedGiftCardApplications.length) {
+        throw new BadRequestException('No se puede aplicar dos veces la misma gift card.');
+      }
+      const giftCards = requestedGiftCardApplications.length
+        ? await tx.giftCard.findMany({
+            where: { storeId, id: { in: [...uniqueGiftCardIds] } },
+          })
+        : [];
+      if (giftCards.length !== requestedGiftCardApplications.length) {
+        throw new BadRequestException('Una de las gift cards no existe en esta tienda.');
+      }
+      const giftCardMap = new Map(giftCards.map((card) => [card.id, card]));
+      let remainingForGiftCards = this.roundCurrency(Math.max(total - appliedCreditAmount, 0));
+      const appliedGiftCards = requestedGiftCardApplications.map((application) => {
+        const card = giftCardMap.get(application.giftCardId)!;
+        if (card.status !== 'ACTIVE' || Number(card.balance) <= 0) {
+          throw new BadRequestException(`La gift card terminada en ${card.codeLastFour} no tiene saldo.`);
+        }
+        if (card.expiresAt && card.expiresAt.getTime() < Date.now()) {
+          throw new BadRequestException(`La gift card terminada en ${card.codeLastFour} esta vencida.`);
+        }
+        const amount = this.roundCurrency(
+          Math.min(Math.max(Number(application.amount), 0), Number(card.balance), remainingForGiftCards),
+        );
+        if (amount <= 0) {
+          throw new BadRequestException('El importe aplicado de gift card debe ser mayor a cero.');
+        }
+        remainingForGiftCards = this.roundCurrency(remainingForGiftCards - amount);
+        return { card, amount };
+      });
+      const appliedGiftCardAmount = this.roundCurrency(
+        appliedGiftCards.reduce((sum, application) => sum + application.amount, 0),
+      );
+
+      const amountToCollect = this.roundCurrency(
+        Math.max(total - appliedCreditAmount - appliedGiftCardAmount, 0),
+      );
       const paymentEntries = data.payments?.length
         ? data.payments.map((payment) => ({
             method: payment.method?.trim() || 'Efectivo',
@@ -514,6 +609,24 @@ export class OrdersService {
             ? OrderStatus.paid
             : OrderStatus.pending;
 
+      for (const application of appliedGiftCards) {
+        const claimed = await tx.giftCard.updateMany({
+          where: {
+            id: application.card.id,
+            storeId,
+            status: 'ACTIVE',
+            balance: { gte: application.amount },
+            OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+          },
+          data: { balance: { decrement: application.amount } },
+        });
+        if (claimed.count !== 1) {
+          throw new ConflictException(
+            `El saldo de la gift card terminada en ${application.card.codeLastFour} cambio. Volve a intentarlo.`,
+          );
+        }
+      }
+
       const order = await tx.order.create({
         data: {
           storeId,
@@ -560,6 +673,15 @@ export class OrdersService {
                   splitPayment: paymentEntries.length > 1,
                   splitPaymentIndex: index + 1,
                   appliedCurrentAccountCreditAmount: index === 0 ? appliedCreditAmount : 0,
+                  appliedGiftCardAmount: index === 0 ? appliedGiftCardAmount : 0,
+                  giftCardApplications:
+                    index === 0
+                      ? appliedGiftCards.map((application) => ({
+                          giftCardId: application.card.id,
+                          codeLastFour: application.card.codeLastFour,
+                          amount: application.amount,
+                        }))
+                      : [],
                   collectedAmount: payment.amount,
                   ...manualPriceMetadata,
                 },
@@ -570,8 +692,82 @@ export class OrdersService {
         include: this.orderInclude(),
       });
 
+      for (const application of appliedGiftCards) {
+        const balanceBefore = Number(application.card.balance);
+        const balanceAfter = this.roundCurrency(balanceBefore - application.amount);
+        await tx.giftCard.update({
+          where: { id: application.card.id },
+          data: { status: balanceAfter <= 0 ? 'REDEEMED' : 'ACTIVE' },
+        });
+        await tx.giftCardMovement.create({
+          data: {
+            storeId,
+            giftCardId: application.card.id,
+            orderId: order.id,
+            storeLocationId: cashContext.storeLocationId,
+            actorUserId: createdByUserId,
+            type: 'REDEEM',
+            amount: application.amount,
+            balanceBefore,
+            balanceAfter,
+            reason: `Canje en venta manual #${order.id}`,
+            idempotencyKey: `order:${order.id}:gift-card:${application.card.id}:redeem`,
+          },
+        });
+      }
+
+      if (paymentStatus === 'approved' && giftCardIssues.length) {
+        const availableItemsByVariant = new Map<number, typeof order.items>();
+        for (const item of order.items) {
+          const bucket = availableItemsByVariant.get(item.variantId) ?? [];
+          bucket.push(item);
+          availableItemsByVariant.set(item.variantId, bucket);
+        }
+        for (const issue of giftCardIssues) {
+          const orderItem = availableItemsByVariant.get(issue.variantId)?.shift();
+          if (!orderItem) throw new ConflictException('No se pudo asociar la gift card a la venta.');
+          const code = this.generateGiftCardCode();
+          const card = await tx.giftCard.create({
+            data: {
+              storeId,
+              orderItemId: orderItem.id,
+              issuedAtLocationId: cashContext.storeLocationId,
+              issuedByUserId: createdByUserId,
+              code,
+              codeLastFour: code.slice(-4),
+              initialAmount: issue.amount,
+              balance: issue.amount,
+              purchaserName: issue.purchaserName,
+              purchaserEmail: issue.purchaserEmail,
+              purchaserPhone: issue.purchaserPhone,
+              recipientName: issue.recipientName,
+              recipientEmail: issue.recipientEmail,
+              recipientPhone: issue.recipientPhone,
+              message: issue.message,
+              expiresAt: issue.expiresAt,
+            },
+          });
+          await tx.giftCardMovement.create({
+            data: {
+              storeId,
+              giftCardId: card.id,
+              orderId: order.id,
+              storeLocationId: cashContext.storeLocationId,
+              actorUserId: createdByUserId,
+              type: 'ISSUE',
+              amount: issue.amount,
+              balanceBefore: 0,
+              balanceAfter: issue.amount,
+              reason: `Emision en venta manual #${order.id}`,
+              idempotencyKey: `order:${order.id}:item:${orderItem.id}:issue`,
+            },
+          });
+        }
+      }
+
       if (stockStatus === 'approved') {
         for (const item of orderItems) {
+          if (giftCardIssues.some((issue) => issue.variantId === item.variantId)) continue;
           await this.inventoryLockService.confirmStockTx(
             tx,
             storeId,
@@ -758,6 +954,15 @@ export class OrdersService {
 
       if (!order) {
         throw new NotFoundException('Manual sale not found');
+      }
+
+      if (
+        order.items.some((item) => item.issuedGiftCard) ||
+        (order.redeemedGiftCardMovements?.length ?? 0) > 0
+      ) {
+        throw new BadRequestException(
+          'Las ventas con gift cards no se pueden corregir; anulalas para preservar los saldos.',
+        );
       }
 
       if (order.status === OrderStatus.cancelled) {
@@ -1211,6 +1416,16 @@ export class OrdersService {
         return this.withCancellationRequests(order);
       }
 
+      if (
+        order.items.some(
+          (item) => item.issuedGiftCard?.movements.some((movement) => movement.type === 'REDEEM'),
+        )
+      ) {
+        throw new BadRequestException(
+          'La venta emitio una gift card que ya fue utilizada. Requiere un ajuste administrativo.',
+        );
+      }
+
       await this.ensureManualSaleBelongsToOpenCurrentCash(tx, order);
 
       if (order.returns.length > 0 || order.refunds.length > 0) {
@@ -1268,6 +1483,7 @@ export class OrdersService {
           order.status === OrderStatus.pending);
 
       for (const item of order.items) {
+        if (item.issuedGiftCard) continue;
         if (behavesAsPending) {
           await this.inventoryLockService.releaseStockTx(
             tx,
@@ -1279,6 +1495,37 @@ export class OrdersService {
         } else {
           await this.adjustInventoryTx(tx, storeId, item.variantId, item.quantity, 0, 'CANCELLATION_RESTOCK', order.id);
         }
+      }
+
+      for (const movement of (order.redeemedGiftCardMovements ?? []).filter((entry) => entry.type === 'REDEEM')) {
+        const card = await tx.giftCard.findFirst({ where: { id: movement.giftCardId, storeId } });
+        if (!card) continue;
+        const balanceBefore = Number(card.balance);
+        const balanceAfter = this.roundCurrency(balanceBefore + Number(movement.amount));
+        await tx.giftCard.update({ where: { id: card.id }, data: { balance: balanceAfter, status: 'ACTIVE' } });
+        await tx.giftCardMovement.create({
+          data: {
+            storeId, giftCardId: card.id, orderId: order.id,
+            storeLocationId: order.storeLocationId, actorUserId: createdByUserId,
+            type: 'REFUND', amount: movement.amount, balanceBefore, balanceAfter,
+            reason: `Anulacion de venta manual #${order.id}: ${cancellationReason}`,
+            idempotencyKey: `order:${order.id}:gift-card:${card.id}:refund`,
+          },
+        });
+      }
+
+      for (const item of order.items.filter((entry) => entry.issuedGiftCard)) {
+        const card = item.issuedGiftCard!;
+        await tx.giftCard.update({ where: { id: card.id }, data: { balance: 0, status: 'CANCELLED' } });
+        await tx.giftCardMovement.create({
+          data: {
+            storeId, giftCardId: card.id, orderId: order.id,
+            storeLocationId: order.storeLocationId, actorUserId: createdByUserId,
+            type: 'CANCEL', amount: card.balance, balanceBefore: card.balance, balanceAfter: 0,
+            reason: `Anulacion de emision en venta manual #${order.id}: ${cancellationReason}`,
+            idempotencyKey: `order:${order.id}:gift-card:${card.id}:cancel-issue`,
+          },
+        });
       }
 
       const updated = await tx.order.update({
@@ -2210,6 +2457,7 @@ export class OrdersService {
         productRow.returns += item.returnedQuantity;
         products.set(key, productRow);
       }
+
       if (orderMatches) {
         sales += 1;
         day.sales += 1;
@@ -3288,6 +3536,7 @@ export class OrdersService {
         },
         items: {
           include: {
+            issuedGiftCard: true,
             variant: {
               include: {
                 product: true,
@@ -3301,6 +3550,10 @@ export class OrdersService {
           },
         },
         payments: true,
+        redeemedGiftCardMovements: {
+          where: { type: 'REDEEM' },
+          include: { giftCard: { select: { codeLastFour: true } } },
+        },
       },
     });
 
@@ -3542,7 +3795,10 @@ export class OrdersService {
       const rowY = cursorY;
       pdf.drawRect({ x: margin, y: rowY - rowHeight, width: contentWidth, height: rowHeight, lineWidth: 0.6 });
       pdf.drawText({ x: columns.item + 6, y: rowY - 15, text: String(index + 1), size: 8 });
-      pdf.drawWrappedText({ x: columns.product + 6, y: rowY - 12, text: item.variant.product.title, maxWidth: 230, size: 8.5, lineHeight: 11 });
+      const productLabel = item.issuedGiftCard
+        ? `${item.variant.product.title} · ${item.issuedGiftCard.recipientName} · ${item.issuedGiftCard.code}`
+        : item.variant.product.title;
+      pdf.drawWrappedText({ x: columns.product + 6, y: rowY - 12, text: productLabel, maxWidth: 230, size: 8.5, lineHeight: 11 });
       drawRightText(String(item.quantity), columns.qty + 38, rowY - 15, 8.5);
       drawRightText(this.formatMoney(item.receiptUnitPrice), columns.unit + 62, rowY - 15, 8.5);
       drawRightText('0,00', columns.discount + 40, rowY - 15, 8.5);
@@ -3563,6 +3819,9 @@ export class OrdersService {
       text: [
         paymentLabel,
         payment ? 'Monto registrado: ' + this.formatMoney(payment.amount) : null,
+        order.redeemedGiftCardMovements.length
+          ? `Gift cards aplicadas: ${order.redeemedGiftCardMovements.map((movement) => `•••• ${movement.giftCard.codeLastFour} ${this.formatMoney(movement.amount)}`).join(' + ')}`
+          : null,
         'Este documento confirma la compra registrada en la tienda.',
         'No reemplaza una factura fiscal emitida por organismos oficiales.',
       ].filter(Boolean).join('\n'),
@@ -3612,6 +3871,9 @@ export class OrdersService {
       },
       items: {
         include: {
+          issuedGiftCard: {
+            include: { movements: true },
+          },
           variant: {
             include: {
               product: {
@@ -3634,6 +3896,7 @@ export class OrdersService {
         },
       },
       payments: true,
+      redeemedGiftCardMovements: true,
       cashRegister: {
         select: {
           id: true,
@@ -4030,6 +4293,11 @@ export class OrdersService {
       href: `/account/orders/${order.id}`,
       buttonLabel: 'Ver detalle',
     });
+  }
+
+  private generateGiftCardCode() {
+    const token = randomBytes(6).toString('hex').toUpperCase();
+    return `GC-${token.slice(0, 4)}-${token.slice(4, 8)}-${token.slice(8, 12)}`;
   }
 
   private async adjustInventoryTx(

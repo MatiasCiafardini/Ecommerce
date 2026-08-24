@@ -10,3 +10,5 @@ dist/
 uploads/
 *.log
 tmp-*.png
+.playwright-cli/
+output/playwright/

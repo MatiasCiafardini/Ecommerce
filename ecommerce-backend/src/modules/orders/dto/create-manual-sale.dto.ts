@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
@@ -33,6 +34,47 @@ export class CreateManualSaleItemDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   catalogPrice?: number;
+
+  @IsOptional()
+  @IsString()
+  giftCardPurchaserName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  giftCardPurchaserEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  giftCardPurchaserPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  giftCardRecipientName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  giftCardRecipientEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  giftCardRecipientPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  giftCardMessage?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  giftCardExpiresAt?: string;
+}
+
+export class GiftCardApplicationDto {
+  @IsInt()
+  giftCardId: number;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  amount: number;
 }
 
 export class CreateManualSalePaymentDto {
@@ -102,6 +144,12 @@ export class CreateManualSaleDto {
   @ValidateNested({ each: true })
   @Type(() => CreateManualSalePaymentDto)
   payments?: CreateManualSalePaymentDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GiftCardApplicationDto)
+  giftCardApplications?: GiftCardApplicationDto[];
 
   @IsOptional()
   @IsIn(['approved', 'pending'])

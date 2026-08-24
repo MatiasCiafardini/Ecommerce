@@ -31,6 +31,7 @@ import { CurrentAccountsModule } from './modules/current-accounts/current-accoun
 import { CashRegisterModule } from './modules/cash-register/cash-register.module';
 import { StoreLocationsModule } from './modules/store-locations/store-locations.module';
 import { ProductTrialsModule } from './modules/product-trials/product-trials.module';
+import { GiftCardsModule } from './modules/gift-cards/gift-cards.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 import { CustomerAddressesModule } from './modules/customers/customer-addresses/customer-addresses.module';
@@ -85,6 +86,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CashRegisterModule,
     StoreLocationsModule,
     ProductTrialsModule,
+    GiftCardsModule,
     PrismaModule,
   ],
 })

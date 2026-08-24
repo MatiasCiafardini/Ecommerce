@@ -49,6 +49,8 @@ model Store {
   storeLocations                 StoreLocation[]
   users                          User[]
   webhooks                       Webhook[]
+  giftCards                      GiftCard[]
+  giftCardMovements              GiftCardMovement[]
 
   @@index([domain])
 }
@@ -70,6 +72,8 @@ model StoreLocation {
   currentAccountMovements CurrentAccountMovement[]
   manualReturns           ManualReturn[]
   productTrials           ProductTrial[]
+  giftCards               GiftCard[]
+  giftCardMovements       GiftCardMovement[]
 
   @@unique([storeId, name])
   @@index([storeId, active])
@@ -125,6 +129,8 @@ model Product {
   deletedAt           DateTime?
   inventoryPolicy     ProductInventoryPolicy @default(RESTOCK)
   lowStockThreshold   Int                    @default(3)
+  type                ProductType            @default(STANDARD)
+  trackInventory      Boolean                @default(true)
   auditLogs           CatalogAuditLog[]
   discountTargets     DiscountProduct[]
   store               Store                @relation(fields: [storeId], references: [id])
@@ -356,6 +362,7 @@ model Order {
   returns                     Return[]
   shipment                    Shipment?
   productTrialItems           ProductTrialItem[]
+  redeemedGiftCardMovements   GiftCardMovement[]            @relation("GiftCardRedemptionOrder")
 
   @@unique([storeId, idempotencyKey])
   @@index([storeId])
@@ -395,6 +402,7 @@ model OrderItem {
   order            Order          @relation(fields: [orderId], references: [id])
   variant          ProductVariant @relation(fields: [variantId], references: [id])
   returnItems      ReturnItem[]
+  issuedGiftCard   GiftCard?
 
   @@index([orderId])
 }
@@ -415,6 +423,8 @@ model User {
   currentAccountMovements CurrentAccountMovement[]
   productTrials           ProductTrial[]
   manualReturnEvents      ManualReturnEvent[]
+  issuedGiftCards         GiftCard[]                 @relation("GiftCardIssuer")
+  giftCardMovements       GiftCardMovement[]
 
   @@unique([storeId, email])
   @@index([storeId])
@@ -533,6 +543,66 @@ model Payment {
   @@index([orderId])
   @@index([storeId, storeLocationId])
   @@index([cashRegisterId])
+}
+
+model GiftCard {
+  id                 Int                @id @default(autoincrement())
+  storeId            Int
+  orderItemId        Int                @unique
+  issuedAtLocationId Int?
+  issuedByUserId     Int?
+  code               String
+  codeLastFour       String
+  initialAmount      Decimal            @db.Decimal(10, 2)
+  balance            Decimal            @db.Decimal(10, 2)
+  status             GiftCardStatus     @default(ACTIVE)
+  purchaserName      String?
+  purchaserEmail     String?
+  purchaserPhone     String?
+  recipientName      String
+  recipientEmail     String?
+  recipientPhone     String?
+  message            String?
+  expiresAt          DateTime?
+  issuedAt           DateTime           @default(now())
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  store              Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orderItem          OrderItem          @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  issuedAtLocation   StoreLocation?     @relation(fields: [issuedAtLocationId], references: [id], onDelete: SetNull)
+  issuedByUser       User?              @relation("GiftCardIssuer", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  movements          GiftCardMovement[]
+
+  @@unique([storeId, code])
+  @@index([storeId, status, createdAt])
+  @@index([storeId, codeLastFour])
+  @@index([issuedAtLocationId])
+}
+
+model GiftCardMovement {
+  id              Int                  @id @default(autoincrement())
+  storeId         Int
+  giftCardId      Int
+  orderId         Int?
+  storeLocationId Int?
+  actorUserId     Int?
+  type            GiftCardMovementType
+  amount          Decimal              @db.Decimal(10, 2)
+  balanceBefore   Decimal              @db.Decimal(10, 2)
+  balanceAfter    Decimal              @db.Decimal(10, 2)
+  reason          String?
+  idempotencyKey  String?
+  createdAt       DateTime             @default(now())
+  store           Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  giftCard        GiftCard             @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+  order           Order?               @relation("GiftCardRedemptionOrder", fields: [orderId], references: [id], onDelete: SetNull)
+  storeLocation   StoreLocation?       @relation(fields: [storeLocationId], references: [id], onDelete: SetNull)
+  actorUser       User?                @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, idempotencyKey])
+  @@index([giftCardId, createdAt])
+  @@index([storeId, type, createdAt])
+  @@index([orderId])
 }
 
 model CurrentAccount {
@@ -1136,6 +1206,25 @@ enum ProductInventoryPolicy {
   RESTOCK
   NO_RESTOCK
   UNTRACKED
+}
+
+enum ProductType {
+  STANDARD
+  GIFT_CARD
+}
+
+enum GiftCardStatus {
+  ACTIVE
+  REDEEMED
+  CANCELLED
+}
+
+enum GiftCardMovementType {
+  ISSUE
+  REDEEM
+  REFUND
+  CANCEL
+  ADJUSTMENT
 }
 
 enum InventoryMovementType {
