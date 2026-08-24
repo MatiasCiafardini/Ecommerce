@@ -53,13 +53,7 @@ type ManualSaleLine = {
   imageUrl?: string | null;
   isGiftCard?: boolean;
   giftCardPurchaserName?: string;
-  giftCardPurchaserEmail?: string;
-  giftCardPurchaserPhone?: string;
   giftCardRecipientName?: string;
-  giftCardRecipientEmail?: string;
-  giftCardRecipientPhone?: string;
-  giftCardMessage?: string;
-  giftCardExpiresAt?: string;
 };
 
 export type TrialSaleItem = {
@@ -230,6 +224,8 @@ export default function AdminManualSalesSection({
   initialGiftCard,
   initialGiftCardAmount,
   initialGiftCardRequestKey,
+  onOpenGiftCards,
+  onInitialGiftCardHandled,
   onGiftCardRequestHandled,
   lockCustomer = false,
 }: {
@@ -242,6 +238,8 @@ export default function AdminManualSalesSection({
   initialGiftCard?: GiftCardForSale | null;
   initialGiftCardAmount?: number | null;
   initialGiftCardRequestKey?: number;
+  onOpenGiftCards?: () => void;
+  onInitialGiftCardHandled?: () => void;
   onGiftCardRequestHandled?: () => void;
   lockCustomer?: boolean;
 }) {
@@ -281,9 +279,7 @@ export default function AdminManualSalesSection({
   const [storeId, setStoreId] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<ManualSaleLine[]>([]);
-  const [giftCardCode, setGiftCardCode] = useState("");
   const [appliedGiftCards, setAppliedGiftCards] = useState<AppliedGiftCard[]>([]);
-  const [giftCardLookupLoading, setGiftCardLookupLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmSaleOpen, setConfirmSaleOpen] = useState(false);
   const [manualPriceMode, setManualPriceMode] = useState<ManualPriceMode | null>(null);
@@ -295,6 +291,7 @@ export default function AdminManualSalesSection({
   const [openPaymentMenuIndex, setOpenPaymentMenuIndex] = useState<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const customerSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const handledGiftCardRequestKeyRef = useRef<number | null>(null);
 
   useEffect(() => {
     try {
@@ -353,6 +350,9 @@ export default function AdminManualSalesSection({
     setAppliedGiftCards((current) => current.some((card) => card.id === initialGiftCard.id)
       ? current
       : [...current, { ...initialGiftCard, amount: String(Number(initialGiftCard.balance)) }]);
+    onInitialGiftCardHandled?.();
+    // The parent clears the selection after this explicit handoff.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialGiftCard]);
 
   const searchProducts = async (query: string, signal?: AbortSignal) => {
@@ -1037,43 +1037,13 @@ export default function AdminManualSalesSection({
 
   useEffect(() => {
     if (!initialGiftCardRequestKey) return;
+    if (handledGiftCardRequestKeyRef.current === initialGiftCardRequestKey) return;
+    handledGiftCardRequestKeyRef.current = initialGiftCardRequestKey;
     void addQuickGiftCard(initialGiftCardAmount);
     onGiftCardRequestHandled?.();
     // The parent changes this value only for an explicit dashboard quick action.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialGiftCardAmount, initialGiftCardRequestKey]);
-
-  const lookupGiftCard = async () => {
-    const code = giftCardCode.trim();
-    if (!code) return;
-    setGiftCardLookupLoading(true);
-    setError("");
-    try {
-      const card = (await api(`/gift-cards/lookup?code=${encodeURIComponent(code)}`)) as {
-        id: number;
-        code: string;
-        codeLastFour: string;
-        recipientName: string;
-        balance: string | number;
-      };
-      setAppliedGiftCards((current) =>
-        current.some((entry) => entry.id === card.id)
-          ? current
-          : [
-              ...current,
-              {
-                ...card,
-                amount: String(Number(card.balance)),
-              },
-            ],
-      );
-      setGiftCardCode("");
-    } catch (err) {
-      setError(getErrorMessage(err, "No se pudo consultar la gift card."));
-    } finally {
-      setGiftCardLookupLoading(false);
-    }
-  };
 
   const removeLine = (lineId: string) => {
     setLines((current) => current.filter((line) => line.lineId !== lineId));
@@ -1098,7 +1068,6 @@ export default function AdminManualSalesSection({
     setNotes("");
     setProductQuery("");
     setLines([]);
-    setGiftCardCode("");
     setAppliedGiftCards([]);
     setManualPriceMode(null);
     setSelectedCatalogVariantId(null);
@@ -1368,26 +1337,8 @@ export default function AdminManualSalesSection({
           giftCardPurchaserName: line.isGiftCard
             ? line.giftCardPurchaserName?.trim() || customerName.trim() || undefined
             : undefined,
-          giftCardPurchaserEmail: line.isGiftCard
-            ? line.giftCardPurchaserEmail?.trim() || undefined
-            : undefined,
-          giftCardPurchaserPhone: line.isGiftCard
-            ? line.giftCardPurchaserPhone?.trim() || undefined
-            : undefined,
           giftCardRecipientName: line.isGiftCard
             ? line.giftCardRecipientName?.trim() || undefined
-            : undefined,
-          giftCardRecipientEmail: line.isGiftCard
-            ? line.giftCardRecipientEmail?.trim() || undefined
-            : undefined,
-          giftCardRecipientPhone: line.isGiftCard
-            ? line.giftCardRecipientPhone?.trim() || undefined
-            : undefined,
-          giftCardMessage: line.isGiftCard
-            ? line.giftCardMessage?.trim() || undefined
-            : undefined,
-          giftCardExpiresAt: line.isGiftCard
-            ? line.giftCardExpiresAt || undefined
             : undefined,
         })),
       };
@@ -1509,8 +1460,6 @@ export default function AdminManualSalesSection({
     setLines((current) => current.map((line) => line.isGiftCard ? {
       ...line,
       giftCardPurchaserName: source.giftCardPurchaserName,
-      giftCardPurchaserEmail: source.giftCardPurchaserEmail,
-      giftCardPurchaserPhone: source.giftCardPurchaserPhone,
     } : line));
   };
 
@@ -1800,14 +1749,8 @@ export default function AdminManualSalesSection({
                         {line.isGiftCard ? (
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
                             <button type="button" className="manual-sale-button manual-sale-button-soft" style={{ gridColumn: "1 / -1" }} onClick={() => copyGiftCardPurchaser(line)}>Copiar comprador a todas las gift cards</button>
-                            <label className="manual-sale-line-price"><span>Quien compra</span><input className="manual-sale-field" value={line.giftCardPurchaserName ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardPurchaserName: event.target.value })} /></label>
-                            <label className="manual-sale-line-price"><span>Destinatario *</span><input className="manual-sale-field" value={line.giftCardRecipientName ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardRecipientName: event.target.value })} /></label>
-                            <label className="manual-sale-line-price"><span>Email comprador</span><input type="email" className="manual-sale-field" value={line.giftCardPurchaserEmail ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardPurchaserEmail: event.target.value })} /></label>
-                            <label className="manual-sale-line-price"><span>Teléfono comprador</span><input className="manual-sale-field" value={line.giftCardPurchaserPhone ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardPurchaserPhone: event.target.value })} /></label>
-                            <label className="manual-sale-line-price"><span>Email destinatario</span><input type="email" className="manual-sale-field" value={line.giftCardRecipientEmail ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardRecipientEmail: event.target.value })} /></label>
-                            <label className="manual-sale-line-price"><span>Teléfono destinatario</span><input className="manual-sale-field" value={line.giftCardRecipientPhone ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardRecipientPhone: event.target.value })} /></label>
-                            <label className="manual-sale-line-price"><span>Vencimiento opcional</span><input type="date" className="manual-sale-field" value={line.giftCardExpiresAt ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardExpiresAt: event.target.value })} /></label>
-                            <label className="manual-sale-line-price"><span>Mensaje</span><input className="manual-sale-field" value={line.giftCardMessage ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardMessage: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Nombre comprador</span><input className="manual-sale-field" value={line.giftCardPurchaserName ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardPurchaserName: event.target.value })} /></label>
+                            <label className="manual-sale-line-price"><span>Nombre destinatario *</span><input className="manual-sale-field" value={line.giftCardRecipientName ?? ""} onChange={(event) => updateLine(line.lineId, { giftCardRecipientName: event.target.value })} /></label>
                           </div>
                         ) : null}
                       </article>
@@ -1939,16 +1882,22 @@ export default function AdminManualSalesSection({
                 </div>
 
                 <div className="manual-sale-field-group">
-                  <span>Aplicar Gift Card</span>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input className="manual-sale-field" value={giftCardCode} onChange={(event) => setGiftCardCode(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void lookupGiftCard(); } }} placeholder="Código GC-..." />
-                    <button type="button" className="manual-sale-button manual-sale-button-soft" disabled={giftCardLookupLoading} onClick={() => void lookupGiftCard()}>{giftCardLookupLoading ? "Buscando..." : "Aplicar"}</button>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <span>Gift Card</span>
+                    {normalizedGiftCardApplications.length ? (
+                      <button type="button" className="manual-sale-button-ghost" onClick={() => setAppliedGiftCards([])}>Limpiar gift card</button>
+                    ) : null}
                   </div>
+                  {!normalizedGiftCardApplications.length ? (
+                    <div style={{ border: "1px solid var(--theme-colors-border)", borderRadius: 10, padding: 12 }}>
+                      <p style={{ margin: "0 0 10px", color: "var(--theme-colors-text-muted)" }}>No hay una gift card aplicada.</p>
+                      {onOpenGiftCards ? <button type="button" className="manual-sale-button manual-sale-button-soft" onClick={onOpenGiftCards}>Buscar en Gift Cards</button> : null}
+                    </div>
+                  ) : null}
                   {normalizedGiftCardApplications.map((card) => (
                     <article key={card.id} style={{ border: "1px solid var(--theme-colors-border)", borderRadius: 10, padding: 10, marginTop: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                         <strong>•••• {card.codeLastFour} · {card.recipientName}</strong>
-                        <button type="button" className="manual-sale-icon-button" onClick={() => setAppliedGiftCards((current) => current.filter((entry) => entry.id !== card.id))}>x</button>
                       </div>
                       <small>Saldo disponible: {money(Number(card.balance))}</small>
                       <label className="manual-sale-line-price" style={{ marginTop: 8 }}><span>Importe a utilizar</span><input className="manual-sale-field" inputMode="decimal" value={appliedGiftCards.find((entry) => entry.id === card.id)?.amount ?? ""} onChange={(event) => setAppliedGiftCards((current) => current.map((entry) => entry.id === card.id ? { ...entry, amount: sanitizeCurrencyInput(event.target.value) } : entry))} /></label>

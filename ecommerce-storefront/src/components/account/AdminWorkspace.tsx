@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, getErrorMessage } from "@/lib/api";
 import { resolveAssetUrl } from "@/lib/asset-url";
 import { useAuth } from "@/context/auth-context";
@@ -236,6 +236,7 @@ function AdminManualSalesWorkspace({
   const [initialGiftCard, setInitialGiftCard] = useState<GiftCardForSale | null>(null);
   const [initialGiftCardAmount, setInitialGiftCardAmount] = useState<number | null>(null);
   const [giftCardQuickRequestKey, setGiftCardQuickRequestKey] = useState(0);
+  const giftCardQuickRequestSequenceRef = useRef(0);
   const [locations, setLocations] = useState<StoreLocation[]>([]);
   const locationPreferenceKey = `admin-selected-location:${user?.storeId ?? "store"}:${user?.id ?? "user"}`;
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(() => {
@@ -316,7 +317,8 @@ function AdminManualSalesWorkspace({
   const startGiftCardSale = (amount?: number) => {
     setInitialGiftCard(null);
     setInitialGiftCardAmount(amount ?? null);
-    setGiftCardQuickRequestKey((current) => current + 1);
+    giftCardQuickRequestSequenceRef.current += 1;
+    setGiftCardQuickRequestKey(giftCardQuickRequestSequenceRef.current);
     setActiveTab("sale");
   };
 
@@ -405,6 +407,8 @@ function AdminManualSalesWorkspace({
             initialGiftCard={initialGiftCard}
             initialGiftCardAmount={initialGiftCardAmount}
             initialGiftCardRequestKey={giftCardQuickRequestKey}
+            onOpenGiftCards={() => setActiveTab("gift-cards")}
+            onInitialGiftCardHandled={() => setInitialGiftCard(null)}
             onGiftCardRequestHandled={() => {
               setInitialGiftCardAmount(null);
               setGiftCardQuickRequestKey(0);
