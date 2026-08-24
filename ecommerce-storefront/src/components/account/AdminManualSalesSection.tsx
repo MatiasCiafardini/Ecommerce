@@ -1014,6 +1014,27 @@ export default function AdminManualSalesSection({
     );
   };
 
+  const addGiftCardCopy = (lineId: string) => {
+    setLines((current) => {
+      const sourceIndex = current.findIndex((line) => line.lineId === lineId && line.isGiftCard);
+      if (sourceIndex < 0) return current;
+
+      const source = current[sourceIndex];
+      const copy: ManualSaleLine = {
+        ...source,
+        lineId: `${source.variantId}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        quantity: 1,
+        giftCardRecipientName: "",
+      };
+
+      return [
+        ...current.slice(0, sourceIndex + 1),
+        copy,
+        ...current.slice(sourceIndex + 1),
+      ];
+    });
+  };
+
   const addQuickGiftCard = async (amount?: number | null) => {
     setError("");
     try {
@@ -1720,13 +1741,14 @@ export default function AdminManualSalesSection({
                             <strong>{line.quantity}</strong>
                             <button
                               type="button"
-                              disabled={line.isGiftCard}
                               onClick={() =>
-                                updateLine(line.lineId, {
-                                  quantity: Math.min(line.available, Number(line.quantity || 1) + 1),
-                                })
+                                line.isGiftCard
+                                  ? addGiftCardCopy(line.lineId)
+                                  : updateLine(line.lineId, {
+                                      quantity: Math.min(line.available, Number(line.quantity || 1) + 1),
+                                    })
                               }
-                              aria-label="Sumar cantidad"
+                              aria-label={line.isGiftCard ? "Agregar otra gift card" : "Sumar cantidad"}
                             >
                               +
                             </button>
@@ -1881,6 +1903,7 @@ export default function AdminManualSalesSection({
                   ) : null}
                 </div>
 
+                {normalizedGiftCardApplications.length ? (
                 <div className="manual-sale-field-group">
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                     <span>Gift Card</span>
@@ -1888,12 +1911,6 @@ export default function AdminManualSalesSection({
                       <button type="button" className="manual-sale-button-ghost" onClick={() => setAppliedGiftCards([])}>Limpiar gift card</button>
                     ) : null}
                   </div>
-                  {!normalizedGiftCardApplications.length ? (
-                    <div style={{ border: "1px solid var(--theme-colors-border)", borderRadius: 10, padding: 12 }}>
-                      <p style={{ margin: "0 0 10px", color: "var(--theme-colors-text-muted)" }}>No hay una gift card aplicada.</p>
-                      {onOpenGiftCards ? <button type="button" className="manual-sale-button manual-sale-button-soft" onClick={onOpenGiftCards}>Buscar en Gift Cards</button> : null}
-                    </div>
-                  ) : null}
                   {normalizedGiftCardApplications.map((card) => (
                     <article key={card.id} style={{ border: "1px solid var(--theme-colors-border)", borderRadius: 10, padding: 10, marginTop: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -1905,6 +1922,7 @@ export default function AdminManualSalesSection({
                     </article>
                   ))}
                 </div>
+                ) : null}
 
                 <div className="manual-sale-field-group">
                   <div className="manual-sale-payment-heading">
