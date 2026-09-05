@@ -77,6 +77,9 @@ const initialFilters: Filters = {
   withoutStockOnly: false,
 };
 
+const TROJANI_STORE_ID = 3;
+const TROJANI_RETAIL_PRICE_MULTIPLIER = 2.4;
+
 export default function AdminStockSection({ userRole, onOpenProduct }: { userRole?: string | null; onOpenProduct?: (productId: number) => void }) {
   const [workspaceTab, setWorkspaceTab] = useState<"inventory" | "analytics">(() => readUrlParam("stockTab") === "analytics" ? "analytics" : "inventory");
   const [rows, setRows] = useState<VariantRow[]>([]);
@@ -496,6 +499,7 @@ export default function AdminStockSection({ userRole, onOpenProduct }: { userRol
       ) : (
         <AnalyticsDashboard
           analytics={analytics}
+          showEstimatedCost={storeId === TROJANI_STORE_ID}
           loading={analyticsLoading}
           error={analyticsError}
           search={analyticsSearch}
@@ -645,8 +649,9 @@ const quickFilters: Array<{ value: AnalyticsQuickFilter; label: string }> = [
   { value: "no-sales-90", label: "Sin ventas recientes" },
 ];
 
-function AnalyticsDashboard({ analytics, loading, error, search, quickFilter, agingBucket, sortKey, sortDirection, chartMode, onSearch, onQuickFilter, onAgeBucket, onSort, onChartMode, onPage, onRetry, onOpenProduct }: {
+function AnalyticsDashboard({ analytics, showEstimatedCost, loading, error, search, quickFilter, agingBucket, sortKey, sortDirection, chartMode, onSearch, onQuickFilter, onAgeBucket, onSort, onChartMode, onPage, onRetry, onOpenProduct }: {
   analytics: AnalyticsPayload | null; loading: boolean; error: string; search: string; quickFilter: AnalyticsQuickFilter; agingBucket: string;
+  showEstimatedCost: boolean;
   sortKey: AnalyticsSortKey; sortDirection: SortDirection; chartMode: "products" | "value";
   onSearch: (value: string) => void; onQuickFilter: (filter: AnalyticsQuickFilter) => void; onAgeBucket: (bucket: string) => void;
   onSort: (key: AnalyticsSortKey) => void; onChartMode: (mode: "products" | "value") => void; onPage: React.Dispatch<React.SetStateAction<number>>;
@@ -657,7 +662,13 @@ function AnalyticsDashboard({ analytics, loading, error, search, quickFilter, ag
     {loading && !analytics ? <AnalyticsSkeleton /> : null}
     {analytics ? <>
       <div className={styles.summaryGrid} aria-label="Resumen general del stock">
-        <AnalyticsMetric label="Valor total del stock" value={money(analytics.summary.retailValue)} help="Suma de las unidades disponibles multiplicadas por su precio de venta actual." />
+        <AnalyticsMetric
+          label={showEstimatedCost ? "Costo total estimado" : "Valor total del stock"}
+          value={money(showEstimatedCost ? analytics.summary.retailValue / TROJANI_RETAIL_PRICE_MULTIPLIER : analytics.summary.retailValue)}
+          help={showEstimatedCost
+            ? "Estimación calculada dividiendo por 2,4 el valor de venta actual de todas las unidades disponibles."
+            : "Suma de las unidades disponibles multiplicadas por su precio de venta actual."}
+        />
         <AnalyticsMetric label="Productos con stock" value={String(analytics.summary.productsWithStock)} detail="Se cuentan productos, no variantes." />
         <AnalyticsMetric label="Productos antiguos" value={String(analytics.summary.oldProducts)} detail={`${money(analytics.summary.oldStockValue)} con más de 6 meses`} tone="warm" />
         <AnalyticsMetric label="Sin ventas recientes" value={String(analytics.summary.noSales90)} detail={`${money(analytics.summary.noRecentSalesValue)} sin vender hace 90 días`} />
