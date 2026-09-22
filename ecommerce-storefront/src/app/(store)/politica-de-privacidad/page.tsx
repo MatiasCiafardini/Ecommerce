@@ -10,7 +10,7 @@ export default async function PoliticaDePrivacidadPage() {
   const config = await getTenantConfig();
   const brandName = config.themeLayout.footer?.brandTitle || "Nuestra tienda";
   const contactEmail =
-    config.theme === "comovosyyo" ? "hola@comovosyyo.com" : "el canal de contacto publicado en el sitio";
+    "el canal de contacto publicado en el sitio";
 
   return (
     <LegalDocumentPage

@@ -102,7 +102,7 @@ function normalizeFooterColumns(
 
   return columns.map((column) => ({
     ...column,
-    links: column.links.map((link) => {
+    links: column.links.filter((link) => !link.href.trim().toLowerCase().startsWith("mailto:")).map((link) => {
       const normalizedLabel = link.label.trim().toLowerCase();
 
       if (normalizedLabel === "instagram") {
