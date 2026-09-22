@@ -1,6 +1,8 @@
 import type { ThemeBlockDefinition } from "@/types/block";
 import MilashoesHero from "@/themes/milashoes/MilashoesHero";
 import MilaShoesInstitutional from "@/themes/milashoes/MilaShoesInstitutional";
+import ComoVosYYoHero from "@/themes/comovosyyo/ComoVosYYoHero";
+import ComoVosYYoCategories from "@/themes/comovosyyo/ComoVosYYoCategories";
 
 export const blockThemeOverrides: Record<
   string,
@@ -68,8 +70,14 @@ export const blockThemeOverrides: Record<
     },
   },
   comovosyyo: {
+    category_image_strip: {
+      component: ComoVosYYoCategories,
+    },
     hero: {
-      component: MilashoesHero,
+      component: ComoVosYYoHero,
+    },
+    hero_carousel: {
+      component: ComoVosYYoHero,
     },
     milashoes_institutional: {
       component: MilaShoesInstitutional,

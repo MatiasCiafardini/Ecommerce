@@ -1,3 +1,6 @@
+@import "./spring.css";
+
+/* Legacy workspace styling is preserved; spring.css scopes public colors. */
 .theme-comovosyyo {
   --font-body: var(--font-comovosyyo, "Lato", Arial, sans-serif);
   --font-display: var(--font-comovosyyo, "Lato", Arial, sans-serif);

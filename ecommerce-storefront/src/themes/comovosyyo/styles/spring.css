@@ -1,0 +1,175 @@
+/* Values come from palette.ts via the existing theme palette/token system.
+   The attribute is absent on account and manual-sales workspaces. */
+.theme-comovosyyo[data-storefront-palette="spring"] {
+  --theme-header-bg: var(--theme-colors-accent);
+  --theme-header-border: var(--border-soft);
+  --theme-drawer-bg-start: var(--paper);
+  --theme-drawer-bg-end: var(--surface);
+  --theme-drawer-border: var(--border-soft);
+  --theme-hover-border: var(--accent);
+  --category-strip-text: var(--paper);
+  --category-strip-overlay: linear-gradient(180deg, transparent 45%, color-mix(in srgb, var(--accent-strong) 82%, transparent) 100%);
+  --theme-hover-shadow: 0 12px 28px color-mix(in srgb, var(--accent-strong) 8%, transparent);
+  background: var(--background);
+  color: var(--text-strong);
+
+  & main,
+  & .theme-block-section--featured-products,
+  & .theme-block-section--product-grid,
+  & .theme-block-section--carousel,
+  & .theme-product-card,
+  & .product-card-copy,
+  & .milashoes-institutional {
+    background: var(--paper);
+  }
+
+  & .theme-product-card {
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--accent-strong) 5%, transparent);
+  }
+
+  & .theme-product-card:hover {
+    box-shadow: var(--theme-hover-shadow);
+  }
+
+  & .theme-block-section--category-image-strip a:hover {
+    color: var(--category-strip-text);
+  }
+
+  & .product-card-media,
+  & .theme-block-section--testimonials,
+  & .theme-block-section--newsletter,
+  & .theme-newsletter-shell,
+  & .theme-footer-shell {
+    background: var(--surface) !important;
+  }
+
+  & .theme-newsletter-input {
+    background: var(--paper) !important;
+    color: var(--text-strong);
+    border-color: var(--text-muted) !important;
+  }
+
+  & .theme-newsletter-input::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+  }
+
+  & [data-announcement-ticker] {
+    background: var(--accent-strong) !important;
+    color: var(--accent-contrast) !important;
+    border-color: var(--accent-strong) !important;
+  }
+
+  & .theme-banner {
+    background: var(--surface) !important;
+    border-color: var(--border-soft) !important;
+  }
+
+  & .theme-banner,
+  & .theme-banner h2 {
+    color: var(--accent-strong) !important;
+  }
+
+  & .product-card-title,
+  & .product-card-price,
+  & .product-card-stock-label,
+  & .milashoes-faq h2,
+  & .milashoes-faq__button {
+    color: var(--text-strong) !important;
+  }
+
+  & .product-card-transfer-price,
+  & .product-card-installment-price,
+  & .product-card-kicker,
+  & .milashoes-info-card__eyebrow,
+  & .milashoes-faq__panel p {
+    color: var(--text-muted) !important;
+  }
+
+  & .theme-button,
+  & .theme-newsletter-shell button.theme-button,
+  & .cart-prompt-actions button:first-child {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: var(--text-strong) !important;
+  }
+
+  & .theme-button:hover,
+  & .theme-newsletter-shell button.theme-button:hover,
+  & .cart-prompt-actions button:hover {
+    background: var(--accent-strong) !important;
+    border-color: var(--accent-strong) !important;
+    color: var(--accent-contrast) !important;
+  }
+
+  & .layout-header-bar :is(button, a:not([aria-label="Ir al inicio"])) {
+    background: var(--paper) !important;
+    border-color: var(--border-soft) !important;
+    color: var(--text-strong) !important;
+  }
+
+  & .layout-header-bar :is(button, a:not([aria-label="Ir al inicio"])):hover {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: var(--text-strong) !important;
+  }
+
+  & .theme-footer-column a:hover,
+  & .milashoes-menu-drawer :is(a, button),
+  & .milashoes-faq__icon {
+    color: var(--accent-strong) !important;
+  }
+
+  & .theme-footer-column a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  & .milashoes-faq__button:hover,
+  & .milashoes-menu-drawer :is(a, button):hover {
+    background: var(--surface) !important;
+    color: var(--accent-strong) !important;
+  }
+
+  & .milashoes-faq__list,
+  & .milashoes-faq__item,
+  & .theme-footer-shell,
+  & .theme-footer-column[data-footer-column="contacto"] {
+    border-color: var(--border-soft) !important;
+  }
+
+  & :is(a, button, input, select, summary):focus-visible {
+    outline: 2px solid var(--accent-strong) !important;
+    outline-offset: 4px;
+  }
+
+  & .theme-editorial-panel,
+  & .theme-category-media[data-tone="soft"] {
+    background: linear-gradient(135deg, var(--surface-soft), var(--paper));
+  }
+
+  & .theme-category-media[data-tone="warm"],
+  & .cart-prompt-panel {
+    background: linear-gradient(135deg, var(--paper), var(--surface)) !important;
+    border-color: var(--border-soft) !important;
+  }
+
+  & .cart-prompt-panel p {
+    color: var(--text-strong) !important;
+  }
+
+  & .cart-prompt-panel p + p {
+    color: var(--text-muted) !important;
+  }
+
+  & .cart-prompt-actions button:last-child {
+    background: var(--paper) !important;
+    border-color: var(--border-soft) !important;
+    color: var(--text-strong) !important;
+  }
+
+  & .cart-prompt-actions button:last-child:hover {
+    background: var(--accent-strong) !important;
+    color: var(--accent-contrast) !important;
+  }
+}

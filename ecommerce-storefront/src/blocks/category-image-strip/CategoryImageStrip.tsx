@@ -85,7 +85,7 @@ export default function CategoryImageStrip({ items }: Props) {
                 overflow: "hidden",
                 textDecoration: "none",
                 lineHeight: 0,
-                color: "white",
+                color: "var(--category-strip-text, white)",
               }}
             >
               <Image
@@ -104,7 +104,7 @@ export default function CategoryImageStrip({ items }: Props) {
                   position: "absolute",
                   inset: 0,
                   background:
-                    "linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.18) 48%, rgba(0,0,0,0.32) 100%)",
+                    "var(--category-strip-overlay, linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.18) 48%, rgba(0,0,0,0.32) 100%))",
                 }}
               />
 

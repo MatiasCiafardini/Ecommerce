@@ -7,6 +7,7 @@ import type { ThemePalette } from "@/types/theme";
 import type { StorefrontThemeLayout } from "@/types/storefront-config";
 import { useAuth } from "@/context/auth-context";
 import { usePathname } from "next/navigation";
+import { storefrontPalette } from "@/themes/comovosyyo/palette";
 
 export default function ThemeProvider({
   themeName,
@@ -27,14 +28,26 @@ export default function ThemeProvider({
 
   const Header = "Header" in theme ? theme.Header : null;
   const Footer = "Footer" in theme ? theme.Footer : null;
-  const themeStyle = buildThemeStyle(theme.tokens, themePalette);
   const isAdmin = ["SUPER_ADMIN", "OWNER", "ADMIN", "STAFF"].includes(user?.role ?? "");
   const isAdminWorkspace =
     pathname === "/account" || pathname === "/manual-sales";
   const showStoreChrome = !(isAdmin && isAdminWorkspace);
+  const useSpringPalette =
+    themeName === "comovosyyo" &&
+    !["/account", "/manual-sales"].some(
+      (route) => pathname === route || pathname.startsWith(`${route}/`),
+    );
+  const themeStyle = buildThemeStyle(
+    theme.tokens,
+    useSpringPalette ? { ...themePalette, ...storefrontPalette } : themePalette,
+  );
 
   return (
-    <div className={theme.className} style={themeStyle}>
+    <div
+      className={theme.className}
+      style={themeStyle}
+      data-storefront-palette={useSpringPalette ? "spring" : undefined}
+    >
       {themeName === "mimaria" ? (
         <style jsx global>{`
           html,
