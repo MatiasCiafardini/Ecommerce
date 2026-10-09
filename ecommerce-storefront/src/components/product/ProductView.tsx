@@ -580,6 +580,8 @@ export default function ProductView({
                   src={image}
                   title={product.title}
                   layout={productImages[selectedImageIndex] ?? productImages[0]}
+                  images={productImages}
+                  initialIndex={selectedImageIndex}
                 />
               ) : (
                 <div
