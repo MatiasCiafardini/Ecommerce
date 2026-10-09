@@ -1,5 +1,8 @@
 "use client";
 
+import InstallmentsLabel from "./InstallmentsLabel";
+import ProductZoomImage from "./ProductZoomImage";
+
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -362,13 +365,7 @@ export default function ProductView({
             ),
           )
       : null;
-  const showInstallments = storeId !== 3 && storeId !== 7;
-  const installmentPrice =
-    showInstallments && currentFinalPrice > 0
-      ? pricingPolicy.labelPriceRounding
-        ? roundToNearestHundred(currentFinalPrice / 3)
-        : roundCurrency(currentFinalPrice / 3)
-      : null;
+
 
   const hasStock = inStockVariants.length > 0;
   const selectedVariantStock = selectedVariant
@@ -578,20 +575,11 @@ export default function ProductView({
               }}
             >
               {image ? (
-                <Image
+                <ProductZoomImage
+                  key={image}
                   src={image}
-                  alt={product.title}
-                  fill
-                  sizes="(max-width: 900px) 100vw, 56vw"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    display: "block",
-                    ...getProductImageTransform(
-                      productImages[selectedImageIndex] ?? productImages[0],
-                    ),
-                    background: "#ffffff",
-                  }}
+                  title={product.title}
+                  layout={productImages[selectedImageIndex] ?? productImages[0]}
                 />
               ) : (
                 <div
@@ -1056,18 +1044,7 @@ export default function ProductView({
                     {formatCurrency(transferPrice)} con transferencia
                   </p>
                 ) : null}
-                {installmentPrice !== null ? (
-                  <p
-                    style={{
-                      margin: 0,
-                      color: "var(--text-muted)",
-                      fontSize: 16,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    3 cuotas sin interes de {formatCurrency(installmentPrice)}
-                  </p>
-                ) : null}
+                <InstallmentsLabel price={currentFinalPrice} excluded={isGiftCard} detail />
               </div>
               {selectedVariant && remainingUnits === 0 ? (
                 <p

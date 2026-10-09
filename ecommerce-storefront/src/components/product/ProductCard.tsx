@@ -1,3 +1,4 @@
+import InstallmentsLabel from "./InstallmentsLabel";
 import Image from "next/image";
 import Link from "next/link";
 import { StoreProduct } from "@/types/store";
@@ -60,13 +61,7 @@ export default function ProductCard({
             ),
           )
       : null;
-  const showInstallments = storeId !== 3 && storeId !== 7;
-  const installmentPrice =
-    showInstallments && displayPrice > 0
-      ? pricingPolicy.labelPriceRounding
-        ? roundToNearestHundred(displayPrice / 3)
-        : roundCurrency(displayPrice / 3)
-      : null;
+
 
   return (
     <Link
@@ -303,20 +298,7 @@ export default function ProductCard({
                 {formatCurrency(transferPrice)} con transferencia
               </p>
             ) : null}
-            {installmentPrice !== null ? (
-              <p
-                className="product-card-installment-price"
-                style={{
-                  margin: 0,
-                  color: "var(--text-muted)",
-                  fontSize: 10,
-                  lineHeight: 1.3,
-                  fontWeight: 400,
-                }}
-              >
-                3 cuotas sin interes de {formatCurrency(installmentPrice)}
-              </p>
-            ) : null}
+            <InstallmentsLabel price={displayPrice} excluded={isGiftCard} />
           </div>
         ) : (
           <p

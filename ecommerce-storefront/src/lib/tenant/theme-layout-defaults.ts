@@ -264,7 +264,7 @@ const themeLayoutDefaults: Record<string, StorefrontThemeLayout> = {
     header: {
       brandLabel: "Como Vos y Yo",
       announcementText:
-        "ENVIO GRATIS A PARTIR DE $100.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES",
+        "ENVIO GRATIS A PARTIR DE $160.000 / 10% OFF EN TRANSFERENCIA / NUEVAS COLECCIONES",
       primaryLinks: [
         { href: "/product", label: "Coleccion" },
         { href: "/category/remeras", label: "Remeras" },

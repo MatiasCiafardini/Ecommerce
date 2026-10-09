@@ -1,5 +1,6 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
@@ -60,14 +61,37 @@ export class MercadoPagoProvider {
       where: { id: storeId },
       select: {
         mercadoPagoPublicKey: true,
+        mercadoPagoAccessToken: true,
+        storefrontConfig: true,
       },
     });
     const publicKey = store?.mercadoPagoPublicKey?.trim() ?? '';
 
     return {
-      enabled: Boolean(publicKey),
+      enabled: Boolean(publicKey && store?.mercadoPagoAccessToken?.trim()),
       publicKey: publicKey || null,
+      interestFreeInstallments: await this.getInstallmentsConfig(storeId),
     };
+  }
+
+  async getInstallmentsConfig(storeId: number) {
+    const store = await this.prisma.store.findUnique({ where: { id: storeId }, select: { storefrontConfig: true } });
+    const config = store?.storefrontConfig as Prisma.JsonObject | null;
+    const setting = config?.interestFreeInstallments as Prisma.JsonObject | undefined;
+    const minimumAmount = Number(setting?.minimumAmount);
+    return { enabled: setting?.enabled === true, count: typeof setting?.count === 'number' && [2, 3, 6].includes(setting.count) ? setting.count : 3, minimumAmount: Number.isFinite(minimumAmount) ? Math.max(0, minimumAmount) : 0 };
+  }
+
+  async updateInstallmentsConfig(storeId: number, input: { enabled: boolean; count: number; minimumAmount: number }) {
+    if (typeof input.enabled !== 'boolean' || ![2, 3, 6].includes(input.count) || !Number.isFinite(input.minimumAmount) || input.minimumAmount < 0) {
+      throw new BadRequestException('Indica 2, 3 o 6 cuotas y un monto mínimo válido.');
+    }
+    const store = await this.prisma.store.findUnique({ where: { id: storeId }, select: { storefrontConfig: true, mercadoPagoPublicKey: true, mercadoPagoAccessToken: true } });
+    if (input.enabled && (!store?.mercadoPagoPublicKey?.trim() || !store?.mercadoPagoAccessToken?.trim())) {
+      throw new BadRequestException('Configura Mercado Pago antes de anunciar cuotas sin interés.');
+    }
+    await this.prisma.store.update({ where: { id: storeId }, data: { storefrontConfig: { ...(store?.storefrontConfig as Prisma.JsonObject ?? {}), interestFreeInstallments: { enabled: input.enabled, count: input.count, minimumAmount: input.minimumAmount } } } });
+    return this.getInstallmentsConfig(storeId);
   }
 
   async getAdminConfig(storeId: number) {

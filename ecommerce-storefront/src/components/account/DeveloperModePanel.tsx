@@ -1,5 +1,7 @@
 "use client";
 
+import AdminInstallmentsCard from "./AdminInstallmentsCard";
+
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -2502,6 +2504,8 @@ export default function DeveloperModePanel({
                       Desde aca administras Mercado Pago por tienda y la configuracion operativa de Correo Argentino.
                     </p>
                   </div>
+
+                  <AdminInstallmentsCard />
 
                   <div style={{ display: "grid", gap: 18 }}>
                     <div style={integrationInfoCardStyle}>

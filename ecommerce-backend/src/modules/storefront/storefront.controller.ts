@@ -75,6 +75,18 @@ export class StorefrontController {
   }
 
   @UseGuards(AdminAuthGuard)
+  @Get('admin/integrations/installments')
+  getInstallments(@Req() req) {
+    return this.storefrontService.getInstallmentsConfig(req.storeId);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Put('admin/integrations/installments')
+  updateInstallments(@Req() req, @Body() body: { enabled: boolean; count: number; minimumAmount: number }) {
+    return this.storefrontService.updateInstallmentsConfig(req.storeId, body);
+  }
+
+  @UseGuards(AdminAuthGuard)
   @Put('admin/integrations/mercadopago')
   updateAdminMercadoPagoIntegration(
     @Req() req,

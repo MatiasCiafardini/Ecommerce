@@ -280,6 +280,14 @@ export class StorefrontService {
     return this.mercadoPagoProvider.testConfiguration(storeId);
   }
 
+  getInstallmentsConfig(storeId: number) {
+    return this.mercadoPagoProvider.getInstallmentsConfig(storeId);
+  }
+
+  updateInstallmentsConfig(storeId: number, input: { enabled: boolean; count: number; minimumAmount: number }) {
+    return this.mercadoPagoProvider.updateInstallmentsConfig(storeId, input);
+  }
+
   async updateAdminBankTransferConfig(
     storeId: number,
     input: {
