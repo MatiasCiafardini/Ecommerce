@@ -1,4 +1,5 @@
 "use client";
+import {trackPurchaseError} from '@/lib/store-analytics';
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -62,6 +63,7 @@ export default function RegisterPage() {
 
       router.push("/login");
     } catch (error: unknown) {
+      trackPurchaseError('access');
       setError(getErrorMessage(error));
     } finally {
       setLoading(false);

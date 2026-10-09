@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { WebhooksModule } from '../webhooks/webhooks.module'; // 👈 AGREGAR
 
@@ -11,6 +12,7 @@ import { OutboxProcessor } from './processors/outbox.processor';
 @Module({
   imports: [
     PrismaModule,
+    AnalyticsModule,
     WebhooksModule, // 👈 AGREGAR
 
     BullModule.registerQueue(

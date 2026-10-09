@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
 
 class CheckoutAddressSnapshotDto {
   @ApiProperty()
@@ -76,6 +76,9 @@ class CheckoutShippingSelectionDto {
 }
 
 export class CheckoutDto {
+  @IsOptional() @IsUUID('4') analyticsSessionId?: string;
+  @IsOptional() @IsUUID('4') analyticsToken?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

@@ -127,6 +127,7 @@ export type AdminCancellationRequest = {
 
 export type AdminSection =
   | "admin-overview"
+  | "admin-conversion"
   | "admin-developer"
   | "admin-accounting"
   | "admin-manual-sales"

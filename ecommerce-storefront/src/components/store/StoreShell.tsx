@@ -1,5 +1,6 @@
 "use client";
 
+import StoreAnalytics from './StoreAnalytics';
 import { useAuth } from "@/context/auth-context";
 import { usePathname } from "next/navigation";
 
@@ -20,7 +21,8 @@ export default function StoreShell({
 
   return (
     <div data-store-shell style={{ minHeight: "100vh" }}>
-      <main data-store-content>{children}</main>
+      <StoreAnalytics />
+      <main data-store-content data-clarity-mask={/^\/(account|manual-sales|checkout|login|register)(\/|$)/.test(pathname) ? "true" : undefined}>{children}</main>
       {showWhatsApp && whatsappConfig ? (
         <WhatsAppFloatingButton {...whatsappConfig} />
       ) : null}

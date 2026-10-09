@@ -1,4 +1,5 @@
 "use client";
+import AdminConversionSection from './AdminConversionSection';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, getErrorMessage } from "@/lib/api";
@@ -187,6 +188,7 @@ export default function AdminWorkspace({
   user,
   onSectionChange,
 }: Props) {
+  if (section === 'admin-conversion') return ['OWNER','ADMIN','SUPER_ADMIN'].includes(user.role??'')?<AdminConversionSection/>:<div role="alert">No ten?s acceso a las m?tricas.</div>;
   if (section === "admin-developer")
     return (
       <AdminDeveloperSection

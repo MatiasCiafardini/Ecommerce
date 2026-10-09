@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 
+import { checkoutAttribution } from '../analytics/analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { InventoryLockService } from '../inventory-lock/inventory-lock.service';
@@ -195,7 +196,8 @@ export class CheckoutService {
     const cashPayment = this.isCashPaymentMethod(paymentMethod);
     const reservationExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-    return this.prisma.$transaction(async (tx) => {
+    const attribution = await checkoutAttribution(this.prisma, storeId, dto.analyticsSessionId, dto.analyticsToken);
+    const createdOrder = await this.prisma.$transaction(async (tx) => {
       for (const item of cart.items) {
         await this.inventoryLockService.reserveStockTx(
           tx,
@@ -288,6 +290,7 @@ export class CheckoutService {
             paymentMethod: paymentMethod ?? null,
             reservationExpiresAt: reservationExpiresAt.toISOString(),
             hasCustomerNotes: Boolean(customerNotes?.trim()),
+            ...attribution,
           },
         },
       });
@@ -385,6 +388,10 @@ export class CheckoutService {
 
       return order;
     });
+    if(attribution) {
+      try { await this.prisma.outboxEvent.create({data:{storeId,event:'analytics.conversion',payload:{orderId:createdOrder.id}}}); } catch { /* Reconciliation recovers persisted attribution. */ }
+    }
+    return createdOrder;
   }
 
   private async ensureCustomer(storeId: number, customerId: number) {

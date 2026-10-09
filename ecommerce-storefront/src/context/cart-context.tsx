@@ -1,5 +1,6 @@
 "use client";
 
+import { trackAnalytics, trackPurchaseError } from '@/lib/store-analytics';
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   getScopedStorageItem,
@@ -94,6 +95,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     const requestedQuantity = currentQuantity + amount;
 
     if (safeMax <= 0) {
+      trackPurchaseError('stock');
       return {
         ok: false,
         quantity: currentQuantity,
@@ -103,6 +105,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     if (requestedQuantity > safeMax) {
+      trackPurchaseError('stock');
       return {
         ok: false,
         quantity: currentQuantity,
@@ -114,6 +117,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       };
     }
 
+    trackAnalytics('add_to_cart',{productId:Number(item.productId),quantity:amount,amount:item.price*amount});
     setCart((prev) => {
       const existingItem = prev.find((i) => i.variantId === item.variantId);
 
@@ -156,6 +160,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     const safeMax = Math.max(existing.maxAvailable ?? 0, 0);
 
     if (safeMax <= 0) {
+      trackPurchaseError('stock');
       return {
         ok: false,
         quantity: existing.quantity,

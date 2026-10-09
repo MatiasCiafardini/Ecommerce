@@ -8,6 +8,7 @@ datasource db {
 }
 
 model Store {
+  analyticsSessions AnalyticsSession[]
   id                             Int                           @id @default(autoincrement())
   name                           String
   domain                         String                        @unique
@@ -306,6 +307,7 @@ model CatalogAuditLog {
 }
 
 model Order {
+  analyticsAttribution AnalyticsOrder?
   id                          Int                          @id @default(autoincrement())
   storeId                     Int
   storeLocationId             Int?
@@ -1309,4 +1311,51 @@ enum DiscountScope {
   variant
   option_value
   option
+}
+
+model AnalyticsSession {
+  storeId Int
+  id String @db.Uuid
+  tokenHash String
+  startedAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  device String
+  source String
+  medium String?
+  campaign String?
+  referrer String?
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  events AnalyticsEvent[]
+  orders AnalyticsOrder[]
+  @@id([storeId, id])
+  @@index([storeId, startedAt])
+}
+model AnalyticsEvent {
+  storeId Int
+  id String @db.Uuid
+  sessionId String @db.Uuid
+  type String
+  occurredAt DateTime
+  receivedAt DateTime @default(now())
+  path String @default("/")
+  productId Int?
+  quantity Int?
+  amount Decimal? @db.Decimal(12, 2)
+  category String?
+  session AnalyticsSession @relation(fields: [storeId, sessionId], references: [storeId, id], onDelete: Cascade)
+  @@id([storeId, id])
+  @@index([storeId, sessionId, occurredAt])
+  @@index([storeId, type, receivedAt])
+}
+model AnalyticsOrder {
+  storeId Int
+  orderId Int @unique
+  sessionId String @db.Uuid
+  createdAt DateTime
+  paidAt DateTime?
+  amount Decimal @db.Decimal(12, 2)
+  session AnalyticsSession @relation(fields: [storeId, sessionId], references: [storeId, id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@id([storeId, orderId])
+  @@index([storeId, sessionId])
 }

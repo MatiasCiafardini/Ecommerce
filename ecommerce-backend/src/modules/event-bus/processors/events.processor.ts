@@ -1,17 +1,19 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { AnalyticsService } from '../../analytics/analytics.service';
 import { Job } from 'bullmq';
 import { DomainEvent } from '../types/domain-event.type';
 import { WebhooksService } from '../../webhooks/services/webhooks/webhooks.service';
 
 @Processor('events')
 export class EventsProcessor extends WorkerHost {
-  constructor(private readonly webhooksService: WebhooksService) {
+  constructor(private readonly webhooksService: WebhooksService, private readonly analytics: AnalyticsService) {
     super();
   }
 
   async process(job: Job<DomainEvent>) {
     const { event, payload, storeId } = job.data;
 
+    if(event === 'analytics.conversion') { await this.analytics.conversion(storeId, Number((payload as any).orderId)); return; }
     switch (event) {
       case 'order.created':
         console.log('Order created event', payload);

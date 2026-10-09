@@ -7,6 +7,8 @@ import { useBusyCursor } from "@/lib/use-busy-cursor";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { getClientStoreId } from '@/lib/tenant/store-context';
+import { trackAnalytics,trackPurchaseError } from '@/lib/store-analytics';
 import CheckoutLayout from "@/components/checkout/CheckoutLayout";
 import CheckoutDelivery from "@/components/checkout/CheckoutDelivery";
 import CheckoutAddress from "@/components/checkout/CheckoutAddress";
@@ -59,7 +61,7 @@ type CheckoutSetupError = {
 };
 
 export default function CheckoutPage() {
-  const { cart } = useCart();
+  const { cart, isHydrated } = useCart();
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -88,10 +90,13 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!loading && !user) {
+      trackAnalytics('auth_required');
+      try{sessionStorage.setItem(`analytics-checkout-auth:${getClientStoreId()}`,'1');}catch{}
       router.push("/login?redirect=/checkout");
     }
   }, [user, loading, router]);
 
+  useEffect(()=>{if(!loading&&user&&isHydrated&&cart.length){try{if(sessionStorage.getItem(`analytics-checkout-auth:${getClientStoreId()}`)){trackAnalytics('auth_completed');sessionStorage.removeItem(`analytics-checkout-auth:${getClientStoreId()}`);}}catch{} trackAnalytics('checkout_ready');}},[loading,user?.id,isHydrated,cart.length]);
   const resolveSetupError = (error: unknown): CheckoutSetupError => {
     const fallback = {
       title: "No pudimos preparar el checkout",
@@ -170,8 +175,10 @@ export default function CheckoutPage() {
       setCartId(serverCartId);
       setSelectedAddress(address);
       setShippingOptions(Array.isArray(options) ? options : []);
+      trackAnalytics('delivery_completed');
       setStep(3);
     } catch (error) {
+      trackPurchaseError(error instanceof Error && /stock|inventario/i.test(error.message)?'stock':'delivery');
       setSetupError(resolveSetupError(error));
     } finally {
       setSyncing(false);
@@ -207,8 +214,10 @@ export default function CheckoutPage() {
       setShippingOptions([shippingOption]);
       setShippingOption(shippingOption);
       setPaymentSelection(null);
+      trackAnalytics('delivery_completed');
       setStep(3);
     } catch (error) {
+      trackPurchaseError(error instanceof Error && /stock|inventario/i.test(error.message)?'stock':'delivery');
       setSetupError(resolveSetupError(error));
     } finally {
       setSyncing(false);
@@ -478,6 +487,8 @@ export default function CheckoutPage() {
           onNext={({ paymentMethod, paymentLabel, shippingOption }) => {
             setPaymentSelection({ paymentMethod, paymentLabel });
             setShippingOption(shippingOption);
+            trackAnalytics('payment_selected');
+            trackAnalytics('review_reached');
             setStep(4);
           }}
         />

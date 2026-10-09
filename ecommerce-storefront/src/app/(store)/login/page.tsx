@@ -1,4 +1,5 @@
 "use client";
+import {trackPurchaseError} from '@/lib/store-analytics';
 
 import { type FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -60,6 +61,7 @@ function LoginPageInner() {
       });
       redirectAfterLogin(user.role);
     } catch (error) {
+      trackPurchaseError('access');
       unlockAuthUi();
       setError(
         error instanceof Error && error.message.includes("Invalid credentials")

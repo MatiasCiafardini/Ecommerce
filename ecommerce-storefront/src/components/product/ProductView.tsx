@@ -1,6 +1,7 @@
 "use client";
 
 import InstallmentsLabel from "./InstallmentsLabel";
+import { trackAnalytics } from '@/lib/store-analytics';
 import ProductZoomImage from "./ProductZoomImage";
 
 import Image from "next/image";
@@ -162,6 +163,7 @@ export default function ProductView({
   const { user } = useAuth();
   const { addToCart, cart } = useCart();
   const router = useRouter();
+  useEffect(()=>{trackAnalytics('product_view',{productId:product.id});},[product.id]);
   const productImages = useMemo(() => product.images ?? [], [product.images]);
   const variants = useMemo<StoreVariant[]>(
     () => product.variants ?? [],

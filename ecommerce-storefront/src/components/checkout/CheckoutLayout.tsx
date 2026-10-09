@@ -1,4 +1,5 @@
 "use client";
+import {trackPurchaseError} from '@/lib/store-analytics';
 
 import { useEffect, useRef } from "react";
 
@@ -41,7 +42,7 @@ export default function CheckoutLayout({
   }, [step]);
 
   return (
-    <main
+    <main onInvalidCapture={()=>trackPurchaseError('validation')}
       className="checkout-shell"
       style={{
         minHeight: "calc(100vh - 180px)",

@@ -54,6 +54,7 @@ const ADMIN_LABELS_RESET_EVENT = "admin-labels:reset";
 const ADMIN_LABELS_STORAGE_KEY = "labels-wizard-state-v5";
 
 const adminSections: NavigationItem[] = [
+  { id: 'admin-conversion', label: 'Conversi?n y abandonos', description: 'Recorrido de compra', icon: 'dashboard' },
   { id: "admin-overview", label: "Dashboard", description: "Estado general", icon: "dashboard" },
   { id: "admin-manual-sales", label: "Venta manual", description: "Mostrador y cuentas", icon: "sales" },
   { id: "admin-products", label: "Productos", description: "Catalogo y altas", icon: "products" },
@@ -184,6 +185,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
   const useAdminSidebar = Boolean(isAdmin && showSidebar);
   const adminSidebarWidth = shouldCollapseSidebar ? 56 : 180;
   const adminNavigationSections = adminSections
+    .filter(item=>item.id!=="admin-conversion"||["OWNER","ADMIN","SUPER_ADMIN"].includes(user.role??""))
     .map((item) =>
       item.id === "admin-orders"
         ? { ...item, badgeCount: pendingOrdersCount }
@@ -192,6 +194,7 @@ export default function AccountWorkspace({ user, section, onSectionChange }: Pro
         : item,
     );
   const mobileAdminNavigationItems = ([
+    ...(['OWNER','ADMIN','SUPER_ADMIN'].includes(user.role??'')?[{id:'admin-conversion' as const,label:'Conversi?n',shortLabel:'Conversi?n',icon:'dashboard'}]:[]),
     { id: "admin-overview", label: "Dashboard", shortLabel: "Dashb.", icon: "dashboard" },
     { id: "admin-manual-sales", label: "Venta manual", shortLabel: "Ventas", icon: "sales" },
     { id: "admin-orders", label: "Historial", shortLabel: "Hist.", icon: "history", badgeCount: pendingOrdersCount },
@@ -793,6 +796,7 @@ function renderSection(
       return <AddressSection user={user} />;
     case "payments":
       return <PaymentSection />;
+    case "admin-conversion":
     case "admin-overview":
     case "admin-accounting":
     case "admin-manual-sales":

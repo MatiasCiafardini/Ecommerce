@@ -758,6 +758,9 @@ export class PaymentsService {
         !order.shipment && this.requiresShipmentOnPaymentApproval(order);
     });
 
+    if (orderStoreId) {
+      try { await this.prisma.outboxEvent.create({data:{storeId:orderStoreId,event:'analytics.conversion',payload:{orderId}}}); } catch { /* Analytics must not prevent an approved payment. */ }
+    }
     if (shouldProvisionShipment && orderStoreId) {
       try {
         await this.shipmentService.createOrderShipment(orderStoreId, orderId);

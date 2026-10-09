@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { trackAnalytics } from '@/lib/store-analytics';
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCart } from "@/context/cart-context";
 import { api } from "@/lib/api";
@@ -45,6 +46,8 @@ export default function CartPage() {
 
 function CartPageInner() {
   const { cart, isHydrated, updateQuantity, removeFromCart, clearCart, replaceCart } = useCart();
+  const cartTracked=useRef(false);
+  useEffect(()=>{if(isHydrated&&cart.length&&!cartTracked.current){cartTracked.current=true;trackAnalytics('cart_view');}},[isHydrated,cart.length]);
   const searchParams = useSearchParams();
   const [cartError, setCartError] = useState("");
   const [stockSyncMessage, setStockSyncMessage] = useState("");
@@ -713,6 +716,7 @@ function CartPageInner() {
 
           <Link
             href="/checkout"
+            onClick={()=>trackAnalytics("checkout_intent")}
             style={{
               display: "inline-flex",
               justifyContent: "center",

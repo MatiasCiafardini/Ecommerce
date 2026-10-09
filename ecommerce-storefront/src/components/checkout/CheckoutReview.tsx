@@ -1,4 +1,6 @@
 "use client";
+import { analyticsContext,flushAnalytics,trackAnalytics,trackPurchaseError } from '@/lib/store-analytics';
+
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
@@ -509,6 +511,7 @@ export default function CheckoutReview({
           : "Se aplico una promocion automatica a tu compra.",
       );
     } catch (error) {
+      trackPurchaseError('validation');
       if (code?.trim()) {
         try {
           const fallbackResponse = await api("/discounts/preview", {
@@ -563,9 +566,12 @@ export default function CheckoutReview({
   };
 
   const createOrderFromCheckout = async () => {
+    trackAnalytics('order_attempt');
+    await flushAnalytics(1200);
     const order = await api(`/store/checkout/${cartId}`, {
       method: "POST",
       body: JSON.stringify({
+        ...analyticsContext(),
         shippingQuoteId: shippingOption?.quoteId,
         shippingProvider: shippingOption?.provider,
         shippingMethod: shippingOption?.method,
@@ -595,7 +601,7 @@ export default function CheckoutReview({
         customerNotes: customerNotes?.trim() || undefined,
         idempotencyKey: crypto.randomUUID(),
       }),
-    });
+    }).catch((error:Error)=>{(error as Error&{analyticsCategory:string}).analyticsCategory='order';throw error;});
 
     setCreatedOrderId(order.id);
     return order as { id: number };
@@ -791,6 +797,7 @@ export default function CheckoutReview({
 
       await loadCompletedOrder(order.id);
     } catch (error) {
+      trackPurchaseError((error as {analyticsCategory?:'order'})?.analyticsCategory??(error instanceof Error && /stock|inventario/i.test(error.message)?'stock':'payment'));
       setCheckoutError(resolveCheckoutError(error));
       throw error;
     } finally {
@@ -830,6 +837,7 @@ export default function CheckoutReview({
         try {
           await uploadBankTransferProof(order.id, formData);
         } catch (error) {
+      trackPurchaseError((error as {analyticsCategory?:'order'})?.analyticsCategory??(error instanceof Error && /stock|inventario/i.test(error.message)?'stock':'payment'));
           const message = error instanceof Error ? error.message.toLowerCase() : "";
           const shouldTryJsonFallback =
             message.includes("demoro demasiado") ||
@@ -862,6 +870,7 @@ export default function CheckoutReview({
         return;
       }
     } catch (error) {
+      trackPurchaseError((error as {analyticsCategory?:'order'})?.analyticsCategory??(error instanceof Error && /stock|inventario/i.test(error.message)?'stock':'payment'));
       setCheckoutError(resolveCheckoutError(error));
     } finally {
       setLoading(false);
@@ -1191,12 +1200,13 @@ export default function CheckoutReview({
                   payerEmail={user?.email}
                   disabled={loading}
                   onProcessingChange={setLoading}
-                  onError={(message) =>
+                  onError={(message) => {
+                    trackPurchaseError('payment');
                     setCheckoutError({
                       title: "No pudimos procesar el pago con tarjeta",
                       message,
-                    })
-                  }
+                    });
+                  }}
                   onSubmit={handleMercadoPagoPayment}
                 />
               </div>

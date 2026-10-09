@@ -1,4 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Cron } from '@nestjs/schedule';
 import { Job } from 'bullmq';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -14,6 +15,17 @@ export class OutboxProcessor extends WorkerHost {
     private readonly eventsQueue: Queue,
   ) {
     super();
+  }
+
+  @Cron('*/10 * * * * *')
+  async flushAnalytics() {
+    try {
+      const pending=await this.prisma.outboxEvent.findMany({where:{processed:false,event:'analytics.conversion'},take:100,orderBy:{createdAt:'asc'}});
+      for(const item of pending) {
+        await this.eventsQueue.add(item.event,{event:item.event,payload:item.payload,storeId:item.storeId},{jobId:`analytics-${item.id}`,attempts:5,backoff:{type:'exponential',delay:1000},removeOnComplete:1000,removeOnFail:1000});
+        await this.prisma.outboxEvent.update({where:{id:item.id},data:{processed:true,processedAt:new Date()}});
+      }
+    } catch { /* Leave events available for the next retry. */ }
   }
 
   async process(job: Job) {

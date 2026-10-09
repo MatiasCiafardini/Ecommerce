@@ -19,6 +19,10 @@ export default async function PoliticaDePrivacidadPage() {
       updatedAt="30 de junio de 2026"
       intro={`En ${brandName} cuidamos la informacion personal de nuestros clientes y usuarios. Esta politica explica que datos podemos tratar, para que los usamos y como protegemos la informacion asociada a la experiencia de compra y administracion de catalogo.`}
       sections={[
+        {title:"M?tricas de navegaci?n y grabaciones opcionales",paragraphs:[
+          "Medimos visitas e interacciones con productos, carrito y pasos de compra mediante identificadores aleatorios de sesi?n. Registramos dispositivo, origen y categor?as de errores para mejorar la experiencia. Estas m?tricas no incluyen nombres, emails, tel?fonos, direcciones ni datos de tarjetas. Conservamos el detalle durante 180 d?as.",
+          "Si esta tienda configura Microsoft Clarity, las grabaciones de interacci?n se activan ?nicamente cuando las acept?s. Ocultamos el contenido de formularios, contacto y pagos. Pod?s activar o retirar esa aceptaci?n con el control de grabaciones del sitio. Al retirar la aceptaci?n la p?gina se recarga y deja de cargar Clarity.",
+        ]},
         {
           title: "Informacion que recopilamos",
           paragraphs: [
