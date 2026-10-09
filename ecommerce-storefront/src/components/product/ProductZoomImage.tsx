@@ -21,6 +21,7 @@ export default function ProductZoomImage({ src, title, layout, images = [], init
   const origin = useRef<HTMLDivElement>(null);
   const previewStart = useRef<Point | null>(null);
   const previewDragged = useRef(false);
+  const previewPointer = useRef("touch");
   const pointers = useRef(new Map<number, Point>());
   const gesture = useRef<{ points: Point[]; view: View } | null>(null);
   const tap = useRef<{ time: number; point: Point } | null>(null);
@@ -112,11 +113,34 @@ export default function ProductZoomImage({ src, title, layout, images = [], init
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
+    const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousWidth = document.body.style.width;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    const scrollY = window.scrollY;
     const modal = dialog.current;
     const button = trigger.current;
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    document.documentElement.style.overflow = "hidden";
     modal?.showModal();
-    return () => { document.body.style.overflow = previousOverflow; modal?.close(); button?.focus({ preventScroll: true }); };
+    // Safari can still scroll the page behind a modal when only overflow is set.
+    const element = viewport.current;
+    const preventNativeGesture = (event: TouchEvent) => { if (event.cancelable) event.preventDefault(); };
+    element?.addEventListener("touchmove", preventNativeGesture, { passive: false });
+    return () => {
+      element?.removeEventListener("touchmove", preventNativeGesture);
+      document.body.style.overflow = previousOverflow;
+      document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.width = previousWidth;
+      document.documentElement.style.overflow = previousRootOverflow;
+      modal?.close();
+      window.scrollTo({ top: scrollY, behavior: "instant" });
+      button?.focus({ preventScroll: true });
+    };
   }, [open]);
   useEffect(() => {
     if (!open) return;
@@ -129,7 +153,7 @@ export default function ProductZoomImage({ src, title, layout, images = [], init
   return <>
     <button ref={trigger} type="button" aria-label={`Ver detalle de ${title}`} aria-haspopup="dialog"
       onPointerLeave={() => setPreviewZoom(false)}
-      onPointerDown={event => { previewStart.current = { x: event.clientX, y: event.clientY }; previewDragged.current = false; }}
+      onPointerDown={event => { previewPointer.current = event.pointerType; previewStart.current = { x: event.clientX, y: event.clientY }; previewDragged.current = false; }}
       onPointerMove={event => {
         if (previewStart.current && Math.hypot(event.clientX - previewStart.current.x, event.clientY - previewStart.current.y) > 12) previewDragged.current = true;
         if (event.pointerType !== "mouse") return;
@@ -140,10 +164,12 @@ export default function ProductZoomImage({ src, title, layout, images = [], init
       onClick={event => {
         if (event.detail !== 0 && previewDragged.current) return;
         previewStart.current = null;
-        if (event.detail === 0 || (event.nativeEvent as PointerEvent).pointerType !== "mouse") show();
+        // Touch-generated click events may be reported as mouse clicks by a browser.
+        const desktopMouse = previewPointer.current === "mouse" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+        if (event.detail === 0 || !desktopMouse) show();
         else setPreviewZoom(value => !value);
       }}
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, padding: 0, background: "#fff", cursor: previewZoom ? "zoom-out" : "zoom-in", overflow: "hidden" }}>
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, padding: 0, background: "#fff", cursor: previewZoom ? "zoom-out" : "zoom-in", overflow: "hidden", touchAction: "manipulation" }}>
       <div className="product-zoom-preview" ref={origin} style={{ position: "absolute", inset: 0, transform: previewZoom ? "scale(2.2)" : "scale(1)", transition: "transform 180ms ease-out" }}>
         <Image src={src} alt={title} fill sizes="(max-width: 900px) 150vw, 100vw" style={{ ...getProductImageTransform(layout), background: "#fff" }} />
       </div>
@@ -159,7 +185,7 @@ export default function ProductZoomImage({ src, title, layout, images = [], init
         if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); if (current.current.scale === 1) changePhoto(index + (event.key === "ArrowRight" ? 1 : -1)); else update({ ...current.current, x: current.current.x + (event.key === "ArrowRight" ? -50 : 50) }); }
         if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); update({ ...current.current, y: current.current.y + (event.key === "ArrowDown" ? -50 : 50) }); }
       }}
-      style={{ position: "fixed", inset: 0, margin: "auto", padding: 0, width: "100vw", height: "100dvh", maxWidth: "100vw", maxHeight: "100dvh", border: 0, background: "#f5f1ea", color: "#1a1a1a", overflow: "hidden" }}>
+      style={{ position: "fixed", inset: 0, margin: "auto", padding: 0, width: "100vw", height: "100dvh", maxWidth: "100vw", maxHeight: "100dvh", border: 0, background: "#f5f1ea", color: "#1a1a1a", overflow: "hidden", overscrollBehavior: "none", touchAction: "none" }}>
       {open ? <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 16px", flexShrink: 0, background: "#fff", borderBottom: "1px solid #e6e6e6" }}>
           <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
