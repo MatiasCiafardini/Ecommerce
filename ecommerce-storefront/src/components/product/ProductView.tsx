@@ -580,7 +580,7 @@ export default function ProductView({
                   src={image}
                   title={product.title}
                   layout={productImages[selectedImageIndex] ?? productImages[0]}
-                  images={productImages}
+                  images={productImages.map(photo => ({ ...photo, url: resolveAssetUrl(photo.url) ?? photo.url }))}
                   initialIndex={selectedImageIndex}
                 />
               ) : (
